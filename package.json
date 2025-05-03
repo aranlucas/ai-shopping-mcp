@@ -1,0 +1,36 @@
+{
+  "name": "qfc-mcp",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "dev": "ts-node src/server.ts",
+    "test": "jest",
+    "lint": "biome check --fix",
+    "generate:cart": "npx openapi-typescript kroger/cart.yaml -o src//services/kroger/cart.d.ts",
+    "generate:location": "npx openapi-typescript kroger/location.yaml -o src/services/kroger/location.d.ts",
+    "generate:product": "npx openapi-typescript kroger/product.yaml -o src//services/kroger/product.d.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "openapi-fetch": "^0.13.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/express": "^5.0.1",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.15.3",
+    "jest": "^29.7.0",
+    "supertest": "^7.1.0",
+    "ts-jest": "^29.3.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
