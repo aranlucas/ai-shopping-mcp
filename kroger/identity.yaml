@@ -1,0 +1,214 @@
+---
+openapi: 3.0.3
+info:
+  title: Identity API
+  description: 'The Identity API allows you to access the profile ID of an authenticated
+    customer. <br><br> ### Rate Limit The Public Identity API has a **5,000 call per
+    day** rate limit.'
+  termsOfService: https://developer.kroger.com/terms
+  contact:
+    name: API Support
+    email: APISupport@kroger.com
+    url: https://developer.kroger.com
+  version: 1.2.3
+servers:
+- url: https://api.kroger.com
+  description: Production Environment
+- url: https://api-ce.kroger.com
+  description: Certification Environment
+security:
+- CustomerContext:
+  - profile.compact
+paths:
+  "/v1/identity/profile":
+    get:
+      tags:
+      - Identity
+      summary: User profile information
+      description: 'Provides access to the profile `id` of an authenticated customer.
+        <br><br> **Note**: the customer must be authenticated using the OAuth2 Authorization
+        Code grant type.'
+      operationId: profileGet
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/identity.profileModel"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/APIError.unauthorized"
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/APIError.forbidden"
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/APIError.identity.serverError"
+      security:
+      - CustomerContext:
+        - profile.compact
+      x-code-samples:
+      - lang: Shell
+        source: |
+          curl -X GET \
+            'https://api.kroger.com/v1/identity/profile' \
+             -H 'Accept: application/json' \
+             -H 'Authorization: TOKEN'
+      - lang: Go
+        source: |
+          package main
+
+          import (
+            "fmt"
+            "net/http"
+            "io/ioutil"
+          )
+
+          func main() {
+
+            url := "https://api.kroger.com/v1/identity/profile"
+
+            req, _ := http.NewRequest("GET", url, nil)
+
+            req.Header.Add("Accept", "application/json")
+            req.Header.Add("Authorization", "{{TOKEN}}")
+
+            res, _ := http.DefaultClient.Do(req)
+
+            defer res.Body.Close()
+            body, _ := ioutil.ReadAll(res.Body)
+
+            fmt.Println(res)
+            fmt.Println(string(body))
+
+          }
+      - lang: JavaScript
+        source: |
+          var settings = {
+            "async": true,
+            "crossDomain": true,
+            "url": "https://api.kroger.com/v1/identity/profile",
+            "method": "GET",
+            "headers": {
+              "Accept": "application/json",
+              "Authorization": "{{TOKEN}}"
+            }
+          }
+
+          $.ajax(settings).done(function (response) {
+            console.log(response);
+          });
+      - lang: Java
+        source: |
+          OkHttpClient client = new OkHttpClient();
+
+          Request request = new Request.Builder()
+            .url("https://api.kroger.com/v1/identity/profile")
+            .get()
+            .addHeader("Accept", "application/json")
+            .addHeader("Authorization", "{{TOKEN}}")
+            .build();
+
+          Response response = client.newCall(request).execute();
+components:
+  schemas:
+    APIError.forbidden:
+      type: object
+      properties:
+        errors:
+          type: object
+          properties:
+            reason:
+              type: string
+              example: missing required scopes
+            code:
+              type: string
+              example: Forbidden
+            timestamp:
+              type: number
+              example: 1564143270221
+    APIError.identity.serverError:
+      type: object
+      properties:
+        errors:
+          type: object
+          properties:
+            reason:
+              type: string
+              example: Internal server error
+            code:
+              type: string
+              example: IDENTITY-4xxx-xxx
+            timestamp:
+              type: number
+              example: 1564159296910
+    APIError.unauthorized:
+      type: object
+      properties:
+        errors:
+          type: object
+          properties:
+            error_description:
+              type: string
+              example: The access token is invalid or has expired
+            error:
+              type: string
+              example: invalid_token
+    identity.profileModel:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              description: The customer's profile Id.
+              example: 53990804-cfd1-43f3-8256-bdc9817a4fd0
+        meta:
+          "$ref": "#/components/schemas/MetaModel"
+    MetaModel:
+      type: object
+      properties:
+        pagination:
+          type: object
+          properties:
+            total:
+              type: number
+            start:
+              type: number
+            limit:
+              type: number
+        warnings:
+          type: array
+          items:
+            type: string
+  securitySchemes:
+    CustomerContext:
+      type: oauth2
+      description: 'To make an API request that returns either personalized customer
+        data or acts on behalf of a customer, the customer''s consent is required
+        using the [Authorization Code Grant Type](https://developer.kroger.com/reference/api/authorization-endpoints-public#tag/OAuth2/operation/authorizationCode).
+
+        '
+      flows:
+        authorizationCode:
+          authorizationUrl: https://api.kroger.com/v1/connect/oauth2/authorize
+          tokenUrl: https://api.kroger.com/v1/connect/oauth2/token
+          scopes:
+            profile.compact: Grants read access to a customer profile ID.
+x-tagGroups:
+- name: API Reference
+  tags:
+  - Identity

@@ -1,11 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "module": "nodenext",
+    "module": "Preserve",
     "strict": true,
     "esModuleInterop": true,
-    "outDir": "./dist",
-    "rootDir": "./src"
-  },
-  "include": ["src/**/*"]
+    "moduleResolution": "bundler",
+    "skipLibCheck": true
+  }
 }
