@@ -35,3 +35,5 @@ coverage/
 # npm package files
 package-lock.json
 yarn.lock
+.history/
+.dev.vars
