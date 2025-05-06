@@ -4,6 +4,7 @@
     "module": "Preserve",
     "strict": true,
     "esModuleInterop": true,
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "skipLibCheck": true
   }
 }

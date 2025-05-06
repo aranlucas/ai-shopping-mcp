@@ -1,10 +1,10 @@
 {
-  "name": "qfc-mcp",
+  "name": "ai-shopping-list-mcp",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --noEmit",
     "test": "jest",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
@@ -23,7 +23,6 @@
   "description": "",
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.*",
-    "@cloudflare/workers-types": "^4.*",
     "@modelcontextprotocol/sdk": "^1.11.0",
     "agents": "^0.0.77",
     "dotenv": "^16.5.0",
