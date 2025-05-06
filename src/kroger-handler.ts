@@ -3,8 +3,7 @@ import type {
   OAuthHelpers,
 } from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
-import { identityClient } from "./services/kroger/client";
-import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl } from "./utils";
+import { authClient, identityClient } from "./services/kroger/client";
 import {
   clientIdAlreadyApproved,
   parseRedirectApproval,
@@ -73,17 +72,27 @@ async function redirectToKroger(
   env: Env & { OAUTH_PROVIDER: OAuthHelpers },
   headers: Record<string, string> = {},
 ) {
+  // Create authorization URL using standard URL API
+  const authorizeUrl = new URL(
+    "https://api.kroger.com/v1/connect/oauth2/authorize",
+  );
+  authorizeUrl.searchParams.set("client_id", env.KROGER_CLIENT_ID);
+  authorizeUrl.searchParams.set(
+    "redirect_uri",
+    new URL("/callback", request.url).href,
+  );
+  authorizeUrl.searchParams.set(
+    "scope",
+    "profile.compact cart.basic:write product.compact",
+  );
+  authorizeUrl.searchParams.set("response_type", "code");
+  authorizeUrl.searchParams.set("state", btoa(JSON.stringify(oauthReqInfo)));
+
   return new Response(null, {
     status: 302,
     headers: {
       ...headers,
-      location: getUpstreamAuthorizeUrl({
-        upstream_url: "https://api.kroger.com/v1/connect/oauth2/authorize",
-        scope: "profile.compact cart.basic:write product.compact",
-        client_id: env.KROGER_CLIENT_ID,
-        redirect_uri: new URL("/callback", request.url).href,
-        state: btoa(JSON.stringify(oauthReqInfo)),
-      }),
+      location: authorizeUrl.href,
     },
   });
 }
@@ -105,39 +114,61 @@ app.get("/callback", async (c) => {
     return c.text("Invalid state", 400);
   }
 
-  // Exchange the code for an access token
-  const tokenResponse = await fetchUpstreamAuthToken({
-    upstream_url: "https://api.kroger.com/v1/connect/oauth2/token",
-    client_id: c.env.KROGER_CLIENT_ID,
-    client_secret: c.env.KROGER_CLIENT_SECRET,
-    code: c.req.query("code"),
-    redirect_uri: new URL("/callback", c.req.url).href,
-  });
-
-  // Check error response
-  if (tokenResponse.length === 2 && tokenResponse[1] instanceof Response) {
-    return tokenResponse[1];
+  const code = c.req.query("code");
+  if (!code) {
+    return c.text("Missing code", 400);
   }
 
-  // Extract tokens
-  const accessToken = tokenResponse[0];
-  let refreshToken = "";
-
-  // Check if we have a refresh token (it will be at index 1 if there are 3 elements)
-  if (tokenResponse.length === 3) {
-    refreshToken = tokenResponse[1] as string;
-  }
-
-  // Fetch the user profile from Kroger
-  const { data } = await identityClient.GET("/v1/identity/profile", {
+  // Exchange the code for an access token using the auth client
+  const { data, error } = await authClient.POST("/v1/connect/oauth2/token", {
     headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    params: {
+      header: {
+        Authorization: `Basic ${btoa(`${c.env.KROGER_CLIENT_ID}:${c.env.KROGER_CLIENT_SECRET}`)}`,
+      },
+    },
+    body: {
+      grant_type: "authorization_code",
+      code: code,
+      redirect_uri: new URL("/callback", c.req.url).href,
+    },
+    bodySerializer(body) {
+      const fd = new URLSearchParams();
+      for (const name in body) {
+        fd.append(name, body[name as keyof typeof body]);
+      }
+      return fd.toString();
     },
   });
 
+  // Check for errors
+  if (error || !data) {
+    console.error("Failed to fetch access token:", error);
+    return c.text("Failed to fetch access token", 500);
+  }
+
+  // Extract tokens
+  const accessToken = data.access_token;
+
+  if (!accessToken) {
+    return c.text("Missing access token", 400);
+  }
+
+  // Fetch the user profile from Kroger
+  const { data: profileData } = await identityClient.GET(
+    "/v1/identity/profile",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
   // Safely access profile data with defaults
-  const id = data?.data?.id || "unknown";
+  const id = profileData?.data?.id || "unknown";
 
   // Return back to the MCP client a new token
   const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
@@ -149,7 +180,9 @@ app.get("/callback", async (c) => {
     props: {
       id,
       accessToken,
-      refreshToken,
+      expiresIn: data.expires_in,
+      // @ts-ignore
+      refreshToken: data.refresh_token,
     },
   });
 
