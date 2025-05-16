@@ -23,23 +23,23 @@
   "description": "",
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.*",
-    "@modelcontextprotocol/sdk": "^1.11.0",
-    "agents": "^0.0.77",
+    "@modelcontextprotocol/sdk": "^1.11.3",
+    "agents": "^0.0.88",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "hono": "^4.7.8",
-    "openapi-fetch": "^0.13.7",
+    "hono": "^4.7.9",
+    "openapi-fetch": "^0.14.0",
     "workers-mcp": "0.1.0-3",
-    "wrangler": "^4.14.1"
+    "wrangler": "^4.15.2"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.15.11",
+    "@types/node": "^22.15.18",
     "jest": "^29.7.0",
-    "supertest": "^7.1.0",
-    "ts-jest": "^29.3.2",
+    "supertest": "^7.1.1",
+    "ts-jest": "^29.3.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
