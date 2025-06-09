@@ -167,7 +167,6 @@ app.get("/callback", async (c) => {
     },
   );
 
-  // Safely access profile data with defaults
   const id = profileData?.data?.id || "unknown";
 
   // Return back to the MCP client a new token
@@ -181,8 +180,6 @@ app.get("/callback", async (c) => {
       id,
       accessToken,
       expiresIn: data.expires_in,
-      // @ts-ignore
-      refreshToken: data.refresh_token,
     },
   });
 
