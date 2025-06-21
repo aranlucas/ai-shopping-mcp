@@ -44,53 +44,50 @@ export function createKrogerAuthMiddleware(
 
         console.log("Refreshing Kroger access token...");
 
-        // Create a fresh auth client to avoid circular dependency
-        const authClient = createClient<AuthPaths>({
-          baseUrl: "https://api.kroger.com",
+        // Use direct fetch for refresh token since openapi-fetch has type constraints
+        const refreshBody = new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: tokenInfo.refreshToken,
         });
 
-        const { data, error } = await authClient.POST(
-          "/v1/connect/oauth2/token",
+        const refreshResponse = await fetch(
+          "https://api.kroger.com/v1/connect/oauth2/token",
           {
+            method: "POST",
             headers: {
               "Content-Type": "application/x-www-form-urlencoded",
+              Authorization: `Basic ${btoa(`${tokenInfo.krogerClientId}:${tokenInfo.krogerClientSecret}`)}`,
             },
-            params: {
-              header: {
-                Authorization: `Basic ${btoa(`${tokenInfo.krogerClientId}:${tokenInfo.krogerClientSecret}`)}`,
-              },
-            },
-            body: {
-              grant_type: "refresh_token",
-              refresh_token: tokenInfo.refreshToken,
-            },
-            bodySerializer(body) {
-              const fd = new URLSearchParams();
-              for (const name in body) {
-                fd.append(name, body[name as keyof typeof body]);
-              }
-              return fd.toString();
-            },
+            body: refreshBody.toString(),
           },
         );
 
-        if (error || !data) {
-          console.error("Failed to refresh access token:", error);
-          throw new Error("Failed to refresh access token");
+        const responseData = await refreshResponse.json();
+
+        if (!refreshResponse.ok) {
+          console.error("Failed to refresh access token:", {
+            status: refreshResponse.status,
+            statusText: refreshResponse.statusText,
+            error: responseData.error,
+            errorDescription: responseData.error_description,
+          });
+          throw new Error(
+            `Failed to refresh access token: ${responseData.error_description || responseData.error || "Unknown error"}`,
+          );
         }
 
-        // Handle the union type properly by checking which response we got
-        if ("access_token" in data && data.access_token) {
-          accessToken = data.access_token;
+        // Handle the response
+        if (responseData.access_token) {
+          accessToken = responseData.access_token;
 
           const newTokenInfo: Partial<KrogerTokenInfo> = {
-            accessToken: data.access_token,
-            tokenExpiresAt: Date.now() + (data.expires_in || 1800) * 1000,
+            accessToken: responseData.access_token,
+            tokenExpiresAt: Date.now() + (responseData.expires_in || 1800) * 1000,
           };
 
           // Update refresh token if a new one was provided
-          if ("refresh_token" in data && data.refresh_token) {
-            newTokenInfo.refreshToken = data.refresh_token;
+          if (responseData.refresh_token) {
+            newTokenInfo.refreshToken = responseData.refresh_token;
           }
 
           updateTokenInfo(newTokenInfo);
