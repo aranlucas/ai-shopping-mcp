@@ -151,6 +151,7 @@ app.get("/callback", async (c) => {
 
   // Extract tokens
   const accessToken = data.access_token;
+  const refreshToken = 'refresh_token' in data ? data.refresh_token : undefined;
 
   if (!accessToken) {
     return c.text("Missing access token", 400);
@@ -169,6 +170,9 @@ app.get("/callback", async (c) => {
 
   const id = profileData?.data?.id || "unknown";
 
+  // Calculate when the token expires (current time + expires_in seconds)
+  const tokenExpiresAt = Date.now() + (data.expires_in || 1800) * 1000;
+
   // Return back to the MCP client a new token
   const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
     request: oauthReqInfo,
@@ -179,6 +183,8 @@ app.get("/callback", async (c) => {
     props: {
       id,
       accessToken,
+      refreshToken,
+      tokenExpiresAt,
       expiresIn: data.expires_in,
     },
   });

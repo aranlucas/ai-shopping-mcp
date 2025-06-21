@@ -9,12 +9,16 @@ import {
   cartClient,
   locationClient,
   productClient,
+  configureKrogerAuth,
+  type KrogerTokenInfo,
 } from "./services/kroger/client.js";
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
 type Props = {
   accessToken: string;
+  refreshToken?: string;
+  tokenExpiresAt: number;
 };
 
 dotenv.config();
@@ -26,6 +30,34 @@ export class MyMCP extends McpAgent<Props, Env> {
   });
 
   async init() {
+    // Configure Kroger auth for all clients
+    configureKrogerAuth(
+      (): KrogerTokenInfo | null => {
+        // Return current token info from props
+        if (!this.props?.accessToken) return null;
+        
+        return {
+          accessToken: this.props.accessToken as string,
+          refreshToken: this.props.refreshToken as string | undefined,
+          tokenExpiresAt: this.props.tokenExpiresAt as number,
+          krogerClientId: (this.env as unknown as Env).KROGER_CLIENT_ID,
+          krogerClientSecret: (this.env as unknown as Env).KROGER_CLIENT_SECRET,
+        };
+      },
+      (newTokenInfo) => {
+        // Update props with new token information
+        if (newTokenInfo.accessToken) {
+          this.props.accessToken = newTokenInfo.accessToken;
+        }
+        if (newTokenInfo.refreshToken) {
+          this.props.refreshToken = newTokenInfo.refreshToken;
+        }
+        if (newTokenInfo.tokenExpiresAt) {
+          this.props.tokenExpiresAt = newTokenInfo.tokenExpiresAt;
+        }
+      }
+    );
+
     // Add to cart tool
     this.server.tool(
       "add_to_cart",
@@ -62,7 +94,6 @@ export class MyMCP extends McpAgent<Props, Env> {
           body: requestBody,
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${this.props.accessToken}`,
           },
         });
 
@@ -126,9 +157,6 @@ export class MyMCP extends McpAgent<Props, Env> {
           params: {
             query: queryParams,
           },
-          headers: {
-            Authorization: `Bearer ${this.props.accessToken}`,
-          },
         });
 
         if (error) {
@@ -174,9 +202,6 @@ export class MyMCP extends McpAgent<Props, Env> {
           "/v1/locations/{locationId}",
           {
             params: { path: { locationId } },
-            headers: {
-              Authorization: `Bearer ${this.props.accessToken}`,
-            },
           },
         );
 
@@ -282,9 +307,6 @@ export class MyMCP extends McpAgent<Props, Env> {
           params: {
             query: queryParams,
           },
-          headers: {
-            Authorization: `Bearer ${this.props.accessToken}`,
-          },
         });
 
         if (error) {
@@ -360,9 +382,6 @@ export class MyMCP extends McpAgent<Props, Env> {
           params: {
             path: { id: productId },
             query: queryParams,
-          },
-          headers: {
-            Authorization: `Bearer ${this.props.accessToken}`,
           },
         });
 
