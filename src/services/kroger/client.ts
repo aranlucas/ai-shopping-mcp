@@ -18,12 +18,12 @@ export interface KrogerTokenInfo {
  */
 export function createKrogerAuthMiddleware(
   getTokenInfo: () => KrogerTokenInfo | null,
-  updateTokenInfo: (tokenInfo: Partial<KrogerTokenInfo>) => void
+  updateTokenInfo: (tokenInfo: Partial<KrogerTokenInfo>) => void,
 ): Middleware {
   const middleware: Middleware = {
     async onRequest({ request }) {
       const tokenInfo = getTokenInfo();
-      
+
       if (!tokenInfo) {
         throw new Error("No Kroger token information available");
       }
@@ -31,13 +31,15 @@ export function createKrogerAuthMiddleware(
       // Check if token is expired or will expire in the next 5 minutes
       const now = Date.now();
       const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds
-      
+
       let accessToken = tokenInfo.accessToken;
-      
+
       if (now + bufferTime >= tokenInfo.tokenExpiresAt) {
         // Token needs to be refreshed
         if (!tokenInfo.refreshToken) {
-          throw new Error("Access token expired and no refresh token available");
+          throw new Error(
+            "Access token expired and no refresh token available",
+          );
         }
 
         console.log("Refreshing Kroger access token...");
@@ -47,27 +49,30 @@ export function createKrogerAuthMiddleware(
           baseUrl: "https://api.kroger.com",
         });
 
-        const { data, error } = await authClient.POST("/v1/connect/oauth2/token", {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          params: {
-            header: {
-              Authorization: `Basic ${btoa(`${tokenInfo.krogerClientId}:${tokenInfo.krogerClientSecret}`)}`,
+        const { data, error } = await authClient.POST(
+          "/v1/connect/oauth2/token",
+          {
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            params: {
+              header: {
+                Authorization: `Basic ${btoa(`${tokenInfo.krogerClientId}:${tokenInfo.krogerClientSecret}`)}`,
+              },
+            },
+            body: {
+              grant_type: "refresh_token",
+              refresh_token: tokenInfo.refreshToken,
+            },
+            bodySerializer(body) {
+              const fd = new URLSearchParams();
+              for (const name in body) {
+                fd.append(name, body[name as keyof typeof body]);
+              }
+              return fd.toString();
             },
           },
-          body: {
-            grant_type: "refresh_token",
-            refresh_token: tokenInfo.refreshToken,
-          },
-          bodySerializer(body) {
-            const fd = new URLSearchParams();
-            for (const name in body) {
-              fd.append(name, body[name as keyof typeof body]);
-            }
-            return fd.toString();
-          },
-        });
+        );
 
         if (error || !data) {
           console.error("Failed to refresh access token:", error);
@@ -75,16 +80,16 @@ export function createKrogerAuthMiddleware(
         }
 
         // Handle the union type properly by checking which response we got
-        if ('access_token' in data && data.access_token) {
+        if ("access_token" in data && data.access_token) {
           accessToken = data.access_token;
-          
+
           const newTokenInfo: Partial<KrogerTokenInfo> = {
             accessToken: data.access_token,
-            tokenExpiresAt: Date.now() + ((data.expires_in || 1800) * 1000),
+            tokenExpiresAt: Date.now() + (data.expires_in || 1800) * 1000,
           };
 
           // Update refresh token if a new one was provided
-          if ('refresh_token' in data && data.refresh_token) {
+          if ("refresh_token" in data && data.refresh_token) {
             newTokenInfo.refreshToken = data.refresh_token;
           }
 
@@ -130,10 +135,13 @@ const productClient = createClient<ProductPaths>({
  */
 export function configureKrogerAuth(
   getTokenInfo: () => KrogerTokenInfo | null,
-  updateTokenInfo: (tokenInfo: Partial<KrogerTokenInfo>) => void
+  updateTokenInfo: (tokenInfo: Partial<KrogerTokenInfo>) => void,
 ): void {
-  const authMiddleware = createKrogerAuthMiddleware(getTokenInfo, updateTokenInfo);
-  
+  const authMiddleware = createKrogerAuthMiddleware(
+    getTokenInfo,
+    updateTokenInfo,
+  );
+
   // Apply auth middleware to all clients that need authentication
   cartClient.use(authMiddleware);
   identityClient.use(authMiddleware);
@@ -142,4 +150,10 @@ export function configureKrogerAuth(
   // Note: authClient doesn't need auth middleware as it's used for authentication itself
 }
 
-export { authClient, cartClient, identityClient, locationClient, productClient };
+export {
+  authClient,
+  cartClient,
+  identityClient,
+  locationClient,
+  productClient,
+};

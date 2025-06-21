@@ -151,7 +151,7 @@ app.get("/callback", async (c) => {
 
   // Extract tokens
   const accessToken = data.access_token;
-  const refreshToken = 'refresh_token' in data ? data.refresh_token : undefined;
+  const refreshToken = "refresh_token" in data ? data.refresh_token : undefined;
 
   if (!accessToken) {
     return c.text("Missing access token", 400);

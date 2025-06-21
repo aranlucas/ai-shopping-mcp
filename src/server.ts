@@ -6,12 +6,16 @@ import { z } from "zod";
 import { KrogerHandler } from "./kroger-handler.js";
 import type { components } from "./services/kroger/cart.js";
 import {
+  type KrogerTokenInfo,
   cartClient,
+  configureKrogerAuth,
   locationClient,
   productClient,
-  configureKrogerAuth,
-  type KrogerTokenInfo,
 } from "./services/kroger/client.js";
+import type {
+  CircularsResponse,
+  WeeklyDealsResponse,
+} from "./services/kroger/weekly-deals.js";
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
@@ -35,7 +39,7 @@ export class MyMCP extends McpAgent<Props, Env> {
       (): KrogerTokenInfo | null => {
         // Return current token info from props
         if (!this.props?.accessToken) return null;
-        
+
         return {
           accessToken: this.props.accessToken as string,
           refreshToken: this.props.refreshToken as string | undefined,
@@ -55,7 +59,7 @@ export class MyMCP extends McpAgent<Props, Env> {
         if (newTokenInfo.tokenExpiresAt) {
           this.props.tokenExpiresAt = newTokenInfo.tokenExpiresAt;
         }
-      }
+      },
     );
 
     // Add to cart tool
@@ -411,6 +415,177 @@ export class MyMCP extends McpAgent<Props, Env> {
             },
           ],
         };
+      },
+    );
+
+    // Get weekly deals tool
+    this.server.tool(
+      "get_weekly_deals",
+      "Retrieves current weekly deals and promotions from Kroger stores. Use this tool when the user wants to see current sales, discounts, or weekly specials. Returns the active weekly ad deals for the specified location. Example: 'Show me this week's deals at my local QFC'",
+      {
+        locationId: z
+          .string()
+          .length(8, { message: "Location ID must be exactly 8 characters" })
+          .describe("The store location ID to get weekly deals for")
+          .default("70500847"),
+        divisionCode: z
+          .string()
+          .length(3, { message: "Division code must be exactly 3 characters" })
+          .describe("The division code (e.g., '705' for QFC)")
+          .default("705"),
+      },
+      async ({ locationId, divisionCode }) => {
+        try {
+          // Step 1: Get the circulars list
+          console.log("Fetching circulars for location:", locationId);
+
+          // Create headers for the circulars request
+          const circularsHeaders = new Headers();
+          const xLafObject = [
+            {
+              modality: {
+                type: "PICKUP",
+                handoffLocation: {
+                  storeId: locationId,
+                  facilityId: "4468",
+                },
+              },
+              sources: [
+                {
+                  storeId: locationId,
+                  facilityId: "4468",
+                },
+              ],
+              assortmentKeys: [locationId],
+              listingKeys: [locationId],
+            },
+          ];
+          circularsHeaders.append("x-laf-object", JSON.stringify(xLafObject));
+
+          // Fetch circulars
+          const circularsResponse = await fetch(
+            "https://api.kroger.com/digitalads/v1/circulars",
+            {
+              method: "GET",
+              headers: circularsHeaders,
+            },
+          );
+
+          if (!circularsResponse.ok) {
+            throw new Error(
+              `Failed to fetch circulars: ${circularsResponse.status} ${circularsResponse.statusText}`,
+            );
+          }
+
+          const circularsData: CircularsResponse =
+            await circularsResponse.json();
+          console.log(`Found ${circularsData.data.length} circulars`);
+
+          // Find the current (non-preview) circular
+          const currentCircular = circularsData.data.find(
+            (c) => !c.previewCircular,
+          );
+          if (!currentCircular) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    message:
+                      "No active weekly circular found for this location",
+                    success: false,
+                  }),
+                },
+              ],
+            };
+          }
+
+          console.log(
+            `Using circular ID: ${currentCircular.id} (${currentCircular.eventName})`,
+          );
+
+          // Step 2: Get the weekly deals for this circular
+          const dealsHeaders = new Headers();
+          dealsHeaders.append("x-laf-object", JSON.stringify(xLafObject));
+          dealsHeaders.append("x-kroger-channel", "WEB");
+
+          const dealsUrl = `https://www.qfc.com/atlas/v1/shoppable-weekly-deals/deals?filter.circularId=${currentCircular.id}`;
+          console.log("Fetching deals from:", dealsUrl);
+
+          const dealsResponse = await fetch(dealsUrl, {
+            method: "GET",
+            headers: dealsHeaders,
+          });
+
+          if (!dealsResponse.ok) {
+            throw new Error(
+              `Failed to fetch weekly deals: ${dealsResponse.status} ${dealsResponse.statusText}`,
+            );
+          }
+
+          const dealsData: WeeklyDealsResponse = await dealsResponse.json();
+          const deals = dealsData.data.shoppableWeeklyDeals.ads;
+
+          console.log(`Found ${deals.length} weekly deals`);
+
+          // Format the deals for display - only include relevant information
+          const formattedDeals = deals.slice(0, 20).map((deal) => ({
+            product: deal.mainlineCopy,
+            details: deal.underlineCopy,
+            price: deal.retailPrice
+              ? `$${deal.retailPrice.toFixed(2)}`
+              : "See store",
+            savings: deal.saveAmount
+              ? `Save $${deal.saveAmount.toFixed(2)}`
+              : deal.savePercent
+                ? `Save ${deal.savePercent}%`
+                : null,
+            loyalty: deal.loyaltyIndicator,
+            department: deal.departments[0]?.department || "General",
+            validFrom: new Date(deal.validFrom).toLocaleDateString(),
+            validTill: new Date(deal.validTill).toLocaleDateString(),
+            shoppable: deal.shoppable,
+            disclaimer: deal.disclaimer || "",
+          }));
+
+          // Return successful response
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  message: `Found ${deals.length} weekly deals for ${currentCircular.eventName}`,
+                  circular: {
+                    name: currentCircular.eventName,
+                    startDate: new Date(
+                      currentCircular.eventStartDate,
+                    ).toLocaleDateString(),
+                    endDate: new Date(
+                      currentCircular.eventEndDate,
+                    ).toLocaleDateString(),
+                    division: currentCircular.divisionName,
+                  },
+                  dealsCount: deals.length,
+                  deals: formattedDeals,
+                  success: true,
+                }),
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error fetching weekly deals:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  message: `Failed to fetch weekly deals: ${error instanceof Error ? error.message : "Unknown error"}`,
+                  success: false,
+                }),
+              },
+            ],
+          };
+        }
       },
     );
   }
