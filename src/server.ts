@@ -27,7 +27,7 @@ type Props = {
 
 dotenv.config();
 
-export class MyMCP extends McpAgent<Props, Env> {
+export class MyMCP extends McpAgent<Env, Props> {
   server = new McpServer({
     name: "kroger-ai-assistant",
     version: "1.0.0",
@@ -50,13 +50,13 @@ export class MyMCP extends McpAgent<Props, Env> {
       },
       (newTokenInfo) => {
         // Update props with new token information
-        if (newTokenInfo.accessToken) {
+        if (newTokenInfo.accessToken && this.props) {
           this.props.accessToken = newTokenInfo.accessToken;
         }
-        if (newTokenInfo.refreshToken) {
+        if (newTokenInfo.refreshToken && this.props) {
           this.props.refreshToken = newTokenInfo.refreshToken;
         }
-        if (newTokenInfo.tokenExpiresAt) {
+        if (newTokenInfo.tokenExpiresAt && this.props) {
           this.props.tokenExpiresAt = newTokenInfo.tokenExpiresAt;
         }
       },
