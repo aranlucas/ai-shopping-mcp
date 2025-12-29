@@ -5,6 +5,10 @@ import type {
 import { Hono } from "hono";
 import { authClient, identityClient } from "./services/kroger/client";
 import {
+  krogerOAuthMetadata,
+  createProtectedResourceMetadata,
+} from "./oauth-metadata";
+import {
   clientIdAlreadyApproved,
   parseRedirectApproval,
   renderApprovalDialog,
@@ -18,6 +22,26 @@ interface Env {
 }
 
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
+
+// OAuth 2.0 Discovery Endpoints
+// These tell MCP clients that this server uses Kroger for authentication
+
+/**
+ * OAuth 2.0 Authorization Server Metadata (RFC 8414)
+ * Advertises Kroger's OAuth endpoints to MCP clients
+ */
+app.get("/.well-known/oauth-authorization-server", (c) => {
+  return c.json(krogerOAuthMetadata);
+});
+
+/**
+ * OAuth 2.0 Protected Resource Metadata (RFC 9728)
+ * Declares that this MCP server uses Kroger as its authorization server
+ */
+app.get("/.well-known/oauth-protected-resource", (c) => {
+  const resourceServerUrl = new URL(c.req.url).origin;
+  return c.json(createProtectedResourceMetadata(resourceServerUrl));
+});
 
 app.get("/authorize", async (c) => {
   const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);

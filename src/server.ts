@@ -2,8 +2,13 @@ import OAuthProvider from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import dotenv from "dotenv";
+import { Hono } from "hono";
 import { z } from "zod";
 import { KrogerHandler } from "./kroger-handler.js";
+import {
+  krogerOAuthMetadata,
+  createProtectedResourceMetadata,
+} from "./oauth-metadata.js";
 import type { components } from "./services/kroger/cart.js";
 import {
   type KrogerTokenInfo,
