@@ -62,7 +62,13 @@ export function createKrogerAuthMiddleware(
           },
         );
 
-        const responseData = await refreshResponse.json();
+        const responseData = (await refreshResponse.json()) as {
+          access_token?: string;
+          refresh_token?: string;
+          expires_in?: number;
+          error?: string;
+          error_description?: string;
+        };
 
         if (!refreshResponse.ok) {
           console.error("Failed to refresh access token:", {
