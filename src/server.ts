@@ -599,7 +599,11 @@ app.route("/", KrogerHandler);
 // Mount MCP server - use the agent's mount method directly
 const mcpHandler = MyMCP.mount("/sse");
 
-// Forward all requests to /sse to the MCP handler
+// Forward all requests to /sse and /sse/* to the MCP handler
+app.all("/sse", async (c) => {
+  return mcpHandler.fetch(c.req.raw, c.env, c.executionCtx);
+});
+
 app.all("/sse/*", async (c) => {
   return mcpHandler.fetch(c.req.raw, c.env, c.executionCtx);
 });
