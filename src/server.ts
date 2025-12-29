@@ -1,14 +1,9 @@
-import OAuthProvider from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import dotenv from "dotenv";
 import { Hono } from "hono";
 import { z } from "zod";
 import { KrogerHandler } from "./kroger-handler.js";
-import {
-  krogerOAuthMetadata,
-  createProtectedResourceMetadata,
-} from "./oauth-metadata.js";
 import type { components } from "./services/kroger/cart.js";
 import {
   type KrogerTokenInfo,
@@ -595,13 +590,18 @@ export class MyMCP extends McpAgent<Env, Props> {
     );
   }
 }
-export default new OAuthProvider({
-  apiRoute: "/sse",
-  // @ts-ignore
-  apiHandler: MyMCP.mount("/sse"),
-  // @ts-ignore
-  defaultHandler: KrogerHandler,
-  authorizeEndpoint: "/authorize",
-  tokenEndpoint: "/token",
-  clientRegistrationEndpoint: "/register",
+// Create main Hono app without OAuth provider wrapper
+const app = new Hono();
+
+// Mount Kroger OAuth handler (includes /authorize, /callback, and metadata endpoints)
+app.route("/", KrogerHandler);
+
+// Mount MCP server - use the agent's mount method directly
+const mcpHandler = MyMCP.mount("/sse");
+
+// Forward all requests to /sse to the MCP handler
+app.all("/sse/*", async (c) => {
+  return mcpHandler.fetch(c.req.raw, c.env, c.executionCtx);
 });
+
+export default app;

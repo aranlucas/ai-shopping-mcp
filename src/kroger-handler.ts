@@ -1,27 +1,17 @@
-import type {
-  AuthRequest,
-  OAuthHelpers,
-} from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
 import { authClient, identityClient } from "./services/kroger/client";
 import {
   krogerOAuthMetadata,
   createProtectedResourceMetadata,
 } from "./oauth-metadata";
-import {
-  clientIdAlreadyApproved,
-  parseRedirectApproval,
-  renderApprovalDialog,
-} from "./workers-oauth-utils";
 
 // Define Env interface with required environment variables
 interface Env {
   KROGER_CLIENT_ID: string;
   KROGER_CLIENT_SECRET: string;
-  COOKIE_ENCRYPTION_KEY: string;
 }
 
-const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
+const app = new Hono<{ Bindings: Env }>();
 
 // OAuth 2.0 Discovery Endpoints
 // These tell MCP clients that this server uses Kroger for authentication
@@ -43,107 +33,56 @@ app.get("/.well-known/oauth-protected-resource", (c) => {
   return c.json(createProtectedResourceMetadata(resourceServerUrl));
 });
 
+/**
+ * Simplified OAuth Authorization Endpoint
+ * Redirects directly to Kroger for authentication
+ */
 app.get("/authorize", async (c) => {
-  const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
-  const { clientId } = oauthReqInfo;
-  if (!clientId) {
-    return c.text("Invalid request", 400);
+  const redirect_uri = c.req.query("redirect_uri");
+  const state = c.req.query("state");
+  const scope = c.req.query("scope") || "profile.compact cart.basic:write product.compact";
+
+  if (!redirect_uri) {
+    return c.text("Missing redirect_uri parameter", 400);
   }
 
-  if (
-    await clientIdAlreadyApproved(
-      c.req.raw,
-      oauthReqInfo.clientId,
-      c.env.COOKIE_ENCRYPTION_KEY,
-    )
-  ) {
-    return redirectToKroger(c.req.raw, oauthReqInfo, c.env);
-  }
-
-  return renderApprovalDialog(c.req.raw, {
-    client: await c.env.OAUTH_PROVIDER.lookupClient(clientId),
-    server: {
-      name: "Kroger Shopping List API",
-      logo: "https://www.kroger.com/content/v2/binary/image/banner/logowhite/imageset/kroger_svg_logo_link_white--kroger_svg_logo_link_white--freshcart-singlecolor.svg",
-      description:
-        "This server allows access to Kroger Shopping List and Product APIs.",
-    },
-    state: { oauthReqInfo },
-  });
-});
-
-app.post("/authorize", async (c) => {
-  // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
-  const { state, headers } = await parseRedirectApproval(
-    c.req.raw,
-    c.env.COOKIE_ENCRYPTION_KEY,
-  );
-  if (!state.oauthReqInfo) {
-    return c.text("Invalid request", 400);
-  }
-
-  return redirectToKroger(
-    c.req.raw,
-    state.oauthReqInfo as AuthRequest,
-    c.env,
-    headers,
-  );
-});
-
-async function redirectToKroger(
-  request: Request,
-  oauthReqInfo: AuthRequest,
-  env: Env & { OAUTH_PROVIDER: OAuthHelpers },
-  headers: Record<string, string> = {},
-) {
-  // Create authorization URL using standard URL API
+  // Create authorization URL for Kroger
   const authorizeUrl = new URL(
     "https://api.kroger.com/v1/connect/oauth2/authorize",
   );
-  authorizeUrl.searchParams.set("client_id", env.KROGER_CLIENT_ID);
-  authorizeUrl.searchParams.set(
-    "redirect_uri",
-    new URL("/callback", request.url).href,
-  );
-  authorizeUrl.searchParams.set(
-    "scope",
-    "profile.compact cart.basic:write product.compact",
-  );
+  authorizeUrl.searchParams.set("client_id", c.env.KROGER_CLIENT_ID);
+  authorizeUrl.searchParams.set("redirect_uri", new URL("/callback", c.req.url).href);
+  authorizeUrl.searchParams.set("scope", scope);
   authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("state", btoa(JSON.stringify(oauthReqInfo)));
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      ...headers,
-      location: authorizeUrl.href,
-    },
-  });
-}
+  // Encode the original redirect_uri and state in our state parameter
+  const encodedState = btoa(JSON.stringify({ redirect_uri, state }));
+  authorizeUrl.searchParams.set("state", encodedState);
+
+  return c.redirect(authorizeUrl.href, 302);
+});
 
 /**
  * OAuth Callback Endpoint
- *
- * This route handles the callback from Kroger after user authentication.
- * It exchanges the temporary code for an access token, then stores some
- * user metadata & the auth token as part of the 'props' on the token passed
- * down to the client. It ends by redirecting the client back to _its_ callback URL
+ * Receives authorization code from Kroger and exchanges it for access token
  */
 app.get("/callback", async (c) => {
-  // Get the oathReqInfo out of state
-  const oauthReqInfo = JSON.parse(
-    atob(c.req.query("state") as string),
-  ) as AuthRequest;
-  if (!oauthReqInfo.clientId) {
-    return c.text("Invalid state", 400);
-  }
-
   const code = c.req.query("code");
-  if (!code) {
-    return c.text("Missing code", 400);
+  const stateParam = c.req.query("state");
+
+  if (!code || !stateParam) {
+    return c.text("Missing code or state parameter", 400);
   }
 
-  // Exchange the code for an access token using the auth client
+  // Decode the state to get the original redirect_uri
+  let originalState: { redirect_uri: string; state?: string };
+  try {
+    originalState = JSON.parse(atob(stateParam));
+  } catch (e) {
+    return c.text("Invalid state parameter", 400);
+  }
+
+  // Exchange the code for an access token
   const { data, error } = await authClient.POST("/v1/connect/oauth2/token", {
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -167,21 +106,21 @@ app.get("/callback", async (c) => {
     },
   });
 
-  // Check for errors
   if (error || !data) {
-    console.error("Failed to fetch access token:", error);
-    return c.text("Failed to fetch access token", 500);
+    console.error("Failed to exchange code for token:", error);
+    return c.text("Failed to obtain access token", 500);
   }
 
   // Extract tokens
   const accessToken = data.access_token;
   const refreshToken = "refresh_token" in data ? data.refresh_token : undefined;
+  const expiresIn = data.expires_in || 1800;
 
   if (!accessToken) {
-    return c.text("Missing access token", 400);
+    return c.text("Missing access token in response", 400);
   }
 
-  // Fetch the user profile from Kroger
+  // Fetch user profile to get user ID
   const { data: profileData } = await identityClient.GET(
     "/v1/identity/profile",
     {
@@ -192,28 +131,23 @@ app.get("/callback", async (c) => {
     },
   );
 
-  const id = profileData?.data?.id || "unknown";
+  const userId = profileData?.data?.id || "unknown";
 
-  // Calculate when the token expires (current time + expires_in seconds)
-  const tokenExpiresAt = Date.now() + (data.expires_in || 1800) * 1000;
+  // Redirect back to the client with tokens
+  // Note: In a real implementation, you'd want to use a more secure method
+  // to pass tokens back (e.g., encrypted cookie, session storage, etc.)
+  const redirectUrl = new URL(originalState.redirect_uri);
+  redirectUrl.searchParams.set("access_token", accessToken);
+  if (refreshToken) {
+    redirectUrl.searchParams.set("refresh_token", refreshToken);
+  }
+  redirectUrl.searchParams.set("expires_in", expiresIn.toString());
+  redirectUrl.searchParams.set("token_type", "Bearer");
+  if (originalState.state) {
+    redirectUrl.searchParams.set("state", originalState.state);
+  }
 
-  // Return back to the MCP client a new token
-  const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
-    request: oauthReqInfo,
-    userId: id,
-    metadata: {},
-    scope: oauthReqInfo.scope,
-    // This will be available on this.props inside the client
-    props: {
-      id,
-      accessToken,
-      refreshToken,
-      tokenExpiresAt,
-      expiresIn: data.expires_in,
-    },
-  });
-
-  return Response.redirect(redirectTo);
+  return c.redirect(redirectUrl.href, 302);
 });
 
 export { app as KrogerHandler };
