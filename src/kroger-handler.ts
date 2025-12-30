@@ -99,7 +99,7 @@ async function redirectToKroger(
     status: 302,
     headers: {
       ...headers,
-      location: authorizeUrl.href,
+      Location: authorizeUrl.href,
     },
   });
 }
