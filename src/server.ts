@@ -6,10 +6,10 @@ import { z } from "zod";
 import { KrogerHandler } from "./kroger-handler.js";
 import type { components } from "./services/kroger/cart.js";
 import {
-  type KrogerTokenInfo,
   cartClient,
   configureKrogerAuth,
   isKrogerTokenExpiring,
+  type KrogerTokenInfo,
   locationClient,
   productClient,
   refreshKrogerToken,
@@ -441,7 +441,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           .describe("The division code (e.g., '705' for QFC)")
           .default("705"),
       },
-      async ({ locationId, divisionCode }) => {
+      async ({ locationId, divisionCode: _divisionCode }) => {
         try {
           // Step 1: Get the circulars list
           console.log("Fetching circulars for location:", locationId);
@@ -599,9 +599,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 }
 export default new OAuthProvider({
   apiRoute: "/sse",
-  // @ts-ignore
   apiHandler: MyMCP.mount("/sse"),
-  // @ts-ignore
+  // @ts-expect-error - Hono handler type mismatch with OAuthProvider
   defaultHandler: KrogerHandler,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
@@ -660,7 +659,10 @@ export default new OAuthProvider({
         accessTokenTTL: refreshResult.expiresIn,
       };
     } catch (error) {
-      console.error("Failed to refresh Kroger token during token exchange:", error);
+      console.error(
+        "Failed to refresh Kroger token during token exchange:",
+        error,
+      );
       // Return empty to keep existing props - the middleware will handle refresh
       return {};
     }

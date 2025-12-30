@@ -10,7 +10,7 @@ const ONE_YEAR_IN_SECONDS = 31536000;
  * @param data - The data to encode (will be stringified).
  * @returns A URL-safe base64 encoded string.
  */
-function encodeState(data: unknown): string {
+function _encodeState(data: unknown): string {
   try {
     const jsonString = JSON.stringify(data);
     // Use btoa for simplicity, assuming Worker environment supports it well enough
@@ -624,7 +624,7 @@ export async function parseRedirectApproval(
     }
 
     state = decodeState<{ oauthReqInfo?: { clientId?: string } }>(encodedState); // Decode the state
-    // @ts-ignore
+    // @ts-expect-error
     clientId = state?.oauthReqInfo?.clientId; // Extract clientId from within the state
 
     if (!clientId) {
