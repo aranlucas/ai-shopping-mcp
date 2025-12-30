@@ -13,8 +13,89 @@ export interface KrogerTokenInfo {
   krogerClientSecret: string;
 }
 
+export interface KrogerTokenRefreshResult {
+  accessToken: string;
+  refreshToken?: string;
+  tokenExpiresAt: number;
+  expiresIn: number;
+}
+
 /**
- * Creates a Kroger OAuth middleware that automatically refreshes tokens when needed
+ * Refreshes a Kroger access token using a refresh token.
+ * This is a standalone function that can be used by both the middleware
+ * and the OAuth tokenExchangeCallback.
+ */
+export async function refreshKrogerToken(
+  refreshToken: string,
+  krogerClientId: string,
+  krogerClientSecret: string,
+): Promise<KrogerTokenRefreshResult> {
+  const refreshBody = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+  });
+
+  const refreshResponse = await fetch(
+    "https://api.kroger.com/v1/connect/oauth2/token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${btoa(`${krogerClientId}:${krogerClientSecret}`)}`,
+      },
+      body: refreshBody.toString(),
+    },
+  );
+
+  const responseData = (await refreshResponse.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  };
+
+  if (!refreshResponse.ok) {
+    console.error("Failed to refresh Kroger access token:", {
+      status: refreshResponse.status,
+      statusText: refreshResponse.statusText,
+      error: responseData.error,
+      errorDescription: responseData.error_description,
+    });
+    throw new Error(
+      `Failed to refresh Kroger access token: ${responseData.error_description || responseData.error || "Unknown error"}`,
+    );
+  }
+
+  if (!responseData.access_token) {
+    throw new Error("Invalid response from Kroger token refresh endpoint");
+  }
+
+  const expiresIn = responseData.expires_in || 1800;
+
+  return {
+    accessToken: responseData.access_token,
+    refreshToken: responseData.refresh_token,
+    tokenExpiresAt: Date.now() + expiresIn * 1000,
+    expiresIn,
+  };
+}
+
+/**
+ * Checks if a Kroger token needs to be refreshed.
+ * Returns true if the token will expire within the buffer time.
+ */
+export function isKrogerTokenExpiring(
+  tokenExpiresAt: number,
+  bufferTimeMs: number = 5 * 60 * 1000, // 5 minutes default
+): boolean {
+  return Date.now() + bufferTimeMs >= tokenExpiresAt;
+}
+
+/**
+ * Creates a Kroger OAuth middleware that automatically refreshes tokens when needed.
+ * Note: This middleware updates tokens in memory for the current session.
+ * For persistent token sync, use tokenExchangeCallback in OAuthProvider.
  */
 export function createKrogerAuthMiddleware(
   getTokenInfo: () => KrogerTokenInfo | null,
@@ -28,79 +109,34 @@ export function createKrogerAuthMiddleware(
         throw new Error("No Kroger token information available");
       }
 
-      // Check if token is expired or will expire in the next 5 minutes
-      const now = Date.now();
-      const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds
-
       let accessToken = tokenInfo.accessToken;
 
-      if (now + bufferTime >= tokenInfo.tokenExpiresAt) {
-        // Token needs to be refreshed
+      // Check if token needs refresh
+      if (isKrogerTokenExpiring(tokenInfo.tokenExpiresAt)) {
         if (!tokenInfo.refreshToken) {
           throw new Error(
             "Access token expired and no refresh token available",
           );
         }
 
-        console.log("Refreshing Kroger access token...");
+        console.log("Refreshing Kroger access token in middleware...");
 
-        // Use direct fetch for refresh token since openapi-fetch has type constraints
-        const refreshBody = new URLSearchParams({
-          grant_type: "refresh_token",
-          refresh_token: tokenInfo.refreshToken,
-        });
-
-        const refreshResponse = await fetch(
-          "https://api.kroger.com/v1/connect/oauth2/token",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              Authorization: `Basic ${btoa(`${tokenInfo.krogerClientId}:${tokenInfo.krogerClientSecret}`)}`,
-            },
-            body: refreshBody.toString(),
-          },
+        const refreshResult = await refreshKrogerToken(
+          tokenInfo.refreshToken,
+          tokenInfo.krogerClientId,
+          tokenInfo.krogerClientSecret,
         );
 
-        const responseData = (await refreshResponse.json()) as {
-          access_token?: string;
-          refresh_token?: string;
-          expires_in?: number;
-          error?: string;
-          error_description?: string;
-        };
+        accessToken = refreshResult.accessToken;
 
-        if (!refreshResponse.ok) {
-          console.error("Failed to refresh access token:", {
-            status: refreshResponse.status,
-            statusText: refreshResponse.statusText,
-            error: responseData.error,
-            errorDescription: responseData.error_description,
-          });
-          throw new Error(
-            `Failed to refresh access token: ${responseData.error_description || responseData.error || "Unknown error"}`,
-          );
-        }
+        // Update in-memory token info
+        updateTokenInfo({
+          accessToken: refreshResult.accessToken,
+          refreshToken: refreshResult.refreshToken,
+          tokenExpiresAt: refreshResult.tokenExpiresAt,
+        });
 
-        // Handle the response
-        if (responseData.access_token) {
-          accessToken = responseData.access_token;
-
-          const newTokenInfo: Partial<KrogerTokenInfo> = {
-            accessToken: responseData.access_token,
-            tokenExpiresAt: Date.now() + (responseData.expires_in || 1800) * 1000,
-          };
-
-          // Update refresh token if a new one was provided
-          if (responseData.refresh_token) {
-            newTokenInfo.refreshToken = responseData.refresh_token;
-          }
-
-          updateTokenInfo(newTokenInfo);
-          console.log("Access token refreshed successfully");
-        } else {
-          throw new Error("Invalid response from token refresh endpoint");
-        }
+        console.log("Access token refreshed successfully in middleware");
       }
 
       // Add Authorization header to the request

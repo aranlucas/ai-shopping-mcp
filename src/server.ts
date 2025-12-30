@@ -6,11 +6,13 @@ import { z } from "zod";
 import { KrogerHandler } from "./kroger-handler.js";
 import type { components } from "./services/kroger/cart.js";
 import {
-  type KrogerTokenInfo,
   cartClient,
   configureKrogerAuth,
+  isKrogerTokenExpiring,
+  type KrogerTokenInfo,
   locationClient,
   productClient,
+  refreshKrogerToken,
 } from "./services/kroger/client.js";
 import type {
   CircularsResponse,
@@ -20,14 +22,18 @@ import type {
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
 type Props = {
+  id: string;
   accessToken: string;
   refreshToken?: string;
   tokenExpiresAt: number;
+  // Kroger credentials stored for token refresh in tokenExchangeCallback
+  krogerClientId: string;
+  krogerClientSecret: string;
 };
 
 dotenv.config();
 
-export class MyMCP extends McpAgent<Env, Props> {
+export class MyMCP extends McpAgent<Env, unknown, Props> {
   server = new McpServer({
     name: "kroger-ai-assistant",
     version: "1.0.0",
@@ -41,11 +47,12 @@ export class MyMCP extends McpAgent<Env, Props> {
         if (!this.props?.accessToken) return null;
 
         return {
-          accessToken: this.props.accessToken as string,
-          refreshToken: this.props.refreshToken as string | undefined,
-          tokenExpiresAt: this.props.tokenExpiresAt as number,
-          krogerClientId: (this.env as unknown as Env).KROGER_CLIENT_ID,
-          krogerClientSecret: (this.env as unknown as Env).KROGER_CLIENT_SECRET,
+          accessToken: this.props.accessToken,
+          refreshToken: this.props.refreshToken,
+          tokenExpiresAt: this.props.tokenExpiresAt,
+          // Use credentials from props (stored during initial auth)
+          krogerClientId: this.props.krogerClientId,
+          krogerClientSecret: this.props.krogerClientSecret,
         };
       },
       (newTokenInfo) => {
@@ -434,7 +441,7 @@ export class MyMCP extends McpAgent<Env, Props> {
           .describe("The division code (e.g., '705' for QFC)")
           .default("705"),
       },
-      async ({ locationId, divisionCode }) => {
+      async ({ locationId, divisionCode: _divisionCode }) => {
         try {
           // Step 1: Get the circulars list
           console.log("Fetching circulars for location:", locationId);
@@ -592,11 +599,72 @@ export class MyMCP extends McpAgent<Env, Props> {
 }
 export default new OAuthProvider({
   apiRoute: "/sse",
-  // @ts-ignore
   apiHandler: MyMCP.mount("/sse"),
-  // @ts-ignore
+  // @ts-expect-error - Hono handler type mismatch with OAuthProvider
   defaultHandler: KrogerHandler,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",
+
+  /**
+   * Token exchange callback - syncs Kroger tokens during MCP token refresh.
+   * This ensures that when the MCP client refreshes its token, we also
+   * refresh the Kroger token if needed, keeping both in sync.
+   */
+  tokenExchangeCallback: async ({ grantType, props }) => {
+    // Only handle refresh token grants
+    if (grantType !== "refresh_token") {
+      return {};
+    }
+
+    const typedProps = props as Props;
+
+    // Check if we have a refresh token and credentials
+    if (!typedProps?.refreshToken || !typedProps?.tokenExpiresAt) {
+      console.log("No Kroger refresh token available, keeping existing props");
+      return {};
+    }
+
+    if (!typedProps?.krogerClientId || !typedProps?.krogerClientSecret) {
+      console.log("No Kroger credentials in props, keeping existing props");
+      return {};
+    }
+
+    // Check if Kroger token is expiring (with 5-minute buffer)
+    if (!isKrogerTokenExpiring(typedProps.tokenExpiresAt)) {
+      console.log("Kroger token still valid, no refresh needed");
+      return {};
+    }
+
+    try {
+      console.log("Refreshing Kroger token during MCP token exchange...");
+
+      const refreshResult = await refreshKrogerToken(
+        typedProps.refreshToken,
+        typedProps.krogerClientId,
+        typedProps.krogerClientSecret,
+      );
+
+      console.log("Kroger token refreshed successfully during token exchange");
+
+      return {
+        // Update props with new Kroger tokens
+        newProps: {
+          ...typedProps,
+          accessToken: refreshResult.accessToken,
+          refreshToken: refreshResult.refreshToken ?? typedProps.refreshToken,
+          tokenExpiresAt: refreshResult.tokenExpiresAt,
+        },
+        // Match MCP access token TTL to Kroger's to keep them in sync
+        accessTokenTTL: refreshResult.expiresIn,
+      };
+    } catch (error) {
+      console.error(
+        "Failed to refresh Kroger token during token exchange:",
+        error,
+      );
+      // Return empty to keep existing props - the middleware will handle refresh
+      return {};
+    }
+  },
 });
