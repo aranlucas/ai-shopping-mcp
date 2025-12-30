@@ -73,21 +73,19 @@ async function redirectToKroger(
   headers: Record<string, string> = {},
 ) {
   // Create authorization URL using standard URL API
-  // Parameter order matches Kroger's documentation example
   const authorizeUrl = new URL(
     "https://api.kroger.com/v1/connect/oauth2/authorize",
   );
   const redirectUri = new URL("/callback", request.url).href;
 
-  // Set parameters in the order shown in Kroger's documentation
-  // https://developer.kroger.com/reference/api/authorization-endpoints-public
+  // Use original parameter order that was working
+  authorizeUrl.searchParams.set("client_id", env.KROGER_CLIENT_ID);
+  authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set(
     "scope",
     "profile.compact cart.basic:write product.compact",
   );
   authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("client_id", env.KROGER_CLIENT_ID);
-  authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("state", btoa(JSON.stringify(oauthReqInfo)));
 
   console.log("Redirecting to Kroger OAuth:", {
