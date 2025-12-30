@@ -180,12 +180,15 @@ app.get("/callback", async (c) => {
     metadata: {},
     scope: oauthReqInfo.scope,
     // This will be available on this.props inside the client
+    // Kroger credentials are included so tokenExchangeCallback can refresh tokens
     props: {
       id,
       accessToken,
       refreshToken,
       tokenExpiresAt,
       expiresIn: data.expires_in,
+      krogerClientId: c.env.KROGER_CLIENT_ID,
+      krogerClientSecret: c.env.KROGER_CLIENT_SECRET,
     },
   });
 
