@@ -114,16 +114,16 @@ async function redirectToKroger(
  */
 app.get("/callback", async (c) => {
   // Check for OAuth errors from Kroger
-  const error = c.req.query("error");
+  const oauthError = c.req.query("error");
   const errorDescription = c.req.query("error_description");
 
-  if (error) {
+  if (oauthError) {
     console.error("OAuth error from Kroger:", {
-      error,
+      error: oauthError,
       error_description: errorDescription,
     });
     return c.text(
-      `Kroger OAuth error: ${error}${errorDescription ? ` - ${errorDescription}` : ""}`,
+      `Kroger OAuth error: ${oauthError}${errorDescription ? ` - ${errorDescription}` : ""}`,
       400,
     );
   }
