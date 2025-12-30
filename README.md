@@ -1,8 +1,24 @@
 # AI-shopping-list
 
-This project implements a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server designed to interact with the Kroger API. 
+This project implements a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server designed to interact with the Kroger API.
 
 The goal is to allow AI models (like those in editors such as Cursor) to help manage QFC/Kroger shopping lists.
+
+## Setup & Configuration
+
+### Kroger Developer Portal Setup
+
+**IMPORTANT**: You must register your OAuth redirect URI in the Kroger Developer Portal:
+
+1. Go to [Kroger Developer Portal](https://developer.kroger.com/)
+2. Navigate to your application settings
+3. Add the **exact** redirect URI: `https://ai-meal-planner-mcp.aranlucas.workers.dev/callback`
+4. Save the configuration
+
+⚠️ **Common Issues**:
+- The redirect URI must match **exactly** (including trailing slashes, protocol, etc.)
+- Make sure your `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` environment variables are correctly set
+- Verify that your application has the correct scopes enabled: `profile.compact`, `cart.basic:write`, `product.compact`
 
 ## Connecting to Claude and other MCP Clients
 
