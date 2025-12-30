@@ -73,20 +73,27 @@ async function redirectToKroger(
   headers: Record<string, string> = {},
 ) {
   // Create authorization URL using standard URL API
+  // Parameter order matches Kroger's documentation example
   const authorizeUrl = new URL(
     "https://api.kroger.com/v1/connect/oauth2/authorize",
   );
-  authorizeUrl.searchParams.set("client_id", env.KROGER_CLIENT_ID);
-  authorizeUrl.searchParams.set(
-    "redirect_uri",
-    new URL("/callback", request.url).href,
-  );
+  const redirectUri = new URL("/callback", request.url).href;
+
+  // Set parameters in the order shown in Kroger's documentation
+  // https://developer.kroger.com/reference/api/authorization-endpoints-public
   authorizeUrl.searchParams.set(
     "scope",
     "profile.compact cart.basic:write product.compact",
   );
   authorizeUrl.searchParams.set("response_type", "code");
+  authorizeUrl.searchParams.set("client_id", env.KROGER_CLIENT_ID);
+  authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("state", btoa(JSON.stringify(oauthReqInfo)));
+
+  console.log("Redirecting to Kroger OAuth:", {
+    redirect_uri: redirectUri,
+    client_id: env.KROGER_CLIENT_ID.substring(0, 20) + "...",
+  });
 
   return new Response(null, {
     status: 302,
@@ -106,17 +113,42 @@ async function redirectToKroger(
  * down to the client. It ends by redirecting the client back to _its_ callback URL
  */
 app.get("/callback", async (c) => {
+  // Check for OAuth errors from Kroger
+  const error = c.req.query("error");
+  const errorDescription = c.req.query("error_description");
+
+  if (error) {
+    console.error("OAuth error from Kroger:", {
+      error,
+      error_description: errorDescription,
+    });
+    return c.text(
+      `Kroger OAuth error: ${error}${errorDescription ? ` - ${errorDescription}` : ""}`,
+      400,
+    );
+  }
+
   // Get the oathReqInfo out of state
-  const oauthReqInfo = JSON.parse(
-    atob(c.req.query("state") as string),
-  ) as AuthRequest;
+  const stateParam = c.req.query("state");
+  if (!stateParam) {
+    return c.text("Missing state parameter", 400);
+  }
+
+  let oauthReqInfo: AuthRequest;
+  try {
+    oauthReqInfo = JSON.parse(atob(stateParam)) as AuthRequest;
+  } catch (e) {
+    console.error("Failed to parse state parameter:", e);
+    return c.text("Invalid state parameter", 400);
+  }
+
   if (!oauthReqInfo.clientId) {
-    return c.text("Invalid state", 400);
+    return c.text("Invalid state: missing clientId", 400);
   }
 
   const code = c.req.query("code");
   if (!code) {
-    return c.text("Missing code", 400);
+    return c.text("Missing authorization code", 400);
   }
 
   // Exchange the code for an access token using the auth client
