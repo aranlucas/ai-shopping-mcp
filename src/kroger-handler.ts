@@ -108,7 +108,7 @@ app.post("/authorize", async (c) => {
 
 async function redirectToKroger(
   request: Request,
-  oauthReqInfo: AuthRequest,
+  _oauthReqInfo: AuthRequest, // Unused for now - state param commented out
   env: Env & { OAUTH_PROVIDER: OAuthHelpers },
   headers: Record<string, string> = {},
 ) {
@@ -118,21 +118,23 @@ async function redirectToKroger(
 
   // Build authorization URL manually with encodeURIComponent to ensure
   // spaces are encoded as %20 (not +) as required by Kroger
-  // Parameter order matches Kroger's documentation example
+  // Parameter order matches Postman working request
 
   // IMPORTANT: Kroger requires spaces encoded as %20, NOT +
   // Do NOT use URLSearchParams.set() as it encodes spaces as +
   // Must use encodeURIComponent() which produces %20
   const scope = "profile.compact cart.basic:write product.compact";
-  const state = btoa(JSON.stringify(oauthReqInfo));
+  // const state = btoa(JSON.stringify(oauthReqInfo));
 
+  // Order matches Postman: response_type, client_id, scope, redirect_uri
+  // State parameter commented out for testing
   const fullUrl =
     "https://api.kroger.com/v1/connect/oauth2/authorize?" +
-    `scope=${encodeURIComponent(scope)}` +
-    `&response_type=code` +
+    `response_type=code` +
     `&client_id=${encodeURIComponent(env.KROGER_CLIENT_ID)}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&state=${encodeURIComponent(state)}`;
+    `&scope=${encodeURIComponent(scope)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  // `&state=${encodeURIComponent(state)}`;
   console.log("Kroger OAuth redirect:", {
     redirect_uri: redirectUri,
     client_id: env.KROGER_CLIENT_ID
