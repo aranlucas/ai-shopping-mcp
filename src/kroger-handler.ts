@@ -127,23 +127,35 @@ app.get("/callback", async (c) => {
     );
   }
 
-  // Get the oathReqInfo out of state
+  // Get the oauthReqInfo out of state
   const stateParam = c.req.query("state");
   if (!stateParam) {
+    console.error("Callback missing state parameter");
     return c.text("Missing state parameter", 400);
   }
 
+  console.log("Callback received with state length:", stateParam.length);
+
   let oauthReqInfo: AuthRequest;
   try {
-    oauthReqInfo = JSON.parse(atob(stateParam)) as AuthRequest;
+    const decodedState = atob(stateParam);
+    console.log("Decoded state:", decodedState.substring(0, 100) + "...");
+    oauthReqInfo = JSON.parse(decodedState) as AuthRequest;
   } catch (e) {
-    console.error("Failed to parse state parameter:", e);
+    console.error("Failed to parse state parameter:", e, "Raw state:", stateParam.substring(0, 50));
     return c.text("Invalid state parameter", 400);
   }
 
   if (!oauthReqInfo.clientId) {
+    console.error("State missing clientId:", JSON.stringify(oauthReqInfo));
     return c.text("Invalid state: missing clientId", 400);
   }
+
+  console.log("OAuth request info:", {
+    clientId: oauthReqInfo.clientId,
+    redirectUri: oauthReqInfo.redirectUri,
+    hasCodeChallenge: !!oauthReqInfo.codeChallenge,
+  });
 
   const code = c.req.query("code");
   if (!code) {
@@ -234,25 +246,37 @@ app.get("/callback", async (c) => {
   const tokenExpiresAt = Date.now() + (tokenData.expires_in || 1800) * 1000;
 
   // Return back to the MCP client a new token
-  const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
-    request: oauthReqInfo,
-    userId: id,
-    metadata: {},
-    scope: oauthReqInfo.scope,
-    // This will be available on this.props inside the client
-    // Kroger credentials are included so tokenExchangeCallback can refresh tokens
-    props: {
-      id,
-      accessToken,
-      refreshToken,
-      tokenExpiresAt,
-      expiresIn: tokenData.expires_in,
-      krogerClientId: c.env.KROGER_CLIENT_ID,
-      krogerClientSecret: c.env.KROGER_CLIENT_SECRET,
-    },
-  });
+  console.log("Completing authorization for user:", id);
 
-  return Response.redirect(redirectTo);
+  try {
+    const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
+      request: oauthReqInfo,
+      userId: id,
+      metadata: {},
+      scope: oauthReqInfo.scope,
+      // This will be available on this.props inside the client
+      // Kroger credentials are included so tokenExchangeCallback can refresh tokens
+      props: {
+        id,
+        accessToken,
+        refreshToken,
+        tokenExpiresAt,
+        expiresIn: tokenData.expires_in,
+        krogerClientId: c.env.KROGER_CLIENT_ID,
+        krogerClientSecret: c.env.KROGER_CLIENT_SECRET,
+      },
+    });
+
+    console.log("Authorization complete, redirecting to:", redirectTo.substring(0, 100) + "...");
+
+    return Response.redirect(redirectTo);
+  } catch (completeError) {
+    console.error("Failed to complete authorization:", completeError);
+    return c.text(
+      `Failed to complete authorization: ${completeError instanceof Error ? completeError.message : "Unknown error"}`,
+      500,
+    );
+  }
 });
 
 export { app as KrogerHandler };
