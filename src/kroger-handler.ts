@@ -21,7 +21,7 @@ const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
 app.get("/authorize", async (c) => {
   console.log("GET /authorize - Starting authorization flow");
 
-  let oauthReqInfo;
+  let oauthReqInfo: AuthRequest;
   try {
     oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
     console.log("Parsed auth request:", {
@@ -31,7 +31,10 @@ app.get("/authorize", async (c) => {
     });
   } catch (parseError) {
     console.error("Failed to parse auth request:", parseError);
-    return c.text(`Failed to parse auth request: ${parseError instanceof Error ? parseError.message : "Unknown error"}`, 400);
+    return c.text(
+      `Failed to parse auth request: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
+      400,
+    );
   }
 
   const { clientId } = oauthReqInfo;
@@ -67,7 +70,8 @@ app.get("/authorize", async (c) => {
 app.post("/authorize", async (c) => {
   console.log("POST /authorize - Processing approval");
 
-  let state, headers;
+  let state: { oauthReqInfo?: AuthRequest };
+  let headers: Record<string, string>;
   try {
     // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
     const result = await parseRedirectApproval(
@@ -76,10 +80,16 @@ app.post("/authorize", async (c) => {
     );
     state = result.state;
     headers = result.headers;
-    console.log("Parsed approval, state has oauthReqInfo:", !!state.oauthReqInfo);
+    console.log(
+      "Parsed approval, state has oauthReqInfo:",
+      !!state.oauthReqInfo,
+    );
   } catch (parseError) {
     console.error("Failed to parse approval:", parseError);
-    return c.text(`Failed to parse approval: ${parseError instanceof Error ? parseError.message : "Unknown error"}`, 400);
+    return c.text(
+      `Failed to parse approval: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
+      400,
+    );
   }
 
   if (!state.oauthReqInfo) {
@@ -104,35 +114,40 @@ async function redirectToKroger(
 ) {
   console.log("Building Kroger redirect URL");
 
-  // Create authorization URL using standard URL API
-  // Parameter order matches Kroger's documentation example
-  const authorizeUrl = new URL(
-    "https://api.kroger.com/v1/connect/oauth2/authorize",
-  );
   const redirectUri = new URL("/callback", request.url).href;
 
-  // Set parameters in the order shown in Kroger's documentation
-  // https://developer.kroger.com/reference/api/authorization-endpoints-public
-  authorizeUrl.searchParams.set(
-    "scope",
-    "profile.compact cart.basic:write product.compact",
-  );
-  authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("client_id", env.KROGER_CLIENT_ID);
-  authorizeUrl.searchParams.set("redirect_uri", redirectUri);
-  authorizeUrl.searchParams.set("state", btoa(JSON.stringify(oauthReqInfo)));
+  // Build authorization URL manually with encodeURIComponent to ensure
+  // spaces are encoded as %20 (not +) as required by Kroger
+  // Parameter order matches Kroger's documentation example
 
-  const fullUrl = authorizeUrl.href;
+  // IMPORTANT: Kroger requires spaces encoded as %20, NOT +
+  // Do NOT use URLSearchParams.set() as it encodes spaces as +
+  // Must use encodeURIComponent() which produces %20
+  const scope = "profile.compact cart.basic:write product.compact";
+  const state = btoa(JSON.stringify(oauthReqInfo));
+
+  const fullUrl =
+    "https://api.kroger.com/v1/connect/oauth2/authorize?" +
+    `scope=${encodeURIComponent(scope)}` +
+    `&response_type=code` +
+    `&client_id=${encodeURIComponent(env.KROGER_CLIENT_ID)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&state=${encodeURIComponent(state)}`;
   console.log("Kroger OAuth redirect:", {
     redirect_uri: redirectUri,
-    client_id: env.KROGER_CLIENT_ID ? `${env.KROGER_CLIENT_ID.substring(0, 20)}...` : "MISSING!",
+    client_id: env.KROGER_CLIENT_ID
+      ? `${env.KROGER_CLIENT_ID.substring(0, 20)}...`
+      : "MISSING!",
     full_url_length: fullUrl.length,
-    url_preview: fullUrl.substring(0, 150) + "...",
+    url_preview: `${fullUrl.substring(0, 150)}...`,
   });
 
   if (!env.KROGER_CLIENT_ID) {
     console.error("KROGER_CLIENT_ID is not set!");
-    return new Response("Server configuration error: Missing KROGER_CLIENT_ID", { status: 500 });
+    return new Response(
+      "Server configuration error: Missing KROGER_CLIENT_ID",
+      { status: 500 },
+    );
   }
 
   return new Response(null, {
@@ -180,10 +195,15 @@ app.get("/callback", async (c) => {
   let oauthReqInfo: AuthRequest;
   try {
     const decodedState = atob(stateParam);
-    console.log("Decoded state:", decodedState.substring(0, 100) + "...");
+    console.log("Decoded state:", `${decodedState.substring(0, 100)}...`);
     oauthReqInfo = JSON.parse(decodedState) as AuthRequest;
   } catch (e) {
-    console.error("Failed to parse state parameter:", e, "Raw state:", stateParam.substring(0, 50));
+    console.error(
+      "Failed to parse state parameter:",
+      e,
+      "Raw state:",
+      stateParam.substring(0, 50),
+    );
     return c.text("Invalid state parameter", 400);
   }
 
@@ -214,7 +234,7 @@ app.get("/callback", async (c) => {
 
   console.log("Exchanging authorization code for token:", {
     redirect_uri: redirectUri,
-    client_id: c.env.KROGER_CLIENT_ID.substring(0, 20) + "...",
+    client_id: `${c.env.KROGER_CLIENT_ID.substring(0, 20)}...`,
   });
 
   const tokenResponse = await fetch(
@@ -308,7 +328,10 @@ app.get("/callback", async (c) => {
       },
     });
 
-    console.log("Authorization complete, redirecting to:", redirectTo.substring(0, 100) + "...");
+    console.log(
+      "Authorization complete, redirecting to:",
+      `${redirectTo.substring(0, 100)}...`,
+    );
 
     return Response.redirect(redirectTo);
   } catch (completeError) {
