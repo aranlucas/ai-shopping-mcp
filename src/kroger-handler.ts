@@ -19,10 +19,25 @@ interface Env {
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
 
 app.get("/authorize", async (c) => {
-  const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
+  console.log("GET /authorize - Starting authorization flow");
+
+  let oauthReqInfo;
+  try {
+    oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
+    console.log("Parsed auth request:", {
+      clientId: oauthReqInfo.clientId,
+      redirectUri: oauthReqInfo.redirectUri,
+      scope: oauthReqInfo.scope,
+    });
+  } catch (parseError) {
+    console.error("Failed to parse auth request:", parseError);
+    return c.text(`Failed to parse auth request: ${parseError instanceof Error ? parseError.message : "Unknown error"}`, 400);
+  }
+
   const { clientId } = oauthReqInfo;
   if (!clientId) {
-    return c.text("Invalid request", 400);
+    console.error("Missing clientId in auth request");
+    return c.text("Invalid request - missing clientId", 400);
   }
 
   if (
@@ -32,9 +47,11 @@ app.get("/authorize", async (c) => {
       c.env.COOKIE_ENCRYPTION_KEY,
     )
   ) {
+    console.log("Client already approved, redirecting to Kroger");
     return redirectToKroger(c.req.raw, oauthReqInfo, c.env);
   }
 
+  console.log("Showing approval dialog");
   return renderApprovalDialog(c.req.raw, {
     client: await c.env.OAUTH_PROVIDER.lookupClient(clientId),
     server: {
@@ -48,15 +65,29 @@ app.get("/authorize", async (c) => {
 });
 
 app.post("/authorize", async (c) => {
-  // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
-  const { state, headers } = await parseRedirectApproval(
-    c.req.raw,
-    c.env.COOKIE_ENCRYPTION_KEY,
-  );
-  if (!state.oauthReqInfo) {
-    return c.text("Invalid request", 400);
+  console.log("POST /authorize - Processing approval");
+
+  let state, headers;
+  try {
+    // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
+    const result = await parseRedirectApproval(
+      c.req.raw,
+      c.env.COOKIE_ENCRYPTION_KEY,
+    );
+    state = result.state;
+    headers = result.headers;
+    console.log("Parsed approval, state has oauthReqInfo:", !!state.oauthReqInfo);
+  } catch (parseError) {
+    console.error("Failed to parse approval:", parseError);
+    return c.text(`Failed to parse approval: ${parseError instanceof Error ? parseError.message : "Unknown error"}`, 400);
   }
 
+  if (!state.oauthReqInfo) {
+    console.error("Missing oauthReqInfo in state");
+    return c.text("Invalid request - missing oauthReqInfo", 400);
+  }
+
+  console.log("Redirecting to Kroger after approval");
   return redirectToKroger(
     c.req.raw,
     state.oauthReqInfo as AuthRequest,
@@ -71,6 +102,8 @@ async function redirectToKroger(
   env: Env & { OAUTH_PROVIDER: OAuthHelpers },
   headers: Record<string, string> = {},
 ) {
+  console.log("Building Kroger redirect URL");
+
   // Create authorization URL using standard URL API
   // Parameter order matches Kroger's documentation example
   const authorizeUrl = new URL(
@@ -89,16 +122,24 @@ async function redirectToKroger(
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("state", btoa(JSON.stringify(oauthReqInfo)));
 
-  console.log("Redirecting to Kroger OAuth:", {
+  const fullUrl = authorizeUrl.href;
+  console.log("Kroger OAuth redirect:", {
     redirect_uri: redirectUri,
-    client_id: env.KROGER_CLIENT_ID.substring(0, 20) + "...",
+    client_id: env.KROGER_CLIENT_ID ? `${env.KROGER_CLIENT_ID.substring(0, 20)}...` : "MISSING!",
+    full_url_length: fullUrl.length,
+    url_preview: fullUrl.substring(0, 150) + "...",
   });
+
+  if (!env.KROGER_CLIENT_ID) {
+    console.error("KROGER_CLIENT_ID is not set!");
+    return new Response("Server configuration error: Missing KROGER_CLIENT_ID", { status: 500 });
+  }
 
   return new Response(null, {
     status: 302,
     headers: {
       ...headers,
-      Location: authorizeUrl.href,
+      Location: fullUrl,
     },
   });
 }
