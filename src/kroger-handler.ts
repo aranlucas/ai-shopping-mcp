@@ -356,13 +356,15 @@ app.get("/callback", async (c) => {
       `${redirectTo.substring(0, 100)}...`,
     );
 
-    // Clear the OAuth state cookie
-    const response = Response.redirect(redirectTo);
-    response.headers.set(
-      "Set-Cookie",
-      "kroger_oauth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/",
-    );
-    return response;
+    // Clear the OAuth state cookie and redirect
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: redirectTo,
+        "Set-Cookie":
+          "kroger_oauth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/",
+      },
+    });
   } catch (completeError) {
     console.error("Failed to complete authorization:", completeError);
     return c.text(
