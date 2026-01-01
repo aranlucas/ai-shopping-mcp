@@ -230,3 +230,143 @@ export function formatWeeklyDealsList(deals: WeeklyDeal[]): string {
 
   return formatted.join("\n\n");
 }
+
+/**
+ * Format pantry item for display
+ */
+export interface PantryItemDisplay {
+  productId: string;
+  productName: string;
+  quantity: number;
+  addedAt: string;
+  expiresAt?: string;
+}
+
+export function formatPantryItem(item: PantryItemDisplay): string {
+  const lines: string[] = [];
+
+  lines.push(`**${item.productName}**`);
+  lines.push(`Quantity: ${item.quantity}`);
+  lines.push(`Added: ${new Date(item.addedAt).toLocaleDateString()}`);
+
+  if (item.expiresAt) {
+    const expiryDate = new Date(item.expiresAt);
+    const daysUntilExpiry = Math.floor(
+      (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysUntilExpiry < 0) {
+      lines.push(`Expires: ${expiryDate.toLocaleDateString()} (Expired)`);
+    } else if (daysUntilExpiry === 0) {
+      lines.push(`Expires: Today`);
+    } else if (daysUntilExpiry <= 3) {
+      lines.push(
+        `Expires: ${expiryDate.toLocaleDateString()} (${daysUntilExpiry} days)`,
+      );
+    } else {
+      lines.push(`Expires: ${expiryDate.toLocaleDateString()}`);
+    }
+  }
+
+  lines.push(`Product ID: ${item.productId}`);
+
+  return lines.join("\n");
+}
+
+export function formatPantryList(items: PantryItemDisplay[]): string {
+  if (items.length === 0) {
+    return "Your pantry is empty.";
+  }
+
+  const formatted = items.map((item, index) => {
+    const itemText = formatPantryItem(item);
+    return `${index + 1}. ${itemText.replace(/\n/g, "\n   ")}`;
+  });
+
+  return formatted.join("\n\n");
+}
+
+/**
+ * Format order record for display
+ */
+export interface OrderRecordDisplay {
+  orderId: string;
+  items: Array<{
+    productId: string;
+    productName: string;
+    quantity: number;
+    price?: number;
+  }>;
+  totalItems: number;
+  estimatedTotal?: number;
+  placedAt: string;
+  locationId?: string;
+  notes?: string;
+}
+
+export function formatOrderRecord(order: OrderRecordDisplay): string {
+  const lines: string[] = [];
+
+  lines.push(`**Order #${order.orderId}**`);
+  lines.push(`Placed: ${new Date(order.placedAt).toLocaleString()}`);
+  lines.push(`Total Items: ${order.totalItems}`);
+
+  if (order.estimatedTotal) {
+    lines.push(`Estimated Total: $${order.estimatedTotal.toFixed(2)}`);
+  }
+
+  if (order.locationId) {
+    lines.push(`Location: ${order.locationId}`);
+  }
+
+  if (order.notes) {
+    lines.push(`Notes: ${order.notes}`);
+  }
+
+  // Format items
+  lines.push("\nItems:");
+  order.items.forEach((item) => {
+    const priceStr = item.price ? ` - $${item.price.toFixed(2)}` : "";
+    lines.push(`  - ${item.productName} (${item.quantity})${priceStr}`);
+  });
+
+  return lines.join("\n");
+}
+
+export function formatOrderHistory(orders: OrderRecordDisplay[]): string {
+  if (orders.length === 0) {
+    return "No order history found.";
+  }
+
+  const formatted = orders.map((order, index) => {
+    const orderText = formatOrderRecord(order);
+    return `${index + 1}. ${orderText.replace(/\n/g, "\n   ")}`;
+  });
+
+  return formatted.join("\n\n");
+}
+
+/**
+ * Format preferred location for display
+ */
+export interface PreferredLocationDisplay {
+  locationId: string;
+  locationName: string;
+  address: string;
+  chain: string;
+  setAt: string;
+}
+
+export function formatPreferredLocation(
+  location: PreferredLocationDisplay,
+): string {
+  const lines: string[] = [];
+
+  lines.push(`**${location.locationName}**`);
+  lines.push(`Chain: ${location.chain}`);
+  lines.push(`Address: ${location.address}`);
+  lines.push(`Location ID: ${location.locationId}`);
+  lines.push(`Set: ${new Date(location.setAt).toLocaleDateString()}`);
+
+  return lines.join("\n");
+}

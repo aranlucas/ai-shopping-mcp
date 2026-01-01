@@ -120,18 +120,51 @@ Set in kroger-handler.ts:133:
 
 The server exposes these MCP tools (all defined in server.ts):
 
-1. **add_to_cart** (line 73): Add items to cart with UPC, quantity, modality
-2. **search_locations** (line 138): Find stores by zip code, chain name
-3. **get_location_details** (line 202): Get store details by location ID
-4. **search_products** (line 250): Search products by term, location, product ID
-5. **get_product_details** (line 368): Get product details by product ID
-6. **get_weekly_deals** (line 429): Fetch current weekly deals using Kroger's circulars API
+**Shopping & Products:**
+1. **add_to_cart** (line 84): Add items to cart with UPC, quantity, modality
+2. **search_locations** (line 149): Find stores by zip code, chain name
+3. **get_location_details** (line 210): Get store details by location ID
+4. **search_products** (line 257): Search products by term, location, product ID
+5. **get_product_details** (line 367): Get product details by product ID
+6. **get_weekly_deals** (line 427): Fetch current weekly deals using Kroger's circulars API
+
+**User Data Persistence (Cloudflare KV):**
+7. **set_preferred_location** (line 597): Save user's preferred store
+8. **get_preferred_location** (line 651): Retrieve saved preferred store
+9. **add_to_pantry** (line 688): Add items to pantry inventory
+10. **remove_from_pantry** (line 738): Remove items from pantry
+11. **view_pantry** (line 769): Display all pantry items
+12. **clear_pantry** (line 794): Clear pantry inventory
+13. **mark_order_placed** (line 818): Record completed order in history
+14. **view_order_history** (line 877): Display past orders
 
 ### Weekly Deals Implementation
 Unlike other tools, weekly deals uses direct `fetch()` calls (not `openapi-fetch`) because it requires:
 - Custom `x-laf-object` header with location/facility data structure
 - Calls to both the circulars API and QFC's shoppable-weekly-deals endpoint
 - Non-standard API that's not in the official OpenAPI specs
+
+## User Data Persistence
+
+### Cloudflare KV Storage
+The application uses Cloudflare KV (`USER_DATA_KV` binding) for persistent user data storage:
+
+**Storage Module:** `src/utils/user-storage.ts`
+
+**Data Types:**
+- **Preferred Location**: Saves user's favorite store (location ID, name, address, chain)
+- **Pantry Items**: Tracks groceries at home (product ID, name, quantity, added date, expiry date)
+- **Order History**: Records past orders (order ID, items, prices, totals, location, timestamp)
+
+**Key Features:**
+- Data namespaced by user ID for isolation (`user:{userId}:{dataType}`)
+- JSON serialization for complex data structures
+- Automatic quantity updates for duplicate pantry items
+- Order history limited to 50 most recent orders
+- Formatted responses via `src/utils/format-response.ts`
+
+**Environment Variables:**
+- `USER_DATA_KV`: KV namespace binding (configured in wrangler.jsonc)
 
 ## Connecting MCP Clients
 

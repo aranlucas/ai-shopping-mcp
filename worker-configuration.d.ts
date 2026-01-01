@@ -4,6 +4,7 @@
 declare namespace Cloudflare {
 	interface Env {
 		OAUTH_KV: KVNamespace;
+		USER_DATA_KV: KVNamespace;
 		KROGER_CLIENT_ID: string;
 		KROGER_CLIENT_SECRET: string;
 		MCP_SERVER_BASE_URL: string;

@@ -26,6 +26,11 @@
     {
       "binding": "OAUTH_KV",
       "id": "8bd5ecd7157942228263703abbabc25f"
+    },
+    {
+      "binding": "USER_DATA_KV",
+      "id": "preview_id",
+      "preview_id": "preview_id"
     }
   ],
   "ai": {
