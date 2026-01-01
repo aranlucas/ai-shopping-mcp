@@ -18,6 +18,14 @@ import type {
   CircularsResponse,
   WeeklyDealsResponse,
 } from "./services/kroger/weekly-deals.js";
+import { registerPrompts } from "./prompts.js";
+import {
+  formatLocationList,
+  formatLocation,
+  formatProductList,
+  formatWeeklyDealsList,
+  type WeeklyDeal,
+} from "./utils/format-response.js";
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
@@ -40,6 +48,9 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
   });
 
   async init() {
+    // Register MCP prompts for guided workflows
+    registerPrompts(this.server);
+
     // Configure Kroger auth for all clients
     configureKrogerAuth(
       (): KrogerTokenInfo | null => {
@@ -181,17 +192,14 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         const locations = data?.data || [];
         console.log(`Found ${locations.length} locations`);
 
-        // Return a successful response
+        // Return a successful response with formatted text
+        const formattedLocations = formatLocationList(locations);
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                message: `Found ${locations.length} location(s)`,
-                count: locations.length,
-                locations: locations,
-                success: true,
-              }),
+              text: `Found ${locations.length} location(s):\n\n${formattedLocations}`,
             },
           ],
         };
@@ -232,15 +240,14 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         console.log(`Retrieved details for location: ${location.name}`);
 
-        // Return successful response
+        // Return successful response with formatted text
+        const formattedLocation = formatLocation(location);
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                location: location,
-                success: true,
-              }),
+              text: `Location Details:\n\n${formattedLocation}`,
             },
           ],
         };
@@ -336,28 +343,20 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             content: [
               {
                 type: "text",
-                text: JSON.stringify({
-                  message: "No products found matching your search criteria.",
-                  count: 0,
-                  products: [],
-                  success: true,
-                }),
+                text: "No products found matching your search criteria.",
               },
             ],
           };
         }
 
-        // Return a successful response
+        // Return a successful response with formatted products
+        const formattedProducts = formatProductList(products);
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                message: `Found ${products.length} products`,
-                count: products.length,
-                products: products,
-                success: true,
-              }),
+              text: `Found ${products.length} product(s):\n\n${formattedProducts}`,
             },
           ],
         };
@@ -410,15 +409,14 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         console.log(`Retrieved details for product: ${product.description}`);
 
-        // Return successful response
+        // Return successful response with formatted product
+        const formattedProduct = formatProductList([product]);
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                product: product,
-                success: true,
-              }),
+              text: `Product Details:\n\n${formattedProduct}`,
             },
           ],
         };
@@ -536,7 +534,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           console.log(`Found ${deals.length} weekly deals`);
 
           // Format the deals for display - only include relevant information
-          const formattedDeals = deals.slice(0, 20).map((deal) => ({
+          const formattedDeals: WeeklyDeal[] = deals.slice(0, 20).map((deal) => ({
             product: deal.mainlineCopy,
             details: deal.underlineCopy,
             price: deal.retailPrice
@@ -551,31 +549,21 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             department: deal.departments[0]?.department || "General",
             validFrom: new Date(deal.validFrom).toLocaleDateString(),
             validTill: new Date(deal.validTill).toLocaleDateString(),
-            shoppable: deal.shoppable,
             disclaimer: deal.disclaimer || "",
           }));
+
+          // Format the deals list
+          const formattedDealsList = formatWeeklyDealsList(formattedDeals);
+          const circularInfo = `**${currentCircular.eventName}**
+Valid: ${new Date(currentCircular.eventStartDate).toLocaleDateString()} - ${new Date(currentCircular.eventEndDate).toLocaleDateString()}
+Division: ${currentCircular.divisionName}`;
 
           // Return successful response
           return {
             content: [
               {
                 type: "text",
-                text: JSON.stringify({
-                  message: `Found ${deals.length} weekly deals for ${currentCircular.eventName}`,
-                  circular: {
-                    name: currentCircular.eventName,
-                    startDate: new Date(
-                      currentCircular.eventStartDate,
-                    ).toLocaleDateString(),
-                    endDate: new Date(
-                      currentCircular.eventEndDate,
-                    ).toLocaleDateString(),
-                    division: currentCircular.divisionName,
-                  },
-                  dealsCount: deals.length,
-                  deals: formattedDeals,
-                  success: true,
-                }),
+                text: `Found ${deals.length} weekly deals:\n\n${circularInfo}\n\n${formattedDealsList}`,
               },
             ],
           };
@@ -585,10 +573,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             content: [
               {
                 type: "text",
-                text: JSON.stringify({
-                  message: `Failed to fetch weekly deals: ${error instanceof Error ? error.message : "Unknown error"}`,
-                  success: false,
-                }),
+                text: `Failed to fetch weekly deals: ${error instanceof Error ? error.message : "Unknown error"}`,
               },
             ],
           };

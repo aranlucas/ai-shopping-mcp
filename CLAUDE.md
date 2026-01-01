@@ -150,6 +150,66 @@ Use the `mcp-remote` local proxy to connect Claude Desktop:
 }
 ```
 
+## TypeScript Best Practices
+
+### CRITICAL: Never Use `any` Types
+- **NEVER** use `any` type in TypeScript code
+- Always use proper types from OpenAPI-generated schemas
+- Use explicit type annotations for all function parameters and return values
+- When working with OpenAPI types, use the `components["schemas"]["..."]` pattern
+
+**Example - Correct Type Usage:**
+```typescript
+import type { components as ProductComponents } from "../services/kroger/product.js";
+type Product = ProductComponents["schemas"]["products.productModel"];
+
+function formatProduct(product: Product): string {
+  // Always type parameters in callbacks
+  product.aisleLocations?.map((loc: AisleLocation) => loc.description);
+}
+```
+
+**Example - WRONG (Never Do This):**
+```typescript
+function formatProduct(product: any): string {  // ❌ NEVER USE ANY
+  product.aisleLocations?.map((loc) => loc.description);  // ❌ Missing type
+}
+```
+
+### Type Annotation Requirements
+1. **Function Parameters**: Always explicitly type all parameters
+   ```typescript
+   // ✅ Correct
+   ({ grocery_list }: { grocery_list: string }) => { ... }
+
+   // ❌ Wrong
+   ({ grocery_list }) => { ... }
+   ```
+
+2. **Array Callbacks**: Type all callback parameters
+   ```typescript
+   // ✅ Correct
+   items.map((item: Item) => item.name)
+
+   // ❌ Wrong
+   items.map((item) => item.name)
+   ```
+
+3. **OpenAPI Schema Types**: Use the generated type definitions
+   ```typescript
+   // ✅ Correct - Use generated types
+   type Product = ProductComponents["schemas"]["products.productModel"];
+   type Location = LocationComponents["schemas"]["locations.location"];
+
+   // ❌ Wrong - Don't use any or create manual interfaces
+   type Product = any;
+   ```
+
+### Proper Property Access
+- Always check the OpenAPI schema for correct property names
+- Properties in the API may differ from expected naming conventions
+- Example: `fulfillment.instore` (lowercase) not `fulfillment.inStore` (camelCase)
+
 ## Important Implementation Notes
 
 ### UPC and Location ID Formats
@@ -166,3 +226,12 @@ Use the `mcp-remote` local proxy to connect Claude Desktop:
 All Kroger API interactions use `openapi-fetch` with typed clients, except:
 1. OAuth token exchange (uses direct `fetch()` per Kroger docs)
 2. Weekly deals (uses `fetch()` for custom headers and undocumented endpoints)
+
+## Reference Implementations
+
+### Kroger MCP Implementations
+- **CupOfOwls/kroger-mcp** - https://github.com/CupOfOwls/kroger-mcp
+  - Python-based FastMCP implementation
+  - Includes MCP prompts for guided workflows
+  - Local cart tracking workaround for API limitations
+  - Reference for feature ideas and UX patterns
