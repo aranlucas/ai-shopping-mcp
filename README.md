@@ -67,4 +67,50 @@ The Kroger MCP server provides the following tools:
   - Parameters: locationId, divisionCode, divisionName
   - Returns: Active weekly ad deals including product names, prices, savings, and validity dates
 
+## MCP Prompts
+
+The server provides guided workflow prompts for common shopping scenarios:
+
+### Shopping Assistant Prompts
+- **grocery_list_store_path** - Helps organize your grocery list into an optimal shopping route through the store
+  - Parameters: grocery_list (string)
+  - Creates efficient aisle-by-aisle shopping paths
+
+- **pharmacy_open_check** - Checks if the pharmacy at your preferred Kroger location is currently open
+  - No parameters required
+  - Shows pharmacy hours and available services
+
+- **set_preferred_store** - Guides you through selecting and saving your preferred Kroger store
+  - Parameters: zip_code (optional)
+  - Displays nearby stores with addresses and distances
+
+- **add_recipe_to_cart** - Finds a recipe and automatically adds ingredients to your cart
+  - Parameters: recipe_type (default: "classic apple pie")
+  - Searches for products, suggests alternatives, and bulk-adds ingredients
+
+## Features
+
+### Human-Readable Responses
+All tools return formatted, easy-to-read responses instead of raw JSON:
+- **Products**: Markdown-formatted with pricing, availability, and aisle locations
+- **Locations**: Clean display of addresses, hours, and departments
+- **Weekly Deals**: Clear pricing with savings amounts and valid dates
+
+### Type Safety
+- Fully typed with TypeScript
+- Uses OpenAPI-generated type definitions
+- Zero `any` types throughout the codebase
+
+## References
+
+### Related Projects
+- **[CupOfOwls/kroger-mcp](https://github.com/CupOfOwls/kroger-mcp)** - Python-based Kroger MCP implementation
+  - Reference implementation for feature ideas and UX patterns
+  - Includes local cart tracking workaround for API limitations
+  - Built with FastMCP
+
+### Documentation
+- [Kroger Developer Portal](https://developer.kroger.com/) - Official API documentation
+- [Model Context Protocol](https://modelcontextprotocol.io/) - MCP specification
+- [MCP Remote Proxy](https://github.com/anthropics/mcp-remote) - Connect Claude Desktop to remote MCP servers
 
