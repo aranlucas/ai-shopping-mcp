@@ -3,10 +3,13 @@
  * Provides human-readable formatting for products, locations, and other data
  */
 
-// Using any for now since the OpenAPI generated types are complex
-// In production, these would be properly typed
-type Product = any;
-type Location = any;
+import type { components as ProductComponents } from "../services/kroger/product.js";
+import type { components as LocationComponents } from "../services/kroger/location.js";
+
+type Product = ProductComponents["schemas"]["products.productModel"];
+type Location = LocationComponents["schemas"]["locations.location"];
+type AisleLocation = ProductComponents["schemas"]["products.productAisleLocationModel"];
+type Department = LocationComponents["schemas"]["locations.departmentAtLocation"];
 
 /**
  * Format a product for display with pricing and availability
@@ -42,9 +45,10 @@ export function formatProduct(product: Product): string {
     // Fulfillment availability
     if (item.fulfillment) {
       const fulfillment: string[] = [];
-      if (item.fulfillment.pickup) fulfillment.push("Pickup");
+      if (item.fulfillment.curbside) fulfillment.push("Curbside");
       if (item.fulfillment.delivery) fulfillment.push("Delivery");
-      if (item.fulfillment.inStore) fulfillment.push("In-Store");
+      if (item.fulfillment.instore) fulfillment.push("In-Store");
+      if (item.fulfillment.shiptohome) fulfillment.push("Ship to Home");
       if (fulfillment.length > 0) {
         lines.push(`Available for: ${fulfillment.join(", ")}`);
       }
@@ -63,7 +67,7 @@ export function formatProduct(product: Product): string {
 
   if (product.aisleLocations && product.aisleLocations.length > 0) {
     const aisles = product.aisleLocations
-      .map((loc: any) => `${loc.description} (${loc.number})`)
+      .map((loc: AisleLocation) => `${loc.description} (${loc.number})`)
       .join(", ");
     lines.push(`Aisle: ${aisles}`);
   }
@@ -132,7 +136,7 @@ export function formatLocation(location: Location): string {
   // Departments
   if (location.departments && location.departments.length > 0) {
     lines.push("\n**Departments:**");
-    location.departments.forEach((dept: any) => {
+    location.departments.forEach((dept: Department) => {
       if (dept.name) {
         let deptLine = `- ${dept.name}`;
         if (dept.phone) {
