@@ -42,35 +42,7 @@ IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.
   );
 
   /**
-   * Prompt 2: Pharmacy Open Check
-   * Verifies whether a pharmacy at the preferred Kroger location is open
-   */
-  server.prompt(
-    "pharmacy_open_check",
-    "Generate a prompt to check if the pharmacy at the preferred Kroger location is open",
-    {},
-    () => ({
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: `Please check if the pharmacy at my preferred Kroger store is currently open.
-
-Use the get_location_details tool to:
-1. Check the pharmacy department information
-2. Verify the current hours of operation
-3. Let me know if it's open right now and what services are available
-
-If I don't have a preferred location set, please help me set one first.`,
-          },
-        },
-      ],
-    }),
-  );
-
-  /**
-   * Prompt 3: Set Preferred Store
+   * Prompt 2: Set Preferred Store
    * Guides users through selecting and saving their preferred Kroger store
    */
   server.prompt(
@@ -106,7 +78,7 @@ This will make future shopping and product searches more convenient.`,
   );
 
   /**
-   * Prompt 4: Add Recipe to Cart
+   * Prompt 3: Add Recipe to Cart
    * Finds a recipe and automatically adds ingredients to the shopping cart
    */
   server.prompt(

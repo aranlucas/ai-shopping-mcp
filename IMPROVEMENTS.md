@@ -6,7 +6,7 @@ This document summarizes the improvements made to the Kroger MCP server based on
 ## Implemented Improvements
 
 ### ✅ 1. MCP Prompts (NEW FEATURE)
-Added 4 specialized prompts for guided workflows:
+Added 3 specialized prompts for guided workflows:
 
 **Location:** `src/prompts.ts`
 
@@ -14,11 +14,6 @@ Added 4 specialized prompts for guided workflows:
   - Takes a grocery list and organizes items by aisle/department
   - Suggests efficient shopping routes
   - Does NOT add items to cart automatically
-
-- **pharmacy_open_check** - Verifies pharmacy availability at preferred location
-  - Checks if pharmacy is currently open
-  - Shows hours of operation
-  - Lists available services
 
 - **set_preferred_store** - Guides users through selecting their preferred store
   - Searches nearby locations by zip code

@@ -76,10 +76,6 @@ The server provides guided workflow prompts for common shopping scenarios:
   - Parameters: grocery_list (string)
   - Creates efficient aisle-by-aisle shopping paths
 
-- **pharmacy_open_check** - Checks if the pharmacy at your preferred Kroger location is currently open
-  - No parameters required
-  - Shows pharmacy hours and available services
-
 - **set_preferred_store** - Guides you through selecting and saving your preferred Kroger store
   - Parameters: zip_code (optional)
   - Displays nearby stores with addresses and distances
