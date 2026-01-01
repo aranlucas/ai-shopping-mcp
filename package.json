@@ -14,7 +14,6 @@
     "generate:cart": "npx openapi-typescript kroger/cart.yaml -o src//services/kroger/cart.d.ts",
     "generate:location": "npx openapi-typescript kroger/location.yaml -o src/services/kroger/location.d.ts",
     "generate:product": "npx openapi-typescript kroger/product.yaml -o src/services/kroger/product.d.ts",
-    "generate:auth": "npx openapi-typescript kroger/auth.yaml -o src/services/kroger/auth.d.ts",
     "generate:identity": "npx openapi-typescript kroger/identity.yaml -o src/services/kroger/identity.d.ts"
   },
   "keywords": [],
