@@ -155,7 +155,6 @@ Found 5 product(s):
 
 ### Limitations & Trade-offs
 - Formatted responses are more readable but harder to parse programmatically
-- Some tools still need proper TypeScript types (using `any` for complex OpenAPI types)
 - Cart viewing/management requires storage implementation (Durable Objects)
 - Order history requires persistent storage beyond current session
 
