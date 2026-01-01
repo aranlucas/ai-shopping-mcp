@@ -108,7 +108,7 @@ app.post("/authorize", async (c) => {
 
 async function redirectToKroger(
   request: Request,
-  _oauthReqInfo: AuthRequest, // Unused for now - state param commented out
+  _oauthReqInfo: AuthRequest, // Stored in cookie instead of state param
   env: Env & { OAUTH_PROVIDER: OAuthHelpers },
   headers: Record<string, string> = {},
 ) {
@@ -124,17 +124,22 @@ async function redirectToKroger(
   // Do NOT use URLSearchParams.set() as it encodes spaces as +
   // Must use encodeURIComponent() which produces %20
   const scope = "profile.compact cart.basic:write product.compact";
-  // const state = btoa(JSON.stringify(oauthReqInfo));
 
-  // Order matches Postman: response_type, client_id, scope, redirect_uri
-  // State parameter commented out for testing
+  // Generate a simple random state for CSRF protection (Kroger requirement)
+  // Store oauthReqInfo in a cookie to avoid large state params
+  const csrfState = crypto.randomUUID();
+  const oauthInfoB64 = btoa(JSON.stringify(_oauthReqInfo));
+  const cookieValue = `kroger_oauth_state=${oauthInfoB64}; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/`;
+
+  // Order matches Postman: response_type, client_id, scope, redirect_uri, state
+  // State is a simple UUID for CSRF protection (not the full oauthReqInfo)
   const fullUrl =
     "https://api.kroger.com/v1/connect/oauth2/authorize?" +
     `response_type=code` +
     `&client_id=${encodeURIComponent(env.KROGER_CLIENT_ID)}` +
     `&scope=${encodeURIComponent(scope)}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}`;
-  // `&state=${encodeURIComponent(state)}`;
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&state=${encodeURIComponent(csrfState)}`;
   console.log("Kroger OAuth redirect:", {
     redirect_uri: redirectUri,
     client_id: env.KROGER_CLIENT_ID
@@ -156,6 +161,7 @@ async function redirectToKroger(
     status: 302,
     headers: {
       ...headers,
+      "Set-Cookie": cookieValue,
       Location: fullUrl,
     },
   });
@@ -185,28 +191,43 @@ app.get("/callback", async (c) => {
     );
   }
 
-  // Get the oauthReqInfo out of state
+  // Verify state parameter exists (CSRF protection)
   const stateParam = c.req.query("state");
   if (!stateParam) {
     console.error("Callback missing state parameter");
     return c.text("Missing state parameter", 400);
   }
 
-  console.log("Callback received with state length:", stateParam.length);
+  console.log("Callback received with state:", stateParam);
+
+  // Retrieve oauthReqInfo from cookie instead of state parameter
+  const cookieHeader = c.req.header("Cookie");
+  if (!cookieHeader) {
+    console.error("Missing cookie header in callback");
+    return c.text("Missing authentication cookie", 400);
+  }
+
+  const cookies = Object.fromEntries(
+    cookieHeader.split(";").map((c) => {
+      const [key, ...values] = c.trim().split("=");
+      return [key, values.join("=")];
+    }),
+  );
+
+  const oauthInfoB64 = cookies.kroger_oauth_state;
+  if (!oauthInfoB64) {
+    console.error("Missing kroger_oauth_state cookie");
+    return c.text("Missing authentication cookie", 400);
+  }
 
   let oauthReqInfo: AuthRequest;
   try {
-    const decodedState = atob(stateParam);
-    console.log("Decoded state:", `${decodedState.substring(0, 100)}...`);
-    oauthReqInfo = JSON.parse(decodedState) as AuthRequest;
+    const decoded = atob(oauthInfoB64);
+    oauthReqInfo = JSON.parse(decoded) as AuthRequest;
+    console.log("Retrieved oauthReqInfo from cookie");
   } catch (e) {
-    console.error(
-      "Failed to parse state parameter:",
-      e,
-      "Raw state:",
-      stateParam.substring(0, 50),
-    );
-    return c.text("Invalid state parameter", 400);
+    console.error("Failed to parse oauthReqInfo from cookie:", e);
+    return c.text("Invalid authentication cookie", 400);
   }
 
   if (!oauthReqInfo.clientId) {
@@ -335,7 +356,13 @@ app.get("/callback", async (c) => {
       `${redirectTo.substring(0, 100)}...`,
     );
 
-    return Response.redirect(redirectTo);
+    // Clear the OAuth state cookie
+    const response = Response.redirect(redirectTo);
+    response.headers.set(
+      "Set-Cookie",
+      "kroger_oauth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/",
+    );
+    return response;
   } catch (completeError) {
     console.error("Failed to complete authorization:", completeError);
     return c.text(
