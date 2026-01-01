@@ -61,19 +61,51 @@ Improved user experience with human-readable responses instead of raw JSON:
 
 ## Suggested Future Improvements
 
+### ✅ 3. User Data Persistence with Cloudflare KV (IMPLEMENTED)
+Implemented persistent storage for user data using Cloudflare KV:
+
+**Location:** `src/utils/user-storage.ts`, `src/server.ts` (lines 596-911)
+
+**Preferred Location Management:**
+- `set_preferred_location` - Save user's preferred store location
+- `get_preferred_location` - Retrieve saved preferred store
+- Stores: location ID, name, address, chain, timestamp
+
+**Pantry Management:**
+- `add_to_pantry` - Add items to personal pantry inventory
+- `remove_from_pantry` - Remove items from pantry
+- `view_pantry` - Display all pantry items
+- `clear_pantry` - Clear all pantry items
+- Tracks: product ID, name, quantity, added date, optional expiry date
+- Automatically updates quantities for duplicate items
+
+**Order History:**
+- `mark_order_placed` - Record completed orders
+- `view_order_history` - Display past orders (up to 50 most recent)
+- Tracks: order ID, items, quantities, prices, totals, location, notes, timestamp
+- Auto-generates unique order IDs
+
+**Storage Architecture:**
+- Uses Cloudflare KV for persistence (`USER_DATA_KV` binding)
+- Data namespaced by user ID for isolation
+- JSON serialization for complex data structures
+- Formatted responses for user-friendly display
+
+**Benefits:**
+- Users can save preferred shopping location
+- Track what groceries are already at home
+- Maintain shopping history across sessions
+- Better meal planning and inventory management
+
 ### 🔮 Additional Tools (Not Yet Implemented)
 
 **Location Management:**
-- `set_preferred_location` - Save user's preferred store (requires storage)
-- `get_preferred_location` - Retrieve saved store (requires storage)
 - `check_location_exists` - Validate location IDs
 
 **Cart Management:**
 - `view_current_cart` - Display cart contents (requires local tracking)
 - `remove_from_cart` - Remove specific items (requires local tracking)
 - `clear_current_cart` - Empty cart (requires local tracking)
-- `mark_order_placed` - Record order completion (requires storage)
-- `view_order_history` - Show past orders (requires storage)
 
 **Profile & Information:**
 - `get_user_profile` - Retrieve Kroger user profile

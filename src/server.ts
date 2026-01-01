@@ -24,8 +24,20 @@ import {
   formatLocation,
   formatProductList,
   formatWeeklyDealsList,
+  formatPantryList,
+  formatOrderHistory,
+  formatPreferredLocation,
   type WeeklyDeal,
+  type PantryItemDisplay,
+  type OrderRecordDisplay,
+  type PreferredLocationDisplay,
 } from "./utils/format-response.js";
+import {
+  createUserStorage,
+  type PantryItem,
+  type OrderRecord,
+  type PreferredLocation,
+} from "./utils/user-storage.js";
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
@@ -578,6 +590,323 @@ Division: ${currentCircular.divisionName}`;
             ],
           };
         }
+      },
+    );
+
+    // Set preferred location tool
+    this.server.tool(
+      "set_preferred_location",
+      "Sets the user's preferred store location for future shopping. Use this when the user wants to save their favorite store. This makes it easier to search products and check deals without specifying location each time.",
+      {
+        locationId: z
+          .string()
+          .length(8, { message: "Location ID must be exactly 8 characters" }),
+      },
+      async ({ locationId }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        // Get location details to store complete information
+        const { data, error } = await locationClient.GET(
+          "/v1/locations/{locationId}",
+          {
+            params: { path: { locationId } },
+          },
+        );
+
+        if (error || !data?.data) {
+          throw new Error(
+            `Failed to get location details: ${JSON.stringify(error)}`,
+          );
+        }
+
+        const location = data.data;
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+
+        const preferredLocation: PreferredLocation = {
+          locationId: location.locationId,
+          locationName: location.name || "",
+          address: `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
+          chain: location.chain || "",
+          setAt: new Date().toISOString(),
+        };
+
+        await storage.preferredLocation.set(this.props.id, preferredLocation);
+
+        const formatted = formatPreferredLocation(preferredLocation);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Preferred location set successfully:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Get preferred location tool
+    this.server.tool(
+      "get_preferred_location",
+      "Retrieves the user's saved preferred store location. Use this to check which store the user has set as their default for shopping.",
+      {},
+      async () => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const location = await storage.preferredLocation.get(this.props.id);
+
+        if (!location) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No preferred location set. Use set_preferred_location to save your favorite store.",
+              },
+            ],
+          };
+        }
+
+        const formatted = formatPreferredLocation(location);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Your preferred location:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Add to pantry tool
+    this.server.tool(
+      "add_to_pantry",
+      "Adds items to your personal pantry inventory. Use this to track what groceries you already have at home. Helps avoid buying duplicates and manage inventory.",
+      {
+        items: z.array(
+          z.object({
+            productId: z
+              .string()
+              .length(13, { message: "Product ID must be 13 digits" }),
+            productName: z.string(),
+            quantity: z.number().min(1),
+            expiresAt: z.string().optional(),
+          }),
+        ),
+      },
+      async ({ items }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const now = new Date().toISOString();
+
+        for (const item of items) {
+          const pantryItem: PantryItem = {
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            addedAt: now,
+            expiresAt: item.expiresAt,
+          };
+
+          await storage.pantry.add(this.props.id, pantryItem);
+        }
+
+        const pantry = await storage.pantry.getAll(this.props.id);
+        const formatted = formatPantryList(pantry);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Remove from pantry tool
+    this.server.tool(
+      "remove_from_pantry",
+      "Removes an item from your pantry inventory. Use this when you've used up an item or want to remove it from tracking.",
+      {
+        productId: z
+          .string()
+          .length(13, { message: "Product ID must be 13 digits" }),
+      },
+      async ({ productId }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        await storage.pantry.remove(this.props.id, productId);
+
+        const pantry = await storage.pantry.getAll(this.props.id);
+        const formatted = formatPantryList(pantry);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Item removed from pantry.\n\nYour pantry:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // View pantry tool
+    this.server.tool(
+      "view_pantry",
+      "Displays all items currently in your pantry inventory. Use this to see what groceries you have at home before shopping.",
+      {},
+      async () => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const pantry = await storage.pantry.getAll(this.props.id);
+        const formatted = formatPantryList(pantry);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Your pantry (${pantry.length} items):\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Clear pantry tool
+    this.server.tool(
+      "clear_pantry",
+      "Removes all items from your pantry inventory. Use this to start fresh with pantry tracking.",
+      {},
+      async () => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        await storage.pantry.clear(this.props.id);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Pantry cleared successfully.",
+            },
+          ],
+        };
+      },
+    );
+
+    // Mark order placed tool
+    this.server.tool(
+      "mark_order_placed",
+      "Records a completed order in your order history. Use this after successfully placing an order to track your purchases over time.",
+      {
+        items: z.array(
+          z.object({
+            productId: z.string(),
+            productName: z.string(),
+            quantity: z.number().min(1),
+            price: z.number().optional(),
+          }),
+        ),
+        locationId: z.string().optional(),
+        notes: z.string().optional(),
+      },
+      async ({ items, locationId, notes }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+
+        // Generate order ID with timestamp
+        const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        const totalItems = items.reduce(
+          (sum, item) => sum + item.quantity,
+          0,
+        );
+        const estimatedTotal = items.reduce((sum, item) => {
+          return sum + (item.price || 0) * item.quantity;
+        }, 0);
+
+        const order: OrderRecord = {
+          orderId,
+          items,
+          totalItems,
+          estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
+          placedAt: new Date().toISOString(),
+          locationId,
+          notes,
+        };
+
+        await storage.orderHistory.add(this.props.id, order);
+
+        const formatted = formatOrderHistory([order]);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Order recorded successfully:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // View order history tool
+    this.server.tool(
+      "view_order_history",
+      "Displays your past order history. Use this to see previous purchases and track shopping patterns. Returns most recent orders first.",
+      {
+        limit: z
+          .number()
+          .min(1)
+          .max(50)
+          .optional()
+          .default(10)
+          .describe("Number of recent orders to display"),
+      },
+      async ({ limit }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const orders = await storage.orderHistory.getRecent(
+          this.props.id,
+          limit,
+        );
+
+        const formatted = formatOrderHistory(orders);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Order History (${orders.length} recent orders):\n\n${formatted}`,
+            },
+          ],
+        };
       },
     );
   }
