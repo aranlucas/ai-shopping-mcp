@@ -3,7 +3,6 @@ import type {
   OAuthHelpers,
 } from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
-import { authClient, identityClient } from "./services/kroger/client";
 import {
   clientIdAlreadyApproved,
   parseRedirectApproval,
@@ -151,48 +150,69 @@ app.get("/callback", async (c) => {
     return c.text("Missing authorization code", 400);
   }
 
-  // Exchange the code for an access token using the auth client
-  const { data, error } = await authClient.POST("/v1/connect/oauth2/token", {
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    params: {
-      header: {
-        Authorization: `Basic ${btoa(`${c.env.KROGER_CLIENT_ID}:${c.env.KROGER_CLIENT_SECRET}`)}`,
-      },
-    },
-    body: {
-      grant_type: "authorization_code",
-      code: code,
-      redirect_uri: new URL("/callback", c.req.url).href,
-    },
-    bodySerializer(body) {
-      const fd = new URLSearchParams();
-      for (const name in body) {
-        fd.append(name, body[name as keyof typeof body]);
-      }
-      return fd.toString();
-    },
+  // Exchange the code for an access token using direct fetch
+  // This is more reliable than openapi-fetch for the OAuth token endpoint
+  const redirectUri = new URL("/callback", c.req.url).href;
+  const tokenBody = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: code,
+    redirect_uri: redirectUri,
   });
 
+  console.log("Exchanging authorization code for token:", {
+    redirect_uri: redirectUri,
+    client_id: c.env.KROGER_CLIENT_ID.substring(0, 20) + "...",
+  });
+
+  const tokenResponse = await fetch(
+    "https://api.kroger.com/v1/connect/oauth2/token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${btoa(`${c.env.KROGER_CLIENT_ID}:${c.env.KROGER_CLIENT_SECRET}`)}`,
+      },
+      body: tokenBody.toString(),
+    },
+  );
+
+  const tokenData = (await tokenResponse.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    token_type?: string;
+    error?: string;
+    error_description?: string;
+  };
+
   // Check for errors
-  if (error || !data) {
-    console.error("Failed to fetch access token:", error);
-    return c.text("Failed to fetch access token", 500);
+  if (!tokenResponse.ok) {
+    console.error("Failed to fetch access token:", {
+      status: tokenResponse.status,
+      statusText: tokenResponse.statusText,
+      error: tokenData.error,
+      errorDescription: tokenData.error_description,
+    });
+    return c.text(
+      `Failed to fetch access token: ${tokenData.error_description || tokenData.error || "Unknown error"}`,
+      500,
+    );
   }
 
   // Extract tokens
-  const accessToken = data.access_token;
-  const refreshToken = "refresh_token" in data ? data.refresh_token : undefined;
+  const accessToken = tokenData.access_token;
+  const refreshToken = tokenData.refresh_token;
 
   if (!accessToken) {
-    return c.text("Missing access token", 400);
+    console.error("Token response missing access_token:", tokenData);
+    return c.text("Missing access token in response", 400);
   }
 
-  // Fetch the user profile from Kroger
-  const { data: profileData } = await identityClient.GET(
-    "/v1/identity/profile",
+  // Fetch the user profile from Kroger using direct fetch
+  const profileResponse = await fetch(
+    "https://api.kroger.com/v1/identity/profile",
     {
+      method: "GET",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
@@ -200,10 +220,18 @@ app.get("/callback", async (c) => {
     },
   );
 
-  const id = profileData?.data?.id || "unknown";
+  let id = "unknown";
+  if (profileResponse.ok) {
+    const profileData = (await profileResponse.json()) as {
+      data?: { id?: string };
+    };
+    id = profileData?.data?.id || "unknown";
+  } else {
+    console.warn("Failed to fetch user profile, using 'unknown' as user ID");
+  }
 
   // Calculate when the token expires (current time + expires_in seconds)
-  const tokenExpiresAt = Date.now() + (data.expires_in || 1800) * 1000;
+  const tokenExpiresAt = Date.now() + (tokenData.expires_in || 1800) * 1000;
 
   // Return back to the MCP client a new token
   const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
@@ -218,7 +246,7 @@ app.get("/callback", async (c) => {
       accessToken,
       refreshToken,
       tokenExpiresAt,
-      expiresIn: data.expires_in,
+      expiresIn: tokenData.expires_in,
       krogerClientId: c.env.KROGER_CLIENT_ID,
       krogerClientSecret: c.env.KROGER_CLIENT_SECRET,
     },
