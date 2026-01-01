@@ -612,7 +612,14 @@ export default new OAuthProvider({
    * refresh the Kroger token if needed, keeping both in sync.
    */
   tokenExchangeCallback: async ({ grantType, props }) => {
-    // Only handle refresh token grants
+    // Support all grant types: authorization_code, client_credentials, refresh_token
+    const validGrantTypes = ["authorization_code", "client_credentials", "refresh_token"];
+    if (!validGrantTypes.includes(grantType)) {
+      console.log(`Unsupported grant type: ${grantType}`);
+      return {};
+    }
+
+    // Only perform token refresh for refresh_token grant type
     if (grantType !== "refresh_token") {
       return {};
     }
