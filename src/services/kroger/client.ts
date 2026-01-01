@@ -1,5 +1,4 @@
 import createClient, { type Middleware } from "openapi-fetch";
-import type { paths as AuthPaths } from "./auth.js";
 import type { paths as CartPaths } from "./cart.js";
 import type { paths as IdentityPaths } from "./identity.js";
 import type { paths as LocationPaths } from "./location.js";
@@ -149,9 +148,8 @@ export function createKrogerAuthMiddleware(
 }
 
 // Create clients with base configuration (no auth initially)
-const authClient = createClient<AuthPaths>({
-  baseUrl: "https://api.kroger.com",
-});
+// Note: OAuth token exchange is handled directly in kroger-handler.ts using fetch
+// following Kroger's OAuth 2.0 documentation, not through openapi-fetch
 
 const cartClient = createClient<CartPaths>({
   baseUrl: "https://api.kroger.com",
@@ -186,13 +184,6 @@ export function configureKrogerAuth(
   identityClient.use(authMiddleware);
   locationClient.use(authMiddleware);
   productClient.use(authMiddleware);
-  // Note: authClient doesn't need auth middleware as it's used for authentication itself
 }
 
-export {
-  authClient,
-  cartClient,
-  identityClient,
-  locationClient,
-  productClient,
-};
+export { cartClient, identityClient, locationClient, productClient };
