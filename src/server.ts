@@ -15,8 +15,8 @@ import {
   refreshKrogerToken,
 } from "./services/kroger/client.js";
 import type {
-  CircularsResponse,
-  WeeklyDealsResponse,
+  Coupon,
+  CouponsResponse,
 } from "./services/kroger/weekly-deals.js";
 import { registerPrompts } from "./prompts.js";
 import {
@@ -439,11 +439,12 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
       async ({ locationId, divisionCode: _divisionCode }) => {
         try {
-          // Step 1: Get the circulars list
-          console.log("Fetching circulars for location:", locationId);
+          console.log("Fetching weekly deals coupons for location:", locationId);
 
-          // Create headers for the circulars request
-          const circularsHeaders = new Headers();
+          // Create headers based on HAR file analysis
+          const headers = new Headers();
+
+          // x-laf-object header - same structure as before
           const xLafObject = [
             {
               modality: {
@@ -463,105 +464,79 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
               listingKeys: [locationId],
             },
           ];
-          circularsHeaders.append("x-laf-object", JSON.stringify(xLafObject));
+          headers.append("x-laf-object", JSON.stringify(xLafObject));
+          headers.append("x-kroger-channel", "WEB");
+          headers.append("x-facility-id", locationId);
+          headers.append("x-modality", JSON.stringify({ type: "PICKUP", locationId }));
+          headers.append("x-modality-type", "PICKUP");
+          headers.append("accept", "application/json, text/plain, */*");
 
-          // Fetch circulars
-          const circularsResponse = await fetch(
-            "https://api.kroger.com/digitalads/v1/circulars",
-            {
-              method: "GET",
-              headers: circularsHeaders,
-            },
-          );
+          // Fetch weekly deals coupons using the new API endpoint
+          const couponsUrl = new URL("https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons");
+          couponsUrl.searchParams.append("filter.specialSavings", "WDD"); // Weekly Digital Deals
+          couponsUrl.searchParams.append("filter.specialSavings", "EFY"); // Expiring For You
+          couponsUrl.searchParams.append("page.size", "200");
+          couponsUrl.searchParams.append("filter.onlyNewCoupons", "false");
+          couponsUrl.searchParams.append("filter.status", "unclipped");
+          couponsUrl.searchParams.append("filter.status", "active");
+          couponsUrl.searchParams.append("projections", "coupons.compact");
 
-          if (!circularsResponse.ok) {
+          console.log("Fetching coupons from:", couponsUrl.toString());
+
+          const couponsResponse = await fetch(couponsUrl.toString(), {
+            method: "GET",
+            headers,
+          });
+
+          if (!couponsResponse.ok) {
             throw new Error(
-              `Failed to fetch circulars: ${circularsResponse.status} ${circularsResponse.statusText}`,
+              `Failed to fetch weekly deals coupons: ${couponsResponse.status} ${couponsResponse.statusText}`,
             );
           }
 
-          const circularsData: CircularsResponse =
-            await circularsResponse.json();
-          console.log(`Found ${circularsData.data.length} circulars`);
+          const couponsData: CouponsResponse = await couponsResponse.json();
+          const coupons = couponsData.data.coupons;
 
-          // Find the current (non-preview) circular
-          const currentCircular = circularsData.data.find(
-            (c) => !c.previewCircular,
-          );
-          if (!currentCircular) {
+          console.log(`Found ${coupons.length} weekly deal coupons`);
+
+          if (coupons.length === 0) {
             return {
               content: [
                 {
                   type: "text",
-                  text: JSON.stringify({
-                    message:
-                      "No active weekly circular found for this location",
-                    success: false,
-                  }),
+                  text: "No weekly deals found for this location at this time.",
                 },
               ],
             };
           }
 
-          console.log(
-            `Using circular ID: ${currentCircular.id} (${currentCircular.eventName})`,
-          );
-
-          // Step 2: Get the weekly deals for this circular
-          const dealsHeaders = new Headers();
-          dealsHeaders.append("x-laf-object", JSON.stringify(xLafObject));
-          dealsHeaders.append("x-kroger-channel", "WEB");
-
-          const dealsUrl = `https://www.qfc.com/atlas/v1/shoppable-weekly-deals/deals?filter.circularId=${currentCircular.id}`;
-          console.log("Fetching deals from:", dealsUrl);
-
-          const dealsResponse = await fetch(dealsUrl, {
-            method: "GET",
-            headers: dealsHeaders,
-          });
-
-          if (!dealsResponse.ok) {
-            throw new Error(
-              `Failed to fetch weekly deals: ${dealsResponse.status} ${dealsResponse.statusText}`,
-            );
-          }
-
-          const dealsData: WeeklyDealsResponse = await dealsResponse.json();
-          const deals = dealsData.data.shoppableWeeklyDeals.ads;
-
-          console.log(`Found ${deals.length} weekly deals`);
-
-          // Format the deals for display - only include relevant information
-          const formattedDeals: WeeklyDeal[] = deals.slice(0, 20).map((deal) => ({
-            product: deal.mainlineCopy,
-            details: deal.underlineCopy,
-            price: deal.retailPrice
-              ? `$${deal.retailPrice.toFixed(2)}`
-              : "See store",
-            savings: deal.saveAmount
-              ? `Save $${deal.saveAmount.toFixed(2)}`
-              : deal.savePercent
-                ? `Save ${deal.savePercent}%`
-                : null,
-            loyalty: deal.loyaltyIndicator,
-            department: deal.departments[0]?.department || "General",
-            validFrom: new Date(deal.validFrom).toLocaleDateString(),
-            validTill: new Date(deal.validTill).toLocaleDateString(),
-            disclaimer: deal.disclaimer || "",
+          // Format coupons for display - limit to 25 for readability
+          const formattedDeals: WeeklyDeal[] = coupons.slice(0, 25).map((coupon: Coupon) => ({
+            product: coupon.displayDescription || coupon.shortDescription,
+            details: coupon.brand,
+            price: `$${coupon.value.toFixed(2)}`,
+            savings: coupon.categories.join(", "),
+            loyalty: `Use up to ${coupon.redemptionsAllowed}x`,
+            department: coupon.categories[0] || "General",
+            validFrom: new Date(coupon.displayStartDate).toLocaleDateString(),
+            validTill: new Date(coupon.displayEndDate).toLocaleDateString(),
+            disclaimer: coupon.requirementDescription,
           }));
 
           // Format the deals list
           const formattedDealsList = formatWeeklyDealsList(formattedDeals);
-          const circularInfo = `**${currentCircular.eventName}**
-Valid: ${new Date(currentCircular.eventStartDate).toLocaleDateString()} - ${new Date(currentCircular.eventEndDate).toLocaleDateString()}
-Division: ${currentCircular.divisionName}`;
+
+          // Get date range from first coupon
+          const dateRange = coupons.length > 0
+            ? `Valid: ${new Date(coupons[0].displayStartDate).toLocaleDateString()} - ${new Date(coupons[0].displayEndDate).toLocaleDateString()}`
+            : "";
 
           // Return successful response
           return {
             content: [
               {
                 type: "text",
-                text: `Found ${deals.length} weekly deals:\n\n${circularInfo}\n\n${formattedDealsList}`,
+                text: `Found ${coupons.length} weekly deal coupons (showing ${Math.min(25, coupons.length)}):\n\n**Weekly Digital Deals**\n${dateRange}\n\n${formattedDealsList}`,
               },
             ],
           };
