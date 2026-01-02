@@ -105,7 +105,6 @@ export function isKrogerTokenExpiring(
  */
 export function createKrogerAuthMiddleware(
   getTokenInfo: () => KrogerTokenInfo | null,
-  updateTokenInfo: (tokenInfo: Partial<KrogerTokenInfo>) => void,
 ): Middleware {
   const middleware: Middleware = {
     async onRequest({ request }) {
@@ -118,11 +117,15 @@ export function createKrogerAuthMiddleware(
       const accessToken = tokenInfo.accessToken;
 
       // Check if token is expired (not just expiring, but actually expired)
-      // Allow a small buffer to account for clock skew
+      // We use a 1-minute clock skew buffer here (not the 5-minute refresh buffer
+      // used in tokenExchangeCallback). This is intentional:
+      // - tokenExchangeCallback refreshes 5 minutes BEFORE expiry (proactive)
+      // - Middleware only checks if token is ACTUALLY expired (reactive)
+      // - 1-minute buffer accounts for clock drift between client/server
       const CLOCK_SKEW_BUFFER = 60 * 1000; // 1 minute
       if (Date.now() - CLOCK_SKEW_BUFFER >= tokenInfo.tokenExpiresAt) {
         throw new Error(
-          "Kroger access token has expired. Please refresh your MCP connection to obtain a new token.",
+          "Kroger access token has expired. Please reconnect to the MCP server in your client (e.g., restart Claude Desktop or run 'mcp reconnect') to re-authenticate.",
         );
       }
 
@@ -160,12 +163,8 @@ const productClient = createClient<ProductPaths>({
  */
 export function configureKrogerAuth(
   getTokenInfo: () => KrogerTokenInfo | null,
-  updateTokenInfo: (tokenInfo: Partial<KrogerTokenInfo>) => void,
 ): void {
-  const authMiddleware = createKrogerAuthMiddleware(
-    getTokenInfo,
-    updateTokenInfo,
-  );
+  const authMiddleware = createKrogerAuthMiddleware(getTokenInfo);
 
   // Apply auth middleware to all clients that need authentication
   cartClient.use(authMiddleware);
