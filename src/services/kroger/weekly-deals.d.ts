@@ -19,6 +19,45 @@ export interface CircularsResponse {
   data: Circular[];
 }
 
+// QFC Coupons API Types (from HAR file analysis)
+export interface Coupon {
+  id: string;
+  title: string;
+  value: number;
+  shortDescription: string;
+  displayDescription: string;
+  brand: string;
+  categories: string[];
+  displayStartDate: string;
+  displayEndDate: string;
+  expirationDate: string;
+  requirementDescription: string;
+  requirementQuantity: number;
+  redemptionsAllowed: number;
+  modalities: string[];
+  specialSavings: Array<{
+    name: string;
+    displayName: string;
+    description?: string;
+    displayOrder: number;
+    startDate?: string;
+    endDate?: string;
+  }>;
+  imageUrl?: string;
+  status: string;
+  enabled: string;
+  addedToCard: boolean;
+  canBeAddedToCard: boolean;
+  totalDownloads: number;
+  type: string;
+}
+
+export interface CouponsResponse {
+  data: {
+    coupons: Coupon[];
+  };
+}
+
 export interface WeeklyDeal {
   id: string;
   adId: string;
