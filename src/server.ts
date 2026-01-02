@@ -625,7 +625,7 @@ Division: ${currentCircular.divisionName}`;
         const storage = createUserStorage(this.env.USER_DATA_KV);
 
         const preferredLocation: PreferredLocation = {
-          locationId: location.locationId,
+          locationId: location.locationId || "",
           locationName: location.name || "",
           address: `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
           chain: location.chain || "",
