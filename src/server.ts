@@ -922,12 +922,24 @@ export default new OAuthProvider({
 
   /**
    * Token exchange callback - syncs Kroger tokens during MCP token refresh.
-   * This ensures that when the MCP client refreshes its token, we also
-   * refresh the Kroger token if needed, keeping both in sync.
+   *
+   * CRITICAL: This is the ONLY place where Kroger tokens are refreshed.
+   * Kroger uses single-use refresh tokens - once used, they're invalidated.
+   * This callback is the only place that can persist the new refresh token
+   * to the grant. Middleware does NOT refresh to avoid token conflicts.
+   *
+   * When the MCP token expires, this callback:
+   * 1. Checks if Kroger token is expiring (5-minute buffer)
+   * 2. Uses the refresh token to get new access + refresh tokens
+   * 3. Saves new tokens to props (persisted in the grant)
+   * 4. Matches MCP token TTL to Kroger's for synchronized expiry
    */
   tokenExchangeCallback: async ({ grantType, props }) => {
     // Only handle refresh token grants
     if (grantType !== "refresh_token") {
+      console.log(
+        `Token exchange callback: ignoring grant type "${grantType}"`,
+      );
       return {};
     }
 
@@ -935,23 +947,36 @@ export default new OAuthProvider({
 
     // Check if we have a refresh token and credentials
     if (!typedProps?.refreshToken || !typedProps?.tokenExpiresAt) {
-      console.log("No Kroger refresh token available, keeping existing props");
+      console.warn(
+        "Token exchange callback: No Kroger refresh token or expiry available",
+        {
+          hasRefreshToken: !!typedProps?.refreshToken,
+          hasTokenExpiresAt: !!typedProps?.tokenExpiresAt,
+        },
+      );
       return {};
     }
 
     if (!typedProps?.krogerClientId || !typedProps?.krogerClientSecret) {
-      console.log("No Kroger credentials in props, keeping existing props");
+      console.warn(
+        "Token exchange callback: No Kroger credentials in props. This should not happen.",
+      );
       return {};
     }
 
     // Check if Kroger token is expiring (with 5-minute buffer)
+    const tokenExpiresIn = typedProps.tokenExpiresAt - Date.now();
     if (!isKrogerTokenExpiring(typedProps.tokenExpiresAt)) {
-      console.log("Kroger token still valid, no refresh needed");
+      console.log(
+        `Token exchange callback: Kroger token still valid (expires in ${Math.round(tokenExpiresIn / 1000)}s), no refresh needed`,
+      );
       return {};
     }
 
     try {
-      console.log("Refreshing Kroger token during MCP token exchange...");
+      console.log(
+        `Token exchange callback: Refreshing Kroger token (expires in ${Math.round(tokenExpiresIn / 1000)}s)...`,
+      );
 
       const refreshResult = await refreshKrogerToken(
         typedProps.refreshToken,
@@ -959,13 +984,24 @@ export default new OAuthProvider({
         typedProps.krogerClientSecret,
       );
 
-      console.log("Kroger token refreshed successfully during token exchange");
+      console.log(
+        `Token exchange callback: Kroger token refreshed successfully. New token expires in ${refreshResult.expiresIn}s`,
+      );
+
+      // CRITICAL: Kroger returns a NEW refresh token that must be saved
+      // The old refresh token is now invalid (single-use tokens)
+      if (!refreshResult.refreshToken) {
+        console.warn(
+          "Token exchange callback: Kroger refresh response did not include a new refresh token. Keeping old one (may cause issues).",
+        );
+      }
 
       return {
         // Update props with new Kroger tokens
         newProps: {
           ...typedProps,
           accessToken: refreshResult.accessToken,
+          // MUST use new refresh token if provided (old one is invalid)
           refreshToken: refreshResult.refreshToken ?? typedProps.refreshToken,
           tokenExpiresAt: refreshResult.tokenExpiresAt,
         },
@@ -974,10 +1010,11 @@ export default new OAuthProvider({
       };
     } catch (error) {
       console.error(
-        "Failed to refresh Kroger token during token exchange:",
-        error,
+        "Token exchange callback: Failed to refresh Kroger token:",
+        error instanceof Error ? error.message : String(error),
       );
-      // Return empty to keep existing props - the middleware will handle refresh
+      // Return empty to keep existing props - user will need to re-authenticate
+      // if the token can't be refreshed
       return {};
     }
   },

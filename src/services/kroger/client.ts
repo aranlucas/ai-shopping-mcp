@@ -92,9 +92,16 @@ export function isKrogerTokenExpiring(
 }
 
 /**
- * Creates a Kroger OAuth middleware that automatically refreshes tokens when needed.
- * Note: This middleware updates tokens in memory for the current session.
- * For persistent token sync, use tokenExchangeCallback in OAuthProvider.
+ * Creates a Kroger OAuth middleware that adds authentication headers to requests.
+ *
+ * IMPORTANT: This middleware does NOT refresh tokens. Token refresh is handled
+ * exclusively by tokenExchangeCallback in OAuthProvider to avoid conflicts with
+ * Kroger's single-use refresh tokens.
+ *
+ * Kroger's refresh tokens are single-use - once used, they're invalidated and
+ * replaced with a new one. Only tokenExchangeCallback can persist the new refresh
+ * token to the grant. If middleware also refreshed, it would invalidate the token
+ * before tokenExchangeCallback could use it, causing "invalid_refresh_token" errors.
  */
 export function createKrogerAuthMiddleware(
   getTokenInfo: () => KrogerTokenInfo | null,
@@ -108,34 +115,15 @@ export function createKrogerAuthMiddleware(
         throw new Error("No Kroger token information available");
       }
 
-      let accessToken = tokenInfo.accessToken;
+      const accessToken = tokenInfo.accessToken;
 
-      // Check if token needs refresh
-      if (isKrogerTokenExpiring(tokenInfo.tokenExpiresAt)) {
-        if (!tokenInfo.refreshToken) {
-          throw new Error(
-            "Access token expired and no refresh token available",
-          );
-        }
-
-        console.log("Refreshing Kroger access token in middleware...");
-
-        const refreshResult = await refreshKrogerToken(
-          tokenInfo.refreshToken,
-          tokenInfo.krogerClientId,
-          tokenInfo.krogerClientSecret,
+      // Check if token is expired (not just expiring, but actually expired)
+      // Allow a small buffer to account for clock skew
+      const CLOCK_SKEW_BUFFER = 60 * 1000; // 1 minute
+      if (Date.now() - CLOCK_SKEW_BUFFER >= tokenInfo.tokenExpiresAt) {
+        throw new Error(
+          "Kroger access token has expired. Please refresh your MCP connection to obtain a new token.",
         );
-
-        accessToken = refreshResult.accessToken;
-
-        // Update in-memory token info
-        updateTokenInfo({
-          accessToken: refreshResult.accessToken,
-          refreshToken: refreshResult.refreshToken,
-          tokenExpiresAt: refreshResult.tokenExpiresAt,
-        });
-
-        console.log("Access token refreshed successfully in middleware");
       }
 
       // Add Authorization header to the request

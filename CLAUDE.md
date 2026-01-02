@@ -53,21 +53,24 @@ The application uses a two-tier OAuth system:
 1. **MCP Client OAuth**: Client (e.g., Claude Desktop) authenticates to this MCP server using `@cloudflare/workers-oauth-provider`
 2. **Kroger OAuth**: This server authenticates to Kroger API on behalf of the user
 
-**Token Synchronization**: When MCP tokens are refreshed, the `tokenExchangeCallback` in server.ts:600 automatically refreshes Kroger tokens if they're expiring, keeping both OAuth flows in sync.
+**Token Synchronization**: When MCP tokens are refreshed, the `tokenExchangeCallback` in server.ts:928 automatically refreshes Kroger tokens if they're expiring, keeping both OAuth flows in sync.
+
+**CRITICAL - Single-Use Refresh Tokens**: Kroger uses single-use refresh tokens. Once a refresh token is used to obtain a new access token, it's immediately invalidated and replaced with a new refresh token. Token refresh is handled EXCLUSIVELY by `tokenExchangeCallback` to ensure the new refresh token is properly persisted to the grant. Middleware does NOT refresh tokens to avoid invalidating the refresh token before it can be persisted.
 
 ### Kroger API Client Architecture
 All Kroger API clients are in `src/services/kroger/`:
-- **client.ts**: Creates typed `openapi-fetch` clients with automatic token refresh middleware
+- **client.ts**: Creates typed `openapi-fetch` clients with authentication middleware that adds Bearer tokens to requests
 - **cart.d.ts, location.d.ts, product.d.ts, identity.d.ts**: Auto-generated TypeScript types from OpenAPI specs
-- Token refresh happens automatically via middleware before each API call (client.ts:99)
+- Middleware adds Authorization headers (client.ts:111) but does NOT refresh tokens (see Token Refresh section below)
 
 ### Key OAuth Implementation Details
 - **Authorization**: `/authorize` endpoint (kroger-handler.ts:21) initiates OAuth, redirecting to Kroger
-- **Callback**: `/callback` endpoint (kroger-handler.ts:155) exchanges code for tokens, fetches user profile, stores tokens in `props`
+- **Callback**: `/callback` endpoint (kroger-handler.ts:178) exchanges code for tokens, fetches user profile, stores tokens in `props`
 - **Props Structure**: User ID, Kroger access/refresh tokens, expiry timestamp, and Kroger credentials are encrypted in the MCP token
-- **Token Refresh**: Dual-layer refresh strategy:
-  - Middleware refresh (client.ts:104): Refreshes during API calls
-  - Callback refresh (server.ts:614): Refreshes during MCP token exchange
+- **Token Refresh**: Single-layer refresh strategy (IMPORTANT for Kroger's single-use refresh tokens):
+  - Middleware (client.ts:111): Only adds Authorization headers, does NOT refresh tokens
+  - tokenExchangeCallback (server.ts:928): Handles ALL token refresh operations
+  - MCP token TTL matches Kroger's to ensure tokenExchangeCallback refreshes before expiry
 
 ## Kroger API Setup
 
@@ -97,10 +100,12 @@ The implementation follows Kroger's [Authorization Code Flow Tutorial](https://d
 - Body parameters: grant_type, code, redirect_uri
 - Content-Type: `application/x-www-form-urlencoded`
 
-**Token Refresh (client.ts:32-46):**
-- Same pattern as token exchange
-- Body parameters: grant_type, refresh_token
-- Uses same base64 encoding for Authorization header
+**Token Refresh (client.ts:27-81):**
+- **CRITICAL**: Kroger uses single-use refresh tokens - once used, they're invalidated
+- Handled exclusively by `tokenExchangeCallback` (server.ts:928) to persist new refresh tokens
+- Same pattern as token exchange: URLSearchParams body, base64-encoded Authorization header
+- Body parameters: grant_type=refresh_token, refresh_token
+- Response includes NEW access_token AND NEW refresh_token (both must be saved)
 
 **Encoding Notes:**
 - **CRITICAL**: Kroger requires `%20` encoding for spaces in scope parameter, NOT `+` encoding
