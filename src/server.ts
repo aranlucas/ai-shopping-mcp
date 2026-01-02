@@ -64,33 +64,19 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     registerPrompts(this.server);
 
     // Configure Kroger auth for all clients
-    configureKrogerAuth(
-      (): KrogerTokenInfo | null => {
-        // Return current token info from props
-        if (!this.props?.accessToken) return null;
+    configureKrogerAuth((): KrogerTokenInfo | null => {
+      // Return current token info from props
+      if (!this.props?.accessToken) return null;
 
-        return {
-          accessToken: this.props.accessToken,
-          refreshToken: this.props.refreshToken,
-          tokenExpiresAt: this.props.tokenExpiresAt,
-          // Use credentials from props (stored during initial auth)
-          krogerClientId: this.props.krogerClientId,
-          krogerClientSecret: this.props.krogerClientSecret,
-        };
-      },
-      (newTokenInfo) => {
-        // Update props with new token information
-        if (newTokenInfo.accessToken && this.props) {
-          this.props.accessToken = newTokenInfo.accessToken;
-        }
-        if (newTokenInfo.refreshToken && this.props) {
-          this.props.refreshToken = newTokenInfo.refreshToken;
-        }
-        if (newTokenInfo.tokenExpiresAt && this.props) {
-          this.props.tokenExpiresAt = newTokenInfo.tokenExpiresAt;
-        }
-      },
-    );
+      return {
+        accessToken: this.props.accessToken,
+        refreshToken: this.props.refreshToken,
+        tokenExpiresAt: this.props.tokenExpiresAt,
+        // Use credentials from props (stored during initial auth)
+        krogerClientId: this.props.krogerClientId,
+        krogerClientSecret: this.props.krogerClientSecret,
+      };
+    });
 
     // Add to cart tool
     this.server.tool(
@@ -991,9 +977,13 @@ export default new OAuthProvider({
       // CRITICAL: Kroger returns a NEW refresh token that must be saved
       // The old refresh token is now invalid (single-use tokens)
       if (!refreshResult.refreshToken) {
-        console.warn(
-          "Token exchange callback: Kroger refresh response did not include a new refresh token. Keeping old one (may cause issues).",
+        console.error(
+          "Token exchange callback: CRITICAL - Kroger refresh response missing new refresh token. " +
+            "Old refresh token is now invalid (single-use). User will need to re-authenticate.",
         );
+        // Return empty object - this will cause the next refresh to fail,
+        // triggering re-authentication flow
+        return {};
       }
 
       return {
@@ -1001,8 +991,8 @@ export default new OAuthProvider({
         newProps: {
           ...typedProps,
           accessToken: refreshResult.accessToken,
-          // MUST use new refresh token if provided (old one is invalid)
-          refreshToken: refreshResult.refreshToken ?? typedProps.refreshToken,
+          // MUST use new refresh token (old one is invalid)
+          refreshToken: refreshResult.refreshToken,
           tokenExpiresAt: refreshResult.tokenExpiresAt,
         },
         // Match MCP access token TTL to Kroger's to keep them in sync
