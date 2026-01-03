@@ -3,13 +3,15 @@
  * Provides human-readable formatting for products, locations, and other data
  */
 
-import type { components as ProductComponents } from "../services/kroger/product.js";
 import type { components as LocationComponents } from "../services/kroger/location.js";
+import type { components as ProductComponents } from "../services/kroger/product.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 type Location = LocationComponents["schemas"]["locations.location"];
-type AisleLocation = ProductComponents["schemas"]["products.productAisleLocationModel"];
-type Department = LocationComponents["schemas"]["locations.departmentAtLocation"];
+type AisleLocation =
+  ProductComponents["schemas"]["products.productAisleLocationModel"];
+type Department =
+  LocationComponents["schemas"]["locations.departmentAtLocation"];
 
 /**
  * Format a product for display with pricing and availability

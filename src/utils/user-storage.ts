@@ -3,8 +3,6 @@
  * Manages persistent user data including preferred location, pantry items, and order history
  */
 
-import type { components as LocationComponents } from "../services/kroger/location.js";
-
 // Type definitions for stored user data
 export interface PantryItem {
   productId: string;
@@ -103,7 +101,9 @@ export class PantryStorage {
 
   async remove(userId: string, productId: string): Promise<PantryItem[]> {
     const pantry = await this.getAll(userId);
-    const filtered = pantry.filter((item: PantryItem) => item.productId !== productId);
+    const filtered = pantry.filter(
+      (item: PantryItem) => item.productId !== productId,
+    );
 
     const key = getKey(userId, "pantry");
     await this.kv.put(key, JSON.stringify(filtered));

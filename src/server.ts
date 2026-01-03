@@ -4,6 +4,7 @@ import { McpAgent } from "agents/mcp";
 import dotenv from "dotenv";
 import { z } from "zod";
 import { KrogerHandler } from "./kroger-handler.js";
+import { registerPrompts } from "./prompts.js";
 import type { components } from "./services/kroger/cart.js";
 import {
   cartClient,
@@ -18,24 +19,20 @@ import type {
   Coupon,
   CouponsResponse,
 } from "./services/kroger/weekly-deals.js";
-import { registerPrompts } from "./prompts.js";
 import {
-  formatLocationList,
   formatLocation,
+  formatLocationList,
+  formatOrderHistory,
+  formatPantryList,
+  formatPreferredLocation,
   formatProductList,
   formatWeeklyDealsList,
-  formatPantryList,
-  formatOrderHistory,
-  formatPreferredLocation,
   type WeeklyDeal,
-  type PantryItemDisplay,
-  type OrderRecordDisplay,
-  type PreferredLocationDisplay,
 } from "./utils/format-response.js";
 import {
   createUserStorage,
-  type PantryItem,
   type OrderRecord,
+  type PantryItem,
   type PreferredLocation,
 } from "./utils/user-storage.js";
 
@@ -439,7 +436,10 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
       async ({ locationId, divisionCode: _divisionCode }) => {
         try {
-          console.log("Fetching weekly deals coupons for location:", locationId);
+          console.log(
+            "Fetching weekly deals coupons for location:",
+            locationId,
+          );
 
           // Create headers based on HAR file analysis
           const headers = new Headers();
@@ -467,16 +467,35 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           headers.append("x-laf-object", JSON.stringify(xLafObject));
           headers.append("x-kroger-channel", "WEB");
           headers.append("x-facility-id", locationId);
-          headers.append("x-modality", JSON.stringify({ type: "PICKUP", locationId }));
+          headers.append(
+            "x-modality",
+            JSON.stringify({ type: "PICKUP", locationId }),
+          );
           headers.append("x-modality-type", "PICKUP");
-          headers.append("x-call-origin", JSON.stringify({ page: "amp", component: "Weekly Digital Deals" }));
+          headers.append(
+            "x-call-origin",
+            JSON.stringify({ page: "amp", component: "Weekly Digital Deals" }),
+          );
           headers.append("accept", "application/json, text/plain, */*");
           headers.append("accept-language", "en-US,en;q=0.9");
-          headers.append("referer", "https://www.qfc.com/pr/weekly-digital-deals");
-          headers.append("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+          headers.append(
+            "referer",
+            "https://www.qfc.com/pr/weekly-digital-deals",
+          );
+          headers.append(
+            "user-agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          );
+
+          console.log(
+            "Request headers:",
+            Object.fromEntries(headers.entries()),
+          );
 
           // Fetch weekly deals coupons using the new API endpoint
-          const couponsUrl = new URL("https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons");
+          const couponsUrl = new URL(
+            "https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons",
+          );
           couponsUrl.searchParams.append("filter.specialSavings", "WDD"); // Weekly Digital Deals
           couponsUrl.searchParams.append("filter.specialSavings", "EFY"); // Expiring For You
           couponsUrl.searchParams.append("page.size", "200");
@@ -486,22 +505,61 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           couponsUrl.searchParams.append("projections", "coupons.compact");
 
           console.log("Fetching coupons from:", couponsUrl.toString());
+          console.log(
+            "Request URL params:",
+            Object.fromEntries(couponsUrl.searchParams.entries()),
+          );
 
           const couponsResponse = await fetch(couponsUrl.toString(), {
             method: "GET",
             headers,
           });
 
+          console.log(
+            "Response status:",
+            couponsResponse.status,
+            couponsResponse.statusText,
+          );
+          console.log(
+            "Response headers:",
+            Object.fromEntries(couponsResponse.headers.entries()),
+          );
+
           if (!couponsResponse.ok) {
+            const responseText = await couponsResponse.text();
+            console.error(
+              "Error response body:",
+              responseText.substring(0, 500),
+            );
             throw new Error(
               `Failed to fetch weekly deals coupons: ${couponsResponse.status} ${couponsResponse.statusText}`,
             );
           }
 
-          const couponsData: CouponsResponse = await couponsResponse.json();
-          const coupons = couponsData.data.coupons;
+          const responseText = await couponsResponse.text();
+          console.log("Response body length:", responseText.length);
+          console.log("Response body preview:", responseText.substring(0, 200));
 
+          const couponsData: CouponsResponse = JSON.parse(responseText);
+          console.log("Parsed response structure:", {
+            hasData: !!couponsData.data,
+            hasCoupons: !!couponsData.data?.coupons,
+            couponsType: Array.isArray(couponsData.data?.coupons)
+              ? "array"
+              : typeof couponsData.data?.coupons,
+          });
+
+          const coupons = couponsData.data.coupons;
           console.log(`Found ${coupons.length} weekly deal coupons`);
+
+          if (coupons.length > 0) {
+            console.log("First coupon sample:", {
+              id: coupons[0].id,
+              description: coupons[0].displayDescription,
+              value: coupons[0].value,
+              brand: coupons[0].brand,
+            });
+          }
 
           if (coupons.length === 0) {
             return {
@@ -515,25 +573,37 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           }
 
           // Format coupons for display - limit to 25 for readability
-          const formattedDeals: WeeklyDeal[] = coupons.slice(0, 25).map((coupon: Coupon) => ({
-            product: coupon.displayDescription || coupon.shortDescription,
-            details: coupon.brand,
-            price: `$${coupon.value.toFixed(2)}`,
-            savings: coupon.categories.join(", "),
-            loyalty: `Use up to ${coupon.redemptionsAllowed}x`,
-            department: coupon.categories[0] || "General",
-            validFrom: new Date(coupon.displayStartDate).toLocaleDateString(),
-            validTill: new Date(coupon.displayEndDate).toLocaleDateString(),
-            disclaimer: coupon.requirementDescription,
-          }));
+          console.log(
+            `Formatting ${Math.min(25, coupons.length)} coupons for display`,
+          );
+          const formattedDeals: WeeklyDeal[] = coupons
+            .slice(0, 25)
+            .map((coupon: Coupon) => ({
+              product: coupon.displayDescription || coupon.shortDescription,
+              details: coupon.brand,
+              price: `$${coupon.value.toFixed(2)}`,
+              savings: coupon.categories.join(", "),
+              loyalty: `Use up to ${coupon.redemptionsAllowed}x`,
+              department: coupon.categories[0] || "General",
+              validFrom: new Date(coupon.displayStartDate).toLocaleDateString(),
+              validTill: new Date(coupon.displayEndDate).toLocaleDateString(),
+              disclaimer: coupon.requirementDescription,
+            }));
+
+          console.log("Formatted deals count:", formattedDeals.length);
 
           // Format the deals list
           const formattedDealsList = formatWeeklyDealsList(formattedDeals);
+          console.log(
+            "Formatted deals list length (chars):",
+            formattedDealsList.length,
+          );
 
           // Get date range from first coupon
-          const dateRange = coupons.length > 0
-            ? `Valid: ${new Date(coupons[0].displayStartDate).toLocaleDateString()} - ${new Date(coupons[0].displayEndDate).toLocaleDateString()}`
-            : "";
+          const dateRange =
+            coupons.length > 0
+              ? `Valid: ${new Date(coupons[0].displayStartDate).toLocaleDateString()} - ${new Date(coupons[0].displayEndDate).toLocaleDateString()}`
+              : "";
 
           // Return successful response
           return {
@@ -546,6 +616,11 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           };
         } catch (error) {
           console.error("Error fetching weekly deals:", error);
+          console.error("Error details:", {
+            name: error instanceof Error ? error.name : "Unknown",
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : "No stack trace",
+          });
           return {
             content: [
               {
@@ -592,7 +667,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         const preferredLocation: PreferredLocation = {
           locationId: location.locationId || "",
           locationName: location.name || "",
-          address: `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
+          address:
+            `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
           chain: location.chain || "",
           setAt: new Date().toISOString(),
         };
@@ -805,10 +881,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         // Generate order ID with timestamp
         const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-        const totalItems = items.reduce(
-          (sum, item) => sum + item.quantity,
-          0,
-        );
+        const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
         const estimatedTotal = items.reduce((sum, item) => {
           return sum + (item.price || 0) * item.quantity;
         }, 0);
