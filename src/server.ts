@@ -418,37 +418,41 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
     );
 
-    // Get weekly deals tool
+    // Get coupons tool
     this.server.tool(
-      "get_weekly_deals",
-      "Retrieves current weekly deals and promotions from Kroger stores. Use this tool when the user wants to see current sales, discounts, or weekly specials. Returns the active weekly ad deals for the specified location. Example: 'Show me this week's deals at my local QFC'",
+      "get_coupons",
+      "Retrieves available digital coupons from QFC/Kroger. Use this tool when the user wants to see coupons, digital deals, or savings offers. Returns active coupons that can be clipped to the user's loyalty card. Example: 'Show me available coupons' or 'What coupons are available?'",
       {
         locationId: z
           .string()
           .length(8, { message: "Location ID must be exactly 8 characters" })
-          .describe("The store location ID to get weekly deals for")
+          .describe("The store location ID to get coupons for")
           .default("70500847"),
-        divisionCode: z
+        facilityId: z
           .string()
-          .length(3, { message: "Division code must be exactly 3 characters" })
-          .describe("The division code (e.g., '705' for QFC)")
-          .default("705"),
+          .describe("The facility ID for the store")
+          .default("4468"),
+        filterWeeklyDeals: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("If true, only show Weekly Digital Deals (WDD) and Expiring For You (EFY) coupons"),
       },
-      async ({ locationId, divisionCode: _divisionCode }) => {
+      async ({ locationId, facilityId, filterWeeklyDeals }) => {
         try {
-          console.log("Fetching weekly deals coupons for location:", locationId);
+          console.log("Fetching coupons for location:", locationId, "facility:", facilityId);
 
-          // Build request matching the working browser request
+          // Build request matching the exact working browser request
           const headers = new Headers();
 
-          // x-laf-object with location details
+          // x-laf-object with location details - using exact structure from working request
           const xLafObject = [
             {
               modality: {
                 type: "PICKUP",
                 handoffLocation: {
                   storeId: locationId,
-                  facilityId: "4468",
+                  facilityId: facilityId,
                 },
                 handoffAddress: {
                   address: {
@@ -469,14 +473,76 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
               sources: [
                 {
                   storeId: locationId,
-                  facilityId: "4468",
+                  facilityId: facilityId,
                 },
               ],
               assortmentKeys: ["edec10f5-2d40-4941-a280-2a405a537dcb"],
               listingKeys: [locationId],
             },
+            {
+              modality: {
+                type: "IN_STORE",
+                handoffLocation: {
+                  storeId: locationId,
+                  facilityId: facilityId,
+                },
+                handoffAddress: {
+                  address: {
+                    addressLines: ["1401 Broadway"],
+                    cityTown: "Seattle",
+                    name: "Harvard Market",
+                    postalCode: "98122",
+                    stateProvince: "WA",
+                    residential: false,
+                    countryCode: "US",
+                  },
+                  location: {
+                    lat: 47.6137629,
+                    lng: -122.3211541,
+                  },
+                },
+              },
+              sources: [
+                {
+                  storeId: locationId,
+                  facilityId: facilityId,
+                },
+              ],
+              assortmentKeys: ["41352481-ccbf-41a3-9c25-37ef5bd7ff9f"],
+              listingKeys: [locationId],
+            },
+            {
+              modality: {
+                type: "DELIVERY",
+                handoffAddress: {
+                  address: {
+                    postalCode: "98122",
+                    stateProvince: "WA",
+                    countryCode: "US",
+                    county: "King County",
+                  },
+                  location: {
+                    lat: 47.61154175,
+                    lng: -122.31268311,
+                  },
+                },
+              },
+              sources: [
+                {
+                  storeId: locationId,
+                  facilityId: facilityId,
+                },
+                {
+                  storeId: "70500887",
+                  facilityId: "16715",
+                },
+              ],
+              assortmentKeys: ["fc64173a-28f6-4d21-8da5-1c6b1f3238d1"],
+              listingKeys: [locationId, "70500887"],
+            },
           ];
 
+          // Set headers exactly as in the working browser request
           headers.set("accept", "application/json, text/plain, */*");
           headers.set("accept-language", "en-US,en;q=0.9,es;q=0.8");
           headers.set("device-memory", "8");
@@ -487,26 +553,25 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           headers.set("sec-fetch-dest", "empty");
           headers.set("sec-fetch-mode", "cors");
           headers.set("sec-fetch-site", "same-origin");
-          headers.set("x-ab-test", '[{"testVersion":"B","testID":"76503b","testOrigin":"f4"}]');
+          headers.set("x-ab-test", '[{"testVersion":"B","testID":"76503b","testOrigin":"f4"},{"testVersion":"B","testID":"76503b","testOrigin":"f4"}]');
           headers.set("x-call-origin", '{"page":"coupons","component":"ALL_COUPONS"}');
-          headers.set("x-facility-id", locationId);
+          headers.set("x-facility-id", facilityId);
           headers.set("x-kroger-channel", "WEB");
           headers.set("x-laf-object", JSON.stringify(xLafObject));
           headers.set("x-modality", `{"type":"PICKUP","locationId":"${locationId}"}`);
           headers.set("x-modality-type", "PICKUP");
 
-          console.log("Request headers:", JSON.stringify(Object.fromEntries(headers.entries()), null, 2));
+          console.log("Request headers set");
 
-          // Build URL without WDD/EFY filters - fetch all coupons
+          // Build URL exactly as in working request
           const couponsUrl = new URL("https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons");
           couponsUrl.searchParams.append("projections", "coupons.compact");
           couponsUrl.searchParams.append("filter.status", "unclipped");
           couponsUrl.searchParams.append("filter.status", "active");
-          couponsUrl.searchParams.append("page.size", "200"); // Fetch more coupons
+          couponsUrl.searchParams.append("page.size", "24");
           couponsUrl.searchParams.append("page.offset", "0");
 
           console.log("Fetching coupons from:", couponsUrl.toString());
-          console.log("Request URL params:", JSON.stringify(Object.fromEntries(couponsUrl.searchParams.entries()), null, 2));
 
           const response = await fetch(couponsUrl.toString(), {
             method: "GET",
@@ -514,22 +579,18 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           });
 
           console.log("Response status:", response.status, response.statusText);
-          console.log("Response headers:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
 
           if (!response.ok) {
             const errorText = await response.text();
             console.error("Error response status:", response.status);
-            console.error("Error response statusText:", response.statusText);
-            console.error("Error response body:", errorText.substring(0, 1000));
-            console.error("Full error response body:", errorText);
+            console.error("Error response body:", errorText.substring(0, 500));
             throw new Error(
-              `Failed to fetch coupons: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`,
+              `Failed to fetch coupons: ${response.status} ${response.statusText}`,
             );
           }
 
           const responseText = await response.text();
           console.log("Response body length:", responseText.length);
-          console.log("Response body preview (first 300 chars):", responseText.substring(0, 300));
 
           const couponsData: CouponsResponse = JSON.parse(responseText);
           const coupons = couponsData.data.coupons;
@@ -547,43 +608,39 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             };
           }
 
-          // Filter for Weekly Digital Deals (WDD) and Expiring For You (EFY)
-          const weeklyDeals = coupons.filter((coupon: Coupon) =>
-            coupon.specialSavings?.some((saving) =>
-              saving.name === "WDD" || saving.name === "EFY"
-            )
+          // Optionally filter for Weekly Digital Deals (WDD) and Expiring For You (EFY)
+          const displayCoupons = filterWeeklyDeals
+            ? coupons.filter((coupon: Coupon) =>
+                coupon.specialSavings?.some((saving) =>
+                  saving.name === "WDD" || saving.name === "EFY"
+                )
+              )
+            : coupons;
+
+          console.log(
+            `Displaying ${displayCoupons.length} coupons${filterWeeklyDeals ? " (filtered for WDD/EFY)" : ""}`
           );
 
-          console.log(`Found ${weeklyDeals.length} weekly deal coupons (filtered from ${coupons.length} total)`);
-
-          if (weeklyDeals.length === 0) {
+          if (displayCoupons.length === 0) {
             return {
               content: [
                 {
                   type: "text",
-                  text: "No weekly digital deals found at this time. Check back later for new deals!",
+                  text: filterWeeklyDeals
+                    ? "No weekly digital deals found at this time. Check back later for new deals!"
+                    : "No coupons found for this location at this time.",
                 },
               ],
             };
           }
 
-          if (weeklyDeals.length > 0) {
-            console.log("First coupon sample:", {
-              id: weeklyDeals[0].id,
-              description: weeklyDeals[0].displayDescription,
-              value: weeklyDeals[0].value,
-              brand: weeklyDeals[0].brand,
-            });
-          }
-
-          // Format coupons for display - limit to 25 for readability
-          console.log(`Formatting ${Math.min(25, weeklyDeals.length)} coupons for display`);
-          const formattedDeals: WeeklyDeal[] = weeklyDeals
+          // Format coupons for display
+          const formattedDeals: WeeklyDeal[] = displayCoupons
             .slice(0, 25)
             .map((coupon: Coupon) => ({
               product: coupon.displayDescription || coupon.shortDescription,
               details: coupon.brand,
-              price: `$${coupon.value.toFixed(2)}`,
+              price: `Save $${coupon.value.toFixed(2)}`,
               savings: coupon.categories.join(", "),
               loyalty: `Use up to ${coupon.redemptionsAllowed}x`,
               department: coupon.categories[0] || "General",
@@ -592,29 +649,28 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
               disclaimer: coupon.requirementDescription,
             }));
 
-          console.log("Formatted deals count:", formattedDeals.length);
-
           // Format the deals list
           const formattedDealsList = formatWeeklyDealsList(formattedDeals);
-          console.log("Formatted deals list length (chars):", formattedDealsList.length);
 
           // Get date range from first coupon
           const dateRange =
-            weeklyDeals.length > 0
-              ? `Valid: ${new Date(weeklyDeals[0].displayStartDate).toLocaleDateString()} - ${new Date(weeklyDeals[0].displayEndDate).toLocaleDateString()}`
+            displayCoupons.length > 0
+              ? `Valid: ${new Date(displayCoupons[0].displayStartDate).toLocaleDateString()} - ${new Date(displayCoupons[0].displayEndDate).toLocaleDateString()}`
               : "";
+
+          const title = filterWeeklyDeals ? "Weekly Digital Deals" : "Available Coupons";
 
           // Return successful response
           return {
             content: [
               {
                 type: "text",
-                text: `Found ${weeklyDeals.length} weekly deal coupons (showing ${Math.min(25, weeklyDeals.length)}):\n\n**Weekly Digital Deals**\n${dateRange}\n\n${formattedDealsList}`,
+                text: `Found ${displayCoupons.length} ${filterWeeklyDeals ? "weekly deal coupons" : "coupons"} (showing ${Math.min(25, displayCoupons.length)}):\n\n**${title}**\n${dateRange}\n\n${formattedDealsList}`,
               },
             ],
           };
         } catch (error) {
-          console.error("Error fetching weekly deals:", error);
+          console.error("Error fetching coupons:", error);
           console.error("Error details:", {
             name: error instanceof Error ? error.name : "Unknown",
             message: error instanceof Error ? error.message : String(error),
@@ -624,7 +680,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             content: [
               {
                 type: "text",
-                text: `Failed to fetch weekly deals: ${error instanceof Error ? error.message : "Unknown error"}`,
+                text: `Failed to fetch coupons: ${error instanceof Error ? error.message : "Unknown error"}`,
               },
             ],
           };
