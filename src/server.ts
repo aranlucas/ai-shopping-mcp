@@ -477,19 +477,25 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             },
           ];
 
-          headers.append("accept", "application/json, text/plain, */*");
-          headers.append("accept-language", "en-US,en;q=0.9,es;q=0.8");
-          headers.append("x-facility-id", locationId);
-          headers.append("x-kroger-channel", "WEB");
-          headers.append("x-laf-object", JSON.stringify(xLafObject));
-          headers.append("x-modality", JSON.stringify({ type: "PICKUP", locationId }));
-          headers.append("x-modality-type", "PICKUP");
-          headers.append("x-call-origin", JSON.stringify({ page: "coupons", component: "ALL_COUPONS" }));
-          headers.append("sec-fetch-dest", "empty");
-          headers.append("sec-fetch-mode", "cors");
-          headers.append("sec-fetch-site", "same-origin");
+          headers.set("accept", "application/json, text/plain, */*");
+          headers.set("accept-language", "en-US,en;q=0.9,es;q=0.8");
+          headers.set("device-memory", "8");
+          headers.set("priority", "u=1, i");
+          headers.set("sec-ch-ua", '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"');
+          headers.set("sec-ch-ua-mobile", "?0");
+          headers.set("sec-ch-ua-platform", '"Windows"');
+          headers.set("sec-fetch-dest", "empty");
+          headers.set("sec-fetch-mode", "cors");
+          headers.set("sec-fetch-site", "same-origin");
+          headers.set("x-ab-test", '[{"testVersion":"B","testID":"76503b","testOrigin":"f4"}]');
+          headers.set("x-call-origin", '{"page":"coupons","component":"ALL_COUPONS"}');
+          headers.set("x-facility-id", locationId);
+          headers.set("x-kroger-channel", "WEB");
+          headers.set("x-laf-object", JSON.stringify(xLafObject));
+          headers.set("x-modality", `{"type":"PICKUP","locationId":"${locationId}"}`);
+          headers.set("x-modality-type", "PICKUP");
 
-          console.log("Request headers:", Object.fromEntries(headers.entries()));
+          console.log("Request headers:", JSON.stringify(Object.fromEntries(headers.entries()), null, 2));
 
           // Build URL without WDD/EFY filters - fetch all coupons
           const couponsUrl = new URL("https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons");
@@ -500,6 +506,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           couponsUrl.searchParams.append("page.offset", "0");
 
           console.log("Fetching coupons from:", couponsUrl.toString());
+          console.log("Request URL params:", JSON.stringify(Object.fromEntries(couponsUrl.searchParams.entries()), null, 2));
 
           const response = await fetch(couponsUrl.toString(), {
             method: "GET",
@@ -507,19 +514,22 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           });
 
           console.log("Response status:", response.status, response.statusText);
-          console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+          console.log("Response headers:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error("Error response body:", errorText.substring(0, 500));
+            console.error("Error response status:", response.status);
+            console.error("Error response statusText:", response.statusText);
+            console.error("Error response body:", errorText.substring(0, 1000));
+            console.error("Full error response body:", errorText);
             throw new Error(
-              `Failed to fetch coupons: ${response.status} ${response.statusText}`,
+              `Failed to fetch coupons: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`,
             );
           }
 
           const responseText = await response.text();
           console.log("Response body length:", responseText.length);
-          console.log("Response body preview:", responseText.substring(0, 200));
+          console.log("Response body preview (first 300 chars):", responseText.substring(0, 300));
 
           const couponsData: CouponsResponse = JSON.parse(responseText);
           const coupons = couponsData.data.coupons;
