@@ -469,7 +469,11 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           headers.append("x-facility-id", locationId);
           headers.append("x-modality", JSON.stringify({ type: "PICKUP", locationId }));
           headers.append("x-modality-type", "PICKUP");
+          headers.append("x-call-origin", JSON.stringify({ page: "amp", component: "Weekly Digital Deals" }));
           headers.append("accept", "application/json, text/plain, */*");
+          headers.append("accept-language", "en-US,en;q=0.9");
+          headers.append("referer", "https://www.qfc.com/pr/weekly-digital-deals");
+          headers.append("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
           // Fetch weekly deals coupons using the new API endpoint
           const couponsUrl = new URL("https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons");
