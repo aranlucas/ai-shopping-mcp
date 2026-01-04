@@ -275,11 +275,11 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           .describe("Number of products to skip (for pagination)"),
         limit: z
           .number()
-          .min(1)
+          .min(6)
           .max(50)
           .optional()
-          .describe("Number of products to return (maximum 50)")
-          .default(10),
+          .describe("Number of products to return (minimum 6, maximum 50)")
+          .default(15),
       },
       async ({ term, locationId, productId, start, limit }) => {
         // Validate that at least one search parameter is provided
@@ -332,6 +332,27 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         // Format the response for display
         const products = data?.data || [];
         console.log(`Found ${products.length} products`);
+
+        // Sort products: in-stock items first, out-of-stock items last
+        products.sort((a, b) => {
+          const aItem = a.items?.[0];
+          const bItem = b.items?.[0];
+          const aInStock =
+            aItem?.fulfillment?.curbside ||
+            aItem?.fulfillment?.delivery ||
+            aItem?.fulfillment?.instore ||
+            aItem?.fulfillment?.shiptohome;
+          const bInStock =
+            bItem?.fulfillment?.curbside ||
+            bItem?.fulfillment?.delivery ||
+            bItem?.fulfillment?.instore ||
+            bItem?.fulfillment?.shiptohome;
+
+          // In-stock items come first (true > false when sorting descending)
+          if (aInStock && !bInStock) return -1;
+          if (!aInStock && bInStock) return 1;
+          return 0;
+        });
 
         if (products.length === 0) {
           return {
@@ -436,11 +457,18 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           .boolean()
           .optional()
           .default(false)
-          .describe("If true, only show Weekly Digital Deals (WDD) and Expiring For You (EFY) coupons"),
+          .describe(
+            "If true, only show Weekly Digital Deals (WDD) and Expiring For You (EFY) coupons",
+          ),
       },
       async ({ locationId, facilityId, filterWeeklyDeals }) => {
         try {
-          console.log("Fetching coupons for location:", locationId, "facility:", facilityId);
+          console.log(
+            "Fetching coupons for location:",
+            locationId,
+            "facility:",
+            facilityId,
+          );
 
           // Build request matching the exact working browser request
           const headers = new Headers();
@@ -547,24 +575,38 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           headers.set("accept-language", "en-US,en;q=0.9,es;q=0.8");
           headers.set("device-memory", "8");
           headers.set("priority", "u=1, i");
-          headers.set("sec-ch-ua", '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"');
+          headers.set(
+            "sec-ch-ua",
+            '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+          );
           headers.set("sec-ch-ua-mobile", "?0");
           headers.set("sec-ch-ua-platform", '"Windows"');
           headers.set("sec-fetch-dest", "empty");
           headers.set("sec-fetch-mode", "cors");
           headers.set("sec-fetch-site", "same-origin");
-          headers.set("x-ab-test", '[{"testVersion":"B","testID":"76503b","testOrigin":"f4"},{"testVersion":"B","testID":"76503b","testOrigin":"f4"}]');
-          headers.set("x-call-origin", '{"page":"coupons","component":"ALL_COUPONS"}');
+          headers.set(
+            "x-ab-test",
+            '[{"testVersion":"B","testID":"76503b","testOrigin":"f4"},{"testVersion":"B","testID":"76503b","testOrigin":"f4"}]',
+          );
+          headers.set(
+            "x-call-origin",
+            '{"page":"coupons","component":"ALL_COUPONS"}',
+          );
           headers.set("x-facility-id", facilityId);
           headers.set("x-kroger-channel", "WEB");
           headers.set("x-laf-object", JSON.stringify(xLafObject));
-          headers.set("x-modality", `{"type":"PICKUP","locationId":"${locationId}"}`);
+          headers.set(
+            "x-modality",
+            `{"type":"PICKUP","locationId":"${locationId}"}`,
+          );
           headers.set("x-modality-type", "PICKUP");
 
           console.log("Request headers set");
 
           // Build URL exactly as in working request
-          const couponsUrl = new URL("https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons");
+          const couponsUrl = new URL(
+            "https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons",
+          );
           couponsUrl.searchParams.append("projections", "coupons.compact");
           couponsUrl.searchParams.append("filter.status", "unclipped");
           couponsUrl.searchParams.append("filter.status", "active");
@@ -611,14 +653,14 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           // Optionally filter for Weekly Digital Deals (WDD) and Expiring For You (EFY)
           const displayCoupons = filterWeeklyDeals
             ? coupons.filter((coupon: Coupon) =>
-                coupon.specialSavings?.some((saving) =>
-                  saving.name === "WDD" || saving.name === "EFY"
-                )
+                coupon.specialSavings?.some(
+                  (saving) => saving.name === "WDD" || saving.name === "EFY",
+                ),
               )
             : coupons;
 
           console.log(
-            `Displaying ${displayCoupons.length} coupons${filterWeeklyDeals ? " (filtered for WDD/EFY)" : ""}`
+            `Displaying ${displayCoupons.length} coupons${filterWeeklyDeals ? " (filtered for WDD/EFY)" : ""}`,
           );
 
           if (displayCoupons.length === 0) {
@@ -658,7 +700,9 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
               ? `Valid: ${new Date(displayCoupons[0].displayStartDate).toLocaleDateString()} - ${new Date(displayCoupons[0].displayEndDate).toLocaleDateString()}`
               : "";
 
-          const title = filterWeeklyDeals ? "Weekly Digital Deals" : "Available Coupons";
+          const title = filterWeeklyDeals
+            ? "Weekly Digital Deals"
+            : "Available Coupons";
 
           // Return successful response
           return {
