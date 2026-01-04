@@ -333,24 +333,18 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         const products = data?.data || [];
         console.log(`Found ${products.length} products`);
 
-        // Sort products: in-stock items first, out-of-stock items last
+        // Sort products: pickup in-stock first, then delivery-only, then out-of-stock last
         products.sort((a, b) => {
           const aItem = a.items?.[0];
           const bItem = b.items?.[0];
-          const aInStock =
-            aItem?.fulfillment?.curbside ||
-            aItem?.fulfillment?.delivery ||
-            aItem?.fulfillment?.instore ||
-            aItem?.fulfillment?.shiptohome;
-          const bInStock =
-            bItem?.fulfillment?.curbside ||
-            bItem?.fulfillment?.delivery ||
-            bItem?.fulfillment?.instore ||
-            bItem?.fulfillment?.shiptohome;
+          const aPickup =
+            aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
+          const bPickup =
+            bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
 
-          // In-stock items come first (true > false when sorting descending)
-          if (aInStock && !bInStock) return -1;
-          if (!aInStock && bInStock) return 1;
+          // Pickup available items come first
+          if (aPickup && !bPickup) return -1;
+          if (!aPickup && bPickup) return 1;
           return 0;
         });
 
