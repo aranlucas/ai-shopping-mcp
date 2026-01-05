@@ -76,21 +76,24 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     });
 
     // Add to cart tool
-    this.server.tool(
+    this.server.registerTool(
       "add_to_cart",
-      "Adds specified items to a user's shopping cart. Use this tool when the user wants to add products to their cart for purchase. Prefer to use add to cart with multiple items.",
       {
-        items: z.array(
-          z.object({
-            upc: z.string().length(13, {
-              message: "UPC must be exactly 13 characters long",
+        description:
+          "Adds specified items to a user's shopping cart. Use this tool when the user wants to add products to their cart for purchase. Prefer to use add to cart with multiple items.",
+        inputSchema: z.object({
+          items: z.array(
+            z.object({
+              upc: z.string().length(13, {
+                message: "UPC must be exactly 13 characters long",
+              }),
+              quantity: z
+                .number()
+                .min(1, { message: "Quantity must be at least 1" }),
+              modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
             }),
-            quantity: z
-              .number()
-              .min(1, { message: "Quantity must be at least 1" }),
-            modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
-          }),
-        ),
+          ),
+        }),
       },
       async ({ items }) => {
         // Convert items to the format expected by the Kroger API
@@ -141,16 +144,19 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
     // List items tool can be added here in the future
     // Search locations tool
-    this.server.tool(
+    this.server.registerTool(
       "search_locations",
-      "Searches for Kroger store locations based on various filter criteria. Use this tool when the user needs to find nearby Kroger stores or specific store locations. Locations can be searched by zip code, latitude/longitude coordinates, radius, chain name, or department availability.",
       {
-        zipCodeNear: z
-          .string()
-          .length(5, { message: "Zip code must be exactly 5 digits" })
-          .default("98122"),
-        limit: z.number().min(1).max(200).optional().default(1),
-        chain: z.string().optional().default("QFC"),
+        description:
+          "Searches for Kroger store locations based on various filter criteria. Use this tool when the user needs to find nearby Kroger stores or specific store locations. Locations can be searched by zip code, latitude/longitude coordinates, radius, chain name, or department availability.",
+        inputSchema: z.object({
+          zipCodeNear: z
+            .string()
+            .length(5, { message: "Zip code must be exactly 5 digits" })
+            .default("98122"),
+          limit: z.number().min(1).max(200).optional().default(1),
+          chain: z.string().optional().default("QFC"),
+        }),
       },
       async ({ zipCodeNear, limit, chain }) => {
         // Build query parameters
@@ -202,12 +208,15 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Get location details tool
-    this.server.tool(
+    this.server.registerTool(
       "get_location_details",
-      "Retrieves detailed information about a specific Kroger store location using its location ID. Use this tool when the user needs comprehensive information about a particular store, including address, hours, departments, and geolocation.",
       {
-        locationId: z.string().length(8, {
-          message: "Location ID must be exactly 8 characters long",
+        description:
+          "Retrieves detailed information about a specific Kroger store location using its location ID. Use this tool when the user needs comprehensive information about a particular store, including address, hours, departments, and geolocation.",
+        inputSchema: z.object({
+          locationId: z.string().length(8, {
+            message: "Location ID must be exactly 8 characters long",
+          }),
         }),
       },
       async ({ locationId }) => {
@@ -249,37 +258,40 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
     );
     // Search products tool
-    this.server.tool(
+    this.server.registerTool(
       "search_products",
-      "Searches for Kroger products based on various filter criteria. Use this tool when the user wants to find products by search term, brand, product ID, or other filters. Provides essential product details including pricing, availability.",
       {
-        term: z
-          .string()
-          .max(100)
-          .optional()
-          .describe("Search term for products (e.g., 'milk', 'bread')"),
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" })
-          .describe(
-            "Location ID to check product availability at a specific store",
-          ),
-        productId: z
-          .string()
-          .optional()
-          .describe("Comma-separated list of specific product IDs to return"),
-        start: z
-          .number()
-          .nonnegative()
-          .optional()
-          .describe("Number of products to skip (for pagination)"),
-        limit: z
-          .number()
-          .min(6)
-          .max(50)
-          .optional()
-          .describe("Number of products to return (minimum 6, maximum 50)")
-          .default(15),
+        description:
+          "Searches for Kroger products based on various filter criteria. Use this tool when the user wants to find products by search term, brand, product ID, or other filters. Provides essential product details including pricing, availability.",
+        inputSchema: z.object({
+          term: z
+            .string()
+            .max(100)
+            .optional()
+            .describe("Search term for products (e.g., 'milk', 'bread')"),
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be exactly 8 characters" })
+            .describe(
+              "Location ID to check product availability at a specific store",
+            ),
+          productId: z
+            .string()
+            .optional()
+            .describe("Comma-separated list of specific product IDs to return"),
+          start: z
+            .number()
+            .nonnegative()
+            .optional()
+            .describe("Number of products to skip (for pagination)"),
+          limit: z
+            .number()
+            .min(6)
+            .max(50)
+            .optional()
+            .describe("Number of products to return (minimum 6, maximum 50)")
+            .default(15),
+        }),
       },
       async ({ term, locationId, productId, start, limit }) => {
         // Validate that at least one search parameter is provided
@@ -374,20 +386,23 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Get product details tool
-    this.server.tool(
+    this.server.registerTool(
       "get_product_details",
-      "Retrieves detailed information about a specific Kroger product using its product ID. Use this tool when the user needs comprehensive details about a particular product, including pricing, availability, nutritional information, and images.",
       {
-        productId: z
-          .string()
-          .length(13, { message: "Product ID must be a 13-digit UPC number" }),
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" })
-          .optional()
-          .describe(
-            "Location ID to check product availability and pricing at a specific store",
-          ),
+        description:
+          "Retrieves detailed information about a specific Kroger product using its product ID. Use this tool when the user needs comprehensive details about a particular product, including pricing, availability, nutritional information, and images.",
+        inputSchema: z.object({
+          productId: z.string().length(13, {
+            message: "Product ID must be a 13-digit UPC number",
+          }),
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be exactly 8 characters" })
+            .optional()
+            .describe(
+              "Location ID to check product availability and pricing at a specific store",
+            ),
+        }),
       },
       async ({ productId, locationId }) => {
         // Build query parameters
@@ -434,26 +449,29 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Get coupons tool
-    this.server.tool(
+    this.server.registerTool(
       "get_coupons",
-      "Retrieves available digital coupons from QFC/Kroger. Use this tool when the user wants to see coupons, digital deals, or savings offers. Returns active coupons that can be clipped to the user's loyalty card. Example: 'Show me available coupons' or 'What coupons are available?'",
       {
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" })
-          .describe("The store location ID to get coupons for")
-          .default("70500847"),
-        facilityId: z
-          .string()
-          .describe("The facility ID for the store")
-          .default("4468"),
-        filterWeeklyDeals: z
-          .boolean()
-          .optional()
-          .default(false)
-          .describe(
-            "If true, only show Weekly Digital Deals (WDD) and Expiring For You (EFY) coupons",
-          ),
+        description:
+          "Retrieves available digital coupons from QFC/Kroger. Use this tool when the user wants to see coupons, digital deals, or savings offers. Returns active coupons that can be clipped to the user's loyalty card. Example: 'Show me available coupons' or 'What coupons are available?'",
+        inputSchema: z.object({
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be exactly 8 characters" })
+            .describe("The store location ID to get coupons for")
+            .default("70500847"),
+          facilityId: z
+            .string()
+            .describe("The facility ID for the store")
+            .default("4468"),
+          filterWeeklyDeals: z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe(
+              "If true, only show Weekly Digital Deals (WDD) and Expiring For You (EFY) coupons",
+            ),
+        }),
       },
       async ({ locationId, facilityId, filterWeeklyDeals }) => {
         try {
@@ -727,13 +745,16 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Set preferred location tool
-    this.server.tool(
+    this.server.registerTool(
       "set_preferred_location",
-      "Sets the user's preferred store location for future shopping. Use this when the user wants to save their favorite store. This makes it easier to search products and check deals without specifying location each time.",
       {
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" }),
+        description:
+          "Sets the user's preferred store location for future shopping. Use this when the user wants to save their favorite store. This makes it easier to search products and check deals without specifying location each time.",
+        inputSchema: z.object({
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be exactly 8 characters" }),
+        }),
       },
       async ({ locationId }) => {
         if (!this.props?.id) {
@@ -782,10 +803,13 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Get preferred location tool
-    this.server.tool(
+    this.server.registerTool(
       "get_preferred_location",
-      "Retrieves the user's saved preferred store location. Use this to check which store the user has set as their default for shopping.",
-      {},
+      {
+        description:
+          "Retrieves the user's saved preferred store location. Use this to check which store the user has set as their default for shopping.",
+        inputSchema: z.object({}),
+      },
       async () => {
         if (!this.props?.id) {
           throw new Error("User not authenticated");
@@ -819,20 +843,23 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Add to pantry tool
-    this.server.tool(
+    this.server.registerTool(
       "add_to_pantry",
-      "Adds items to your personal pantry inventory. Use this to track what groceries you already have at home. Helps avoid buying duplicates and manage inventory.",
       {
-        items: z.array(
-          z.object({
-            productId: z
-              .string()
-              .length(13, { message: "Product ID must be 13 digits" }),
-            productName: z.string(),
-            quantity: z.number().min(1),
-            expiresAt: z.string().optional(),
-          }),
-        ),
+        description:
+          "Adds items to your personal pantry inventory. Use this to track what groceries you already have at home. Helps avoid buying duplicates and manage inventory.",
+        inputSchema: z.object({
+          items: z.array(
+            z.object({
+              productId: z
+                .string()
+                .length(13, { message: "Product ID must be 13 digits" }),
+              productName: z.string(),
+              quantity: z.number().min(1),
+              expiresAt: z.string().optional(),
+            }),
+          ),
+        }),
       },
       async ({ items }) => {
         if (!this.props?.id) {
@@ -869,13 +896,16 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Remove from pantry tool
-    this.server.tool(
+    this.server.registerTool(
       "remove_from_pantry",
-      "Removes an item from your pantry inventory. Use this when you've used up an item or want to remove it from tracking.",
       {
-        productId: z
-          .string()
-          .length(13, { message: "Product ID must be 13 digits" }),
+        description:
+          "Removes an item from your pantry inventory. Use this when you've used up an item or want to remove it from tracking.",
+        inputSchema: z.object({
+          productId: z
+            .string()
+            .length(13, { message: "Product ID must be 13 digits" }),
+        }),
       },
       async ({ productId }) => {
         if (!this.props?.id) {
@@ -900,10 +930,13 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // View pantry tool
-    this.server.tool(
+    this.server.registerTool(
       "view_pantry",
-      "Displays all items currently in your pantry inventory. Use this to see what groceries you have at home before shopping.",
-      {},
+      {
+        description:
+          "Displays all items currently in your pantry inventory. Use this to see what groceries you have at home before shopping.",
+        inputSchema: z.object({}),
+      },
       async () => {
         if (!this.props?.id) {
           throw new Error("User not authenticated");
@@ -925,10 +958,13 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Clear pantry tool
-    this.server.tool(
+    this.server.registerTool(
       "clear_pantry",
-      "Removes all items from your pantry inventory. Use this to start fresh with pantry tracking.",
-      {},
+      {
+        description:
+          "Removes all items from your pantry inventory. Use this to start fresh with pantry tracking.",
+        inputSchema: z.object({}),
+      },
       async () => {
         if (!this.props?.id) {
           throw new Error("User not authenticated");
@@ -949,20 +985,23 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // Mark order placed tool
-    this.server.tool(
+    this.server.registerTool(
       "mark_order_placed",
-      "Records a completed order in your order history. Use this after successfully placing an order to track your purchases over time.",
       {
-        items: z.array(
-          z.object({
-            productId: z.string(),
-            productName: z.string(),
-            quantity: z.number().min(1),
-            price: z.number().optional(),
-          }),
-        ),
-        locationId: z.string().optional(),
-        notes: z.string().optional(),
+        description:
+          "Records a completed order in your order history. Use this after successfully placing an order to track your purchases over time.",
+        inputSchema: z.object({
+          items: z.array(
+            z.object({
+              productId: z.string(),
+              productName: z.string(),
+              quantity: z.number().min(1),
+              price: z.number().optional(),
+            }),
+          ),
+          locationId: z.string().optional(),
+          notes: z.string().optional(),
+        }),
       },
       async ({ items, locationId, notes }) => {
         if (!this.props?.id) {
@@ -1005,17 +1044,20 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
 
     // View order history tool
-    this.server.tool(
+    this.server.registerTool(
       "view_order_history",
-      "Displays your past order history. Use this to see previous purchases and track shopping patterns. Returns most recent orders first.",
       {
-        limit: z
-          .number()
-          .min(1)
-          .max(50)
-          .optional()
-          .default(10)
-          .describe("Number of recent orders to display"),
+        description:
+          "Displays your past order history. Use this to see previous purchases and track shopping patterns. Returns most recent orders first.",
+        inputSchema: z.object({
+          limit: z
+            .number()
+            .min(1)
+            .max(50)
+            .optional()
+            .default(10)
+            .describe("Number of recent orders to display"),
+        }),
       },
       async ({ limit }) => {
         if (!this.props?.id) {
