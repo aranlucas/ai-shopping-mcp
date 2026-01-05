@@ -7,6 +7,6 @@
     "esModuleInterop": true,
     "moduleResolution": "bundler",
     "skipLibCheck": true,
-    "types": ["@cloudflare/workers-types"]
+    "types": ["./worker-configuration.d.ts"]
   }
 }

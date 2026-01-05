@@ -1042,11 +1042,14 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     );
   }
 }
+
 export default new OAuthProvider({
-  apiRoute: "/sse",
-  apiHandler: MyMCP.mount("/sse"),
-  // @ts-expect-error - Hono handler type mismatch with OAuthProvider
-  defaultHandler: KrogerHandler,
+  apiHandlers: {
+    "/sse": MyMCP.serveSSE("/sse"), // deprecated SSE protocol - use /mcp instead
+    "/mcp": MyMCP.serve("/mcp"), // Streamable-HTTP protocol
+  },
+  // biome-ignore lint/suspicious/noExplicitAny: needed from docs
+  defaultHandler: KrogerHandler as any,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",
