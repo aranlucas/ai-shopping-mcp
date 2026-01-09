@@ -6,6 +6,7 @@ import { z } from "zod";
 import { KrogerHandler } from "./kroger-handler.js";
 import { registerPrompts } from "./prompts.js";
 import type { components } from "./services/kroger/cart.js";
+import type { components as ProductComponents } from "./services/kroger/product.js";
 import {
   cartClient,
   configureKrogerAuth,
@@ -257,96 +258,69 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         };
       },
     );
-    // Search products tool
+    // Search products tool - bulk search with limit of 10 items per term
     this.server.registerTool(
       "search_products",
       {
         description:
-          "Searches for Kroger products based on various filter criteria. Use this tool when the user wants to find products by search term, brand, product ID, or other filters. Provides essential product details including pricing, availability.",
+          "Searches for Kroger products in bulk using multiple search terms. Use this tool when the user wants to find multiple products at once. Each search term returns up to 10 items. Provides essential product details including pricing and availability.",
         inputSchema: z.object({
-          term: z
-            .string()
-            .max(100)
-            .optional()
-            .describe("Search term for products (e.g., 'milk', 'bread')"),
+          terms: z
+            .array(z.string().max(100))
+            .min(1, { message: "At least one search term is required" })
+            .max(10, { message: "Maximum 10 search terms allowed" })
+            .describe(
+              "Array of search terms for products (e.g., ['milk', 'bread', 'eggs'])",
+            ),
           locationId: z
             .string()
             .length(8, { message: "Location ID must be exactly 8 characters" })
             .describe(
               "Location ID to check product availability at a specific store",
             ),
-          productId: z
-            .string()
-            .optional()
-            .describe("Comma-separated list of specific product IDs to return"),
-          start: z
-            .number()
-            .nonnegative()
-            .optional()
-            .describe("Number of products to skip (for pagination)"),
-          limit: z
-            .number()
-            .min(6)
-            .max(50)
-            .optional()
-            .describe("Number of products to return (minimum 6, maximum 50)")
-            .default(15),
         }),
       },
-      async ({ term, locationId, productId, start, limit }) => {
-        // Validate that at least one search parameter is provided
-        if (!term && !productId) {
-          throw new Error(
-            "At least one search parameter (term, productId, or brand) must be provided",
-          );
-        }
+      async ({ terms, locationId }) => {
+        // Limit of 10 items per search term
+        const ITEMS_PER_TERM = 10;
 
-        // Build query parameters
-        const queryParams: Record<string, string | number> = {};
+        type ProductItem = ProductComponents["schemas"]["products.productModel"];
 
-        // Add required search parameters
-        if (term) {
-          queryParams["filter.term"] = term;
-        }
-        if (productId) {
-          queryParams["filter.productId"] = productId;
-        }
+        const allProducts: ProductItem[] = [];
+        const searchResults: Array<{ term: string; count: number }> = [];
 
-        // Add optional parameters
-        if (locationId) {
-          queryParams["filter.locationId"] = locationId;
-        }
-        queryParams["filter.fulfillment"] = "ais";
-        if (start !== undefined) {
-          queryParams["filter.start"] = start;
-        }
-        if (limit !== undefined) {
-          queryParams["filter.limit"] = limit;
-        } else {
-          // Default limit to avoid too many results
-          queryParams["filter.limit"] = 10;
-        }
+        // Search for each term
+        for (const term of terms) {
+          // Build query parameters
+          const queryParams: Record<string, string | number> = {
+            "filter.term": term,
+            "filter.locationId": locationId,
+            "filter.fulfillment": "ais",
+            "filter.limit": ITEMS_PER_TERM,
+          };
 
-        // Make the API call to search for products
-        const { data, error } = await productClient.GET("/v1/products", {
-          params: {
-            query: queryParams,
-          },
-        });
+          // Make the API call to search for products
+          const { data, error } = await productClient.GET("/v1/products", {
+            params: {
+              query: queryParams,
+            },
+          });
 
-        if (error) {
-          console.error("Error searching products:", error);
-          throw new Error(
-            `Failed to search products: ${JSON.stringify(error)}`,
-          );
+          if (error) {
+            console.error(`Error searching products for term "${term}":`, error);
+            searchResults.push({ term, count: 0 });
+            continue;
+          }
+
+          const products = data?.data || [];
+          console.log(`Found ${products.length} products for term "${term}"`);
+
+          allProducts.push(...products);
+          searchResults.push({ term, count: products.length });
         }
-
-        // Format the response for display
-        const products = data?.data || [];
-        console.log(`Found ${products.length} products`);
 
         // Sort products: pickup in-stock first, then delivery-only, then out-of-stock last
-        products.sort((a, b) => {
+        allProducts.sort((a, b) => {
           const aItem = a.items?.[0];
           const bItem = b.items?.[0];
           const aPickup =
@@ -360,25 +334,30 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           return 0;
         });
 
-        if (products.length === 0) {
+        if (allProducts.length === 0) {
           return {
             content: [
               {
                 type: "text",
-                text: "No products found matching your search criteria.",
+                text: "No products found matching your search terms.",
               },
             ],
           };
         }
 
-        // Return a successful response with formatted products
-        const formattedProducts = formatProductList(products);
+        // Format the response for display
+        const formattedProducts = formatProductList(allProducts);
+
+        // Create summary of search results
+        const summary = searchResults
+          .map((result) => `  • "${result.term}": ${result.count} items`)
+          .join("\n");
 
         return {
           content: [
             {
               type: "text",
-              text: `Found ${products.length} product(s):\n\n${formattedProducts}`,
+              text: `Bulk search completed (${terms.length} search terms, ${allProducts.length} total products):\n\n${summary}\n\n${formattedProducts}`,
             },
           ],
         };
