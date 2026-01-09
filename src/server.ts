@@ -286,11 +286,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         type ProductItem = ProductComponents["schemas"]["products.productModel"];
 
-        const allProducts: ProductItem[] = [];
-        const searchResults: Array<{ term: string; count: number }> = [];
-
-        // Search for each term
-        for (const term of terms) {
+        // Execute all searches in parallel
+        const searchPromises = terms.map(async (term: string) => {
           // Build query parameters
           const queryParams: Record<string, string | number> = {
             "filter.term": term,
@@ -308,15 +305,25 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
           if (error) {
             console.error(`Error searching products for term "${term}":`, error);
-            searchResults.push({ term, count: 0 });
-            continue;
+            return { term, products: [], count: 0 };
           }
 
           const products = data?.data || [];
           console.log(`Found ${products.length} products for term "${term}"`);
 
-          allProducts.push(...products);
-          searchResults.push({ term, count: products.length });
+          return { term, products, count: products.length };
+        });
+
+        // Wait for all searches to complete
+        const results = await Promise.all(searchPromises);
+
+        // Flatten all products and create search results summary
+        const allProducts: ProductItem[] = [];
+        const searchResults: Array<{ term: string; count: number }> = [];
+
+        for (const result of results) {
+          allProducts.push(...result.products);
+          searchResults.push({ term: result.term, count: result.count });
         }
 
         // Sort products: pickup in-stock first, then delivery-only, then out-of-stock last
