@@ -287,7 +287,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         type ProductItem = ProductComponents["schemas"]["products.productModel"];
 
         // Execute all searches in parallel
-        const searchPromises = terms.map(async (term: string) => {
+        const searchPromises = terms.map(async (term) => {
           // Build query parameters
           const queryParams: Record<string, string | number> = {
             "filter.term": term,
