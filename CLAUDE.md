@@ -129,9 +129,9 @@ The server exposes these MCP tools (all defined in server.ts):
 1. **add_to_cart** (line 84): Add items to cart with UPC, quantity, modality
 2. **search_locations** (line 149): Find stores by zip code, chain name
 3. **get_location_details** (line 210): Get store details by location ID
-4. **search_products** (line 257): Search products by term, location, product ID
-5. **get_product_details** (line 367): Get product details by product ID
-6. **get_weekly_deals** (line 427): Fetch current weekly deals using Kroger's circulars API
+4. **search_products** (line 260): Bulk search for products using multiple terms (1-10 terms, 10 items per term limit, parallel execution)
+5. **get_product_details** (line 373): Get product details by product ID
+6. **get_weekly_deals** (line 433): Fetch current weekly deals using Kroger's circulars API
 
 **User Data Persistence (Cloudflare KV):**
 7. **set_preferred_location** (line 597): Save user's preferred store
@@ -142,6 +142,37 @@ The server exposes these MCP tools (all defined in server.ts):
 12. **clear_pantry** (line 794): Clear pantry inventory
 13. **mark_order_placed** (line 818): Record completed order in history
 14. **view_order_history** (line 877): Display past orders
+
+### Bulk Product Search Implementation
+The `search_products` tool implements parallel bulk search:
+- Accepts array of 1-10 search terms
+- Returns up to 10 items per search term (fixed limit)
+- All searches execute in parallel using `Promise.all()` for optimal performance
+- Results are aggregated and sorted (pickup in-stock → delivery → out-of-stock)
+- Failed searches return empty results without breaking the entire operation
+
+**Example Usage:**
+```typescript
+{
+  "terms": ["milk", "bread", "eggs"],
+  "locationId": "70500847"
+}
+```
+
+**Performance Pattern:**
+```typescript
+// ✅ CORRECT - Parallel execution
+const searchPromises = terms.map(async (term: string) => {
+  const { data, error } = await productClient.GET("/v1/products", { ... });
+  return { term, products: data?.data || [], count: products.length };
+});
+const results = await Promise.all(searchPromises);
+
+// ❌ WRONG - Sequential execution (slow)
+for (const term of terms) {
+  const { data, error } = await productClient.GET("/v1/products", { ... });
+}
+```
 
 ### Weekly Deals Implementation
 Unlike other tools, weekly deals uses direct `fetch()` calls (not `openapi-fetch`) because it requires:
@@ -247,6 +278,43 @@ function formatProduct(product: any): string {  // ❌ NEVER USE ANY
 - Always check the OpenAPI schema for correct property names
 - Properties in the API may differ from expected naming conventions
 - Example: `fulfillment.instore` (lowercase) not `fulfillment.inStore` (camelCase)
+
+### Importing OpenAPI Types in server.ts
+
+**CRITICAL: Always import component types directly from the OpenAPI schema files, NOT from client method return types.**
+
+**✅ CORRECT - Import types from schema files:**
+```typescript
+import type { components } from "./services/kroger/cart.js";
+import type { components as ProductComponents } from "./services/kroger/product.js";
+import type { components as LocationComponents } from "./services/kroger/location.js";
+
+// Use the imported types
+type ProductItem = ProductComponents["schemas"]["products.productModel"];
+type Location = LocationComponents["schemas"]["locations.location"];
+type CartItem = components["schemas"]["cart.cartItemModel"];
+```
+
+**❌ WRONG - Do NOT infer types from client methods:**
+```typescript
+// ❌ This causes TypeScript compilation errors
+type Product = NonNullable<
+  Awaited<ReturnType<typeof productClient.GET<"/v1/products">>>["data"]
+>["data"];
+type ProductItem = NonNullable<Product>[number];
+```
+
+**Why This Matters:**
+- The `openapi-fetch` client methods have complex generic signatures that don't work with `ReturnType`
+- TypeScript cannot properly infer the return types from client methods
+- Direct schema imports are cleaner, more reliable, and compile correctly
+- This is the pattern used throughout the codebase (see cart items, line 100)
+
+**Available Schema Types:**
+- **Product API**: `ProductComponents["schemas"]["products.productModel"]`
+- **Location API**: `LocationComponents["schemas"]["locations.location"]`
+- **Cart API**: `components["schemas"]["cart.cartItemModel"]`
+- **Identity API**: Import as needed from `./services/kroger/identity.js`
 
 ## Important Implementation Notes
 
