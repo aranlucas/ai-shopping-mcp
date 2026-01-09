@@ -55,21 +55,26 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
   });
 
   async init() {
+    // Capture context for use in arrow functions
+    const getUserId = (): string => (this as any).props?.id || "";
+    const getKV = (): KVNamespace => (this as any).env.USER_DATA_KV;
+
     // Register MCP prompts for guided workflows
     registerPrompts(this.server);
 
     // Configure Kroger auth for all clients
     configureKrogerAuth((): KrogerTokenInfo | null => {
       // Return current token info from props
-      if (!this.props?.accessToken) return null;
+      const props = (this as any).props as Props | undefined;
+      if (!props?.accessToken) return null;
 
       return {
-        accessToken: this.props.accessToken,
-        refreshToken: this.props.refreshToken,
-        tokenExpiresAt: this.props.tokenExpiresAt,
+        accessToken: props.accessToken,
+        refreshToken: props.refreshToken,
+        tokenExpiresAt: props.tokenExpiresAt,
         // Use credentials from props (stored during initial auth)
-        krogerClientId: this.props.krogerClientId,
-        krogerClientSecret: this.props.krogerClientSecret,
+        krogerClientId: props.krogerClientId,
+        krogerClientSecret: props.krogerClientSecret,
       };
     });
 
@@ -234,7 +239,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         }),
       },
       async ({ locationId }: { locationId: string }) =>
-        setPreferredLocation({ locationId }, this.props?.id || "", this.env.USER_DATA_KV),
+        setPreferredLocation({ locationId }, getUserId(), getKV()),
     );
 
     // Get preferred location tool
@@ -245,7 +250,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           "Retrieves the user's saved preferred store location. Use this to check which store the user has set as their default for shopping.",
         inputSchema: z.object({}),
       },
-      async () => getPreferredLocation(this.props?.id || "", this.env.USER_DATA_KV),
+      async () => getPreferredLocation(getUserId(), getKV()),
     );
 
     // Add to pantry tool
@@ -268,7 +273,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         }),
       },
       async ({ items }: { items: Array<{ productId: string; productName: string; quantity: number; expiresAt?: string }> }) =>
-        addToPantry({ items }, this.props?.id || "", this.env.USER_DATA_KV),
+        addToPantry({ items }, getUserId(), getKV()),
     );
 
     // Remove from pantry tool
@@ -284,7 +289,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         }),
       },
       async ({ productId }: { productId: string }) =>
-        removeFromPantry({ productId }, this.props?.id || "", this.env.USER_DATA_KV),
+        removeFromPantry({ productId }, getUserId(), getKV()),
     );
 
     // View pantry tool
@@ -295,7 +300,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           "Displays all items currently in your pantry inventory. Use this to see what groceries you have at home before shopping.",
         inputSchema: z.object({}),
       },
-      async () => viewPantry(this.props?.id || "", this.env.USER_DATA_KV),
+      async () => viewPantry(getUserId(), getKV()),
     );
 
     // Clear pantry tool
@@ -306,7 +311,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           "Removes all items from your pantry inventory. Use this to start fresh with pantry tracking.",
         inputSchema: z.object({}),
       },
-      async () => clearPantry(this.props?.id || "", this.env.USER_DATA_KV),
+      async () => clearPantry(getUserId(), getKV()),
     );
 
     // Mark order placed tool
@@ -329,7 +334,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         }),
       },
       async ({ items, locationId, notes }: { items: Array<{ productId: string; productName: string; quantity: number; price?: number }>; locationId?: string; notes?: string }) =>
-        markOrderPlaced({ items, locationId, notes }, this.props?.id || "", this.env.USER_DATA_KV),
+        markOrderPlaced({ items, locationId, notes }, getUserId(), getKV()),
     );
 
     // View order history tool
@@ -349,7 +354,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         }),
       },
       async ({ limit }: { limit?: number }) =>
-        viewOrderHistory({ limit }, this.props?.id || "", this.env.USER_DATA_KV),
+        viewOrderHistory({ limit }, getUserId(), getKV()),
     );
   }
 }
