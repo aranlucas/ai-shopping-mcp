@@ -8,6 +8,15 @@ This is a Model Context Protocol (MCP) server that integrates with the Kroger AP
 
 ## Development Commands
 
+### CRITICAL: Initial Setup and Verification
+**Always run these commands when starting work:**
+```bash
+npm install                # Install dependencies (REQUIRED if node_modules doesn't exist)
+npm run build              # Verify TypeScript compilation passes
+```
+
+**When using Task tool with subagents:** Subagents should always run `npm run build` after making code changes to verify compilation.
+
 ### Build & Type Checking
 ```bash
 npm run build              # Type-check with TypeScript (no output)
@@ -161,8 +170,8 @@ The `search_products` tool implements parallel bulk search:
 
 **Performance Pattern:**
 ```typescript
-// ✅ CORRECT - Parallel execution
-const searchPromises = terms.map(async (term: string) => {
+// ✅ CORRECT - Parallel execution with type inference
+const searchPromises = terms.map(async (term) => {  // TypeScript infers term is string
   const { data, error } = await productClient.GET("/v1/products", { ... });
   return { term, products: data?.data || [], count: products.length };
 });
@@ -246,33 +255,55 @@ function formatProduct(product: any): string {  // ❌ NEVER USE ANY
 ```
 
 ### Type Annotation Requirements
-1. **Function Parameters**: Always explicitly type all parameters
-   ```typescript
-   // ✅ Correct
-   ({ grocery_list }: { grocery_list: string }) => { ... }
 
-   // ❌ Wrong
-   ({ grocery_list }) => { ... }
+**IMPORTANT: Prefer TypeScript type inference over explicit annotations when TypeScript can reliably infer the type.**
+
+1. **Zod Schema Integration**: Tool handler parameters are automatically typed by Zod schemas
+   ```typescript
+   // ✅ CORRECT - TypeScript infers types from Zod schema
+   this.server.registerTool("search_products", {
+     inputSchema: z.object({
+       terms: z.array(z.string()),
+       locationId: z.string()
+     })
+   }, async ({ terms, locationId }) => {  // Types inferred automatically
+     // terms is string[], locationId is string
+   });
+
+   // ❌ WRONG - Redundant explicit typing
+   async ({ terms, locationId }: { terms: string[], locationId: string }) => { ... }
    ```
 
-2. **Array Callbacks**: Type all callback parameters
+2. **Array Callbacks**: Use inference when the array type is known
    ```typescript
-   // ✅ Correct
-   items.map((item: Item) => item.name)
+   // ✅ CORRECT - TypeScript infers term is string from terms: string[]
+   terms.map(async (term) => {
+     const result = await productClient.GET("/v1/products", { ... });
+     return { term, products: result.data };
+   });
 
-   // ❌ Wrong
-   items.map((item) => item.name)
+   // ❌ UNNECESSARY - Type annotation redundant when TypeScript can infer
+   terms.map(async (term: string) => { ... })
+
+   // ✅ NECESSARY - Explicit type needed when inference isn't clear
+   items.filter((item): item is ValidItem => item.valid !== false)
    ```
 
-3. **OpenAPI Schema Types**: Use the generated type definitions
+3. **OpenAPI Schema Types**: Use the generated type definitions for complex types
    ```typescript
-   // ✅ Correct - Use generated types
-   type Product = ProductComponents["schemas"]["products.productModel"];
-   type Location = LocationComponents["schemas"]["locations.location"];
+   // ✅ CORRECT - Use generated types for complex structures
+   type ProductItem = ProductComponents["schemas"]["products.productModel"];
+   const allProducts: ProductItem[] = [];
 
-   // ❌ Wrong - Don't use any or create manual interfaces
+   // ❌ WRONG - Don't use any or create manual interfaces
    type Product = any;
    ```
+
+**Rule of Thumb:** Only add explicit type annotations when:
+- TypeScript cannot infer the type (compile error)
+- Type narrowing is needed (type guards)
+- Improving code clarity for complex types
+- Defining reusable type aliases
 
 ### Proper Property Access
 - Always check the OpenAPI schema for correct property names
