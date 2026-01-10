@@ -19,10 +19,15 @@ import {
 import {
   formatLocation,
   formatLocationList,
+  formatLocationListCompact,
   formatOrderHistory,
+  formatOrderHistoryCompact,
   formatPantryList,
+  formatPantryListCompact,
   formatPreferredLocation,
+  formatPreferredLocationCompact,
   formatProductList,
+  formatProductListCompact,
   formatProductListWithOptions,
 } from "./utils/format-response.js";
 import {
@@ -189,14 +194,14 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         const locations = data?.data || [];
         console.log(`Found ${locations.length} locations`);
 
-        // Return a successful response with formatted text
-        const formattedLocations = formatLocationList(locations);
+        // Return a successful response with compact formatting
+        const formattedLocations = formatLocationListCompact(locations);
 
         return {
           content: [
             {
               type: "text",
-              text: `Found ${locations.length} location(s):\n\n${formattedLocations}`,
+              text: `Found ${locations.length} location(s):\n${formattedLocations}`,
             },
           ],
         };
@@ -369,8 +374,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           };
         }
 
-        // Format the response for display with options-focused view
-        const formattedProducts = formatProductListWithOptions(allProducts);
+        // Format the response with compact token-efficient view
+        const formattedProducts = formatProductListCompact(allProducts);
 
         // Create summary of search results
         const summary = searchResults
@@ -496,7 +501,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         await storage.preferredLocation.set(this.props.id, preferredLocation);
 
-        const formatted = formatPreferredLocation(preferredLocation);
+        const formatted = formatPreferredLocationCompact(preferredLocation);
 
         return {
           content: [
@@ -536,7 +541,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           };
         }
 
-        const formatted = formatPreferredLocation(location);
+        const formatted = formatPreferredLocationCompact(location);
 
         return {
           content: [
@@ -589,7 +594,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         }
 
         const pantry = await storage.pantry.getAll(this.props.id);
-        const formatted = formatPantryList(pantry);
+        const formatted = formatPantryListCompact(pantry);
 
         return {
           content: [
@@ -623,7 +628,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         await storage.pantry.remove(this.props.id, productId);
 
         const pantry = await storage.pantry.getAll(this.props.id);
-        const formatted = formatPantryList(pantry);
+        const formatted = formatPantryListCompact(pantry);
 
         return {
           content: [
@@ -651,7 +656,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         const storage = createUserStorage(this.env.USER_DATA_KV);
         const pantry = await storage.pantry.getAll(this.props.id);
-        const formatted = formatPantryList(pantry);
+        const formatted = formatPantryListCompact(pantry);
 
         return {
           content: [
@@ -737,7 +742,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         await storage.orderHistory.add(this.props.id, order);
 
-        const formatted = formatOrderHistory([order]);
+        const formatted = formatOrderHistoryCompact([order]);
 
         return {
           content: [
@@ -777,7 +782,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           limit,
         );
 
-        const formatted = formatOrderHistory(orders);
+        const formatted = formatOrderHistoryCompact(orders);
 
         return {
           content: [
