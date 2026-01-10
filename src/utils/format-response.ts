@@ -94,6 +94,101 @@ export function formatProductList(products: Product[]): string {
 }
 
 /**
+ * Format product with focus on available options/variants
+ * Shows each product once with its size/price options listed compactly
+ */
+export function formatProductWithOptions(product: Product): string {
+  const lines: string[] = [];
+
+  // Product header: name and brand
+  const header = product.brand
+    ? `**${product.description}** (${product.brand})`
+    : `**${product.description}**`;
+  lines.push(header);
+
+  // Show all available size/price options
+  if (product.items && product.items.length > 0) {
+    lines.push("Options:");
+
+    for (const item of product.items) {
+      const optionParts: string[] = [];
+
+      // Size
+      if (item.size) {
+        optionParts.push(item.size);
+      }
+
+      // Price
+      if (item.price) {
+        const regular = item.price.regular;
+        const promo = item.price.promo;
+
+        if (promo && promo !== regular) {
+          optionParts.push(`~~$${regular}~~ **$${promo}**`);
+        } else {
+          optionParts.push(`$${regular}`);
+        }
+      }
+
+      // Fulfillment status (compact)
+      if (item.fulfillment) {
+        const available: string[] = [];
+        if (item.fulfillment.curbside) available.push("Pickup");
+        if (item.fulfillment.delivery) available.push("Delivery");
+        if (item.fulfillment.instore) available.push("In-Store");
+
+        if (available.length > 0) {
+          optionParts.push(`[${available.join("/")}]`);
+        } else {
+          optionParts.push("[Out of Stock]");
+        }
+      }
+
+      // Stock level
+      if (item.inventory?.stockLevel) {
+        const stock = item.inventory.stockLevel;
+        if (stock === "LOW") {
+          optionParts.push("⚠️ Low Stock");
+        } else if (stock === "TEMPORARILY_OUT_OF_STOCK") {
+          optionParts.push("❌ Out");
+        }
+      }
+
+      lines.push(`  • ${optionParts.join(" - ")}`);
+    }
+  }
+
+  // UPC for adding to cart
+  if (product.upc) {
+    lines.push(`UPC: ${product.upc}`);
+  }
+
+  // Aisle location (if available)
+  if (product.aisleLocations && product.aisleLocations.length > 0) {
+    const aisle = product.aisleLocations[0];
+    lines.push(`Location: ${aisle.description || `Aisle ${aisle.number}`}`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Format multiple products with options focus (for bulk search)
+ */
+export function formatProductListWithOptions(products: Product[]): string {
+  if (products.length === 0) {
+    return "No products found.";
+  }
+
+  const formatted = products.map((product, index) => {
+    const productText = formatProductWithOptions(product);
+    return `${index + 1}. ${productText.replace(/\n/g, "\n   ")}`;
+  });
+
+  return formatted.join("\n\n");
+}
+
+/**
  * Format a location for display with address and hours
  */
 export function formatLocation(location: Location): string {

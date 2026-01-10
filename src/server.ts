@@ -23,6 +23,7 @@ import {
   formatPantryList,
   formatPreferredLocation,
   formatProductList,
+  formatProductListWithOptions,
 } from "./utils/format-response.js";
 import {
   createUserStorage,
@@ -368,8 +369,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           };
         }
 
-        // Format the response for display
-        const formattedProducts = formatProductList(allProducts);
+        // Format the response for display with options-focused view
+        const formattedProducts = formatProductListWithOptions(allProducts);
 
         // Create summary of search results
         const summary = searchResults
