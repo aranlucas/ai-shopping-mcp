@@ -1098,6 +1098,189 @@ ${cleanedHtml}`;
       },
     );
 
+    // MCP Sampling tool: Search recipes from Janella's Cookbook
+    this.server.registerTool(
+      "search_recipes_from_web",
+      {
+        description:
+          "Uses AI to scrape and extract recipes from Janella's Cookbook website. Searches for recipes by keyword and returns detailed recipe information including ingredients and instructions.",
+        inputSchema: z.object({
+          searchQuery: z
+            .string()
+            .min(1)
+            .describe("Recipe search query (e.g., 'Cookie', 'Pasta', 'Chicken')"),
+        }),
+      },
+      async ({ searchQuery }) => {
+        try {
+          // Fetch the recipe search results page
+          const recipeUrl = `https://janella-cookbook.vercel.app/search?q=${encodeURIComponent(searchQuery)}`;
+          console.log(`Fetching recipes from: ${recipeUrl}`);
+
+          const response = await fetch(recipeUrl, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              Accept: "text/html,application/xhtml+xml,application/xml",
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch recipe page: ${response.status} ${response.statusText}`,
+            );
+          }
+
+          const html = await response.text();
+
+          // Extract just the body content (remove scripts, styles for cleaner parsing)
+          const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+          const bodyContent = bodyMatch ? bodyMatch[1] : html;
+
+          // Remove script and style tags
+          const cleanedHtml = bodyContent
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+            .substring(0, 50000); // Limit to 50k chars to stay within token limits
+
+          // Use sampling to have the LLM extract recipes
+          const prompt = `Parse this recipe search results webpage HTML and extract recipe information.
+
+For each recipe found, extract:
+- Recipe name/title
+- Description (if available)
+- Ingredients list (as array)
+- Cooking instructions (step-by-step)
+- Prep time (if available)
+- Cook time (if available)
+- Servings (if available)
+- Recipe URL or ID (if available)
+
+Return the results as a structured JSON array. Example format:
+[
+  {
+    "name": "Recipe name",
+    "description": "Brief description",
+    "ingredients": ["ingredient 1", "ingredient 2"],
+    "instructions": ["Step 1", "Step 2"],
+    "prepTime": "15 minutes",
+    "cookTime": "30 minutes",
+    "servings": "4",
+    "url": "recipe-url-if-available"
+  }
+]
+
+Only return the JSON array, no other text. Limit to 5 recipes maximum.
+
+HTML to parse:
+${cleanedHtml}`;
+
+          // Use MCP sampling to request AI completion
+          const samplingResult = await this.server.server.createMessage({
+            messages: [
+              {
+                role: "user",
+                content: {
+                  type: "text",
+                  text: prompt,
+                },
+              },
+            ],
+            maxTokens: 2000,
+          });
+
+          // Extract the text response
+          const content = Array.isArray(samplingResult.content)
+            ? samplingResult.content[0]
+            : samplingResult.content;
+          const recipesText =
+            content?.type === "text"
+              ? content.text
+              : "Unable to extract recipes";
+
+          // Try to parse as JSON
+          let recipesData;
+          try {
+            // Extract JSON from markdown code blocks if present
+            const jsonMatch = recipesText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+            const jsonText = jsonMatch ? jsonMatch[1] : recipesText;
+            recipesData = JSON.parse(jsonText);
+          } catch {
+            // If parsing fails, return as formatted text
+            recipesData = recipesText;
+          }
+
+          // Format the response
+          if (typeof recipesData === "string") {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `**Recipe Search Results for "${searchQuery}"**\n\n${recipesData}`,
+                },
+              ],
+            };
+          }
+
+          // Format as structured recipes
+          const formattedRecipes = Array.isArray(recipesData)
+            ? recipesData
+                .map((recipe, idx) => {
+                  const parts = [`**${idx + 1}. ${recipe.name}**`];
+
+                  if (recipe.description) {
+                    parts.push(`${recipe.description}`);
+                  }
+
+                  if (recipe.prepTime || recipe.cookTime || recipe.servings) {
+                    const metadata = [];
+                    if (recipe.prepTime) metadata.push(`Prep: ${recipe.prepTime}`);
+                    if (recipe.cookTime) metadata.push(`Cook: ${recipe.cookTime}`);
+                    if (recipe.servings) metadata.push(`Serves: ${recipe.servings}`);
+                    parts.push(metadata.join(" | "));
+                  }
+
+                  if (recipe.ingredients && recipe.ingredients.length > 0) {
+                    parts.push("\n**Ingredients:**");
+                    recipe.ingredients.forEach((ing: string) => {
+                      parts.push(`- ${ing}`);
+                    });
+                  }
+
+                  if (recipe.instructions && recipe.instructions.length > 0) {
+                    parts.push("\n**Instructions:**");
+                    recipe.instructions.forEach((step: string, i: number) => {
+                      parts.push(`${i + 1}. ${step}`);
+                    });
+                  }
+
+                  return parts.join("\n");
+                })
+                .join("\n\n---\n\n")
+            : JSON.stringify(recipesData, null, 2);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `**Recipe Search Results for "${searchQuery}"**\n\nFound ${Array.isArray(recipesData) ? recipesData.length : 0} recipes:\n\n${formattedRecipes}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error fetching recipes:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Failed to fetch recipes: ${error instanceof Error ? error.message : "Unknown error"}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
     // Register MCP Resources for context data
     // Resource: User's pantry inventory
     this.server.registerResource(

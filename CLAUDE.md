@@ -157,6 +157,7 @@ The server exposes these MCP tools (all defined in server.ts):
 14. **suggest_recipes_from_pantry**: Uses AI to suggest recipes based on pantry inventory
 15. **categorize_shopping_list**: Uses AI to organize shopping lists by store department
 16. **get_weekly_deals_from_web**: Uses AI to scrape and extract deals from QFC weekly ad webpage
+17. **search_recipes_from_web**: Uses AI to scrape and extract recipes from Janella's Cookbook website
 
 ### MCP Resources
 
@@ -188,11 +189,12 @@ const result = await this.server.server.createMessage({
 **Use Cases:**
 - Recipe suggestions from pantry items
 - Shopping list categorization by department
-- Web scraping and data extraction (weekly deals from public webpages)
+- Web scraping and data extraction (weekly deals, recipes from public webpages)
 - Meal planning assistance
+- Recipe discovery from online cookbooks
 
 **Web Scraping with Sampling:**
-The `get_weekly_deals_from_web` tool demonstrates AI-powered web scraping:
+The `get_weekly_deals_from_web` and `search_recipes_from_web` tools demonstrate AI-powered web scraping:
 ```typescript
 // 1. Fetch webpage content
 const response = await fetch(url);
