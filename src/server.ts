@@ -82,7 +82,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       "add_to_cart",
       {
         description:
-          "Adds specified items to a user's shopping cart. Use this tool when the user wants to add products to their cart for purchase. Prefer to use add to cart with multiple items.",
+          "Adds specified items to a user's shopping cart. Use this tool when the user wants to add products to their cart for purchase. Prefer to use add to cart with multiple items. Location ID will default to user's preferred location if not specified.",
         inputSchema: z.object({
           items: z.array(
             z.object({
@@ -95,9 +95,40 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
               modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
             }),
           ),
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be exactly 8 characters" })
+            .optional()
+            .describe(
+              "Store location ID for the cart. If not provided, uses your preferred location.",
+            ),
         }),
       },
-      async ({ items }) => {
+      async ({ items, locationId }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        // Get location ID from preferred location if not provided
+        let effectiveLocationId = locationId;
+        let locationName: string | undefined;
+
+        if (!effectiveLocationId) {
+          const storage = createUserStorage(this.env.USER_DATA_KV);
+          const preferredLocation = await storage.preferredLocation.get(
+            this.props.id,
+          );
+
+          if (!preferredLocation) {
+            throw new Error(
+              "No location specified and no preferred location set. Please provide a locationId or set your preferred location using set_preferred_location.",
+            );
+          }
+
+          effectiveLocationId = preferredLocation.locationId;
+          locationName = preferredLocation.locationName;
+        }
+
         // Convert items to the format expected by the Kroger API
         const cartItems: CartItem[] = items.map((item) => ({
           upc: item.upc,
@@ -124,16 +155,23 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           );
         }
 
-        console.log("Items successfully added to cart");
+        console.log(
+          `Items successfully added to cart for location ${effectiveLocationId}`,
+        );
 
-        // Return a success response
+        // Return a success response with location context
+        const locationInfo = locationName
+          ? ` at ${locationName}`
+          : ` (Location: ${effectiveLocationId})`;
+
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify({
-                message: `Successfully added ${items.length} item(s) to cart`,
+                message: `Successfully added ${items.length} item(s) to cart${locationInfo}`,
                 itemsAdded: items.length,
+                locationId: effectiveLocationId,
                 success: true,
               }),
             },
