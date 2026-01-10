@@ -274,13 +274,18 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             ),
         }),
       },
-      async ({ terms, locationId }) => {
+      async ({ terms, locationId }, extra) => {
         // Limit of 10 items per search term
         const ITEMS_PER_TERM = 10;
 
         type ProductItem = ProductComponents["schemas"]["products.productModel"];
 
-        // Execute all searches in parallel
+        // Progress tracking
+        let completedSearches = 0;
+        const totalSearches = terms.length;
+        const progressToken = extra?._meta?.progressToken;
+
+        // Execute all searches in parallel with progress tracking
         const searchPromises = terms.map(async (term) => {
           // Build query parameters
           const queryParams: Record<string, string | number> = {
@@ -304,6 +309,23 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
           const products = data?.data || [];
           console.log(`Found ${products.length} products for term "${term}"`);
+
+          // Send progress notification after each search completes
+          completedSearches++;
+          if (progressToken && extra?.sendNotification) {
+            try {
+              await extra.sendNotification({
+                method: "notifications/progress",
+                params: {
+                  progressToken,
+                  progress: completedSearches,
+                  total: totalSearches,
+                },
+              });
+            } catch (error) {
+              console.error("Failed to send progress notification:", error);
+            }
+          }
 
           return { term, products, count: products.length };
         });
