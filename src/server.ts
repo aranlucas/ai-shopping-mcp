@@ -1,12 +1,14 @@
 import OAuthProvider from "@cloudflare/workers-oauth-provider";
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  McpServer,
+  ResourceTemplate,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import dotenv from "dotenv";
 import { z } from "zod";
 import { KrogerHandler } from "./kroger-handler.js";
 import { registerPrompts } from "./prompts.js";
 import type { components } from "./services/kroger/cart.js";
-import type { components as ProductComponents } from "./services/kroger/product.js";
 import {
   cartClient,
   configureKrogerAuth,
@@ -16,19 +18,15 @@ import {
   productClient,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
+import type { components as ProductComponents } from "./services/kroger/product.js";
 import {
   formatLocation,
-  formatLocationList,
   formatLocationListCompact,
-  formatOrderHistory,
   formatOrderHistoryCompact,
-  formatPantryList,
   formatPantryListCompact,
-  formatPreferredLocation,
   formatPreferredLocationCompact,
   formatProductList,
   formatProductListCompact,
-  formatProductListWithOptions,
 } from "./utils/format-response.js";
 import {
   createUserStorage,
@@ -284,7 +282,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         // Limit of 10 items per search term
         const ITEMS_PER_TERM = 10;
 
-        type ProductItem = ProductComponents["schemas"]["products.productModel"];
+        type ProductItem =
+          ProductComponents["schemas"]["products.productModel"];
 
         // Progress tracking
         let completedSearches = 0;
@@ -309,7 +308,10 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           });
 
           if (error) {
-            console.error(`Error searching products for term "${term}":`, error);
+            console.error(
+              `Error searching products for term "${term}":`,
+              error,
+            );
             return { term, products: [], count: 0 };
           }
 
@@ -805,7 +807,9 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           cuisineType: z
             .string()
             .optional()
-            .describe("Optional cuisine preference (e.g., 'Italian', 'Mexican', 'Asian')"),
+            .describe(
+              "Optional cuisine preference (e.g., 'Italian', 'Mexican', 'Asian')",
+            ),
           maxRecipes: z
             .number()
             .min(1)
@@ -877,7 +881,9 @@ Format each recipe clearly and concisely.`;
           ? samplingResult.content[0]
           : samplingResult.content;
         const recipeText =
-          content?.type === "text" ? content.text : "Unable to generate recipes";
+          content?.type === "text"
+            ? content.text
+            : "Unable to generate recipes";
 
         return {
           content: [
@@ -899,7 +905,9 @@ Format each recipe clearly and concisely.`;
         inputSchema: z.object({
           items: z
             .array(z.string())
-            .describe("List of items to categorize (e.g., ['milk', 'bread', 'chicken'])"),
+            .describe(
+              "List of items to categorize (e.g., ['milk', 'bread', 'chicken'])",
+            ),
         }),
       },
       async ({ items }) => {
@@ -914,7 +922,9 @@ Format each recipe clearly and concisely.`;
           };
         }
 
-        const itemList = items.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
+        const itemList = items
+          .map((item, idx) => `${idx + 1}. ${item}`)
+          .join("\n");
 
         const prompt = `Organize this shopping list by grocery store department/aisle:
 
@@ -1063,15 +1073,15 @@ ${cleanedHtml}`;
             ? samplingResult.content[0]
             : samplingResult.content;
           const dealsText =
-            content?.type === "text"
-              ? content.text
-              : "Unable to extract deals";
+            content?.type === "text" ? content.text : "Unable to extract deals";
 
           // Try to parse as JSON
-          let dealsData;
+          let dealsData: unknown;
           try {
             // Extract JSON from markdown code blocks if present
-            const jsonMatch = dealsText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+            const jsonMatch = dealsText.match(
+              /```(?:json)?\s*([\s\S]*?)\s*```/,
+            );
             const jsonText = jsonMatch ? jsonMatch[1] : dealsText;
             dealsData = JSON.parse(jsonText);
           } catch {
@@ -1086,7 +1096,7 @@ ${cleanedHtml}`;
                 text:
                   typeof dealsData === "string"
                     ? `**Weekly Deals (Zip: ${zipCode})**\n\n${dealsData}`
-                    : `**Weekly Deals (Zip: ${zipCode})**\n\nFound ${dealsData.length} deals:\n\n${JSON.stringify(dealsData, null, 2)}`,
+                    : `**Weekly Deals (Zip: ${zipCode})**\n\nFound ${Array.isArray(dealsData) ? dealsData.length : 0} deals:\n\n${JSON.stringify(dealsData, null, 2)}`,
               },
             ],
           };
@@ -1114,7 +1124,9 @@ ${cleanedHtml}`;
           searchQuery: z
             .string()
             .min(1)
-            .describe("Recipe search query (e.g., 'Cookie', 'Pasta', 'Chicken')"),
+            .describe(
+              "Recipe search query (e.g., 'Cookie', 'Pasta', 'Chicken')",
+            ),
         }),
       },
       async ({ searchQuery }) => {
@@ -1205,10 +1217,12 @@ ${cleanedHtml}`;
               : "Unable to extract recipes";
 
           // Try to parse as JSON
-          let recipesData;
+          let recipesData: unknown;
           try {
             // Extract JSON from markdown code blocks if present
-            const jsonMatch = recipesText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+            const jsonMatch = recipesText.match(
+              /```(?:json)?\s*([\s\S]*?)\s*```/,
+            );
             const jsonText = jsonMatch ? jsonMatch[1] : recipesText;
             recipesData = JSON.parse(jsonText);
           } catch {
@@ -1240,9 +1254,12 @@ ${cleanedHtml}`;
 
                   if (recipe.prepTime || recipe.cookTime || recipe.servings) {
                     const metadata = [];
-                    if (recipe.prepTime) metadata.push(`Prep: ${recipe.prepTime}`);
-                    if (recipe.cookTime) metadata.push(`Cook: ${recipe.cookTime}`);
-                    if (recipe.servings) metadata.push(`Serves: ${recipe.servings}`);
+                    if (recipe.prepTime)
+                      metadata.push(`Prep: ${recipe.prepTime}`);
+                    if (recipe.cookTime)
+                      metadata.push(`Cook: ${recipe.cookTime}`);
+                    if (recipe.servings)
+                      metadata.push(`Serves: ${recipe.servings}`);
                     parts.push(metadata.join(" | "));
                   }
 
@@ -1450,7 +1467,8 @@ ${cleanedHtml}`;
                 type: "text",
                 uri: uri.href,
                 text: JSON.stringify({
-                  error: "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
+                  error:
+                    "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
                 }),
               },
             ],

@@ -358,7 +358,12 @@ export function formatLocationCompact(location: Location): string {
   // Address
   if (location.address) {
     const addr = location.address;
-    const addressParts = [addr.addressLine1, addr.city, addr.state, addr.zipCode]
+    const addressParts = [
+      addr.addressLine1,
+      addr.city,
+      addr.state,
+      addr.zipCode,
+    ]
       .filter(Boolean)
       .join(" ");
     if (addressParts) parts.push(addressParts);
@@ -380,7 +385,9 @@ export function formatLocationListCompact(locations: Location[]): string {
   if (locations.length === 0) return "No locations found.";
 
   return locations
-    .map((location, index) => `${index + 1}. ${formatLocationCompact(location)}`)
+    .map(
+      (location, index) => `${index + 1}. ${formatLocationCompact(location)}`,
+    )
     .join("\n");
 }
 
