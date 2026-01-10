@@ -156,6 +156,7 @@ The server exposes these MCP tools (all defined in server.ts):
 **AI-Powered Tools (Using MCP Sampling):**
 14. **suggest_recipes_from_pantry**: Uses AI to suggest recipes based on pantry inventory
 15. **categorize_shopping_list**: Uses AI to organize shopping lists by store department
+16. **get_weekly_deals_from_web**: Uses AI to scrape and extract deals from QFC weekly ad webpage
 
 ### MCP Resources
 
@@ -187,7 +188,36 @@ const result = await this.server.server.createMessage({
 **Use Cases:**
 - Recipe suggestions from pantry items
 - Shopping list categorization by department
+- Web scraping and data extraction (weekly deals from public webpages)
 - Meal planning assistance
+
+**Web Scraping with Sampling:**
+The `get_weekly_deals_from_web` tool demonstrates AI-powered web scraping:
+```typescript
+// 1. Fetch webpage content
+const response = await fetch(url);
+const html = await response.text();
+
+// 2. Clean HTML (remove scripts/styles, limit size)
+const cleanedHtml = html
+  .replace(/<script.*?<\/script>/gi, '')
+  .substring(0, 50000);
+
+// 3. Ask LLM to parse and extract structured data
+const result = await this.server.server.createMessage({
+  messages: [{
+    role: "user",
+    content: {
+      type: "text",
+      text: `Parse this HTML and return JSON: ${cleanedHtml}`
+    }
+  }],
+  maxTokens: 2000
+});
+
+// 4. Parse LLM response as JSON
+const data = JSON.parse(result.content.text);
+```
 
 **Security:** Sampling requests require user approval (handled by the MCP client)
 

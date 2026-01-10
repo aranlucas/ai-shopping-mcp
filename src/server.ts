@@ -941,6 +941,141 @@ Provide a suggested shopping route (which departments to visit in order for effi
       },
     );
 
+    // MCP Sampling tool: Extract weekly deals from QFC webpage
+    this.server.registerTool(
+      "get_weekly_deals_from_web",
+      {
+        description:
+          "Uses AI to scrape and extract current weekly deals from the QFC website. Returns structured deals data including product names, prices, and savings.",
+        inputSchema: z.object({
+          zipCode: z
+            .string()
+            .length(5)
+            .optional()
+            .default("98122")
+            .describe("Zip code for location-specific deals"),
+        }),
+      },
+      async ({ zipCode }) => {
+        try {
+          // Fetch the QFC weekly deals page
+          const dealsUrl = `https://www.qfc.com/savings/weekly-ad?zipcode=${zipCode}`;
+          console.log(`Fetching weekly deals from: ${dealsUrl}`);
+
+          const response = await fetch(dealsUrl, {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              Accept: "text/html,application/xhtml+xml,application/xml",
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch deals page: ${response.status} ${response.statusText}`,
+            );
+          }
+
+          const html = await response.text();
+
+          // Extract just the body content (remove scripts, styles for cleaner parsing)
+          const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+          const bodyContent = bodyMatch ? bodyMatch[1] : html;
+
+          // Remove script and style tags
+          const cleanedHtml = bodyContent
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+            .substring(0, 50000); // Limit to 50k chars to stay within token limits
+
+          // Use sampling to have the LLM extract deals
+          const prompt = `Parse this QFC weekly deals webpage HTML and extract all product deals.
+
+For each deal, extract:
+- Product name/description
+- Original price (if available)
+- Sale price
+- Savings amount or percentage
+- Any special conditions (e.g., "with card", "limit 5")
+- Department/category
+
+Return the results as a structured JSON array. Example format:
+[
+  {
+    "product": "Product name",
+    "originalPrice": "$9.99",
+    "salePrice": "$6.99",
+    "savings": "Save $3.00",
+    "conditions": "With digital coupon",
+    "category": "Produce"
+  }
+]
+
+Only return the JSON array, no other text.
+
+HTML to parse:
+${cleanedHtml}`;
+
+          // Use MCP sampling to request AI completion
+          const samplingResult = await this.server.server.createMessage({
+            messages: [
+              {
+                role: "user",
+                content: {
+                  type: "text",
+                  text: prompt,
+                },
+              },
+            ],
+            maxTokens: 2000,
+          });
+
+          // Extract the text response
+          const content = Array.isArray(samplingResult.content)
+            ? samplingResult.content[0]
+            : samplingResult.content;
+          const dealsText =
+            content?.type === "text"
+              ? content.text
+              : "Unable to extract deals";
+
+          // Try to parse as JSON
+          let dealsData;
+          try {
+            // Extract JSON from markdown code blocks if present
+            const jsonMatch = dealsText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+            const jsonText = jsonMatch ? jsonMatch[1] : dealsText;
+            dealsData = JSON.parse(jsonText);
+          } catch {
+            // If parsing fails, return as formatted text
+            dealsData = dealsText;
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  typeof dealsData === "string"
+                    ? `**Weekly Deals (Zip: ${zipCode})**\n\n${dealsData}`
+                    : `**Weekly Deals (Zip: ${zipCode})**\n\nFound ${dealsData.length} deals:\n\n${JSON.stringify(dealsData, null, 2)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error fetching weekly deals:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Failed to fetch weekly deals: ${error instanceof Error ? error.message : "Unknown error"}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
     // Register MCP Resources for context data
     // Resource: User's pantry inventory
     this.server.registerResource(
