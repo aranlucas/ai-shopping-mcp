@@ -18,15 +18,14 @@ import {
   productClient,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
-import type { components as ProductComponents } from "./services/kroger/product.js";
 import {
   formatLocation,
   formatLocationListCompact,
   formatOrderHistoryCompact,
   formatPantryListCompact,
   formatPreferredLocationCompact,
+  formatProductCompact,
   formatProductList,
-  formatProductListCompact,
 } from "./utils/format-response.js";
 import {
   createUserStorage,
@@ -48,7 +47,6 @@ type Props = {
 };
 
 // Type aliases for API schemas
-type ProductItem = ProductComponents["schemas"]["products.productModel"];
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
@@ -341,31 +339,10 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         // Wait for all searches to complete
         const results = await Promise.all(searchPromises);
 
-        // Flatten all products and create search results summary
-        const allProducts: ProductItem[] = [];
-        const searchResults: Array<{ term: string; count: number }> = [];
+        // Count total products
+        const totalProducts = results.reduce((sum, r) => sum + r.count, 0);
 
-        for (const result of results) {
-          allProducts.push(...result.products);
-          searchResults.push({ term: result.term, count: result.count });
-        }
-
-        // Sort products: pickup in-stock first, then delivery-only, then out-of-stock last
-        allProducts.sort((a, b) => {
-          const aItem = a.items?.[0];
-          const bItem = b.items?.[0];
-          const aPickup =
-            aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
-          const bPickup =
-            bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
-
-          // Pickup available items come first
-          if (aPickup && !bPickup) return -1;
-          if (!aPickup && bPickup) return 1;
-          return 0;
-        });
-
-        if (allProducts.length === 0) {
+        if (totalProducts === 0) {
           return {
             content: [
               {
@@ -376,19 +353,43 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           };
         }
 
-        // Format the response with compact token-efficient view
-        const formattedProducts = formatProductListCompact(allProducts);
+        // Format results grouped by search term
+        const formattedSections = results.map((result) => {
+          if (result.count === 0) {
+            return `**${result.term}** (0 items)\nNo products found.`;
+          }
 
-        // Create summary of search results
-        const summary = searchResults
-          .map((result) => `  • "${result.term}": ${result.count} items`)
-          .join("\n");
+          // Sort products within each term: pickup in-stock first, then delivery-only, then out-of-stock last
+          result.products.sort((a, b) => {
+            const aItem = a.items?.[0];
+            const bItem = b.items?.[0];
+            const aPickup =
+              aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
+            const bPickup =
+              bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
+
+            // Pickup available items come first
+            if (aPickup && !bPickup) return -1;
+            if (!aPickup && bPickup) return 1;
+            return 0;
+          });
+
+          // Format products for this term
+          const productsFormatted = result.products
+            .map(
+              (product, index) =>
+                `  ${index + 1}. ${formatProductCompact(product)}`,
+            )
+            .join("\n");
+
+          return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
+        });
 
         return {
           content: [
             {
               type: "text",
-              text: `Bulk search completed (${terms.length} search terms, ${allProducts.length} total products):\n\n${summary}\n\n${formattedProducts}`,
+              text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
             },
           ],
         };
