@@ -1,5 +1,5 @@
 import OAuthProvider from "@cloudflare/workers-oauth-provider";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import dotenv from "dotenv";
 import { z } from "zod";
@@ -16,10 +16,6 @@ import {
   productClient,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
-import type {
-  Coupon,
-  CouponsResponse,
-} from "./services/kroger/weekly-deals.js";
 import {
   formatLocation,
   formatLocationList,
@@ -27,8 +23,6 @@ import {
   formatPantryList,
   formatPreferredLocation,
   formatProductList,
-  formatWeeklyDealsList,
-  type WeeklyDeal,
 } from "./utils/format-response.js";
 import {
   createUserStorage,
@@ -434,302 +428,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
     );
 
-    // Get coupons tool
-    this.server.registerTool(
-      "get_coupons",
-      {
-        description:
-          "Retrieves available digital coupons from QFC/Kroger. Use this tool when the user wants to see coupons, digital deals, or savings offers. Returns active coupons that can be clipped to the user's loyalty card. Example: 'Show me available coupons' or 'What coupons are available?'",
-        inputSchema: z.object({
-          locationId: z
-            .string()
-            .length(8, { message: "Location ID must be exactly 8 characters" })
-            .describe("The store location ID to get coupons for")
-            .default("70500847"),
-          facilityId: z
-            .string()
-            .describe("The facility ID for the store")
-            .default("4468"),
-          filterWeeklyDeals: z
-            .boolean()
-            .optional()
-            .default(false)
-            .describe(
-              "If true, only show Weekly Digital Deals (WDD) and Expiring For You (EFY) coupons",
-            ),
-        }),
-      },
-      async ({ locationId, facilityId, filterWeeklyDeals }) => {
-        try {
-          console.log(
-            "Fetching coupons for location:",
-            locationId,
-            "facility:",
-            facilityId,
-          );
-
-          // Build request matching the exact working browser request
-          const headers = new Headers();
-
-          // x-laf-object with location details - using exact structure from working request
-          const xLafObject = [
-            {
-              modality: {
-                type: "PICKUP",
-                handoffLocation: {
-                  storeId: locationId,
-                  facilityId: facilityId,
-                },
-                handoffAddress: {
-                  address: {
-                    addressLines: ["1401 Broadway"],
-                    cityTown: "Seattle",
-                    name: "Harvard Market",
-                    postalCode: "98122",
-                    stateProvince: "WA",
-                    residential: false,
-                    countryCode: "US",
-                  },
-                  location: {
-                    lat: 47.6137629,
-                    lng: -122.3211541,
-                  },
-                },
-              },
-              sources: [
-                {
-                  storeId: locationId,
-                  facilityId: facilityId,
-                },
-              ],
-              assortmentKeys: ["edec10f5-2d40-4941-a280-2a405a537dcb"],
-              listingKeys: [locationId],
-            },
-            {
-              modality: {
-                type: "IN_STORE",
-                handoffLocation: {
-                  storeId: locationId,
-                  facilityId: facilityId,
-                },
-                handoffAddress: {
-                  address: {
-                    addressLines: ["1401 Broadway"],
-                    cityTown: "Seattle",
-                    name: "Harvard Market",
-                    postalCode: "98122",
-                    stateProvince: "WA",
-                    residential: false,
-                    countryCode: "US",
-                  },
-                  location: {
-                    lat: 47.6137629,
-                    lng: -122.3211541,
-                  },
-                },
-              },
-              sources: [
-                {
-                  storeId: locationId,
-                  facilityId: facilityId,
-                },
-              ],
-              assortmentKeys: ["41352481-ccbf-41a3-9c25-37ef5bd7ff9f"],
-              listingKeys: [locationId],
-            },
-            {
-              modality: {
-                type: "DELIVERY",
-                handoffAddress: {
-                  address: {
-                    postalCode: "98122",
-                    stateProvince: "WA",
-                    countryCode: "US",
-                    county: "King County",
-                  },
-                  location: {
-                    lat: 47.61154175,
-                    lng: -122.31268311,
-                  },
-                },
-              },
-              sources: [
-                {
-                  storeId: locationId,
-                  facilityId: facilityId,
-                },
-                {
-                  storeId: "70500887",
-                  facilityId: "16715",
-                },
-              ],
-              assortmentKeys: ["fc64173a-28f6-4d21-8da5-1c6b1f3238d1"],
-              listingKeys: [locationId, "70500887"],
-            },
-          ];
-
-          // Set headers exactly as in the working browser request
-          headers.set("accept", "application/json, text/plain, */*");
-          headers.set("accept-language", "en-US,en;q=0.9,es;q=0.8");
-          headers.set("device-memory", "8");
-          headers.set("priority", "u=1, i");
-          headers.set(
-            "sec-ch-ua",
-            '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-          );
-          headers.set("sec-ch-ua-mobile", "?0");
-          headers.set("sec-ch-ua-platform", '"Windows"');
-          headers.set("sec-fetch-dest", "empty");
-          headers.set("sec-fetch-mode", "cors");
-          headers.set("sec-fetch-site", "same-origin");
-          headers.set(
-            "x-ab-test",
-            '[{"testVersion":"B","testID":"76503b","testOrigin":"f4"},{"testVersion":"B","testID":"76503b","testOrigin":"f4"}]',
-          );
-          headers.set(
-            "x-call-origin",
-            '{"page":"coupons","component":"ALL_COUPONS"}',
-          );
-          headers.set("x-facility-id", facilityId);
-          headers.set("x-kroger-channel", "WEB");
-          headers.set("x-laf-object", JSON.stringify(xLafObject));
-          headers.set(
-            "x-modality",
-            `{"type":"PICKUP","locationId":"${locationId}"}`,
-          );
-          headers.set("x-modality-type", "PICKUP");
-
-          console.log("Request headers set");
-
-          // Build URL exactly as in working request
-          const couponsUrl = new URL(
-            "https://www.qfc.com/atlas/v1/savings-coupons/v1/coupons",
-          );
-          couponsUrl.searchParams.append("projections", "coupons.compact");
-          couponsUrl.searchParams.append("filter.status", "unclipped");
-          couponsUrl.searchParams.append("filter.status", "active");
-          couponsUrl.searchParams.append("page.size", "24");
-          couponsUrl.searchParams.append("page.offset", "0");
-
-          console.log("Fetching coupons from:", couponsUrl.toString());
-
-          const response = await fetch(couponsUrl.toString(), {
-            method: "GET",
-            headers,
-          });
-
-          console.log("Response status:", response.status, response.statusText);
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Error response status:", response.status);
-            console.error("Error response body:", errorText.substring(0, 500));
-            throw new Error(
-              `Failed to fetch coupons: ${response.status} ${response.statusText}`,
-            );
-          }
-
-          const responseText = await response.text();
-          console.log("Response body length:", responseText.length);
-
-          const couponsData: CouponsResponse = JSON.parse(responseText);
-          const coupons = couponsData.data.coupons;
-
-          console.log(`Found ${coupons.length} total coupons`);
-
-          if (coupons.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "No coupons found for this location at this time.",
-                },
-              ],
-            };
-          }
-
-          // Optionally filter for Weekly Digital Deals (WDD) and Expiring For You (EFY)
-          const displayCoupons = filterWeeklyDeals
-            ? coupons.filter((coupon: Coupon) =>
-                coupon.specialSavings?.some(
-                  (saving) => saving.name === "WDD" || saving.name === "EFY",
-                ),
-              )
-            : coupons;
-
-          console.log(
-            `Displaying ${displayCoupons.length} coupons${filterWeeklyDeals ? " (filtered for WDD/EFY)" : ""}`,
-          );
-
-          if (displayCoupons.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: filterWeeklyDeals
-                    ? "No weekly digital deals found at this time. Check back later for new deals!"
-                    : "No coupons found for this location at this time.",
-                },
-              ],
-            };
-          }
-
-          // Format coupons for display
-          const formattedDeals: WeeklyDeal[] = displayCoupons
-            .slice(0, 25)
-            .map((coupon: Coupon) => ({
-              product: coupon.displayDescription || coupon.shortDescription,
-              details: coupon.brand,
-              price: `Save $${coupon.value.toFixed(2)}`,
-              savings: coupon.categories.join(", "),
-              loyalty: `Use up to ${coupon.redemptionsAllowed}x`,
-              department: coupon.categories[0] || "General",
-              validFrom: new Date(coupon.displayStartDate).toLocaleDateString(),
-              validTill: new Date(coupon.displayEndDate).toLocaleDateString(),
-              disclaimer: coupon.requirementDescription,
-            }));
-
-          // Format the deals list
-          const formattedDealsList = formatWeeklyDealsList(formattedDeals);
-
-          // Get date range from first coupon
-          const dateRange =
-            displayCoupons.length > 0
-              ? `Valid: ${new Date(displayCoupons[0].displayStartDate).toLocaleDateString()} - ${new Date(displayCoupons[0].displayEndDate).toLocaleDateString()}`
-              : "";
-
-          const title = filterWeeklyDeals
-            ? "Weekly Digital Deals"
-            : "Available Coupons";
-
-          // Return successful response
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Found ${displayCoupons.length} ${filterWeeklyDeals ? "weekly deal coupons" : "coupons"} (showing ${Math.min(25, displayCoupons.length)}):\n\n**${title}**\n${dateRange}\n\n${formattedDealsList}`,
-              },
-            ],
-          };
-        } catch (error) {
-          console.error("Error fetching coupons:", error);
-          console.error("Error details:", {
-            name: error instanceof Error ? error.name : "Unknown",
-            message: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : "No stack trace",
-          });
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Failed to fetch coupons: ${error instanceof Error ? error.message : "Unknown error"}`,
-              },
-            ],
-          };
-        }
-      },
-    );
-
     // Set preferred location tool
     this.server.registerTool(
       "set_preferred_location",
@@ -1063,6 +761,415 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             {
               type: "text",
               text: `Order History (${orders.length} recent orders):\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // MCP Sampling tool: Suggest recipes from pantry items
+    this.server.registerTool(
+      "suggest_recipes_from_pantry",
+      {
+        description:
+          "Uses AI to suggest recipes based on items currently in your pantry. This tool analyzes your pantry inventory and generates creative recipe ideas using the items you have available.",
+        inputSchema: z.object({
+          cuisineType: z
+            .string()
+            .optional()
+            .describe("Optional cuisine preference (e.g., 'Italian', 'Mexican', 'Asian')"),
+          maxRecipes: z
+            .number()
+            .min(1)
+            .max(5)
+            .optional()
+            .default(3)
+            .describe("Number of recipe suggestions to generate (1-5)"),
+        }),
+      },
+      async ({ cuisineType, maxRecipes }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const pantry = await storage.pantry.getAll(this.props.id);
+
+        if (pantry.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Your pantry is empty. Add items to your pantry first using the add_to_pantry tool, then try this again!",
+              },
+            ],
+          };
+        }
+
+        // Build the prompt for the LLM
+        const pantryItems = pantry
+          .map((item) => `- ${item.productName} (${item.quantity})`)
+          .join("\n");
+
+        const cuisineConstraint = cuisineType
+          ? `Focus on ${cuisineType} cuisine. `
+          : "";
+
+        const prompt = `Given these pantry items:
+
+${pantryItems}
+
+${cuisineConstraint}Suggest ${maxRecipes} creative recipes I can make using ONLY these ingredients (or common household staples like salt, pepper, oil).
+
+For each recipe, provide:
+1. Recipe name
+2. Required ingredients from the pantry
+3. Brief cooking instructions (3-5 steps)
+4. Estimated cooking time
+
+Format each recipe clearly and concisely.`;
+
+        // Use MCP sampling to request AI completion via the underlying server
+        const samplingResult = await this.server.server.createMessage({
+          messages: [
+            {
+              role: "user",
+              content: {
+                type: "text",
+                text: prompt,
+              },
+            },
+          ],
+          maxTokens: 1000,
+        });
+
+        // Extract the text response from sampling result
+        // The content field can be a single item or array
+        const content = Array.isArray(samplingResult.content)
+          ? samplingResult.content[0]
+          : samplingResult.content;
+        const recipeText =
+          content?.type === "text" ? content.text : "Unable to generate recipes";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `**Recipe Suggestions Based on Your Pantry**\n\n${recipeText}\n\n---\n*Based on ${pantry.length} items in your pantry*`,
+            },
+          ],
+        };
+      },
+    );
+
+    // MCP Sampling tool: Smart shopping list categorization
+    this.server.registerTool(
+      "categorize_shopping_list",
+      {
+        description:
+          "Uses AI to intelligently categorize and organize a shopping list by store department/aisle. Helps plan an efficient path through the store.",
+        inputSchema: z.object({
+          items: z
+            .array(z.string())
+            .describe("List of items to categorize (e.g., ['milk', 'bread', 'chicken'])"),
+        }),
+      },
+      async ({ items }) => {
+        if (items.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Please provide at least one item to categorize.",
+              },
+            ],
+          };
+        }
+
+        const itemList = items.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
+
+        const prompt = `Organize this shopping list by grocery store department/aisle:
+
+${itemList}
+
+Group items by these common grocery store departments:
+- Produce (fruits, vegetables)
+- Meat & Seafood
+- Dairy & Eggs
+- Bakery
+- Pantry & Canned Goods
+- Frozen Foods
+- Beverages
+- Snacks & Candy
+- Health & Beauty
+- Household Items
+
+For each department that has items, list the items under that department.
+Provide a suggested shopping route (which departments to visit in order for efficiency).`;
+
+        // Use MCP sampling to request AI completion via the underlying server
+        const samplingResult = await this.server.server.createMessage({
+          messages: [
+            {
+              role: "user",
+              content: {
+                type: "text",
+                text: prompt,
+              },
+            },
+          ],
+          maxTokens: 800,
+        });
+
+        // Extract the text response from sampling result
+        const content = Array.isArray(samplingResult.content)
+          ? samplingResult.content[0]
+          : samplingResult.content;
+        const categorizedText =
+          content?.type === "text"
+            ? content.text
+            : "Unable to categorize shopping list";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `**Shopping List Organized by Department**\n\n${categorizedText}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Register MCP Resources for context data
+    // Resource: User's pantry inventory
+    this.server.registerResource(
+      "Pantry Inventory",
+      "shopping://user/pantry",
+      {
+        description:
+          "Items currently in the user's pantry. Use this to avoid suggesting duplicate purchases and to help with meal planning based on available ingredients.",
+        mimeType: "application/json",
+      },
+      async () => {
+        if (!this.props?.id) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: "shopping://user/pantry",
+                text: JSON.stringify({ error: "User not authenticated" }),
+              },
+            ],
+          };
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const pantry = await storage.pantry.getAll(this.props.id);
+
+        return {
+          contents: [
+            {
+              type: "text",
+              uri: "shopping://user/pantry",
+              text: JSON.stringify(
+                {
+                  itemCount: pantry.length,
+                  items: pantry,
+                  lastUpdated: new Date().toISOString(),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      },
+    );
+
+    // Resource: User's preferred store location
+    this.server.registerResource(
+      "Preferred Store Location",
+      "shopping://user/location",
+      {
+        description:
+          "The user's preferred shopping location. Use this for product searches and availability checks when no location is explicitly specified.",
+        mimeType: "application/json",
+      },
+      async () => {
+        if (!this.props?.id) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: "shopping://user/location",
+                text: JSON.stringify({ error: "User not authenticated" }),
+              },
+            ],
+          };
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const location = await storage.preferredLocation.get(this.props.id);
+
+        if (!location) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: "shopping://user/location",
+                text: JSON.stringify({
+                  message: "No preferred location set",
+                }),
+              },
+            ],
+          };
+        }
+
+        return {
+          contents: [
+            {
+              type: "text",
+              uri: "shopping://user/location",
+              text: JSON.stringify(location, null, 2),
+            },
+          ],
+        };
+      },
+    );
+
+    // Resource: User's order history
+    this.server.registerResource(
+      "Order History",
+      "shopping://user/orders",
+      {
+        description:
+          "The user's past orders and purchase history. Use this to identify frequently purchased items, shopping patterns, and to make personalized recommendations.",
+        mimeType: "application/json",
+      },
+      async () => {
+        if (!this.props?.id) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: "shopping://user/orders",
+                text: JSON.stringify({ error: "User not authenticated" }),
+              },
+            ],
+          };
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const orders = await storage.orderHistory.getRecent(this.props.id, 20);
+
+        return {
+          contents: [
+            {
+              type: "text",
+              uri: "shopping://user/orders",
+              text: JSON.stringify(
+                {
+                  orderCount: orders.length,
+                  orders: orders,
+                  lastUpdated: new Date().toISOString(),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      },
+    );
+
+    // Resource template: Product details by ID
+    this.server.registerResource(
+      "Product Details",
+      new ResourceTemplate("shopping://product/{productId}", {
+        list: undefined, // No enumeration of all products
+      }),
+      {
+        description:
+          "Detailed information about a specific product by its ID (13-digit UPC). Includes pricing, availability, and location information.",
+        mimeType: "application/json",
+      },
+      async (uri: URL) => {
+        // Extract productId from URI
+        const match = uri.href.match(/shopping:\/\/product\/([0-9]{13})/);
+        if (!match) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: uri.href,
+                text: JSON.stringify({
+                  error: "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
+                }),
+              },
+            ],
+          };
+        }
+
+        const productId = match[1];
+
+        // Get preferred location for availability check
+        let locationId: string | undefined;
+        if (this.props?.id) {
+          const storage = createUserStorage(this.env.USER_DATA_KV);
+          const location = await storage.preferredLocation.get(this.props.id);
+          locationId = location?.locationId;
+        }
+
+        // Build query parameters
+        const queryParams: Record<string, string> = {};
+        if (locationId) {
+          queryParams["filter.locationId"] = locationId;
+        }
+
+        // Fetch product details
+        const { data, error } = await productClient.GET("/v1/products/{id}", {
+          params: {
+            path: { id: productId },
+            query: queryParams,
+          },
+        });
+
+        if (error) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: uri.href,
+                text: JSON.stringify({
+                  error: `Failed to fetch product: ${JSON.stringify(error)}`,
+                }),
+              },
+            ],
+          };
+        }
+
+        const product = data.data;
+        if (!product) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: uri.href,
+                text: JSON.stringify({
+                  error: `No product found with ID: ${productId}`,
+                }),
+              },
+            ],
+          };
+        }
+
+        return {
+          contents: [
+            {
+              type: "text",
+              uri: uri.href,
+              text: JSON.stringify(product, null, 2),
             },
           ],
         };

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Model Context Protocol (MCP) server that integrates with the Kroger API, deployed as a Cloudflare Worker. It allows AI models to manage QFC/Kroger shopping lists, search for products, find store locations, and access weekly deals.
+This is a Model Context Protocol (MCP) server that integrates with the Kroger API, deployed as a Cloudflare Worker. It allows AI models to manage QFC/Kroger shopping lists, search for products, find store locations, track pantry inventory, and provide intelligent shopping assistance using AI-powered features.
 
 ## Development Commands
 
@@ -130,27 +130,66 @@ Set in `redirectToKroger` function (kroger-handler.ts):
 - `cart.basic:write`: Shopping cart modification
 - `product.compact`: Product search and details
 
-## MCP Tools
+## MCP Features
+
+### MCP Tools
 
 The server exposes these MCP tools (all defined in server.ts):
 
 **Shopping & Products:**
-1. **add_to_cart** (line 84): Add items to cart with UPC, quantity, modality
-2. **search_locations** (line 149): Find stores by zip code, chain name
-3. **get_location_details** (line 210): Get store details by location ID
-4. **search_products** (line 260): Bulk search for products using multiple terms (1-10 terms, 10 items per term limit, parallel execution)
-5. **get_product_details** (line 373): Get product details by product ID
-6. **get_weekly_deals** (line 433): Fetch current weekly deals using Kroger's circulars API
+1. **add_to_cart**: Add items to cart with UPC, quantity, modality
+2. **search_locations**: Find stores by zip code, chain name
+3. **get_location_details**: Get store details by location ID
+4. **search_products**: Bulk search for products using multiple terms (1-10 terms, 10 items per term limit, parallel execution)
+5. **get_product_details**: Get product details by product ID
 
 **User Data Persistence (Cloudflare KV):**
-7. **set_preferred_location** (line 597): Save user's preferred store
-8. **get_preferred_location** (line 651): Retrieve saved preferred store
-9. **add_to_pantry** (line 688): Add items to pantry inventory
-10. **remove_from_pantry** (line 738): Remove items from pantry
-11. **view_pantry** (line 769): Display all pantry items
-12. **clear_pantry** (line 794): Clear pantry inventory
-13. **mark_order_placed** (line 818): Record completed order in history
-14. **view_order_history** (line 877): Display past orders
+6. **set_preferred_location**: Save user's preferred store
+7. **get_preferred_location**: Retrieve saved preferred store
+8. **add_to_pantry**: Add items to pantry inventory
+9. **remove_from_pantry**: Remove items from pantry
+10. **view_pantry**: Display all pantry items
+11. **clear_pantry**: Clear pantry inventory
+12. **mark_order_placed**: Record completed order in history
+13. **view_order_history**: Display past orders
+
+**AI-Powered Tools (Using MCP Sampling):**
+14. **suggest_recipes_from_pantry**: Uses AI to suggest recipes based on pantry inventory
+15. **categorize_shopping_list**: Uses AI to organize shopping lists by store department
+
+### MCP Resources
+
+The server exposes contextual data via MCP Resources that clients can automatically reference:
+
+1. **shopping://user/pantry** - User's pantry inventory (items currently at home)
+2. **shopping://user/location** - User's preferred store location
+3. **shopping://user/orders** - User's order history (last 20 orders)
+4. **shopping://product/{productId}** - Product details by UPC (template resource)
+
+**How Resources Work:**
+- Resources are automatically available to the AI without explicit tool calls
+- Claude can proactively reference pantry contents, preferred location, and purchase history
+- Enables more natural conversations ("I see you already have milk in your pantry")
+- Resources are read-only and provide context for better decision-making
+
+### MCP Sampling
+
+The server uses MCP Sampling to request AI completions from the client's model:
+
+**Implementation:**
+```typescript
+const result = await this.server.server.createMessage({
+  messages: [{ role: "user", content: { type: "text", text: prompt } }],
+  maxTokens: 1000
+});
+```
+
+**Use Cases:**
+- Recipe suggestions from pantry items
+- Shopping list categorization by department
+- Meal planning assistance
+
+**Security:** Sampling requests require user approval (handled by the MCP client)
 
 ### Bulk Product Search Implementation
 The `search_products` tool implements parallel bulk search:
@@ -183,11 +222,6 @@ for (const term of terms) {
 }
 ```
 
-### Weekly Deals Implementation
-Unlike other tools, weekly deals uses direct `fetch()` calls (not `openapi-fetch`) because it requires:
-- Custom `x-laf-object` header with location/facility data structure
-- Calls to both the circulars API and QFC's shoppable-weekly-deals endpoint
-- Non-standard API that's not in the official OpenAPI specs
 
 ## User Data Persistence
 
