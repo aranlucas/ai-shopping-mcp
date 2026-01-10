@@ -47,6 +47,11 @@ type Props = {
   krogerClientSecret: string;
 };
 
+// Type aliases for API schemas
+type ProductItem = ProductComponents["schemas"]["products.productModel"];
+type CartItem = components["schemas"]["cart.cartItemModel"];
+type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
+
 dotenv.config();
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
@@ -96,17 +101,15 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
       async ({ items }) => {
         // Convert items to the format expected by the Kroger API
-        const cartItems: components["schemas"]["cart.cartItemModel"][] =
-          items.map((item) => ({
-            upc: item.upc,
-            quantity: item.quantity,
-            modality: item.modality,
-          }));
+        const cartItems: CartItem[] = items.map((item) => ({
+          upc: item.upc,
+          quantity: item.quantity,
+          modality: item.modality,
+        }));
 
-        const requestBody: components["schemas"]["cart.cartItemRequestModel"] =
-          {
-            items: cartItems,
-          };
+        const requestBody: CartItemRequest = {
+          items: cartItems,
+        };
 
         // Make the API call to add items to the cart
         const { error } = await cartClient.PUT("/v1/cart/add", {
@@ -281,9 +284,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       async ({ terms, locationId }, extra) => {
         // Limit of 10 items per search term
         const ITEMS_PER_TERM = 10;
-
-        type ProductItem =
-          ProductComponents["schemas"]["products.productModel"];
 
         // Progress tracking
         let completedSearches = 0;
