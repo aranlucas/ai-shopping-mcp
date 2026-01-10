@@ -222,10 +222,11 @@ const data = JSON.parse(result.content.text);
 **Security:** Sampling requests require user approval (handled by the MCP client)
 
 ### Bulk Product Search Implementation
-The `search_products` tool implements parallel bulk search:
+The `search_products` tool implements parallel bulk search with progress tracking:
 - Accepts array of 1-10 search terms
 - Returns up to 10 items per search term (fixed limit)
 - All searches execute in parallel using `Promise.all()` for optimal performance
+- **Progress notifications** sent after each search completes (if client requests them)
 - Results are aggregated and sorted (pickup in-stock → delivery → out-of-stock)
 - Failed searches return empty results without breaking the entire operation
 
@@ -237,16 +238,33 @@ The `search_products` tool implements parallel bulk search:
 }
 ```
 
-**Performance Pattern:**
+**Performance Pattern with Progress Tracking:**
 ```typescript
-// ✅ CORRECT - Parallel execution with type inference
-const searchPromises = terms.map(async (term) => {  // TypeScript infers term is string
+// ✅ CORRECT - Parallel execution with progress notifications
+const progressToken = extra?._meta?.progressToken;
+let completedSearches = 0;
+
+const searchPromises = terms.map(async (term) => {
   const { data, error } = await productClient.GET("/v1/products", { ... });
-  return { term, products: data?.data || [], count: products.length };
+
+  // Send progress after each completion
+  completedSearches++;
+  if (progressToken && extra?.sendNotification) {
+    await extra.sendNotification({
+      method: "notifications/progress",
+      params: {
+        progressToken,
+        progress: completedSearches,
+        total: terms.length
+      }
+    });
+  }
+
+  return { term, products: data?.data || [] };
 });
 const results = await Promise.all(searchPromises);
 
-// ❌ WRONG - Sequential execution (slow)
+// ❌ WRONG - Sequential execution (slow, defeats parallelism)
 for (const term of terms) {
   const { data, error } = await productClient.GET("/v1/products", { ... });
 }
