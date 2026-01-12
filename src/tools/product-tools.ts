@@ -1,6 +1,6 @@
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { productClient } from "../services/kroger/client.js";
 import { formatProductList } from "../utils/format-response.js";
-import type { ToolResponse } from "./cart-tools.js";
 
 export interface SearchProductsInput {
   term?: string;
@@ -17,7 +17,7 @@ export interface GetProductDetailsInput {
 
 export async function searchProducts(
   input: SearchProductsInput,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { term, locationId, productId, start, limit } = input;
 
   // Validate that at least one search parameter is provided
@@ -123,7 +123,7 @@ export async function searchProducts(
 
 export async function getProductDetails(
   input: GetProductDetailsInput,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { productId, locationId } = input;
 
   // Build query parameters

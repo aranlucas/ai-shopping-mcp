@@ -1,3 +1,4 @@
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { locationClient } from "../services/kroger/client.js";
 import {
   formatLocation,
@@ -8,7 +9,6 @@ import {
   createUserStorage,
   type PreferredLocation,
 } from "../utils/user-storage.js";
-import type { ToolResponse } from "./cart-tools.js";
 
 export interface SearchLocationsInput {
   zipCodeNear: string;
@@ -26,7 +26,7 @@ export interface SetPreferredLocationInput {
 
 export async function searchLocations(
   input: SearchLocationsInput,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { zipCodeNear, limit, chain } = input;
 
   // Build query parameters
@@ -76,7 +76,7 @@ export async function searchLocations(
 
 export async function getLocationDetails(
   input: GetLocationDetailsInput,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { locationId } = input;
 
   // Make the API call to get location details
@@ -116,7 +116,7 @@ export async function setPreferredLocation(
   input: SetPreferredLocationInput,
   userId: string,
   kvNamespace: KVNamespace,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { locationId } = input;
 
   if (!userId) {
@@ -164,7 +164,7 @@ export async function setPreferredLocation(
 export async function getPreferredLocation(
   userId: string,
   kvNamespace: KVNamespace,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   if (!userId) {
     throw new Error("User not authenticated");
   }

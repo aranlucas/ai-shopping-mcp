@@ -1,6 +1,6 @@
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { createUserStorage, type OrderRecord } from "../utils/user-storage.js";
-import type { ToolResponse } from "./cart-tools.js";
 
 export interface MarkOrderPlacedInput {
   items: Array<{
@@ -21,7 +21,7 @@ export async function markOrderPlaced(
   input: MarkOrderPlacedInput,
   userId: string,
   kvNamespace: KVNamespace,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { items, locationId, notes } = input;
 
   if (!userId) {
@@ -72,7 +72,7 @@ export async function viewOrderHistory(
   input: ViewOrderHistoryInput,
   userId: string,
   kvNamespace: KVNamespace,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { limit } = input;
 
   if (!userId) {

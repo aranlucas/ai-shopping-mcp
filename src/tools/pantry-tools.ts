@@ -1,6 +1,6 @@
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { formatPantryListCompact } from "../utils/format-response.js";
 import { createUserStorage, type PantryItem } from "../utils/user-storage.js";
-import type { ToolResponse } from "./cart-tools.js";
 
 export interface AddToPantryInput {
   items: Array<{
@@ -19,7 +19,7 @@ export async function addToPantry(
   input: AddToPantryInput,
   userId: string,
   kvNamespace: KVNamespace,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { items } = input;
 
   if (!userId) {
@@ -58,7 +58,7 @@ export async function removeFromPantry(
   input: RemoveFromPantryInput,
   userId: string,
   kvNamespace: KVNamespace,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { productId } = input;
 
   if (!userId) {
@@ -84,7 +84,7 @@ export async function removeFromPantry(
 export async function viewPantry(
   userId: string,
   kvNamespace: KVNamespace,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   if (!userId) {
     throw new Error("User not authenticated");
   }
@@ -106,7 +106,7 @@ export async function viewPantry(
 export async function clearPantry(
   userId: string,
   kvNamespace: KVNamespace,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   if (!userId) {
     throw new Error("User not authenticated");
   }

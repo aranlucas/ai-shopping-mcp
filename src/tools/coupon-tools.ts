@@ -1,3 +1,4 @@
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type {
   Coupon,
   CouponsResponse,
@@ -6,7 +7,6 @@ import {
   formatWeeklyDealsList,
   type WeeklyDeal,
 } from "../utils/format-response.js";
-import type { ToolResponse } from "./cart-tools.js";
 
 export interface GetCouponsInput {
   locationId: string;
@@ -16,7 +16,7 @@ export interface GetCouponsInput {
 
 export async function getCoupons(
   input: GetCouponsInput,
-): Promise<ToolResponse> {
+): Promise<CallToolResult> {
   const { locationId, facilityId, filterWeeklyDeals } = input;
 
   try {

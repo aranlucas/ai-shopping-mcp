@@ -1,3 +1,4 @@
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { components } from "../services/kroger/cart.js";
 import { cartClient } from "../services/kroger/client.js";
 
@@ -9,15 +10,9 @@ export interface AddToCartInput {
   }>;
 }
 
-export interface ToolResponse {
-  [x: string]: unknown;
-  content: Array<{
-    type: "text";
-    text: string;
-  }>;
-}
-
-export async function addToCart(input: AddToCartInput): Promise<ToolResponse> {
+export async function addToCart(
+  input: AddToCartInput,
+): Promise<CallToolResult> {
   const { items } = input;
 
   // Convert items to the format expected by the Kroger API
