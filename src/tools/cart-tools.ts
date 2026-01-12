@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { Props } from "../server.js";
 import type { components } from "../services/kroger/cart.js";
 import { cartClient } from "../services/kroger/client.js";
 import { createUserStorage } from "../utils/user-storage.js";
@@ -7,16 +8,6 @@ import { createUserStorage } from "../utils/user-storage.js";
 // Type aliases for API schemas
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
-
-// Context from the auth process, encrypted & stored in the auth token
-type Props = {
-  id: string;
-  accessToken: string;
-  refreshToken?: string;
-  tokenExpiresAt: number;
-  krogerClientId: string;
-  krogerClientSecret: string;
-};
 
 /**
  * Registers shopping cart tools with the MCP server.

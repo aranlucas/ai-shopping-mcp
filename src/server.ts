@@ -24,7 +24,7 @@ import { createUserStorage } from "./utils/user-storage.js";
 
 // Context from the auth process, encrypted & stored in the auth token
 // and provided to the DurableMCP as this.props
-type Props = {
+export type Props = {
   id: string;
   accessToken: string;
   refreshToken?: string;

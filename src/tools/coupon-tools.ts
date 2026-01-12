@@ -1,16 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { Props } from "../server.js";
 import { createUserStorage } from "../utils/user-storage.js";
-
-// Context from the auth process, encrypted & stored in the auth token
-type Props = {
-  id: string;
-  accessToken: string;
-  refreshToken?: string;
-  tokenExpiresAt: number;
-  krogerClientId: string;
-  krogerClientSecret: string;
-};
 
 /**
  * Registers AI-powered coupon, deals, and recipe tools with the MCP server.

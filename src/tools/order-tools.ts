@@ -1,17 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { Props } from "../server.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { createUserStorage, type OrderRecord } from "../utils/user-storage.js";
-
-// Context from the auth process, encrypted & stored in the auth token
-type Props = {
-  id: string;
-  accessToken: string;
-  refreshToken?: string;
-  tokenExpiresAt: number;
-  krogerClientId: string;
-  krogerClientSecret: string;
-};
 
 /**
  * Registers order history tracking tools with the MCP server.

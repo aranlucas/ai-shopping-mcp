@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { Props } from "../server.js";
 import { locationClient } from "../services/kroger/client.js";
 import {
   formatLocation,
@@ -10,16 +11,6 @@ import {
   createUserStorage,
   type PreferredLocation,
 } from "../utils/user-storage.js";
-
-// Context from the auth process, encrypted & stored in the auth token
-type Props = {
-  id: string;
-  accessToken: string;
-  refreshToken?: string;
-  tokenExpiresAt: number;
-  krogerClientId: string;
-  krogerClientSecret: string;
-};
 
 /**
  * Registers location-related tools with the MCP server.
