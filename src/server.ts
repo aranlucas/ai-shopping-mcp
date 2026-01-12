@@ -18,6 +18,22 @@ import {
   productClient,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
+import { addToCart } from "./tools/cart-tools.js";
+import { getCoupons } from "./tools/coupon-tools.js";
+import {
+  getLocationDetails,
+  getPreferredLocation,
+  searchLocations,
+  setPreferredLocation,
+} from "./tools/location-tools.js";
+import { markOrderPlaced, viewOrderHistory } from "./tools/order-tools.js";
+import {
+  addToPantry,
+  clearPantry,
+  removeFromPantry,
+  viewPantry,
+} from "./tools/pantry-tools.js";
+import { getProductDetails, searchProducts } from "./tools/product-tools.js";
 import {
   formatLocation,
   formatLocationListCompact,
