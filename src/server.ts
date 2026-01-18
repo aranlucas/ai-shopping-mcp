@@ -755,7 +755,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
                 .describe(
                   "Optional category (e.g., 'Baking', 'Cooking', 'Utensils', 'Appliances')",
                 ),
-              notes: z.string().optional(),
             }),
           ),
         }),
@@ -774,7 +773,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             equipmentName: item.equipmentName,
             category: item.category,
             addedAt: now,
-            notes: item.notes,
           };
 
           await storage.equipment.add(this.props.id, equipmentItem);

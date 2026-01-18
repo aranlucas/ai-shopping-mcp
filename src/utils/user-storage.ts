@@ -40,7 +40,6 @@ export interface EquipmentItem {
   equipmentName: string;
   category?: string; // Optional category (e.g., "Baking", "Cooking", "Utensils")
   addedAt: string; // ISO timestamp
-  notes?: string; // Optional notes about the equipment
 }
 
 /**
@@ -167,8 +166,6 @@ export class EquipmentStorage {
       // Update existing equipment item
       equipment[existingIndex].category =
         item.category || equipment[existingIndex].category;
-      equipment[existingIndex].notes =
-        item.notes || equipment[existingIndex].notes;
       equipment[existingIndex].addedAt = item.addedAt;
     } else {
       equipment.push(item);
