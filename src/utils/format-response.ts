@@ -662,7 +662,6 @@ export interface EquipmentItemDisplay {
   equipmentName: string;
   category?: string;
   addedAt: string;
-  notes?: string;
 }
 
 export function formatEquipmentItem(item: EquipmentItemDisplay): string {
@@ -675,11 +674,6 @@ export function formatEquipmentItem(item: EquipmentItemDisplay): string {
   }
 
   lines.push(`Added: ${new Date(item.addedAt).toLocaleDateString()}`);
-
-  if (item.notes) {
-    lines.push(`Notes: ${item.notes}`);
-  }
-
   lines.push(`Equipment ID: ${item.equipmentId}`);
 
   return lines.join("\n");
@@ -700,7 +694,7 @@ export function formatEquipmentList(items: EquipmentItemDisplay[]): string {
 
 /**
  * COMPACT: Token-efficient equipment item formatting
- * Format: Name | Category | Notes | ID
+ * Format: Name | Category | ID
  */
 export function formatEquipmentItemCompact(item: EquipmentItemDisplay): string {
   const parts: string[] = [];
@@ -711,13 +705,6 @@ export function formatEquipmentItemCompact(item: EquipmentItemDisplay): string {
   // Category
   if (item.category) {
     parts.push(item.category);
-  }
-
-  // Notes (truncated if too long)
-  if (item.notes) {
-    const truncatedNotes =
-      item.notes.length > 30 ? `${item.notes.substring(0, 30)}...` : item.notes;
-    parts.push(truncatedNotes);
   }
 
   // ID
