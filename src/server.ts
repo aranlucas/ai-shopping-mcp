@@ -769,7 +769,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         for (const item of items) {
           const equipmentItem: EquipmentItem = {
-            equipmentId: `EQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             equipmentName: item.equipmentName,
             category: item.category,
             addedAt: now,
@@ -799,16 +798,19 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         description:
           "Removes an item from your equipment inventory. Use this when you no longer have a piece of equipment or want to remove it from tracking.",
         inputSchema: z.object({
-          equipmentId: z.string().min(1).describe("Equipment ID to remove"),
+          equipmentName: z
+            .string()
+            .min(1)
+            .describe("Name of equipment to remove"),
         }),
       },
-      async ({ equipmentId }) => {
+      async ({ equipmentName }) => {
         if (!this.props?.id) {
           throw new Error("User not authenticated");
         }
 
         const storage = createUserStorage(this.env.USER_DATA_KV);
-        await storage.equipment.remove(this.props.id, equipmentId);
+        await storage.equipment.remove(this.props.id, equipmentName);
 
         const equipment = await storage.equipment.getAll(this.props.id);
         const formatted = formatEquipmentListCompact(equipment);

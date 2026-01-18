@@ -36,7 +36,6 @@ export interface PreferredLocation {
 }
 
 export interface EquipmentItem {
-  equipmentId: string; // Auto-generated unique ID
   equipmentName: string;
   category?: string; // Optional category (e.g., "Baking", "Cooking", "Utensils")
   addedAt: string; // ISO timestamp
@@ -176,34 +175,19 @@ export class EquipmentStorage {
     return equipment;
   }
 
-  async remove(userId: string, equipmentId: string): Promise<EquipmentItem[]> {
+  async remove(
+    userId: string,
+    equipmentName: string,
+  ): Promise<EquipmentItem[]> {
     const equipment = await this.getAll(userId);
     const filtered = equipment.filter(
-      (item: EquipmentItem) => item.equipmentId !== equipmentId,
+      (item: EquipmentItem) =>
+        item.equipmentName.toLowerCase() !== equipmentName.toLowerCase(),
     );
 
     const key = getKey(userId, "equipment");
     await this.kv.put(key, JSON.stringify(filtered));
     return filtered;
-  }
-
-  async update(
-    userId: string,
-    equipmentId: string,
-    updates: Partial<EquipmentItem>,
-  ): Promise<EquipmentItem[]> {
-    const equipment = await this.getAll(userId);
-    const item = equipment.find(
-      (e: EquipmentItem) => e.equipmentId === equipmentId,
-    );
-
-    if (item) {
-      Object.assign(item, updates);
-      const key = getKey(userId, "equipment");
-      await this.kv.put(key, JSON.stringify(equipment));
-    }
-
-    return equipment;
   }
 
   async clear(userId: string): Promise<void> {
