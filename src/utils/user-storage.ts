@@ -35,6 +35,14 @@ export interface PreferredLocation {
   setAt: string; // ISO timestamp
 }
 
+export interface EquipmentItem {
+  equipmentId: string; // Auto-generated unique ID
+  equipmentName: string;
+  category?: string; // Optional category (e.g., "Baking", "Cooking", "Utensils")
+  addedAt: string; // ISO timestamp
+  notes?: string; // Optional notes about the equipment
+}
+
 /**
  * Storage keys are namespaced by user ID for data isolation
  */
@@ -134,6 +142,80 @@ export class PantryStorage {
 }
 
 /**
+ * Equipment Storage - manages kitchen equipment and tools the user owns
+ */
+export class EquipmentStorage {
+  constructor(private kv: KVNamespace) {}
+
+  async getAll(userId: string): Promise<EquipmentItem[]> {
+    const key = getKey(userId, "equipment");
+    const value = await this.kv.get(key);
+    if (!value) return [];
+    return JSON.parse(value) as EquipmentItem[];
+  }
+
+  async add(userId: string, item: EquipmentItem): Promise<EquipmentItem[]> {
+    const equipment = await this.getAll(userId);
+
+    // Check if item already exists by name (case-insensitive)
+    const existingIndex = equipment.findIndex(
+      (e: EquipmentItem) =>
+        e.equipmentName.toLowerCase() === item.equipmentName.toLowerCase(),
+    );
+
+    if (existingIndex >= 0) {
+      // Update existing equipment item
+      equipment[existingIndex].category =
+        item.category || equipment[existingIndex].category;
+      equipment[existingIndex].notes =
+        item.notes || equipment[existingIndex].notes;
+      equipment[existingIndex].addedAt = item.addedAt;
+    } else {
+      equipment.push(item);
+    }
+
+    const key = getKey(userId, "equipment");
+    await this.kv.put(key, JSON.stringify(equipment));
+    return equipment;
+  }
+
+  async remove(userId: string, equipmentId: string): Promise<EquipmentItem[]> {
+    const equipment = await this.getAll(userId);
+    const filtered = equipment.filter(
+      (item: EquipmentItem) => item.equipmentId !== equipmentId,
+    );
+
+    const key = getKey(userId, "equipment");
+    await this.kv.put(key, JSON.stringify(filtered));
+    return filtered;
+  }
+
+  async update(
+    userId: string,
+    equipmentId: string,
+    updates: Partial<EquipmentItem>,
+  ): Promise<EquipmentItem[]> {
+    const equipment = await this.getAll(userId);
+    const item = equipment.find(
+      (e: EquipmentItem) => e.equipmentId === equipmentId,
+    );
+
+    if (item) {
+      Object.assign(item, updates);
+      const key = getKey(userId, "equipment");
+      await this.kv.put(key, JSON.stringify(equipment));
+    }
+
+    return equipment;
+  }
+
+  async clear(userId: string): Promise<void> {
+    const key = getKey(userId, "equipment");
+    await this.kv.delete(key);
+  }
+}
+
+/**
  * Order History Storage - tracks past orders
  */
 export class OrderHistoryStorage {
@@ -176,6 +258,7 @@ export function createUserStorage(kv: KVNamespace) {
   return {
     preferredLocation: new PreferredLocationStorage(kv),
     pantry: new PantryStorage(kv),
+    equipment: new EquipmentStorage(kv),
     orderHistory: new OrderHistoryStorage(kv),
   };
 }

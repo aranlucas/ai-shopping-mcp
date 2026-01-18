@@ -19,6 +19,7 @@ import {
   refreshKrogerToken,
 } from "./services/kroger/client.js";
 import {
+  formatEquipmentListCompact,
   formatLocation,
   formatLocationListCompact,
   formatOrderHistoryCompact,
@@ -29,6 +30,7 @@ import {
 } from "./utils/format-response.js";
 import {
   createUserStorage,
+  type EquipmentItem,
   type OrderRecord,
   type PantryItem,
   type PreferredLocation,
@@ -737,6 +739,148 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
     );
 
+    // Add to equipment tool
+    this.server.registerTool(
+      "add_to_equipment",
+      {
+        description:
+          "Adds kitchen equipment or tools to your personal equipment inventory. Use this to track what cooking equipment you own. Helps with recipe planning and knowing what tools you have available.",
+        inputSchema: z.object({
+          items: z.array(
+            z.object({
+              equipmentName: z.string().min(1),
+              category: z
+                .string()
+                .optional()
+                .describe(
+                  "Optional category (e.g., 'Baking', 'Cooking', 'Utensils', 'Appliances')",
+                ),
+              notes: z.string().optional(),
+            }),
+          ),
+        }),
+      },
+      async ({ items }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const now = new Date().toISOString();
+
+        for (const item of items) {
+          const equipmentItem: EquipmentItem = {
+            equipmentId: `EQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            equipmentName: item.equipmentName,
+            category: item.category,
+            addedAt: now,
+            notes: item.notes,
+          };
+
+          await storage.equipment.add(this.props.id, equipmentItem);
+        }
+
+        const equipment = await storage.equipment.getAll(this.props.id);
+        const formatted = formatEquipmentListCompact(equipment);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Remove from equipment tool
+    this.server.registerTool(
+      "remove_from_equipment",
+      {
+        description:
+          "Removes an item from your equipment inventory. Use this when you no longer have a piece of equipment or want to remove it from tracking.",
+        inputSchema: z.object({
+          equipmentId: z.string().min(1).describe("Equipment ID to remove"),
+        }),
+      },
+      async ({ equipmentId }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        await storage.equipment.remove(this.props.id, equipmentId);
+
+        const equipment = await storage.equipment.getAll(this.props.id);
+        const formatted = formatEquipmentListCompact(equipment);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Item removed from equipment.\n\nYour equipment:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // View equipment tool
+    this.server.registerTool(
+      "view_equipment",
+      {
+        description:
+          "Displays all kitchen equipment and tools in your inventory. Use this to see what cooking equipment you have available before planning recipes.",
+        inputSchema: z.object({}),
+      },
+      async () => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const equipment = await storage.equipment.getAll(this.props.id);
+        const formatted = formatEquipmentListCompact(equipment);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Your equipment (${equipment.length} items):\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Clear equipment tool
+    this.server.registerTool(
+      "clear_equipment",
+      {
+        description:
+          "Removes all items from your equipment inventory. Use this to start fresh with equipment tracking.",
+        inputSchema: z.object({}),
+      },
+      async () => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        await storage.equipment.clear(this.props.id);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Equipment cleared successfully.",
+            },
+          ],
+        };
+      },
+    );
+
     // Mark order placed tool
     this.server.registerTool(
       "mark_order_placed",
@@ -1153,12 +1297,12 @@ ${cleanedHtml}`;
       },
     );
 
-    // MCP Sampling tool: Search recipes from Janella's Cookbook
+    // Search recipes from Janella's Cookbook API
     this.server.registerTool(
       "search_recipes_from_web",
       {
         description:
-          "Uses AI to scrape and extract recipes from Janella's Cookbook website. Searches for recipes by keyword and returns detailed recipe information including ingredients and instructions.",
+          "Searches for recipes from Janella's Cookbook website using their API. Returns detailed recipe information including ingredients and instructions.",
         inputSchema: z.object({
           searchQuery: z
             .string()
@@ -1170,162 +1314,133 @@ ${cleanedHtml}`;
       },
       async ({ searchQuery }) => {
         try {
-          // Fetch the recipe search results page
-          const recipeUrl = `https://janella-cookbook.vercel.app/search?q=${encodeURIComponent(searchQuery)}`;
-          console.log(`Fetching recipes from: ${recipeUrl}`);
+          // Use the Janella's Cookbook API endpoint
+          const apiUrl = "https://janella-cookbook.vercel.app/api/search";
+          console.log(`Searching recipes via API: ${searchQuery}`);
 
-          const response = await fetch(recipeUrl, {
+          const response = await fetch(apiUrl, {
+            method: "POST",
             headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              Accept: "text/html,application/xhtml+xml,application/xml",
+              "Content-Type": "application/json",
             },
+            body: JSON.stringify({ query: searchQuery }),
           });
 
           if (!response.ok) {
             throw new Error(
-              `Failed to fetch recipe page: ${response.status} ${response.statusText}`,
+              `API request failed: ${response.status} ${response.statusText}`,
             );
           }
 
-          const html = await response.text();
+          const apiResponse = (await response.json()) as {
+            success: boolean;
+            data?: {
+              results: Array<{
+                recipe: {
+                  title: string;
+                  description?: string;
+                  prepTime?: number;
+                  cookTime?: number;
+                  totalTime?: number;
+                  servings?: string;
+                  difficulty?: string;
+                  cuisine?: string;
+                  slug: string;
+                  ingredients?: Array<{
+                    quantity?: string;
+                    unit?: string;
+                    name: string;
+                    notes?: string;
+                  }>;
+                  instructions?: Array<{
+                    stepNumber: number;
+                    instruction: string;
+                  }>;
+                };
+              }>;
+            };
+            error?: {
+              message: string;
+            };
+          };
 
-          // Extract just the body content (remove scripts, styles for cleaner parsing)
-          const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-          const bodyContent = bodyMatch ? bodyMatch[1] : html;
-
-          // Remove script and style tags
-          const cleanedHtml = bodyContent
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-            .substring(0, 50000); // Limit to 50k chars to stay within token limits
-
-          // Use sampling to have the LLM extract recipes
-          const prompt = `Parse this recipe search results webpage HTML and extract recipe information.
-
-For each recipe found, extract:
-- Recipe name/title
-- Description (if available)
-- Ingredients list (as array)
-- Cooking instructions (step-by-step)
-- Prep time (if available)
-- Cook time (if available)
-- Servings (if available)
-- Recipe URL or ID (if available)
-
-Return the results as a structured JSON array. Example format:
-[
-  {
-    "name": "Recipe name",
-    "description": "Brief description",
-    "ingredients": ["ingredient 1", "ingredient 2"],
-    "instructions": ["Step 1", "Step 2"],
-    "prepTime": "15 minutes",
-    "cookTime": "30 minutes",
-    "servings": "4",
-    "url": "recipe-url-if-available"
-  }
-]
-
-Only return the JSON array, no other text. Limit to 5 recipes maximum.
-
-HTML to parse:
-${cleanedHtml}`;
-
-          // Use MCP sampling to request AI completion
-          const samplingResult = await this.server.server.createMessage({
-            messages: [
-              {
-                role: "user",
-                content: {
-                  type: "text",
-                  text: prompt,
-                },
-              },
-            ],
-            maxTokens: 2000,
-          });
-
-          // Extract the text response
-          const content = Array.isArray(samplingResult.content)
-            ? samplingResult.content[0]
-            : samplingResult.content;
-          const recipesText =
-            content?.type === "text"
-              ? content.text
-              : "Unable to extract recipes";
-
-          // Try to parse as JSON
-          let recipesData: unknown;
-          try {
-            // Extract JSON from markdown code blocks if present
-            const jsonMatch = recipesText.match(
-              /```(?:json)?\s*([\s\S]*?)\s*```/,
+          if (!apiResponse.success || !apiResponse.data?.results) {
+            throw new Error(
+              apiResponse.error?.message || "No results returned from API",
             );
-            const jsonText = jsonMatch ? jsonMatch[1] : recipesText;
-            recipesData = JSON.parse(jsonText);
-          } catch {
-            // If parsing fails, return as formatted text
-            recipesData = recipesText;
           }
 
-          // Format the response
-          if (typeof recipesData === "string") {
+          const recipes = apiResponse.data.results;
+
+          if (recipes.length === 0) {
             return {
               content: [
                 {
                   type: "text",
-                  text: `**Recipe Search Results for "${searchQuery}"**\n\n${recipesData}`,
+                  text: `No recipes found for "${searchQuery}". Try a different search term.`,
                 },
               ],
             };
           }
 
-          // Format as structured recipes
-          const formattedRecipes = Array.isArray(recipesData)
-            ? recipesData
-                .map((recipe, idx) => {
-                  const parts = [`**${idx + 1}. ${recipe.name}**`];
+          // Format recipes for display
+          const formattedRecipes = recipes
+            .map((result, idx) => {
+              const recipe = result.recipe;
+              const parts = [`**${idx + 1}. ${recipe.title}**`];
 
-                  if (recipe.description) {
-                    parts.push(`${recipe.description}`);
-                  }
+              if (recipe.description) {
+                parts.push(recipe.description);
+              }
 
-                  if (recipe.prepTime || recipe.cookTime || recipe.servings) {
-                    const metadata = [];
-                    if (recipe.prepTime)
-                      metadata.push(`Prep: ${recipe.prepTime}`);
-                    if (recipe.cookTime)
-                      metadata.push(`Cook: ${recipe.cookTime}`);
-                    if (recipe.servings)
-                      metadata.push(`Serves: ${recipe.servings}`);
-                    parts.push(metadata.join(" | "));
-                  }
+              // Metadata line
+              const metadata = [];
+              if (recipe.cuisine) metadata.push(recipe.cuisine);
+              if (recipe.difficulty)
+                metadata.push(recipe.difficulty.toLowerCase());
+              if (recipe.totalTime)
+                metadata.push(`${recipe.totalTime}min total`);
+              else if (recipe.cookTime)
+                metadata.push(`${recipe.cookTime}min cook`);
+              if (recipe.servings) metadata.push(recipe.servings);
+              if (metadata.length > 0) {
+                parts.push(`*${metadata.join(" • ")}*`);
+              }
 
-                  if (recipe.ingredients && recipe.ingredients.length > 0) {
-                    parts.push("\n**Ingredients:**");
-                    recipe.ingredients.forEach((ing: string) => {
-                      parts.push(`- ${ing}`);
-                    });
-                  }
+              // Ingredients
+              if (recipe.ingredients && recipe.ingredients.length > 0) {
+                parts.push("\n**Ingredients:**");
+                recipe.ingredients.forEach((ing) => {
+                  const amount = [ing.quantity, ing.unit]
+                    .filter(Boolean)
+                    .join(" ");
+                  const notes = ing.notes ? ` (${ing.notes})` : "";
+                  parts.push(`- ${amount} ${ing.name}${notes}`.trim());
+                });
+              }
 
-                  if (recipe.instructions && recipe.instructions.length > 0) {
-                    parts.push("\n**Instructions:**");
-                    recipe.instructions.forEach((step: string, i: number) => {
-                      parts.push(`${i + 1}. ${step}`);
-                    });
-                  }
+              // Instructions
+              if (recipe.instructions && recipe.instructions.length > 0) {
+                parts.push("\n**Instructions:**");
+                recipe.instructions.forEach((step) => {
+                  parts.push(`${step.stepNumber}. ${step.instruction}`);
+                });
+              }
 
-                  return parts.join("\n");
-                })
-                .join("\n\n---\n\n")
-            : JSON.stringify(recipesData, null, 2);
+              // Recipe URL
+              parts.push(
+                `\n*View online: https://janella-cookbook.vercel.app/recipe/${recipe.slug}*`,
+              );
+
+              return parts.join("\n");
+            })
+            .join("\n\n---\n\n");
 
           return {
             content: [
               {
                 type: "text",
-                text: `**Recipe Search Results for "${searchQuery}"**\n\nFound ${Array.isArray(recipesData) ? recipesData.length : 0} recipes:\n\n${formattedRecipes}`,
+                text: `**Recipe Search Results for "${searchQuery}"**\n\nFound ${recipes.length} recipe(s):\n\n${formattedRecipes}`,
               },
             ],
           };
@@ -1378,6 +1493,51 @@ ${cleanedHtml}`;
                 {
                   itemCount: pantry.length,
                   items: pantry,
+                  lastUpdated: new Date().toISOString(),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      },
+    );
+
+    // Resource: User's equipment inventory
+    this.server.registerResource(
+      "Equipment Inventory",
+      "shopping://user/equipment",
+      {
+        description:
+          "Kitchen equipment and tools the user owns. Use this to suggest recipes that match available equipment and to help with meal planning based on what tools are available.",
+        mimeType: "application/json",
+      },
+      async () => {
+        if (!this.props?.id) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: "shopping://user/equipment",
+                text: JSON.stringify({ error: "User not authenticated" }),
+              },
+            ],
+          };
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const equipment = await storage.equipment.getAll(this.props.id);
+
+        return {
+          contents: [
+            {
+              type: "text",
+              uri: "shopping://user/equipment",
+              text: JSON.stringify(
+                {
+                  itemCount: equipment.length,
+                  items: equipment,
                   lastUpdated: new Date().toISOString(),
                 },
                 null,
