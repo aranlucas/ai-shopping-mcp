@@ -658,7 +658,6 @@ export function formatOrderHistoryCompact(
  * Format equipment item for display
  */
 export interface EquipmentItemDisplay {
-  equipmentId: string;
   equipmentName: string;
   category?: string;
   addedAt: string;
@@ -674,7 +673,6 @@ export function formatEquipmentItem(item: EquipmentItemDisplay): string {
   }
 
   lines.push(`Added: ${new Date(item.addedAt).toLocaleDateString()}`);
-  lines.push(`Equipment ID: ${item.equipmentId}`);
 
   return lines.join("\n");
 }
@@ -694,7 +692,7 @@ export function formatEquipmentList(items: EquipmentItemDisplay[]): string {
 
 /**
  * COMPACT: Token-efficient equipment item formatting
- * Format: Name | Category | ID
+ * Format: Name | Category
  */
 export function formatEquipmentItemCompact(item: EquipmentItemDisplay): string {
   const parts: string[] = [];
@@ -706,9 +704,6 @@ export function formatEquipmentItemCompact(item: EquipmentItemDisplay): string {
   if (item.category) {
     parts.push(item.category);
   }
-
-  // ID
-  parts.push(item.equipmentId);
 
   return parts.join(" | ");
 }
