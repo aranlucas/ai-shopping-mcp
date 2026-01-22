@@ -1293,15 +1293,9 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             .enum(["DELIVERY", "PICKUP"])
             .default("PICKUP")
             .describe("Fulfillment method for all items"),
-          clearListAfter: z
-            .boolean()
-            .default(false)
-            .describe(
-              "Clear the shopping list after adding to cart (default: false)",
-            ),
         }),
       },
-      async ({ listName, locationId, modality, clearListAfter }) => {
+      async ({ listName, locationId, modality }) => {
         if (!this.props?.id) {
           throw new Error("User not authenticated");
         }
@@ -1358,11 +1352,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           throw new Error(`Failed to add list to cart: ${JSON.stringify(error)}`);
         }
 
-        // Optionally clear the list after adding to cart
-        if (clearListAfter) {
-          await storage.shoppingLists.clearList(this.props.id, listName);
-        }
-
         const addedCount = itemsWithUpc.length;
         const skippedCount = list.items.length - itemsWithUpc.length;
 
@@ -1370,10 +1359,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         if (skippedCount > 0) {
           message += `\n\nSkipped ${skippedCount} item(s) without product IDs.`;
-        }
-
-        if (clearListAfter) {
-          message += `\n\nList "${listName}" has been cleared.`;
         }
 
         return {
