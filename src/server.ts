@@ -557,46 +557,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
     );
 
-    // Get preferred location tool
-    this.server.registerTool(
-      "get_preferred_location",
-      {
-        description:
-          "Retrieves the user's saved preferred store location. Use this to check which store the user has set as their default for shopping.",
-        inputSchema: z.object({}),
-      },
-      async () => {
-        if (!this.props?.id) {
-          throw new Error("User not authenticated");
-        }
-
-        const storage = createUserStorage(this.env.USER_DATA_KV);
-        const location = await storage.preferredLocation.get(this.props.id);
-
-        if (!location) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No preferred location set. Use set_preferred_location to save your favorite store.",
-              },
-            ],
-          };
-        }
-
-        const formatted = formatPreferredLocationCompact(location);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Your preferred location:\n\n${formatted}`,
-            },
-          ],
-        };
-      },
-    );
-
     // Add to pantry tool
     this.server.registerTool(
       "add_to_pantry",
@@ -678,34 +638,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             {
               type: "text",
               text: `Item removed from pantry.\n\nYour pantry:\n\n${formatted}`,
-            },
-          ],
-        };
-      },
-    );
-
-    // View pantry tool
-    this.server.registerTool(
-      "view_pantry",
-      {
-        description:
-          "Displays all items currently in your pantry inventory. Use this to see what groceries you have at home before shopping.",
-        inputSchema: z.object({}),
-      },
-      async () => {
-        if (!this.props?.id) {
-          throw new Error("User not authenticated");
-        }
-
-        const storage = createUserStorage(this.env.USER_DATA_KV);
-        const pantry = await storage.pantry.getAll(this.props.id);
-        const formatted = formatPantryListCompact(pantry);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Your pantry (${pantry.length} items):\n\n${formatted}`,
             },
           ],
         };
@@ -826,34 +758,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
     );
 
-    // View equipment tool
-    this.server.registerTool(
-      "view_equipment",
-      {
-        description:
-          "Displays all kitchen equipment and tools in your inventory. Use this to see what cooking equipment you have available before planning recipes.",
-        inputSchema: z.object({}),
-      },
-      async () => {
-        if (!this.props?.id) {
-          throw new Error("User not authenticated");
-        }
-
-        const storage = createUserStorage(this.env.USER_DATA_KV);
-        const equipment = await storage.equipment.getAll(this.props.id);
-        const formatted = formatEquipmentListCompact(equipment);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Your equipment (${equipment.length} items):\n\n${formatted}`,
-            },
-          ],
-        };
-      },
-    );
-
     // Clear equipment tool
     this.server.registerTool(
       "clear_equipment",
@@ -934,46 +838,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             {
               type: "text",
               text: `Order recorded successfully:\n\n${formatted}`,
-            },
-          ],
-        };
-      },
-    );
-
-    // View order history tool
-    this.server.registerTool(
-      "view_order_history",
-      {
-        description:
-          "Displays your past order history. Use this to see previous purchases and track shopping patterns. Returns most recent orders first.",
-        inputSchema: z.object({
-          limit: z
-            .number()
-            .min(1)
-            .max(50)
-            .optional()
-            .default(10)
-            .describe("Number of recent orders to display"),
-        }),
-      },
-      async ({ limit }) => {
-        if (!this.props?.id) {
-          throw new Error("User not authenticated");
-        }
-
-        const storage = createUserStorage(this.env.USER_DATA_KV);
-        const orders = await storage.orderHistory.getRecent(
-          this.props.id,
-          limit,
-        );
-
-        const formatted = formatOrderHistoryCompact(orders);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Order History (${orders.length} recent orders):\n\n${formatted}`,
             },
           ],
         };
