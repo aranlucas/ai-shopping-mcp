@@ -460,7 +460,6 @@ export function formatWeeklyDealsList(deals: WeeklyDeal[]): string {
  * Format pantry item for display
  */
 export interface PantryItemDisplay {
-  productId: string;
   productName: string;
   quantity: number;
   addedAt: string;
@@ -493,8 +492,6 @@ export function formatPantryItem(item: PantryItemDisplay): string {
     }
   }
 
-  lines.push(`Product ID: ${item.productId}`);
-
   return lines.join("\n");
 }
 
@@ -513,7 +510,7 @@ export function formatPantryList(items: PantryItemDisplay[]): string {
 
 /**
  * COMPACT: Token-efficient pantry item formatting
- * Format: Name x qty | Added: date | Exp: date | UPC
+ * Format: Name x qty | Exp: date
  */
 export function formatPantryItemCompact(item: PantryItemDisplay): string {
   const parts: string[] = [];
@@ -538,9 +535,6 @@ export function formatPantryItemCompact(item: PantryItemDisplay): string {
       parts.push(`${expiryDate.toLocaleDateString()}`);
     }
   }
-
-  // UPC
-  parts.push(item.productId);
 
   return parts.join(" | ");
 }
