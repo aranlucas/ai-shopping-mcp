@@ -5,6 +5,12 @@
 
 import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
+import type {
+  EquipmentItem,
+  OrderRecord,
+  PantryItem,
+  PreferredLocation,
+} from "./user-storage.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 type Location = LocationComponents["schemas"]["locations.location"];
@@ -459,14 +465,7 @@ export function formatWeeklyDealsList(deals: WeeklyDeal[]): string {
 /**
  * Format pantry item for display
  */
-export interface PantryItemDisplay {
-  productName: string;
-  quantity: number;
-  addedAt: string;
-  expiresAt?: string;
-}
-
-export function formatPantryItem(item: PantryItemDisplay): string {
+export function formatPantryItem(item: PantryItem): string {
   const lines: string[] = [];
 
   lines.push(`**${item.productName}**`);
@@ -495,7 +494,7 @@ export function formatPantryItem(item: PantryItemDisplay): string {
   return lines.join("\n");
 }
 
-export function formatPantryList(items: PantryItemDisplay[]): string {
+export function formatPantryList(items: PantryItem[]): string {
   if (items.length === 0) {
     return "Your pantry is empty.";
   }
@@ -512,7 +511,7 @@ export function formatPantryList(items: PantryItemDisplay[]): string {
  * COMPACT: Token-efficient pantry item formatting
  * Format: Name x qty | Exp: date
  */
-export function formatPantryItemCompact(item: PantryItemDisplay): string {
+export function formatPantryItemCompact(item: PantryItem): string {
   const parts: string[] = [];
 
   // Name and quantity
@@ -542,7 +541,7 @@ export function formatPantryItemCompact(item: PantryItemDisplay): string {
 /**
  * COMPACT: Format pantry list efficiently
  */
-export function formatPantryListCompact(items: PantryItemDisplay[]): string {
+export function formatPantryListCompact(items: PantryItem[]): string {
   if (items.length === 0) return "Pantry empty.";
 
   return items
@@ -553,22 +552,7 @@ export function formatPantryListCompact(items: PantryItemDisplay[]): string {
 /**
  * Format order record for display
  */
-export interface OrderRecordDisplay {
-  orderId: string;
-  items: Array<{
-    productId: string;
-    productName: string;
-    quantity: number;
-    price?: number;
-  }>;
-  totalItems: number;
-  estimatedTotal?: number;
-  placedAt: string;
-  locationId?: string;
-  notes?: string;
-}
-
-export function formatOrderRecord(order: OrderRecordDisplay): string {
+export function formatOrderRecord(order: OrderRecord): string {
   const lines: string[] = [];
 
   lines.push(`**Order #${order.orderId}**`);
@@ -597,7 +581,7 @@ export function formatOrderRecord(order: OrderRecordDisplay): string {
   return lines.join("\n");
 }
 
-export function formatOrderHistory(orders: OrderRecordDisplay[]): string {
+export function formatOrderHistory(orders: OrderRecord[]): string {
   if (orders.length === 0) {
     return "No order history found.";
   }
@@ -614,7 +598,7 @@ export function formatOrderHistory(orders: OrderRecordDisplay[]): string {
  * COMPACT: Token-efficient order record formatting
  * Format: OrderID | Date | N items $total | Location
  */
-export function formatOrderRecordCompact(order: OrderRecordDisplay): string {
+export function formatOrderRecordCompact(order: OrderRecord): string {
   const parts: string[] = [];
 
   // Order ID (shortened)
@@ -638,9 +622,7 @@ export function formatOrderRecordCompact(order: OrderRecordDisplay): string {
 /**
  * COMPACT: Format order history efficiently
  */
-export function formatOrderHistoryCompact(
-  orders: OrderRecordDisplay[],
-): string {
+export function formatOrderHistoryCompact(orders: OrderRecord[]): string {
   if (orders.length === 0) return "No orders.";
 
   return orders
@@ -651,13 +633,7 @@ export function formatOrderHistoryCompact(
 /**
  * Format equipment item for display
  */
-export interface EquipmentItemDisplay {
-  equipmentName: string;
-  category?: string;
-  addedAt: string;
-}
-
-export function formatEquipmentItem(item: EquipmentItemDisplay): string {
+export function formatEquipmentItem(item: EquipmentItem): string {
   const lines: string[] = [];
 
   lines.push(`**${item.equipmentName}**`);
@@ -671,7 +647,7 @@ export function formatEquipmentItem(item: EquipmentItemDisplay): string {
   return lines.join("\n");
 }
 
-export function formatEquipmentList(items: EquipmentItemDisplay[]): string {
+export function formatEquipmentList(items: EquipmentItem[]): string {
   if (items.length === 0) {
     return "Your equipment list is empty.";
   }
@@ -688,7 +664,7 @@ export function formatEquipmentList(items: EquipmentItemDisplay[]): string {
  * COMPACT: Token-efficient equipment item formatting
  * Format: Name | Category
  */
-export function formatEquipmentItemCompact(item: EquipmentItemDisplay): string {
+export function formatEquipmentItemCompact(item: EquipmentItem): string {
   const parts: string[] = [];
 
   // Name
@@ -705,9 +681,7 @@ export function formatEquipmentItemCompact(item: EquipmentItemDisplay): string {
 /**
  * COMPACT: Format equipment list efficiently
  */
-export function formatEquipmentListCompact(
-  items: EquipmentItemDisplay[],
-): string {
+export function formatEquipmentListCompact(items: EquipmentItem[]): string {
   if (items.length === 0) return "Equipment list empty.";
 
   return items
@@ -718,17 +692,7 @@ export function formatEquipmentListCompact(
 /**
  * Format preferred location for display
  */
-export interface PreferredLocationDisplay {
-  locationId: string;
-  locationName: string;
-  address: string;
-  chain: string;
-  setAt: string;
-}
-
-export function formatPreferredLocation(
-  location: PreferredLocationDisplay,
-): string {
+export function formatPreferredLocation(location: PreferredLocation): string {
   const lines: string[] = [];
 
   lines.push(`**${location.locationName}**`);
@@ -744,7 +708,7 @@ export function formatPreferredLocation(
  * COMPACT: Token-efficient preferred location formatting
  */
 export function formatPreferredLocationCompact(
-  location: PreferredLocationDisplay,
+  location: PreferredLocation,
 ): string {
   return `${location.locationName} (${location.chain}) | ${location.address} | ${location.locationId}`;
 }
