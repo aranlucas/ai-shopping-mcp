@@ -145,34 +145,36 @@ The server exposes these MCP tools (all defined in server.ts):
 
 **User Data Persistence (Cloudflare KV):**
 6. **set_preferred_location**: Save user's preferred store
-7. **get_preferred_location**: Retrieve saved preferred store
-8. **add_to_pantry**: Add items to pantry inventory
-9. **remove_from_pantry**: Remove items from pantry
-10. **view_pantry**: Display all pantry items
-11. **clear_pantry**: Clear pantry inventory
-12. **mark_order_placed**: Record completed order in history
-13. **view_order_history**: Display past orders
+7. **add_to_pantry**: Add items to pantry inventory
+8. **remove_from_pantry**: Remove items from pantry
+9. **clear_pantry**: Clear pantry inventory
+10. **add_to_equipment**: Add kitchen equipment/tools to inventory
+11. **remove_from_equipment**: Remove equipment from inventory
+12. **clear_equipment**: Clear equipment inventory
+13. **mark_order_placed**: Record completed order in history
 
 **AI-Powered Tools (Using MCP Sampling):**
-14. **suggest_recipes_from_pantry**: Uses AI to suggest recipes based on pantry inventory
-15. **categorize_shopping_list**: Uses AI to organize shopping lists by store department
-16. **get_weekly_deals_from_web**: Uses AI to scrape and extract deals from QFC weekly ad webpage
-17. **search_recipes_from_web**: Uses AI to scrape and extract recipes from Janella's Cookbook website
+14. **search_recipes_from_web**: Uses AI to scrape and extract recipes from Janella's Cookbook website
+
+**Note:** User data reads (pantry, equipment, location, order history) are provided via **MCP Resources** (see below), not tools. This allows the AI to automatically access context without explicit tool calls.
 
 ### MCP Resources
 
 The server exposes contextual data via MCP Resources that clients can automatically reference:
 
 1. **shopping://user/pantry** - User's pantry inventory (items currently at home)
-2. **shopping://user/location** - User's preferred store location
-3. **shopping://user/orders** - User's order history (last 20 orders)
-4. **shopping://product/{productId}** - Product details by UPC (template resource)
+2. **shopping://user/equipment** - User's kitchen equipment inventory
+3. **shopping://user/location** - User's preferred store location
+4. **shopping://user/orders** - User's order history (last 20 orders)
+5. **shopping://product/{productId}** - Product details by UPC (template resource)
 
 **How Resources Work:**
 - Resources are automatically available to the AI without explicit tool calls
-- Claude can proactively reference pantry contents, preferred location, and purchase history
+- Claude can proactively reference pantry contents, equipment, preferred location, and purchase history
 - Enables more natural conversations ("I see you already have milk in your pantry")
 - Resources are read-only and provide context for better decision-making
+
+**Architecture Decision:** Read operations for user data are provided exclusively via Resources (not tools) to eliminate redundancy. This means the AI always has access to user context without needing to explicitly call tools. Write/delete operations remain as tools.
 
 ### MCP Sampling
 
