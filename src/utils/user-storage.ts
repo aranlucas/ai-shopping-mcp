@@ -5,8 +5,7 @@
 
 // Type definitions for stored user data
 export interface PantryItem {
-  productId: string;
-  productName: string;
+  productName: string; // Primary identifier (case-insensitive)
   quantity: number;
   addedAt: string; // ISO timestamp
   expiresAt?: string; // Optional expiry date
@@ -88,9 +87,10 @@ export class PantryStorage {
   async add(userId: string, item: PantryItem): Promise<PantryItem[]> {
     const pantry = await this.getAll(userId);
 
-    // Check if item already exists and update quantity
+    // Check if item already exists by name (case-insensitive) and update quantity
     const existingIndex = pantry.findIndex(
-      (p: PantryItem) => p.productId === item.productId,
+      (p: PantryItem) =>
+        p.productName.toLowerCase() === item.productName.toLowerCase(),
     );
 
     if (existingIndex >= 0) {
@@ -105,10 +105,11 @@ export class PantryStorage {
     return pantry;
   }
 
-  async remove(userId: string, productId: string): Promise<PantryItem[]> {
+  async remove(userId: string, productName: string): Promise<PantryItem[]> {
     const pantry = await this.getAll(userId);
     const filtered = pantry.filter(
-      (item: PantryItem) => item.productId !== productId,
+      (item: PantryItem) =>
+        item.productName.toLowerCase() !== productName.toLowerCase(),
     );
 
     const key = getKey(userId, "pantry");
@@ -118,11 +119,14 @@ export class PantryStorage {
 
   async updateQuantity(
     userId: string,
-    productId: string,
+    productName: string,
     quantity: number,
   ): Promise<PantryItem[]> {
     const pantry = await this.getAll(userId);
-    const item = pantry.find((p: PantryItem) => p.productId === productId);
+    const item = pantry.find(
+      (p: PantryItem) =>
+        p.productName.toLowerCase() === productName.toLowerCase(),
+    );
 
     if (item) {
       item.quantity = quantity;

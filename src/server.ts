@@ -562,14 +562,16 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       "add_to_pantry",
       {
         description:
-          "Adds items to your personal pantry inventory. Use this to track what groceries you already have at home. Helps avoid buying duplicates and manage inventory.",
+          "Adds items to your personal pantry inventory. Use this to track what groceries you already have at home. Helps avoid buying duplicates and manage inventory. Use normalized, consistent product names (e.g., 'Milk' not 'milk 2%' or 'whole milk') to prevent duplicates.",
         inputSchema: z.object({
           items: z.array(
             z.object({
-              productId: z
+              productName: z
                 .string()
-                .length(13, { message: "Product ID must be 13 digits" }),
-              productName: z.string(),
+                .min(1)
+                .describe(
+                  "Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')",
+                ),
               quantity: z.number().min(1),
               expiresAt: z.string().optional(),
             }),
@@ -586,7 +588,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
         for (const item of items) {
           const pantryItem: PantryItem = {
-            productId: item.productId,
             productName: item.productName,
             quantity: item.quantity,
             addedAt: now,
@@ -617,18 +618,16 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         description:
           "Removes an item from your pantry inventory. Use this when you've used up an item or want to remove it from tracking.",
         inputSchema: z.object({
-          productId: z
-            .string()
-            .length(13, { message: "Product ID must be 13 digits" }),
+          productName: z.string().min(1).describe("Name of product to remove"),
         }),
       },
-      async ({ productId }) => {
+      async ({ productName }) => {
         if (!this.props?.id) {
           throw new Error("User not authenticated");
         }
 
         const storage = createUserStorage(this.env.USER_DATA_KV);
-        await storage.pantry.remove(this.props.id, productId);
+        await storage.pantry.remove(this.props.id, productName);
 
         const pantry = await storage.pantry.getAll(this.props.id);
         const formatted = formatPantryListCompact(pantry);
