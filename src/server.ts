@@ -1101,7 +1101,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       "shopping://user/location",
       {
         description:
-          "The user's preferred shopping location. Use this for product searches and availability checks when no location is explicitly specified.",
+          "The user's preferred shopping location. Use this for product searches and availability checks when no location is explicitly specified. IMPORTANT: If no location is set, proactively ask the user for their zip code and help them find and set their preferred store using search_locations and set_preferred_location tools.",
         mimeType: "application/json",
       },
       async () => {
@@ -1128,6 +1128,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
                 uri: "shopping://user/location",
                 text: JSON.stringify({
                   message: "No preferred location set",
+                  instruction:
+                    "Ask the user for their zip code, then use search_locations to find nearby stores and set_preferred_location to save their choice.",
                 }),
               },
             ],
