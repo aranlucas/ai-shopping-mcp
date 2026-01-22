@@ -754,3 +754,125 @@ export function formatPreferredLocationCompact(
 ): string {
   return `${location.locationName} (${location.chain}) | ${location.address} | ${location.locationId}`;
 }
+
+/**
+ * Format shopping list item for display
+ */
+export interface ShoppingListItemDisplay {
+  productId?: string;
+  productName: string;
+  quantity: number;
+  notes?: string;
+  addedAt: string;
+}
+
+export interface ShoppingListDisplay {
+  name: string;
+  items: ShoppingListItemDisplay[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function formatShoppingListItem(item: ShoppingListItemDisplay): string {
+  const parts: string[] = [];
+
+  parts.push(`${item.productName} x${item.quantity}`);
+
+  if (item.notes) {
+    parts.push(`- ${item.notes}`);
+  }
+
+  if (item.productId) {
+    parts.push(`(UPC: ${item.productId})`);
+  }
+
+  return parts.join(" ");
+}
+
+export function formatShoppingList(list: ShoppingListDisplay): string {
+  const lines: string[] = [];
+
+  lines.push(`**${list.name}**`);
+  lines.push(`Created: ${new Date(list.createdAt).toLocaleDateString()}`);
+  lines.push(`Updated: ${new Date(list.updatedAt).toLocaleDateString()}`);
+  lines.push(`Items: ${list.items.length}`);
+
+  if (list.items.length > 0) {
+    lines.push("\nItems:");
+    list.items.forEach((item, index) => {
+      lines.push(`  ${index + 1}. ${formatShoppingListItem(item)}`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+export function formatShoppingLists(lists: ShoppingListDisplay[]): string {
+  if (lists.length === 0) {
+    return "No shopping lists found.";
+  }
+
+  const formatted = lists.map((list, index) => {
+    const itemCount = list.items.length;
+    const updated = new Date(list.updatedAt).toLocaleDateString();
+    return `${index + 1}. **${list.name}** - ${itemCount} item(s) - Updated: ${updated}`;
+  });
+
+  return formatted.join("\n");
+}
+
+/**
+ * COMPACT: Token-efficient shopping list item formatting
+ */
+export function formatShoppingListItemCompact(
+  item: ShoppingListItemDisplay,
+): string {
+  const parts: string[] = [];
+
+  parts.push(`${item.productName} x${item.quantity}`);
+
+  if (item.notes) {
+    parts.push(item.notes);
+  }
+
+  if (item.productId) {
+    parts.push(item.productId);
+  }
+
+  return parts.join(" | ");
+}
+
+/**
+ * COMPACT: Token-efficient shopping list formatting
+ */
+export function formatShoppingListCompact(list: ShoppingListDisplay): string {
+  const lines: string[] = [];
+
+  lines.push(
+    `**${list.name}** (${list.items.length} items) - Updated: ${new Date(list.updatedAt).toLocaleDateString()}`,
+  );
+
+  if (list.items.length > 0) {
+    list.items.forEach((item, index) => {
+      lines.push(`  ${index + 1}. ${formatShoppingListItemCompact(item)}`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * COMPACT: Format shopping lists overview efficiently
+ */
+export function formatShoppingListsCompact(
+  lists: ShoppingListDisplay[],
+): string {
+  if (lists.length === 0) return "No lists.";
+
+  return lists
+    .map(
+      (list, index) =>
+        `${index + 1}. ${list.name} (${list.items.length} items)`,
+    )
+    .join("\n");
+}

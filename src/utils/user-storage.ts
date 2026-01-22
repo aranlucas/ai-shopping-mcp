@@ -41,6 +41,21 @@ export interface EquipmentItem {
   addedAt: string; // ISO timestamp
 }
 
+export interface ShoppingListItem {
+  productId?: string; // Optional - may not have UPC yet
+  productName: string;
+  quantity: number;
+  notes?: string;
+  addedAt: string; // ISO timestamp
+}
+
+export interface ShoppingList {
+  name: string;
+  items: ShoppingListItem[];
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
+}
+
 /**
  * Storage keys are namespaced by user ID for data isolation
  */
@@ -233,6 +248,179 @@ export class OrderHistoryStorage {
 }
 
 /**
+ * Shopping List Storage - manages named shopping lists
+ */
+export class ShoppingListStorage {
+  constructor(private kv: KVNamespace) {}
+
+  async getAll(userId: string): Promise<ShoppingList[]> {
+    const key = getKey(userId, "shopping_lists");
+    const value = await this.kv.get(key);
+    if (!value) return [];
+    return JSON.parse(value) as ShoppingList[];
+  }
+
+  async get(userId: string, listName: string): Promise<ShoppingList | null> {
+    const lists = await this.getAll(userId);
+    return (
+      lists.find(
+        (list: ShoppingList) =>
+          list.name.toLowerCase() === listName.toLowerCase(),
+      ) || null
+    );
+  }
+
+  async create(
+    userId: string,
+    listName: string,
+    items: ShoppingListItem[] = [],
+  ): Promise<ShoppingList> {
+    const lists = await this.getAll(userId);
+
+    // Check if list already exists (case-insensitive)
+    const existingIndex = lists.findIndex(
+      (list: ShoppingList) =>
+        list.name.toLowerCase() === listName.toLowerCase(),
+    );
+
+    if (existingIndex >= 0) {
+      throw new Error(`Shopping list "${listName}" already exists`);
+    }
+
+    const now = new Date().toISOString();
+    const newList: ShoppingList = {
+      name: listName,
+      items: items,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    lists.push(newList);
+
+    const key = getKey(userId, "shopping_lists");
+    await this.kv.put(key, JSON.stringify(lists));
+
+    return newList;
+  }
+
+  async delete(userId: string, listName: string): Promise<ShoppingList[]> {
+    const lists = await this.getAll(userId);
+    const filtered = lists.filter(
+      (list: ShoppingList) =>
+        list.name.toLowerCase() !== listName.toLowerCase(),
+    );
+
+    const key = getKey(userId, "shopping_lists");
+    await this.kv.put(key, JSON.stringify(filtered));
+    return filtered;
+  }
+
+  async addItems(
+    userId: string,
+    listName: string,
+    newItems: ShoppingListItem[],
+  ): Promise<ShoppingList> {
+    const lists = await this.getAll(userId);
+    const listIndex = lists.findIndex(
+      (list: ShoppingList) =>
+        list.name.toLowerCase() === listName.toLowerCase(),
+    );
+
+    if (listIndex < 0) {
+      throw new Error(`Shopping list "${listName}" not found`);
+    }
+
+    const list = lists[listIndex];
+
+    // Add new items to the list
+    for (const newItem of newItems) {
+      // Check if item with same productId already exists
+      if (newItem.productId) {
+        const existingItemIndex = list.items.findIndex(
+          (item: ShoppingListItem) => item.productId === newItem.productId,
+        );
+
+        if (existingItemIndex >= 0) {
+          // Update quantity if item exists
+          list.items[existingItemIndex].quantity += newItem.quantity;
+          list.items[existingItemIndex].addedAt = newItem.addedAt;
+        } else {
+          list.items.push(newItem);
+        }
+      } else {
+        // No productId, just add the item
+        list.items.push(newItem);
+      }
+    }
+
+    list.updatedAt = new Date().toISOString();
+    lists[listIndex] = list;
+
+    const key = getKey(userId, "shopping_lists");
+    await this.kv.put(key, JSON.stringify(lists));
+
+    return list;
+  }
+
+  async removeItems(
+    userId: string,
+    listName: string,
+    productIds: string[],
+  ): Promise<ShoppingList> {
+    const lists = await this.getAll(userId);
+    const listIndex = lists.findIndex(
+      (list: ShoppingList) =>
+        list.name.toLowerCase() === listName.toLowerCase(),
+    );
+
+    if (listIndex < 0) {
+      throw new Error(`Shopping list "${listName}" not found`);
+    }
+
+    const list = lists[listIndex];
+    list.items = list.items.filter(
+      (item: ShoppingListItem) => !productIds.includes(item.productId || ""),
+    );
+    list.updatedAt = new Date().toISOString();
+
+    lists[listIndex] = list;
+
+    const key = getKey(userId, "shopping_lists");
+    await this.kv.put(key, JSON.stringify(lists));
+
+    return list;
+  }
+
+  async clearList(userId: string, listName: string): Promise<ShoppingList> {
+    const lists = await this.getAll(userId);
+    const listIndex = lists.findIndex(
+      (list: ShoppingList) =>
+        list.name.toLowerCase() === listName.toLowerCase(),
+    );
+
+    if (listIndex < 0) {
+      throw new Error(`Shopping list "${listName}" not found`);
+    }
+
+    const list = lists[listIndex];
+    list.items = [];
+    list.updatedAt = new Date().toISOString();
+
+    lists[listIndex] = list;
+
+    const key = getKey(userId, "shopping_lists");
+    await this.kv.put(key, JSON.stringify(lists));
+
+    return list;
+  }
+
+  async clearAll(userId: string): Promise<void> {
+    const key = getKey(userId, "shopping_lists");
+    await this.kv.delete(key);
+  }
+}
+
+/**
  * Factory function to create storage instances
  */
 export function createUserStorage(kv: KVNamespace) {
@@ -241,5 +429,6 @@ export function createUserStorage(kv: KVNamespace) {
     pantry: new PantryStorage(kv),
     equipment: new EquipmentStorage(kv),
     orderHistory: new OrderHistoryStorage(kv),
+    shoppingLists: new ShoppingListStorage(kv),
   };
 }
