@@ -27,6 +27,8 @@ import {
   formatPreferredLocationCompact,
   formatProductCompact,
   formatProductList,
+  formatShoppingListCompact,
+  formatShoppingListsCompact,
 } from "./utils/format-response.js";
 import {
   createUserStorage,
@@ -34,6 +36,7 @@ import {
   type OrderRecord,
   type PantryItem,
   type PreferredLocation,
+  type ShoppingListItem,
 } from "./utils/user-storage.js";
 
 // Context from the auth process, encrypted & stored in the auth token
@@ -974,6 +977,395 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             {
               type: "text",
               text: `Order History (${orders.length} recent orders):\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Create shopping list tool
+    this.server.registerTool(
+      "create_shopping_list",
+      {
+        description:
+          "Creates a new named shopping list. Use this to organize items into different lists (e.g., 'Weekly Groceries', 'Party Supplies'). Lists can be managed separately and added to cart when ready.",
+        inputSchema: z.object({
+          listName: z.string().min(1).max(100).describe("Name of the list"),
+          items: z
+            .array(
+              z.object({
+                productId: z
+                  .string()
+                  .length(13, { message: "Product ID must be 13 digits" })
+                  .optional(),
+                productName: z.string(),
+                quantity: z.number().min(1),
+                notes: z.string().optional(),
+              }),
+            )
+            .optional()
+            .default([])
+            .describe("Optional initial items to add to the list"),
+        }),
+      },
+      async ({ listName, items }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const now = new Date().toISOString();
+
+        const shoppingListItems: ShoppingListItem[] = items.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          notes: item.notes,
+          addedAt: now,
+        }));
+
+        const list = await storage.shoppingLists.create(
+          this.props.id,
+          listName,
+          shoppingListItems,
+        );
+
+        const formatted = formatShoppingListCompact(list);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Shopping list "${listName}" created successfully.\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Add items to shopping list tool
+    this.server.registerTool(
+      "add_items_to_shopping_list",
+      {
+        description:
+          "Adds items to an existing shopping list. Use this to add products to a named list for later purchase.",
+        inputSchema: z.object({
+          listName: z.string().min(1).describe("Name of the list"),
+          items: z.array(
+            z.object({
+              productId: z
+                .string()
+                .length(13, { message: "Product ID must be 13 digits" })
+                .optional(),
+              productName: z.string(),
+              quantity: z.number().min(1),
+              notes: z.string().optional(),
+            }),
+          ),
+        }),
+      },
+      async ({ listName, items }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const now = new Date().toISOString();
+
+        const shoppingListItems: ShoppingListItem[] = items.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          notes: item.notes,
+          addedAt: now,
+        }));
+
+        const list = await storage.shoppingLists.addItems(
+          this.props.id,
+          listName,
+          shoppingListItems,
+        );
+
+        const formatted = formatShoppingListCompact(list);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Added ${items.length} item(s) to "${listName}".\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Remove items from shopping list tool
+    this.server.registerTool(
+      "remove_items_from_shopping_list",
+      {
+        description:
+          "Removes items from a shopping list by product ID. Use this to clean up lists or remove items you no longer need.",
+        inputSchema: z.object({
+          listName: z.string().min(1).describe("Name of the list"),
+          productIds: z
+            .array(
+              z
+                .string()
+                .length(13, { message: "Product ID must be 13 digits" }),
+            )
+            .describe("Array of product IDs to remove"),
+        }),
+      },
+      async ({ listName, productIds }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const list = await storage.shoppingLists.removeItems(
+          this.props.id,
+          listName,
+          productIds,
+        );
+
+        const formatted = formatShoppingListCompact(list);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Removed ${productIds.length} item(s) from "${listName}".\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // View shopping list tool
+    this.server.registerTool(
+      "view_shopping_list",
+      {
+        description:
+          "Displays all items in a specific shopping list. Use this to see what's in a particular list.",
+        inputSchema: z.object({
+          listName: z.string().min(1).describe("Name of the list to view"),
+        }),
+      },
+      async ({ listName }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const list = await storage.shoppingLists.get(this.props.id, listName);
+
+        if (!list) {
+          throw new Error(`Shopping list "${listName}" not found`);
+        }
+
+        const formatted = formatShoppingListCompact(list);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: formatted,
+            },
+          ],
+        };
+      },
+    );
+
+    // View all shopping lists tool
+    this.server.registerTool(
+      "view_all_shopping_lists",
+      {
+        description:
+          "Displays all your shopping lists with item counts. Use this to see what lists you have created.",
+        inputSchema: z.object({}),
+      },
+      async () => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const lists = await storage.shoppingLists.getAll(this.props.id);
+
+        const formatted = formatShoppingListsCompact(lists);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Your shopping lists (${lists.length}):\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Delete shopping list tool
+    this.server.registerTool(
+      "delete_shopping_list",
+      {
+        description:
+          "Deletes a shopping list permanently. Use this to remove lists you no longer need.",
+        inputSchema: z.object({
+          listName: z.string().min(1).describe("Name of the list to delete"),
+        }),
+      },
+      async ({ listName }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        await storage.shoppingLists.delete(this.props.id, listName);
+
+        const lists = await storage.shoppingLists.getAll(this.props.id);
+        const formatted = formatShoppingListsCompact(lists);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Shopping list "${listName}" deleted.\n\nRemaining lists:\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Clear shopping list tool
+    this.server.registerTool(
+      "clear_shopping_list",
+      {
+        description:
+          "Removes all items from a shopping list while keeping the list itself. Use this to empty a list without deleting it.",
+        inputSchema: z.object({
+          listName: z.string().min(1).describe("Name of the list to clear"),
+        }),
+      },
+      async ({ listName }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const list = await storage.shoppingLists.clearList(
+          this.props.id,
+          listName,
+        );
+
+        const formatted = formatShoppingListCompact(list);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Shopping list "${listName}" cleared.\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    // Add shopping list to cart tool
+    this.server.registerTool(
+      "add_shopping_list_to_cart",
+      {
+        description:
+          "Adds all items from a shopping list to your Kroger cart. This is the key feature - converts your planned list into actual cart items. Only adds items that have a product ID (UPC). Location ID defaults to preferred location if not specified.",
+        inputSchema: z.object({
+          listName: z
+            .string()
+            .min(1)
+            .describe("Name of the shopping list to add to cart"),
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be 8 characters" })
+            .optional()
+            .describe(
+              "Location ID for the store (defaults to preferred location)",
+            ),
+          modality: z
+            .enum(["DELIVERY", "PICKUP"])
+            .default("PICKUP")
+            .describe("Fulfillment method for all items"),
+        }),
+      },
+      async ({ listName, locationId, modality }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+
+        // Get the shopping list
+        const list = await storage.shoppingLists.get(this.props.id, listName);
+        if (!list) {
+          throw new Error(`Shopping list "${listName}" not found`);
+        }
+
+        // Get location (use preferred if not provided)
+        let finalLocationId = locationId;
+        if (!finalLocationId) {
+          const preferredLocation = await storage.preferredLocation.get(
+            this.props.id,
+          );
+          if (!preferredLocation) {
+            throw new Error(
+              "No location specified and no preferred location set. Please provide a location ID or set a preferred location first.",
+            );
+          }
+          finalLocationId = preferredLocation.locationId;
+        }
+
+        // Filter items that have product IDs
+        const itemsWithUpc = list.items.filter((item) => item.productId);
+
+        if (itemsWithUpc.length === 0) {
+          throw new Error(
+            `No items in "${listName}" have product IDs. Add product IDs to items before adding to cart.`,
+          );
+        }
+
+        // Build cart items
+        const cartItems: CartItem[] = itemsWithUpc.map((item) => ({
+          upc: item.productId as string, // We filtered for productId above
+          quantity: item.quantity,
+          modality: modality,
+        }));
+
+        const requestBody: CartItemRequest = {
+          items: cartItems,
+        };
+
+        // Add to cart using Kroger API
+        const { data, error } = await cartClient.PUT("/v1/cart/add", {
+          body: requestBody,
+        });
+
+        if (error) {
+          console.error("Error adding list to cart:", error);
+          throw new Error(`Failed to add list to cart: ${JSON.stringify(error)}`);
+        }
+
+        const addedCount = itemsWithUpc.length;
+        const skippedCount = list.items.length - itemsWithUpc.length;
+
+        let message = `Added ${addedCount} item(s) from "${listName}" to cart at location ${finalLocationId}.`;
+
+        if (skippedCount > 0) {
+          message += `\n\nSkipped ${skippedCount} item(s) without product IDs.`;
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: message,
             },
           ],
         };
