@@ -17,15 +17,19 @@ export function registerPrompts(server: McpServer) {
     {
       grocery_list: z
         .string()
-        .describe("The grocery list items to organize into a store path"),
+        .optional()
+        .describe(
+          "Optional grocery list items to organize into a store path. If not provided, the LLM will help determine what items are needed.",
+        ),
     },
-    ({ grocery_list }: { grocery_list: string }) => ({
+    ({ grocery_list }: { grocery_list?: string }) => ({
       messages: [
         {
           role: "user",
           content: {
             type: "text",
-            text: `I have the following grocery list and need help finding the most efficient path through the store:
+            text: grocery_list
+              ? `I have the following grocery list and need help finding the most efficient path through the store:
 
 ${grocery_list}
 
@@ -33,6 +37,14 @@ Please help me by:
 1. Searching for each item to find their aisle/department locations
 2. Organizing the items by department/aisle in a logical order
 3. Suggesting an efficient route through the store
+
+IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.`
+              : `I need help planning a shopping trip. Please help me by:
+
+1. Understanding what items I might need (you can check my pantry, order history, or ask me what I'm looking for)
+2. Once we have a list of items, search for each item to find their aisle/department locations
+3. Organize the items by department/aisle in a logical order
+4. Suggest an efficient route through the store
 
 IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.`,
           },
