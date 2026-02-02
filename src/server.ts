@@ -933,7 +933,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
           const formattedRecipes = recipes
             .map((result, idx) => {
               const recipe = result.recipe;
-              const parts = [`**${idx + 1}. ${recipe.title}**`];
+              const title = recipe.title || "Untitled Recipe";
+              const parts = [`**${idx + 1}. ${title}**`];
 
               if (recipe.description) {
                 parts.push(recipe.description);
@@ -960,8 +961,12 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
                   const amount = [ing.quantity, ing.unit]
                     .filter(Boolean)
                     .join(" ");
+                  const name = ing.name || "ingredient";
                   const notes = ing.notes ? ` (${ing.notes})` : "";
-                  parts.push(`- ${amount} ${ing.name}${notes}`.trim());
+                  const line = amount
+                    ? `- ${amount} ${name}${notes}`
+                    : `- ${name}${notes}`;
+                  parts.push(line);
                 });
               }
 
@@ -969,14 +974,19 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
               if (recipe.instructions && recipe.instructions.length > 0) {
                 parts.push("\n**Instructions:**");
                 recipe.instructions.forEach((step) => {
-                  parts.push(`${step.stepNumber}. ${step.instruction}`);
+                  const instruction =
+                    step.instruction || "(no instruction provided)";
+                  const stepNum = step.stepNumber ?? "•";
+                  parts.push(`${stepNum}. ${instruction}`);
                 });
               }
 
               // Recipe URL
-              parts.push(
-                `\n*View online: https://janella-cookbook.vercel.app/recipe/${recipe.slug}*`,
-              );
+              if (recipe.slug) {
+                parts.push(
+                  `\n*View online: https://janella-cookbook.vercel.app/recipe/${recipe.slug}*`,
+                );
+              }
 
               return parts.join("\n");
             })
