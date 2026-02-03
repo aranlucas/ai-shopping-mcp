@@ -103,6 +103,17 @@ export function isKrogerTokenExpiring(
  * token to the grant. If middleware also refreshed, it would invalidate the token
  * before tokenExchangeCallback could use it, causing "invalid_refresh_token" errors.
  */
+/**
+ * Custom error class for Kroger token expiration.
+ * This signals that the Kroger token is invalid and the user needs to re-authenticate.
+ */
+export class KrogerTokenExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "KrogerTokenExpiredError";
+  }
+}
+
 export function createKrogerAuthMiddleware(
   getTokenInfo: () => KrogerTokenInfo | null,
 ): Middleware {
@@ -111,7 +122,9 @@ export function createKrogerAuthMiddleware(
       const tokenInfo = getTokenInfo();
 
       if (!tokenInfo) {
-        throw new Error("No Kroger token information available");
+        throw new KrogerTokenExpiredError(
+          "No Kroger token information available. Please reconnect to the MCP server to re-authenticate.",
+        );
       }
 
       const accessToken = tokenInfo.accessToken;
@@ -124,7 +137,7 @@ export function createKrogerAuthMiddleware(
       // - 1-minute buffer accounts for clock drift between client/server
       const CLOCK_SKEW_BUFFER = 60 * 1000; // 1 minute
       if (Date.now() - CLOCK_SKEW_BUFFER >= tokenInfo.tokenExpiresAt) {
-        throw new Error(
+        throw new KrogerTokenExpiredError(
           "Kroger access token has expired. Please reconnect to the MCP server in your client (e.g., restart Claude Desktop or run 'mcp reconnect') to re-authenticate.",
         );
       }
@@ -132,6 +145,35 @@ export function createKrogerAuthMiddleware(
       // Add Authorization header to the request
       request.headers.set("Authorization", `Bearer ${accessToken}`);
       return request;
+    },
+
+    async onResponse({ response }) {
+      // Detect 401 Unauthorized responses from Kroger API
+      // This indicates the token was rejected by Kroger (e.g., user revoked access,
+      // token was invalidated server-side, or token is expired despite local checks)
+      if (response.status === 401) {
+        // Try to parse the error response for more details
+        let errorMessage =
+          "Kroger rejected the access token. Please reconnect to the MCP server in your client (e.g., restart Claude Desktop or run 'mcp reconnect') to re-authenticate.";
+
+        try {
+          const errorBody = (await response.clone().json()) as {
+            errors?: {
+              error?: string;
+              error_description?: string;
+            };
+          };
+          if (errorBody?.errors?.error_description) {
+            errorMessage = `Kroger authentication failed: ${errorBody.errors.error_description}. Please reconnect to the MCP server to re-authenticate.`;
+          }
+        } catch {
+          // Ignore JSON parsing errors, use default message
+        }
+
+        throw new KrogerTokenExpiredError(errorMessage);
+      }
+
+      return response;
     },
   };
 

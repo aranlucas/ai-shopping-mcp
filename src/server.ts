@@ -1334,14 +1334,16 @@ export default new OAuthProvider({
           hasTokenExpiresAt: !!typedProps?.tokenExpiresAt,
         },
       );
-      return {};
+      // Expire MCP token immediately to force re-authentication
+      return { accessTokenTTL: 1 };
     }
 
     if (!typedProps?.krogerClientId || !typedProps?.krogerClientSecret) {
       console.warn(
         "Token exchange callback: No Kroger credentials in props. This should not happen.",
       );
-      return {};
+      // Expire MCP token immediately to force re-authentication
+      return { accessTokenTTL: 1 };
     }
 
     // Check if Kroger token is expiring (with 5-minute buffer)
@@ -1375,9 +1377,8 @@ export default new OAuthProvider({
           "Token exchange callback: CRITICAL - Kroger refresh response missing new refresh token. " +
             "Old refresh token is now invalid (single-use). User will need to re-authenticate.",
         );
-        // Return empty object - this will cause the next refresh to fail,
-        // triggering re-authentication flow
-        return {};
+        // Expire MCP token immediately to force re-authentication
+        return { accessTokenTTL: 1 };
       }
 
       return {
@@ -1397,9 +1398,9 @@ export default new OAuthProvider({
         "Token exchange callback: Failed to refresh Kroger token:",
         error instanceof Error ? error.message : String(error),
       );
-      // Return empty to keep existing props - user will need to re-authenticate
-      // if the token can't be refreshed
-      return {};
+      // Expire MCP token immediately to force re-authentication
+      // This ensures the Cloudflare token expires when Kroger token is invalid
+      return { accessTokenTTL: 1 };
     }
   },
 });
