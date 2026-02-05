@@ -27,6 +27,7 @@ import {
   formatPreferredLocationCompact,
   formatProductCompact,
   formatProductList,
+  formatShoppingListCompact,
 } from "./utils/format-response.js";
 import {
   createUserStorage,
@@ -34,6 +35,7 @@ import {
   type OrderRecord,
   type PantryItem,
   type PreferredLocation,
+  type ShoppingListItem,
 } from "./utils/user-storage.js";
 
 // Context from the auth process, encrypted & stored in the auth token
@@ -1004,6 +1006,309 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       },
     );
 
+    // Shopping List tools
+    this.server.registerTool(
+      "add_to_shopping_list",
+      {
+        description:
+          "Adds items to your shopping list for planning before checkout. Use this to build a list of products you want to buy. Items can include a UPC (from product search) for direct cart checkout, or just a product name to find later. If the item already exists, its quantity is increased.",
+        inputSchema: z.object({
+          items: z.array(
+            z.object({
+              productName: z
+                .string()
+                .min(1)
+                .describe(
+                  "Product name (e.g., 'Whole Milk', 'Sourdough Bread')",
+                ),
+              upc: z
+                .string()
+                .length(13, { message: "UPC must be exactly 13 characters" })
+                .optional()
+                .describe(
+                  "13-digit UPC from product search, needed for cart checkout",
+                ),
+              quantity: z.number().min(1).default(1),
+              notes: z
+                .string()
+                .optional()
+                .describe("Optional notes (e.g., 'get organic if available')"),
+            }),
+          ),
+        }),
+      },
+      async ({ items }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const now = new Date().toISOString();
+
+        for (const item of items) {
+          const listItem: ShoppingListItem = {
+            productName: item.productName,
+            upc: item.upc,
+            quantity: item.quantity,
+            notes: item.notes,
+            addedAt: now,
+            checked: false,
+          };
+
+          await storage.shoppingList.add(this.props.id, listItem);
+        }
+
+        const list = await storage.shoppingList.getAll(this.props.id);
+        const formatted = formatShoppingListCompact(list);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    this.server.registerTool(
+      "remove_from_shopping_list",
+      {
+        description: "Removes an item from your shopping list by name.",
+        inputSchema: z.object({
+          productName: z.string().min(1).describe("Name of product to remove"),
+        }),
+      },
+      async ({ productName }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        await storage.shoppingList.remove(this.props.id, productName);
+
+        const list = await storage.shoppingList.getAll(this.props.id);
+        const formatted = formatShoppingListCompact(list);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    this.server.registerTool(
+      "update_shopping_list_item",
+      {
+        description:
+          "Updates an item on your shopping list. Use this to change quantity, add a UPC (after searching for the product), or add notes.",
+        inputSchema: z.object({
+          productName: z.string().min(1).describe("Name of product to update"),
+          quantity: z.number().min(1).optional().describe("New quantity"),
+          upc: z
+            .string()
+            .length(13, { message: "UPC must be exactly 13 characters" })
+            .optional()
+            .describe("13-digit UPC to associate with this item"),
+          notes: z.string().optional().describe("Updated notes"),
+        }),
+      },
+      async ({ productName, quantity, upc, notes }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+
+        const updates: Partial<
+          Pick<ShoppingListItem, "quantity" | "upc" | "notes">
+        > = {};
+        if (quantity !== undefined) updates.quantity = quantity;
+        if (upc !== undefined) updates.upc = upc;
+        if (notes !== undefined) updates.notes = notes;
+
+        await storage.shoppingList.updateItem(
+          this.props.id,
+          productName,
+          updates,
+        );
+
+        const list = await storage.shoppingList.getAll(this.props.id);
+        const formatted = formatShoppingListCompact(list);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatted}`,
+            },
+          ],
+        };
+      },
+    );
+
+    this.server.registerTool(
+      "clear_shopping_list",
+      {
+        description:
+          "Removes all items from your shopping list. Use this to start fresh.",
+        inputSchema: z.object({}),
+      },
+      async () => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        await storage.shoppingList.clear(this.props.id);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Shopping list cleared successfully.",
+            },
+          ],
+        };
+      },
+    );
+
+    this.server.registerTool(
+      "checkout_shopping_list",
+      {
+        description:
+          "Adds all unchecked items from your shopping list to your Kroger cart. Only items with a UPC can be added to the cart. Items without a UPC will be listed separately so you can search for them. After checkout, items are marked as checked.",
+        inputSchema: z.object({
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be exactly 8 characters" })
+            .optional()
+            .describe(
+              "Store location ID. If not provided, uses your preferred location.",
+            ),
+          modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
+        }),
+      },
+      async ({ locationId, modality }) => {
+        if (!this.props?.id) {
+          throw new Error("User not authenticated");
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+
+        // Get unchecked items
+        const uncheckedItems = await storage.shoppingList.getUnchecked(
+          this.props.id,
+        );
+
+        if (uncheckedItems.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No unchecked items on your shopping list to checkout.",
+              },
+            ],
+          };
+        }
+
+        // Separate items with and without UPCs
+        const withUpc = uncheckedItems.filter((item) => item.upc);
+        const withoutUpc = uncheckedItems.filter((item) => !item.upc);
+
+        // Resolve location
+        let effectiveLocationId = locationId;
+        let locationName: string | undefined;
+
+        if (!effectiveLocationId) {
+          const preferredLocation = await storage.preferredLocation.get(
+            this.props.id,
+          );
+
+          if (!preferredLocation) {
+            throw new Error(
+              "No location specified and no preferred location set. Please provide a locationId or set your preferred location first.",
+            );
+          }
+
+          effectiveLocationId = preferredLocation.locationId;
+          locationName = preferredLocation.locationName;
+        }
+
+        const resultParts: string[] = [];
+
+        // Add items with UPCs to cart
+        if (withUpc.length > 0) {
+          const cartItems: CartItem[] = withUpc.map((item) => ({
+            upc: item.upc as string,
+            quantity: item.quantity,
+            modality,
+          }));
+
+          const requestBody: CartItemRequest = {
+            items: cartItems,
+          };
+
+          const { error } = await cartClient.PUT("/v1/cart/add", {
+            body: requestBody,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (error) {
+            console.error("Error adding shopping list items to cart:", error);
+            throw new Error(
+              `Failed to add items to cart: ${JSON.stringify(error)}`,
+            );
+          }
+
+          // Mark items as checked
+          for (const item of withUpc) {
+            await storage.shoppingList.updateItem(
+              this.props.id,
+              item.productName,
+              { checked: true },
+            );
+          }
+
+          const locationInfo = locationName
+            ? ` at ${locationName}`
+            : ` (Location: ${effectiveLocationId})`;
+
+          resultParts.push(
+            `Added ${withUpc.length} item(s) to cart${locationInfo}:\n${withUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+          );
+        }
+
+        // Report items without UPCs
+        if (withoutUpc.length > 0) {
+          resultParts.push(
+            `${withoutUpc.length} item(s) need a UPC before checkout (use search_products to find them, then update_shopping_list_item to add the UPC):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+          );
+        }
+
+        // Show updated list
+        const updatedList = await storage.shoppingList.getAll(this.props.id);
+        const formatted = formatShoppingListCompact(updatedList);
+        resultParts.push(`\nYour shopping list:\n\n${formatted}`);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: resultParts.join("\n\n"),
+            },
+          ],
+        };
+      },
+    );
+
     // Register MCP Resources for context data
     // Resource: User's pantry inventory
     this.server.registerResource(
@@ -1182,6 +1487,57 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
                 {
                   orderCount: orders.length,
                   orders: orders,
+                  lastUpdated: new Date().toISOString(),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      },
+    );
+
+    // Resource: User's shopping list
+    this.server.registerResource(
+      "Shopping List",
+      "shopping://user/shopping-list",
+      {
+        description:
+          "The user's current shopping list of items they plan to buy. Items may have UPCs (ready for cart checkout) or just names (need product search). Use this to help users plan purchases, find products for items without UPCs, and coordinate checkout.",
+        mimeType: "application/json",
+      },
+      async () => {
+        if (!this.props?.id) {
+          return {
+            contents: [
+              {
+                type: "text",
+                uri: "shopping://user/shopping-list",
+                text: JSON.stringify({ error: "User not authenticated" }),
+              },
+            ],
+          };
+        }
+
+        const storage = createUserStorage(this.env.USER_DATA_KV);
+        const list = await storage.shoppingList.getAll(this.props.id);
+        const unchecked = list.filter((i) => !i.checked);
+        const withUpc = unchecked.filter((i) => i.upc);
+        const withoutUpc = unchecked.filter((i) => !i.upc);
+
+        return {
+          contents: [
+            {
+              type: "text",
+              uri: "shopping://user/shopping-list",
+              text: JSON.stringify(
+                {
+                  totalItems: list.length,
+                  uncheckedCount: unchecked.length,
+                  readyForCheckout: withUpc.length,
+                  needsUpc: withoutUpc.length,
+                  items: list,
                   lastUpdated: new Date().toISOString(),
                 },
                 null,
