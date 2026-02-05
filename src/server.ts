@@ -1141,6 +1141,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         }
 
         // Extract frequently ordered items for preference insight
+        // Hoisted outside try/catch so the fallback path can also use it
+        const frequentItems: Array<[string, number]> = [];
         if (recentOrders.length > 0) {
           const itemFrequency = new Map<string, number>();
           for (const order of recentOrders) {
@@ -1149,17 +1151,17 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
               itemFrequency.set(name, (itemFrequency.get(name) || 0) + 1);
             }
           }
-          const frequentItems = [...itemFrequency.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
+          frequentItems.push(
+            ...[...itemFrequency.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 10),
+          );
+        }
 
-          if (frequentItems.length > 0) {
-            promptParts.push(
-              "\nFrequently purchased items (user preferences):",
-            );
-            for (const [name, count] of frequentItems) {
-              promptParts.push(`  - ${name} (ordered ${count}x)`);
-            }
+        if (frequentItems.length > 0) {
+          promptParts.push("\nFrequently purchased items (user preferences):");
+          for (const [name, count] of frequentItems) {
+            promptParts.push(`  - ${name} (ordered ${count}x)`);
           }
         }
 
@@ -1226,7 +1228,9 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             samplingError,
           );
 
-          // Fallback: return structured context for the outer AI to work with
+          // Fallback: return structured context so the outer AI can generate
+          // meal suggestions itself. This works because the MCP client (e.g.
+          // Claude) receives this tool response and can reason over it.
           const fallbackParts: string[] = [];
           fallbackParts.push(headerParts.join(""));
 
@@ -1266,8 +1270,20 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
             }
           }
 
+          if (frequentItems.length > 0) {
+            fallbackParts.push(
+              "\n**Frequently Purchased (user preferences):**",
+            );
+            for (const [name, count] of frequentItems) {
+              fallbackParts.push(`- ${name} (ordered ${count}x)`);
+            }
+          }
+
           fallbackParts.push(
-            "\n*Please suggest meals based on the above pantry and equipment. Prioritize using expiring items to reduce waste.*",
+            `\n---\n**Action Required:** Please suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using the pantry items above.`,
+            "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
+            "Prioritize using expiring items first to reduce food waste.",
+            "After suggesting meals, offer to add any missing ingredients to the shopping list using the add_to_shopping_list tool.",
           );
 
           return {
