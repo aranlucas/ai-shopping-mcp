@@ -1,0 +1,433 @@
+import { z } from "zod";
+import { createUserStorage } from "../utils/user-storage.js";
+import { requireAuth, type ToolContext } from "./types.js";
+
+export function registerRecipeTools(ctx: ToolContext) {
+  ctx.server.registerTool(
+    "search_recipes_from_web",
+    {
+      description:
+        "Searches for recipes from Janella's Cookbook website using their API. Returns detailed recipe information including ingredients and instructions.",
+      inputSchema: z.object({
+        searchQuery: z
+          .string()
+          .min(1)
+          .describe("Recipe search query (e.g., 'Cookie', 'Pasta', 'Chicken')"),
+      }),
+    },
+    async ({ searchQuery }) => {
+      try {
+        const apiUrl = "https://janella-cookbook.vercel.app/api/search";
+        console.log(`Searching recipes via API: ${searchQuery}`);
+
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: searchQuery }),
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `API request failed: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const apiResponse = (await response.json()) as {
+          success: boolean;
+          data?: {
+            results: Array<{
+              recipe: {
+                title: string;
+                description?: string;
+                prepTime?: number;
+                cookTime?: number;
+                totalTime?: number;
+                servings?: string;
+                difficulty?: string;
+                cuisine?: string;
+                slug: string;
+                ingredients?: Array<{
+                  quantity?: string;
+                  unit?: string;
+                  name: string;
+                  notes?: string;
+                }>;
+                instructions?: Array<{
+                  stepNumber: number;
+                  instruction: string;
+                }>;
+              };
+            }>;
+          };
+          error?: {
+            message: string;
+          };
+        };
+
+        if (!apiResponse.success || !apiResponse.data?.results) {
+          throw new Error(
+            apiResponse.error?.message || "No results returned from API",
+          );
+        }
+
+        const recipes = apiResponse.data.results;
+
+        if (recipes.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `No recipes found for "${searchQuery}". Try a different search term.`,
+              },
+            ],
+          };
+        }
+
+        const formattedRecipes = recipes
+          .map((result, idx) => {
+            const recipe = result.recipe;
+            const parts = [`**${idx + 1}. ${recipe.title}**`];
+
+            if (recipe.description) {
+              parts.push(recipe.description);
+            }
+
+            const metadata = [];
+            if (recipe.cuisine) metadata.push(recipe.cuisine);
+            if (recipe.difficulty)
+              metadata.push(recipe.difficulty.toLowerCase());
+            if (recipe.totalTime) metadata.push(`${recipe.totalTime}min total`);
+            else if (recipe.cookTime)
+              metadata.push(`${recipe.cookTime}min cook`);
+            if (recipe.servings) metadata.push(recipe.servings);
+            if (metadata.length > 0) {
+              parts.push(`*${metadata.join(" • ")}*`);
+            }
+
+            if (recipe.ingredients && recipe.ingredients.length > 0) {
+              parts.push("\n**Ingredients:**");
+              recipe.ingredients.forEach((ing) => {
+                const amount = [ing.quantity, ing.unit]
+                  .filter(Boolean)
+                  .join(" ");
+                const notes = ing.notes ? ` (${ing.notes})` : "";
+                parts.push(`- ${amount} ${ing.name}${notes}`.trim());
+              });
+            }
+
+            if (recipe.instructions && recipe.instructions.length > 0) {
+              parts.push("\n**Instructions:**");
+              recipe.instructions.forEach((step) => {
+                parts.push(`${step.stepNumber}. ${step.instruction}`);
+              });
+            }
+
+            parts.push(
+              `\n*View online: https://janella-cookbook.vercel.app/recipe/${recipe.slug}*`,
+            );
+
+            return parts.join("\n");
+          })
+          .join("\n\n---\n\n");
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `**Recipe Search Results for "${searchQuery}"**\n\nFound ${recipes.length} recipe(s):\n\n${formattedRecipes}`,
+            },
+          ],
+        };
+      } catch (error) {
+        console.error("Error fetching recipes:", error);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to fetch recipes: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  ctx.server.registerTool(
+    "plan_meals",
+    {
+      description:
+        "Generates personalized meal suggestions based on your pantry inventory, kitchen equipment, and shopping history. Prioritizes using ingredients that are expiring soon to reduce food waste. Uses AI to create practical meal ideas you can make with what you have, and identifies what you'd need to buy for additional meals.",
+      inputSchema: z.object({
+        numberOfMeals: z
+          .number()
+          .min(1)
+          .max(7)
+          .optional()
+          .default(3)
+          .describe("Number of meal suggestions to generate (1-7)"),
+        mealType: z
+          .enum(["any", "breakfast", "lunch", "dinner", "snack"])
+          .optional()
+          .default("any")
+          .describe("Type of meals to suggest"),
+        dietaryPreferences: z
+          .string()
+          .optional()
+          .describe(
+            "Dietary preferences or restrictions (e.g., 'vegetarian', 'low-carb', 'gluten-free')",
+          ),
+        prioritizeExpiring: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "Whether to prioritize using ingredients that are expiring soon",
+          ),
+      }),
+    },
+    async ({
+      numberOfMeals,
+      mealType,
+      dietaryPreferences,
+      prioritizeExpiring,
+    }) => {
+      const props = requireAuth(ctx);
+      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
+
+      const [pantry, equipment, recentOrders] = await Promise.all([
+        storage.pantry.getAll(props.id),
+        storage.equipment.getAll(props.id),
+        storage.orderHistory.getRecent(props.id, 10),
+      ]);
+
+      if (pantry.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Your pantry is empty. Add items to your pantry first using the add_to_pantry tool, then try planning meals again.",
+            },
+          ],
+        };
+      }
+
+      // Categorize pantry items by expiry urgency
+      const now = Date.now();
+      const categorizedPantry = pantry.map((item) => {
+        if (!item.expiresAt)
+          return { ...item, urgency: "none" as const, daysUntil: undefined };
+        const daysUntil = Math.floor(
+          (new Date(item.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
+        );
+        if (daysUntil < 0)
+          return { ...item, urgency: "expired" as const, daysUntil };
+        if (daysUntil <= 1)
+          return { ...item, urgency: "critical" as const, daysUntil };
+        if (daysUntil <= 3)
+          return { ...item, urgency: "warning" as const, daysUntil };
+        return { ...item, urgency: "ok" as const, daysUntil };
+      });
+
+      const expiringItems = categorizedPantry.filter(
+        (item) => item.urgency === "critical" || item.urgency === "warning",
+      );
+      const expiredItems = categorizedPantry.filter(
+        (item) => item.urgency === "expired",
+      );
+      const availableItems = categorizedPantry.filter(
+        (item) => item.urgency !== "expired",
+      );
+
+      // Build the meal planning prompt
+      const promptParts: string[] = [];
+      promptParts.push(
+        `Generate ${numberOfMeals} practical meal suggestion(s)${mealType !== "any" ? ` for ${mealType}` : ""}. Focus on meals that can be made primarily with the available pantry items.`,
+      );
+
+      if (dietaryPreferences) {
+        promptParts.push(`\nDietary preferences: ${dietaryPreferences}`);
+      }
+
+      if (prioritizeExpiring && expiringItems.length > 0) {
+        promptParts.push("\nPRIORITY - Use these expiring ingredients first:");
+        for (const item of expiringItems) {
+          const urgencyLabel =
+            item.urgency === "critical"
+              ? "EXPIRES TODAY/TOMORROW"
+              : "expires in 2-3 days";
+          promptParts.push(
+            `  - ${item.productName} (x${item.quantity}) - ${urgencyLabel}`,
+          );
+        }
+      }
+
+      promptParts.push(`\nAvailable pantry items (${availableItems.length}):`);
+      for (const item of availableItems) {
+        promptParts.push(`  - ${item.productName} (x${item.quantity})`);
+      }
+
+      if (equipment.length > 0) {
+        promptParts.push(
+          `\nAvailable kitchen equipment (${equipment.length}):`,
+        );
+        for (const item of equipment) {
+          promptParts.push(
+            `  - ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
+          );
+        }
+      }
+
+      // Extract frequently ordered items for preference insight
+      const frequentItems: Array<[string, number]> = [];
+      if (recentOrders.length > 0) {
+        const itemFrequency = new Map<string, number>();
+        for (const order of recentOrders) {
+          for (const item of order.items) {
+            const name = item.productName.toLowerCase();
+            itemFrequency.set(name, (itemFrequency.get(name) || 0) + 1);
+          }
+        }
+        frequentItems.push(
+          ...[...itemFrequency.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10),
+        );
+      }
+
+      if (frequentItems.length > 0) {
+        promptParts.push("\nFrequently purchased items (user preferences):");
+        for (const [name, count] of frequentItems) {
+          promptParts.push(`  - ${name} (ordered ${count}x)`);
+        }
+      }
+
+      promptParts.push(
+        "\nFor each meal, provide:",
+        "1. Meal name",
+        "2. Brief description",
+        "3. Ingredients from pantry (mark which are expiring soon)",
+        "4. Additional ingredients needed (not in pantry)",
+        "5. Quick cooking steps",
+        "6. Estimated prep/cook time",
+      );
+
+      const prompt = promptParts.join("\n");
+
+      // Build response header with expiry context
+      const headerParts: string[] = [];
+      headerParts.push(
+        `**Meal Plan** (${numberOfMeals} meal${numberOfMeals > 1 ? "s" : ""}${mealType !== "any" ? ` - ${mealType}` : ""})`,
+      );
+      if (expiringItems.length > 0) {
+        headerParts.push(
+          `\n⚠️ ${expiringItems.length} item(s) expiring soon - prioritized in suggestions`,
+        );
+      }
+      if (expiredItems.length > 0) {
+        headerParts.push(
+          `\n❌ ${expiredItems.length} expired item(s) excluded: ${expiredItems.map((i) => i.productName).join(", ")}`,
+        );
+      }
+
+      // Try MCP sampling for AI-powered meal suggestions
+      try {
+        const result = await ctx.server.server.createMessage({
+          messages: [
+            {
+              role: "user",
+              content: { type: "text", text: prompt },
+            },
+          ],
+          maxTokens: 2000,
+        });
+
+        // result.content may be a single content item or an array
+        const contentItem = Array.isArray(result.content)
+          ? result.content[0]
+          : result.content;
+        const responseText =
+          contentItem && "type" in contentItem && contentItem.type === "text"
+            ? contentItem.text
+            : "Unable to process meal plan response.";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${headerParts.join("")}\n\n${responseText}`,
+            },
+          ],
+        };
+      } catch (samplingError) {
+        console.error("MCP sampling failed for meal planning:", samplingError);
+
+        // Fallback: return structured context so the outer AI can generate
+        // meal suggestions itself. This works because the MCP client (e.g.
+        // Claude) receives this tool response and can reason over it.
+        const fallbackParts: string[] = [];
+        fallbackParts.push(headerParts.join(""));
+
+        if (dietaryPreferences) {
+          fallbackParts.push(`\nDietary preferences: ${dietaryPreferences}`);
+        }
+
+        if (expiringItems.length > 0) {
+          fallbackParts.push("\n**⚠️ Expiring Soon (use first!):**");
+          for (const item of expiringItems) {
+            const urgency =
+              item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
+            fallbackParts.push(
+              `- ${item.productName} x${item.quantity} (${urgency})`,
+            );
+          }
+        }
+
+        if (expiredItems.length > 0) {
+          fallbackParts.push("\n**❌ Expired (discard):**");
+          for (const item of expiredItems) {
+            fallbackParts.push(`- ${item.productName}`);
+          }
+        }
+
+        fallbackParts.push(`\n**Pantry (${availableItems.length} items):**`);
+        for (const item of availableItems) {
+          fallbackParts.push(`- ${item.productName} x${item.quantity}`);
+        }
+
+        if (equipment.length > 0) {
+          fallbackParts.push(`\n**Equipment (${equipment.length} items):**`);
+          for (const item of equipment) {
+            fallbackParts.push(
+              `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
+            );
+          }
+        }
+
+        if (frequentItems.length > 0) {
+          fallbackParts.push("\n**Frequently Purchased (user preferences):**");
+          for (const [name, count] of frequentItems) {
+            fallbackParts.push(`- ${name} (ordered ${count}x)`);
+          }
+        }
+
+        fallbackParts.push(
+          `\n---\n**Action Required:** Please suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using the pantry items above.`,
+          "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
+          "Prioritize using expiring items first to reduce food waste.",
+          "After suggesting meals, offer to add any missing ingredients to the shopping list using the add_to_shopping_list tool.",
+        );
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: fallbackParts.join("\n"),
+            },
+          ],
+        };
+      }
+    },
+  );
+}
