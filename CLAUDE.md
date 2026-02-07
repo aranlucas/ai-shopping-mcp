@@ -19,7 +19,7 @@ npm run build              # Verify TypeScript compilation passes
 
 ### Build & Type Checking
 ```bash
-npm run build              # Type-check with TypeScript (no output)
+npm run build              # Lint (Biome) + type-check with TypeScript (no output if successful)
 npm run cf-typegen         # Generate Cloudflare Worker types
 ```
 
@@ -52,7 +52,17 @@ npm run generate:identity  # Generate identity.d.ts from identity.yaml
 ## Architecture
 
 ### MCP Server Structure
-- **server.ts**: Main MCP server (`MyMCP` class extending `McpAgent`) that defines all MCP tools
+- **server.ts**: Main MCP server (`MyMCP` class extending `McpAgent`), OAuth provider config, and tool/resource/prompt registration entry point
+- **tools/**: Modular tool registration files (each exports a `register*` function called from `server.ts`):
+  - **tools/cart.ts**: Cart management tools (`add_to_cart`)
+  - **tools/location.ts**: Location search and preference tools (`search_locations`, `get_location_details`, `set_preferred_location`)
+  - **tools/product.ts**: Product search and details tools (`search_products`, `get_product_details`)
+  - **tools/inventory.ts**: Pantry, equipment, and order history tools
+  - **tools/recipes.ts**: Recipe search and AI-powered meal planning tools (`search_recipes_from_web`, `plan_meals`)
+  - **tools/shopping-list.ts**: Shopping list management tools (add, remove, update, clear, checkout)
+  - **tools/resources.ts**: MCP Resource definitions (read-only user data)
+  - **tools/types.ts**: Shared `ToolContext` type and helper functions
+- **prompts.ts**: MCP Prompt definitions for guided workflows
 - **kroger-handler.ts**: Hono-based HTTP handlers for OAuth flow (`/authorize`, `/callback`)
 - **workers-oauth-utils.ts**: OAuth utilities for approval dialogs and client verification
 
@@ -134,16 +144,16 @@ Set in `redirectToKroger` function (kroger-handler.ts):
 
 ### MCP Tools
 
-The server exposes these MCP tools (all defined in server.ts):
+The server exposes 20 MCP tools, organized into modular files under `src/tools/`:
 
-**Shopping & Products:**
+**Shopping & Products** (`tools/cart.ts`, `tools/location.ts`, `tools/product.ts`):
 1. **add_to_cart**: Add items to cart with UPC, quantity, modality
 2. **search_locations**: Find stores by zip code, chain name
 3. **get_location_details**: Get store details by location ID
 4. **search_products**: Bulk search for products using multiple terms (1-10 terms, 10 items per term limit, parallel execution)
 5. **get_product_details**: Get product details by product ID
 
-**User Data Persistence (Cloudflare KV):**
+**User Data Persistence** (`tools/location.ts`, `tools/inventory.ts`):
 6. **set_preferred_location**: Save user's preferred store
 7. **add_to_pantry**: Add items to pantry inventory
 8. **remove_from_pantry**: Remove items from pantry
@@ -153,28 +163,53 @@ The server exposes these MCP tools (all defined in server.ts):
 12. **clear_equipment**: Clear equipment inventory
 13. **mark_order_placed**: Record completed order in history
 
-**AI-Powered Tools (Using MCP Sampling):**
-14. **search_recipes_from_web**: Uses AI to scrape and extract recipes from Janella's Cookbook website
+**Shopping List** (`tools/shopping-list.ts`):
+14. **add_to_shopping_list**: Add items to shopping list (with optional UPC, quantity, notes; deduplicates by name)
+15. **remove_from_shopping_list**: Remove item from shopping list by name
+16. **update_shopping_list_item**: Modify item quantity, UPC, or notes
+17. **clear_shopping_list**: Remove all shopping list items
+18. **checkout_shopping_list**: Add unchecked items with UPCs to Kroger cart; reports items missing UPCs separately
 
-**Note:** User data reads (pantry, equipment, location, order history) are provided via **MCP Resources** (see below), not tools. This allows the AI to automatically access context without explicit tool calls.
+**AI-Powered Tools** (`tools/recipes.ts`):
+19. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API
+20. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
+
+**Note:** User data reads (pantry, equipment, location, order history, shopping list) are provided via **MCP Resources** (see below), not tools. This allows the AI to automatically access context without explicit tool calls.
 
 ### MCP Resources
 
-The server exposes contextual data via MCP Resources that clients can automatically reference:
+The server exposes contextual data via MCP Resources (defined in `src/tools/resources.ts`) that clients can automatically reference:
 
 1. **shopping://user/pantry** - User's pantry inventory (items currently at home)
 2. **shopping://user/equipment** - User's kitchen equipment inventory
-3. **shopping://user/location** - User's preferred store location
+3. **shopping://user/location** - User's preferred store location (with proactive guidance if not set)
 4. **shopping://user/orders** - User's order history (last 20 orders)
-5. **shopping://product/{productId}** - Product details by UPC (template resource)
+5. **shopping://user/shopping-list** - Current shopping list with checked/unchecked status, UPC availability, and checkout readiness
+6. **shopping://product/{productId}** - Product details by UPC (template resource; uses preferred location if available)
 
 **How Resources Work:**
 - Resources are automatically available to the AI without explicit tool calls
-- Claude can proactively reference pantry contents, equipment, preferred location, and purchase history
+- Claude can proactively reference pantry contents, equipment, preferred location, purchase history, and shopping list
 - Enables more natural conversations ("I see you already have milk in your pantry")
 - Resources are read-only and provide context for better decision-making
 
 **Architecture Decision:** Read operations for user data are provided exclusively via Resources (not tools) to eliminate redundancy. This means the AI always has access to user context without needing to explicitly call tools. Write/delete operations remain as tools.
+
+### MCP Prompts
+
+The server exposes guided workflow prompts (defined in `src/prompts.ts`):
+
+1. **grocery_list_store_path** - Organize shopping route by aisle for efficiency
+   - Optional parameter: `grocery_list` (items to organize)
+   - Workflow: Search items, find aisle locations, suggest efficient store path
+
+2. **set_preferred_store** - Choose and save a preferred store
+   - Optional parameter: `zip_code` (5-digit zip code)
+   - Workflow: Search nearby locations, present options, save preference
+
+3. **add_recipe_to_cart** - Find a recipe and add ingredients to cart
+   - Optional parameter: `recipe_type` (default: "classic apple pie")
+   - Workflow: Search recipe, get ingredients, look up products, add to cart with substitution suggestions
 
 ### MCP Sampling
 
@@ -189,14 +224,13 @@ const result = await this.server.server.createMessage({
 ```
 
 **Use Cases:**
+- AI-powered meal planning from pantry contents (`plan_meals`)
 - Recipe suggestions from pantry items
 - Shopping list categorization by department
-- Web scraping and data extraction (weekly deals, recipes from public webpages)
-- Meal planning assistance
-- Recipe discovery from online cookbooks
+- Meal planning with dietary preferences and expiry-aware prioritization
 
 **Web Scraping with Sampling:**
-The `get_weekly_deals_from_web` and `search_recipes_from_web` tools demonstrate AI-powered web scraping:
+The `search_recipes_from_web` tool demonstrates AI-powered web scraping:
 ```typescript
 // 1. Fetch webpage content
 const response = await fetch(url);
@@ -282,15 +316,18 @@ The application uses Cloudflare KV (`USER_DATA_KV` binding) for persistent user 
 
 **Storage Module:** `src/utils/user-storage.ts`
 
-**Data Types:**
-- **Preferred Location**: Saves user's favorite store (location ID, name, address, chain)
-- **Pantry Items**: Tracks groceries at home (product ID, name, quantity, added date, expiry date)
-- **Order History**: Records past orders (order ID, items, prices, totals, location, timestamp)
+**Data Types (each with a dedicated storage class):**
+- **PreferredLocationStorage**: User's favorite store (location ID, name, address, chain)
+- **PantryStorage**: Groceries at home (product name, quantity, added date, optional expiry date)
+- **EquipmentStorage**: Kitchen equipment/tools (equipment name, category)
+- **ShoppingListStorage**: Pre-checkout item list (product name, optional UPC, quantity, notes, checked status)
+- **OrderHistoryStorage**: Past orders (order ID, items with prices, location, timestamp)
 
 **Key Features:**
 - Data namespaced by user ID for isolation (`user:{userId}:{dataType}`)
 - JSON serialization for complex data structures
-- Automatic quantity updates for duplicate pantry items
+- Case-insensitive deduplication for pantry, equipment, and shopping list items
+- Automatic quantity updates for duplicate items
 - Order history limited to 50 most recent orders
 - Formatted responses via `src/utils/format-response.ts`
 
@@ -425,7 +462,7 @@ type ProductItem = NonNullable<Product>[number];
 - The `openapi-fetch` client methods have complex generic signatures that don't work with `ReturnType`
 - TypeScript cannot properly infer the return types from client methods
 - Direct schema imports are cleaner, more reliable, and compile correctly
-- This is the pattern used throughout the codebase (see cart items, line 100)
+- This is the pattern used throughout the codebase (see individual tool files in `src/tools/`)
 
 **Available Schema Types:**
 - **Product API**: `ProductComponents["schemas"]["products.productModel"]`
@@ -436,19 +473,19 @@ type ProductItem = NonNullable<Product>[number];
 ## Important Implementation Notes
 
 ### UPC and Location ID Formats
-- **UPC codes**: Must be exactly 13 digits (enforced in server.ts:79)
+- **UPC codes**: Must be exactly 13 digits (enforced via Zod validation in tool schemas)
 - **Location IDs**: Must be exactly 8 characters (enforced throughout)
 
 ### Token Management
 - Access tokens expire after 30 minutes (1800s default)
-- Refresh buffer is 5 minutes (client.ts:89)
-- Token refresh is automatic and happens in two places for reliability
+- Refresh buffer is 5 minutes (client.ts)
+- Token refresh handled exclusively by `tokenExchangeCallback` in server.ts (NOT in middleware)
 - Kroger credentials must be stored in props for token refresh to work
 
 ### API Client Pattern
 All Kroger API interactions use `openapi-fetch` with typed clients, except:
 1. OAuth token exchange (uses direct `fetch()` per Kroger docs)
-2. Weekly deals (uses `fetch()` for custom headers and undocumented endpoints)
+2. Token refresh (uses direct `fetch()` for Kroger's token endpoint)
 
 ## Reference Implementations
 
