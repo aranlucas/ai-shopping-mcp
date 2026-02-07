@@ -8,5 +8,6 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "types": ["./worker-configuration.d.ts"]
-  }
+  },
+  "exclude": ["tests"]
 }
