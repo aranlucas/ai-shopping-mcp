@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createUserStorage,
   EquipmentStorage,
@@ -5,7 +6,7 @@ import {
   PantryStorage,
   PreferredLocationStorage,
   ShoppingListStorage,
-} from "../../src/utils/user-storage";
+} from "../../src/utils/user-storage.js";
 
 /**
  * Creates a mock KVNamespace with in-memory storage for testing.
@@ -14,20 +15,19 @@ function createMockKV(): KVNamespace {
   const store = new Map<string, string>();
 
   return {
-    get: jest.fn((key: string) => {
+    get: vi.fn((key: string) => {
       return Promise.resolve(store.get(key) ?? null);
     }),
-    put: jest.fn((key: string, value: string) => {
+    put: vi.fn((key: string, value: string) => {
       store.set(key, value);
       return Promise.resolve();
     }),
-    delete: jest.fn((key: string) => {
+    delete: vi.fn((key: string) => {
       store.delete(key);
       return Promise.resolve();
     }),
-    // Unused methods stubbed out
-    list: jest.fn(),
-    getWithMetadata: jest.fn(),
+    list: vi.fn(),
+    getWithMetadata: vi.fn(),
   } as unknown as KVNamespace;
 }
 
