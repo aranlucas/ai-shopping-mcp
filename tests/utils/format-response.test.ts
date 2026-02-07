@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
   formatEquipmentItem,
   formatEquipmentItemCompact,
@@ -29,7 +30,7 @@ import {
   formatShoppingListItemCompact,
   formatWeeklyDeal,
   formatWeeklyDealsList,
-} from "../../src/utils/format-response";
+} from "../../src/utils/format-response.js";
 
 // ----- Product Formatting -----
 

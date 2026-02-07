@@ -1,9 +1,10 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createKrogerAuthMiddleware,
   isKrogerTokenExpiring,
   KrogerTokenExpiredError,
   refreshKrogerToken,
-} from "../../../src/services/kroger/client";
+} from "../../../src/services/kroger/client.js";
 
 // ----- isKrogerTokenExpiring -----
 
@@ -60,7 +61,7 @@ describe("refreshKrogerToken", () => {
   });
 
   it("refreshes token successfully", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
@@ -82,7 +83,8 @@ describe("refreshKrogerToken", () => {
     expect(result.tokenExpiresAt).toBeGreaterThan(Date.now());
 
     // Verify fetch was called with correct parameters
-    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const fetchCall = fetchMock.mock.calls[0];
     expect(fetchCall[0]).toBe("https://api.kroger.com/v1/connect/oauth2/token");
     expect(fetchCall[1].method).toBe("POST");
     expect(fetchCall[1].headers["Content-Type"]).toBe(
@@ -92,7 +94,7 @@ describe("refreshKrogerToken", () => {
   });
 
   it("throws on non-ok response", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
       statusText: "Unauthorized",
@@ -109,7 +111,7 @@ describe("refreshKrogerToken", () => {
   });
 
   it("throws when response has no access_token", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({}),
     });
@@ -120,7 +122,7 @@ describe("refreshKrogerToken", () => {
   });
 
   it("defaults expires_in to 1800 when not provided", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
@@ -136,7 +138,6 @@ describe("refreshKrogerToken", () => {
 // ----- createKrogerAuthMiddleware -----
 
 describe("createKrogerAuthMiddleware", () => {
-  // Helper to create middleware callback params without full MergedOptions typing
   function makeRequestParams(request: Request) {
     return {
       request,
@@ -158,7 +159,6 @@ describe("createKrogerAuthMiddleware", () => {
     };
   }
 
-  // Helpers to call middleware methods, asserting they exist
   function callOnRequest(
     middleware: ReturnType<typeof createKrogerAuthMiddleware>,
     request: Request,

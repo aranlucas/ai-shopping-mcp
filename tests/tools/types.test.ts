@@ -1,5 +1,6 @@
-import type { Props, ToolContext } from "../../src/tools/types";
-import { requireAuth, resolveLocationId } from "../../src/tools/types";
+import { describe, expect, it, vi } from "vitest";
+import type { Props, ToolContext } from "../../src/tools/types.js";
+import { requireAuth, resolveLocationId } from "../../src/tools/types.js";
 
 // ----- requireAuth -----
 
@@ -51,16 +52,16 @@ describe("resolveLocationId", () => {
   function mockStorage(preferredLocationGetResult: unknown = null) {
     return {
       preferredLocation: {
-        get: jest.fn().mockResolvedValue(preferredLocationGetResult),
-        set: jest.fn(),
-        delete: jest.fn(),
+        get: vi.fn().mockResolvedValue(preferredLocationGetResult),
+        set: vi.fn(),
+        delete: vi.fn(),
       },
       pantry: {},
       equipment: {},
       orderHistory: {},
       shoppingList: {},
     } as unknown as ReturnType<
-      typeof import("../../src/utils/user-storage").createUserStorage
+      typeof import("../../src/utils/user-storage.js").createUserStorage
     >;
   }
 
