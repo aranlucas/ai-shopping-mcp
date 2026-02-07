@@ -14,7 +14,8 @@
     "generate:cart": "npx openapi-typescript kroger/cart.yaml -o src//services/kroger/cart.d.ts",
     "generate:location": "npx openapi-typescript kroger/location.yaml -o src/services/kroger/location.d.ts",
     "generate:product": "npx openapi-typescript kroger/product.yaml -o src/services/kroger/product.d.ts",
-    "generate:identity": "npx openapi-typescript kroger/identity.yaml -o src/services/kroger/identity.d.ts"
+    "generate:identity": "npx openapi-typescript kroger/identity.yaml -o src/services/kroger/identity.d.ts",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -33,11 +34,18 @@
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.0.6",
+    "husky": "^9.1.7",
     "jest": "^30.2.0",
+    "lint-staged": "^16.2.7",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "wrangler": "^4.58.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,css,md}": [
+      "biome check --fix --no-errors-on-unmatched"
+    ]
   }
 }
