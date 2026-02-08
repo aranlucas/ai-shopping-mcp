@@ -113,7 +113,7 @@ This will make future shopping and product searches more convenient.`,
 1. Finding a good recipe for ${recipe_type}
 2. Showing me the ingredients and instructions
 3. Searching for each ingredient at my local store
-4. Adding all available ingredients to my cart using bulk_add_to_cart
+4. Adding all available ingredients to my cart using add_to_cart
 5. Suggesting alternatives for any ingredients that aren't available
 6. Asking me if I want delivery or pickup before completing the additions
 

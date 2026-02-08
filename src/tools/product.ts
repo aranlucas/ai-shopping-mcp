@@ -10,8 +10,15 @@ export function registerProductTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "search_products",
     {
+      title: "Search Products",
       description:
-        "Searches for Kroger products in bulk using multiple search terms. Use this tool when the user wants to find multiple products at once. Each search term returns up to 10 items. Provides essential product details including pricing and availability.",
+        "Searches for Kroger products using multiple search terms in parallel. Each term returns up to 10 items with pricing and availability. Results sorted by pickup availability.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       inputSchema: z.object({
         terms: z
           .array(z.string().max(100))
@@ -133,8 +140,15 @@ export function registerProductTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "get_product_details",
     {
+      title: "Get Product Details",
       description:
-        "Retrieves detailed information about a specific Kroger product using its product ID. Use this tool when the user needs comprehensive details about a particular product, including pricing, availability, nutritional information, and images.",
+        "Retrieves detailed information about a specific Kroger product by its 13-digit UPC, including pricing, availability, and nutritional information.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       inputSchema: z.object({
         productId: z.string().length(13, {
           message: "Product ID must be a 13-digit UPC number",
@@ -164,14 +178,28 @@ export function registerProductTools(ctx: ToolContext) {
 
       if (error) {
         console.error("Error getting product details:", error);
-        throw new Error(
-          `Failed to get product details: ${JSON.stringify(error)}`,
-        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to get product details: ${JSON.stringify(error)}`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       const product = data.data;
       if (!product) {
-        throw new Error(`No information found for product ID: ${productId}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No information found for product ID: ${productId}`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       console.log(`Retrieved details for product: ${product.description}`);

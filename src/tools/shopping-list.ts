@@ -12,163 +12,211 @@ type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
 export function registerShoppingListTools(ctx: ToolContext) {
+  // --- Consolidated shopping list management tool ---
+
   ctx.server.registerTool(
-    "add_to_shopping_list",
+    "manage_shopping_list",
     {
+      title: "Manage Shopping List",
       description:
-        "Adds items to your shopping list for planning before checkout. Use this to build a list of products you want to buy. Items can include a UPC (from product search) for direct cart checkout, or just a product name to find later. If the item already exists, its quantity is increased.",
+        "Manage your shopping list: add items, remove an item, update item details (quantity, UPC, notes), or clear all items. Build a list of products before checkout. Items with a UPC (from product search) can be sent directly to cart via checkout_shopping_list.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
       inputSchema: z.object({
-        items: z.array(
-          z.object({
-            productName: z
-              .string()
-              .min(1)
-              .describe("Product name (e.g., 'Whole Milk', 'Sourdough Bread')"),
-            upc: z
-              .string()
-              .length(13, { message: "UPC must be exactly 13 characters" })
-              .optional()
-              .describe(
-                "13-digit UPC from product search, needed for cart checkout",
-              ),
-            quantity: z.number().min(1).default(1),
-            notes: z
-              .string()
-              .optional()
-              .describe("Optional notes (e.g., 'get organic if available')"),
-          }),
-        ),
-      }),
-    },
-    async ({ items }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      const now = new Date().toISOString();
-
-      for (const item of items) {
-        const listItem: ShoppingListItem = {
-          productName: item.productName,
-          upc: item.upc,
-          quantity: item.quantity,
-          notes: item.notes,
-          addedAt: now,
-          checked: false,
-        };
-        await storage.shoppingList.add(props.id, listItem);
-      }
-
-      const list = await storage.shoppingList.getAll(props.id);
-      const formatted = formatShoppingListCompact(list);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatted}`,
-          },
-        ],
-      };
-    },
-  );
-
-  ctx.server.registerTool(
-    "remove_from_shopping_list",
-    {
-      description: "Removes an item from your shopping list by name.",
-      inputSchema: z.object({
-        productName: z.string().min(1).describe("Name of product to remove"),
-      }),
-    },
-    async ({ productName }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      await storage.shoppingList.remove(props.id, productName);
-
-      const list = await storage.shoppingList.getAll(props.id);
-      const formatted = formatShoppingListCompact(list);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatted}`,
-          },
-        ],
-      };
-    },
-  );
-
-  ctx.server.registerTool(
-    "update_shopping_list_item",
-    {
-      description:
-        "Updates an item on your shopping list. Use this to change quantity, add a UPC (after searching for the product), or add notes.",
-      inputSchema: z.object({
-        productName: z.string().min(1).describe("Name of product to update"),
-        quantity: z.number().min(1).optional().describe("New quantity"),
+        action: z
+          .enum(["add", "remove", "update", "clear"])
+          .describe("Action to perform on the shopping list"),
+        items: z
+          .array(
+            z.object({
+              productName: z
+                .string()
+                .min(1)
+                .describe(
+                  "Product name (e.g., 'Whole Milk', 'Sourdough Bread')",
+                ),
+              upc: z
+                .string()
+                .length(13, { message: "UPC must be exactly 13 characters" })
+                .optional()
+                .describe(
+                  "13-digit UPC from product search, needed for cart checkout",
+                ),
+              quantity: z.number().min(1).default(1),
+              notes: z
+                .string()
+                .optional()
+                .describe("Optional notes (e.g., 'get organic if available')"),
+            }),
+          )
+          .optional()
+          .describe("Items to add (required for 'add' action)"),
+        productName: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "Name of product to remove or update (required for 'remove' and 'update' actions)",
+          ),
+        quantity: z
+          .number()
+          .min(1)
+          .optional()
+          .describe("New quantity (for 'update' action)"),
         upc: z
           .string()
           .length(13, { message: "UPC must be exactly 13 characters" })
           .optional()
-          .describe("13-digit UPC to associate with this item"),
-        notes: z.string().optional().describe("Updated notes"),
+          .describe(
+            "13-digit UPC to associate with item (for 'update' action)",
+          ),
+        notes: z
+          .string()
+          .optional()
+          .describe("Updated notes (for 'update' action)"),
       }),
     },
-    async ({ productName, quantity, upc, notes }) => {
+    async ({ action, items, productName, quantity, upc, notes }) => {
       const props = requireAuth(ctx);
       const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
 
-      const updates: Partial<
-        Pick<ShoppingListItem, "quantity" | "upc" | "notes">
-      > = {};
-      if (quantity !== undefined) updates.quantity = quantity;
-      if (upc !== undefined) updates.upc = upc;
-      if (notes !== undefined) updates.notes = notes;
+      switch (action) {
+        case "add": {
+          if (!items || items.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: 'items' array is required for the 'add' action.",
+                },
+              ],
+              isError: true,
+            };
+          }
 
-      await storage.shoppingList.updateItem(props.id, productName, updates);
+          const now = new Date().toISOString();
+          for (const item of items) {
+            const listItem: ShoppingListItem = {
+              productName: item.productName,
+              upc: item.upc,
+              quantity: item.quantity,
+              notes: item.notes,
+              addedAt: now,
+              checked: false,
+            };
+            await storage.shoppingList.add(props.id, listItem);
+          }
 
-      const list = await storage.shoppingList.getAll(props.id);
-      const formatted = formatShoppingListCompact(list);
+          const list = await storage.shoppingList.getAll(props.id);
+          const formatted = formatShoppingListCompact(list);
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatted}`,
-          },
-        ],
-      };
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatted}`,
+              },
+            ],
+          };
+        }
+
+        case "remove": {
+          if (!productName) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: 'productName' is required for the 'remove' action.",
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          await storage.shoppingList.remove(props.id, productName);
+
+          const list = await storage.shoppingList.getAll(props.id);
+          const formatted = formatShoppingListCompact(list);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatted}`,
+              },
+            ],
+          };
+        }
+
+        case "update": {
+          if (!productName) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: 'productName' is required for the 'update' action.",
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const updates: Partial<
+            Pick<ShoppingListItem, "quantity" | "upc" | "notes">
+          > = {};
+          if (quantity !== undefined) updates.quantity = quantity;
+          if (upc !== undefined) updates.upc = upc;
+          if (notes !== undefined) updates.notes = notes;
+
+          await storage.shoppingList.updateItem(props.id, productName, updates);
+
+          const list = await storage.shoppingList.getAll(props.id);
+          const formatted = formatShoppingListCompact(list);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatted}`,
+              },
+            ],
+          };
+        }
+
+        case "clear": {
+          await storage.shoppingList.clear(props.id);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Shopping list cleared successfully.",
+              },
+            ],
+          };
+        }
+      }
     },
   );
 
-  ctx.server.registerTool(
-    "clear_shopping_list",
-    {
-      description:
-        "Removes all items from your shopping list. Use this to start fresh.",
-      inputSchema: z.object({}),
-    },
-    async () => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      await storage.shoppingList.clear(props.id);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Shopping list cleared successfully.",
-          },
-        ],
-      };
-    },
-  );
+  // --- Checkout tool (kept separate - distinct Kroger API interaction) ---
 
   ctx.server.registerTool(
     "checkout_shopping_list",
     {
+      title: "Checkout Shopping List to Cart",
       description:
-        "Adds all unchecked items from your shopping list to your Kroger cart. Only items with a UPC can be added to the cart. Items without a UPC will be listed separately so you can search for them. After checkout, items are marked as checked.",
+        "Adds all unchecked shopping list items with UPCs to your Kroger cart. Items without a UPC are listed separately so you can search for them first. After checkout, items are marked as checked.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
       inputSchema: z.object({
         locationId: z
           .string()
@@ -200,7 +248,20 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const withUpc = uncheckedItems.filter((item) => item.upc);
       const withoutUpc = uncheckedItems.filter((item) => !item.upc);
 
-      const resolved = await resolveLocationId(storage, props.id, locationId);
+      let resolved: { locationId: string; locationName?: string };
+      try {
+        resolved = await resolveLocationId(storage, props.id, locationId);
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
 
       const resultParts: string[] = [];
 
@@ -224,9 +285,15 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
         if (error) {
           console.error("Error adding shopping list items to cart:", error);
-          throw new Error(
-            `Failed to add items to cart: ${JSON.stringify(error)}`,
-          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Failed to add items to cart: ${JSON.stringify(error)}`,
+              },
+            ],
+            isError: true,
+          };
         }
 
         for (const item of withUpc) {
@@ -246,7 +313,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
       if (withoutUpc.length > 0) {
         resultParts.push(
-          `${withoutUpc.length} item(s) need a UPC before checkout (use search_products to find them, then update_shopping_list_item to add the UPC):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+          `${withoutUpc.length} item(s) need a UPC before checkout (use search_products to find them, then manage_shopping_list with action 'update' to add the UPC):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
         );
       }
 

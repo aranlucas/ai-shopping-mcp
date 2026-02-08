@@ -13,208 +13,255 @@ import {
 import { requireAuth, type ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
-  // --- Pantry tools ---
+  // --- Consolidated pantry tool ---
 
   ctx.server.registerTool(
-    "add_to_pantry",
+    "manage_pantry",
     {
+      title: "Manage Pantry Inventory",
       description:
-        "Adds items to your personal pantry inventory. Use this to track what groceries you already have at home. Helps avoid buying duplicates and manage inventory. Use normalized, consistent product names (e.g., 'Milk' not 'milk 2%' or 'whole milk') to prevent duplicates.",
+        "Manage your pantry inventory: add items, remove an item, or clear all items. Tracks what groceries you have at home to avoid duplicate purchases and enable meal planning.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
       inputSchema: z.object({
-        items: z.array(
-          z.object({
-            productName: z
-              .string()
-              .min(1)
-              .describe(
-                "Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')",
-              ),
-            quantity: z.number().min(1),
-            expiresAt: z.string().optional(),
-          }),
-        ),
+        action: z
+          .enum(["add", "remove", "clear"])
+          .describe("Action to perform on the pantry"),
+        items: z
+          .array(
+            z.object({
+              productName: z
+                .string()
+                .min(1)
+                .describe(
+                  "Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')",
+                ),
+              quantity: z.number().min(1),
+              expiresAt: z.string().optional(),
+            }),
+          )
+          .optional()
+          .describe("Items to add (required for 'add' action)"),
+        productName: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Name of product to remove (required for 'remove' action)"),
       }),
     },
-    async ({ items }) => {
+    async ({ action, items, productName }) => {
       const props = requireAuth(ctx);
       const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      const now = new Date().toISOString();
 
-      for (const item of items) {
-        const pantryItem: PantryItem = {
-          productName: item.productName,
-          quantity: item.quantity,
-          addedAt: now,
-          expiresAt: item.expiresAt,
-        };
-        await storage.pantry.add(props.id, pantryItem);
+      switch (action) {
+        case "add": {
+          if (!items || items.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: 'items' array is required for the 'add' action.",
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          const now = new Date().toISOString();
+          for (const item of items) {
+            const pantryItem: PantryItem = {
+              productName: item.productName,
+              quantity: item.quantity,
+              addedAt: now,
+              expiresAt: item.expiresAt,
+            };
+            await storage.pantry.add(props.id, pantryItem);
+          }
+
+          const pantry = await storage.pantry.getAll(props.id);
+          const formatted = formatPantryListCompact(pantry);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatted}`,
+              },
+            ],
+          };
+        }
+
+        case "remove": {
+          if (!productName) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: 'productName' is required for the 'remove' action.",
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          await storage.pantry.remove(props.id, productName);
+
+          const pantry = await storage.pantry.getAll(props.id);
+          const formatted = formatPantryListCompact(pantry);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Item removed from pantry.\n\nYour pantry:\n\n${formatted}`,
+              },
+            ],
+          };
+        }
+
+        case "clear": {
+          await storage.pantry.clear(props.id);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Pantry cleared successfully.",
+              },
+            ],
+          };
+        }
       }
-
-      const pantry = await storage.pantry.getAll(props.id);
-      const formatted = formatPantryListCompact(pantry);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatted}`,
-          },
-        ],
-      };
     },
   );
 
+  // --- Consolidated equipment tool ---
+
   ctx.server.registerTool(
-    "remove_from_pantry",
+    "manage_equipment",
     {
+      title: "Manage Kitchen Equipment",
       description:
-        "Removes an item from your pantry inventory. Use this when you've used up an item or want to remove it from tracking.",
+        "Manage your kitchen equipment inventory: add items, remove an item, or clear all. Tracks what cooking tools you own for recipe matching and meal planning.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
       inputSchema: z.object({
-        productName: z.string().min(1).describe("Name of product to remove"),
-      }),
-    },
-    async ({ productName }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      await storage.pantry.remove(props.id, productName);
-
-      const pantry = await storage.pantry.getAll(props.id);
-      const formatted = formatPantryListCompact(pantry);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Item removed from pantry.\n\nYour pantry:\n\n${formatted}`,
-          },
-        ],
-      };
-    },
-  );
-
-  ctx.server.registerTool(
-    "clear_pantry",
-    {
-      description:
-        "Removes all items from your pantry inventory. Use this to start fresh with pantry tracking.",
-      inputSchema: z.object({}),
-    },
-    async () => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      await storage.pantry.clear(props.id);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Pantry cleared successfully.",
-          },
-        ],
-      };
-    },
-  );
-
-  // --- Equipment tools ---
-
-  ctx.server.registerTool(
-    "add_to_equipment",
-    {
-      description:
-        "Adds kitchen equipment or tools to your personal equipment inventory. Use this to track what cooking equipment you own. Helps with recipe planning and knowing what tools you have available.",
-      inputSchema: z.object({
-        items: z.array(
-          z.object({
-            equipmentName: z.string().min(1),
-            category: z
-              .string()
-              .optional()
-              .describe(
-                "Optional category (e.g., 'Baking', 'Cooking', 'Utensils', 'Appliances')",
-              ),
-          }),
-        ),
-      }),
-    },
-    async ({ items }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      const now = new Date().toISOString();
-
-      for (const item of items) {
-        const equipmentItem: EquipmentItem = {
-          equipmentName: item.equipmentName,
-          category: item.category,
-          addedAt: now,
-        };
-        await storage.equipment.add(props.id, equipmentItem);
-      }
-
-      const equipment = await storage.equipment.getAll(props.id);
-      const formatted = formatEquipmentListCompact(equipment);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatted}`,
-          },
-        ],
-      };
-    },
-  );
-
-  ctx.server.registerTool(
-    "remove_from_equipment",
-    {
-      description:
-        "Removes an item from your equipment inventory. Use this when you no longer have a piece of equipment or want to remove it from tracking.",
-      inputSchema: z.object({
+        action: z
+          .enum(["add", "remove", "clear"])
+          .describe("Action to perform on equipment inventory"),
+        items: z
+          .array(
+            z.object({
+              equipmentName: z.string().min(1),
+              category: z
+                .string()
+                .optional()
+                .describe(
+                  "Optional category (e.g., 'Baking', 'Cooking', 'Utensils', 'Appliances')",
+                ),
+            }),
+          )
+          .optional()
+          .describe("Equipment items to add (required for 'add' action)"),
         equipmentName: z
           .string()
           .min(1)
-          .describe("Name of equipment to remove"),
+          .optional()
+          .describe(
+            "Name of equipment to remove (required for 'remove' action)",
+          ),
       }),
     },
-    async ({ equipmentName }) => {
+    async ({ action, items, equipmentName }) => {
       const props = requireAuth(ctx);
       const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      await storage.equipment.remove(props.id, equipmentName);
 
-      const equipment = await storage.equipment.getAll(props.id);
-      const formatted = formatEquipmentListCompact(equipment);
+      switch (action) {
+        case "add": {
+          if (!items || items.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: 'items' array is required for the 'add' action.",
+                },
+              ],
+              isError: true,
+            };
+          }
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Item removed from equipment.\n\nYour equipment:\n\n${formatted}`,
-          },
-        ],
-      };
-    },
-  );
+          const now = new Date().toISOString();
+          for (const item of items) {
+            const equipmentItem: EquipmentItem = {
+              equipmentName: item.equipmentName,
+              category: item.category,
+              addedAt: now,
+            };
+            await storage.equipment.add(props.id, equipmentItem);
+          }
 
-  ctx.server.registerTool(
-    "clear_equipment",
-    {
-      description:
-        "Removes all items from your equipment inventory. Use this to start fresh with equipment tracking.",
-      inputSchema: z.object({}),
-    },
-    async () => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      await storage.equipment.clear(props.id);
+          const equipment = await storage.equipment.getAll(props.id);
+          const formatted = formatEquipmentListCompact(equipment);
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Equipment cleared successfully.",
-          },
-        ],
-      };
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatted}`,
+              },
+            ],
+          };
+        }
+
+        case "remove": {
+          if (!equipmentName) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: 'equipmentName' is required for the 'remove' action.",
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          await storage.equipment.remove(props.id, equipmentName);
+
+          const equipment = await storage.equipment.getAll(props.id);
+          const formatted = formatEquipmentListCompact(equipment);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Item removed from equipment.\n\nYour equipment:\n\n${formatted}`,
+              },
+            ],
+          };
+        }
+
+        case "clear": {
+          await storage.equipment.clear(props.id);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Equipment cleared successfully.",
+              },
+            ],
+          };
+        }
+      }
     },
   );
 
@@ -223,8 +270,15 @@ export function registerInventoryTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "mark_order_placed",
     {
+      title: "Record Order",
       description:
-        "Records a completed order in your order history. Use this after successfully placing an order to track your purchases over time.",
+        "Records a completed order in your order history for tracking purchases over time.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
       inputSchema: z.object({
         items: z.array(
           z.object({

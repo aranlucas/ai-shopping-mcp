@@ -6,8 +6,15 @@ export function registerRecipeTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "search_recipes_from_web",
     {
+      title: "Search Recipes",
       description:
-        "Searches for recipes from Janella's Cookbook website using their API. Returns detailed recipe information including ingredients and instructions.",
+        "Searches for recipes from Janella's Cookbook API. Returns detailed recipe information including ingredients, instructions, and metadata.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       inputSchema: z.object({
         searchQuery: z
           .string()
@@ -29,9 +36,15 @@ export function registerRecipeTools(ctx: ToolContext) {
         });
 
         if (!response.ok) {
-          throw new Error(
-            `API request failed: ${response.status} ${response.statusText}`,
-          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Recipe API request failed: ${response.status} ${response.statusText}`,
+              },
+            ],
+            isError: true,
+          };
         }
 
         const apiResponse = (await response.json()) as {
@@ -67,9 +80,15 @@ export function registerRecipeTools(ctx: ToolContext) {
         };
 
         if (!apiResponse.success || !apiResponse.data?.results) {
-          throw new Error(
-            apiResponse.error?.message || "No results returned from API",
-          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Recipe search failed: ${apiResponse.error?.message || "No results returned from API"}`,
+              },
+            ],
+            isError: true,
+          };
         }
 
         const recipes = apiResponse.data.results;
@@ -149,6 +168,7 @@ export function registerRecipeTools(ctx: ToolContext) {
               text: `Failed to fetch recipes: ${error instanceof Error ? error.message : "Unknown error"}`,
             },
           ],
+          isError: true,
         };
       }
     },
@@ -157,8 +177,15 @@ export function registerRecipeTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "plan_meals",
     {
+      title: "Plan Meals from Pantry",
       description:
-        "Generates personalized meal suggestions based on your pantry inventory, kitchen equipment, and shopping history. Prioritizes using ingredients that are expiring soon to reduce food waste. Uses AI to create practical meal ideas you can make with what you have, and identifies what you'd need to buy for additional meals.",
+        "AI-powered meal suggestions based on pantry inventory, kitchen equipment, and shopping history. Prioritizes ingredients expiring soon to reduce food waste.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
       inputSchema: z.object({
         numberOfMeals: z
           .number()
@@ -207,7 +234,7 @@ export function registerRecipeTools(ctx: ToolContext) {
           content: [
             {
               type: "text",
-              text: "Your pantry is empty. Add items to your pantry first using the add_to_pantry tool, then try planning meals again.",
+              text: "Your pantry is empty. Add items to your pantry first using manage_pantry with action 'add', then try planning meals again.",
             },
           ],
         };
@@ -416,7 +443,7 @@ export function registerRecipeTools(ctx: ToolContext) {
           `\n---\n**Action Required:** Please suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using the pantry items above.`,
           "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
           "Prioritize using expiring items first to reduce food waste.",
-          "After suggesting meals, offer to add any missing ingredients to the shopping list using the add_to_shopping_list tool.",
+          "After suggesting meals, offer to add any missing ingredients to the shopping list using manage_shopping_list with action 'add'.",
         );
 
         return {
