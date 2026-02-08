@@ -15,8 +15,15 @@ export function registerLocationTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "search_locations",
     {
+      title: "Search Store Locations",
       description:
-        "Searches for Kroger store locations based on various filter criteria. Use this tool when the user needs to find nearby Kroger stores or specific store locations. Locations can be searched by zip code, latitude/longitude coordinates, radius, chain name, or department availability.",
+        "Searches for Kroger/QFC store locations by zip code and chain name.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       inputSchema: z.object({
         zipCodeNear: z
           .string()
@@ -48,7 +55,15 @@ export function registerLocationTools(ctx: ToolContext) {
 
       if (error) {
         console.error("Error searching locations:", error);
-        throw new Error(`Failed to search locations: ${JSON.stringify(error)}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to search locations: ${JSON.stringify(error)}`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       const locations = data?.data || [];
@@ -70,8 +85,15 @@ export function registerLocationTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "get_location_details",
     {
+      title: "Get Store Details",
       description:
-        "Retrieves detailed information about a specific Kroger store location using its location ID. Use this tool when the user needs comprehensive information about a particular store, including address, hours, departments, and geolocation.",
+        "Retrieves detailed information about a specific Kroger store by its location ID, including address, hours, and departments.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       inputSchema: z.object({
         locationId: z.string().length(8, {
           message: "Location ID must be exactly 8 characters long",
@@ -88,14 +110,28 @@ export function registerLocationTools(ctx: ToolContext) {
 
       if (error) {
         console.error("Error getting location details:", error);
-        throw new Error(
-          `Failed to get location details: ${JSON.stringify(error)}`,
-        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to get location details: ${JSON.stringify(error)}`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       const location = data?.data;
       if (!location) {
-        throw new Error(`No information found for location ID: ${locationId}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No information found for location ID: ${locationId}`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       console.log(`Retrieved details for location: ${location.name}`);
@@ -116,8 +152,15 @@ export function registerLocationTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "set_preferred_location",
     {
+      title: "Set Preferred Store",
       description:
-        "Sets the user's preferred store location for future shopping. Use this when the user wants to save their favorite store. This makes it easier to search products and check deals without specifying location each time.",
+        "Saves a store as your preferred location for future product searches and cart operations.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       inputSchema: z.object({
         locationId: z
           .string()
@@ -135,9 +178,15 @@ export function registerLocationTools(ctx: ToolContext) {
       );
 
       if (error || !data?.data) {
-        throw new Error(
-          `Failed to get location details: ${JSON.stringify(error)}`,
-        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to get location details: ${JSON.stringify(error)}`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       const location = data.data;

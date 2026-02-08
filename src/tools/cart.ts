@@ -11,8 +11,15 @@ export function registerCartTools(ctx: ToolContext) {
   ctx.server.registerTool(
     "add_to_cart",
     {
+      title: "Add Items to Cart",
       description:
-        "Adds specified items to a user's shopping cart. Use this tool when the user wants to add products to their cart for purchase. Prefer to use add to cart with multiple items. Location ID will default to user's preferred location if not specified.",
+        "Adds items to the user's Kroger shopping cart. Supports adding multiple items at once. Location defaults to the user's preferred location if not specified.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
       inputSchema: z.object({
         items: z.array(
           z.object({
@@ -38,9 +45,21 @@ export function registerCartTools(ctx: ToolContext) {
       const props = requireAuth(ctx);
       const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
 
-      const resolved = await resolveLocationId(storage, props.id, locationId);
+      let resolved: { locationId: string; locationName?: string };
+      try {
+        resolved = await resolveLocationId(storage, props.id, locationId);
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
 
-      // Convert items to the format expected by the Kroger API
       const cartItems: CartItem[] = items.map((item) => ({
         upc: item.upc,
         quantity: item.quantity,
@@ -60,9 +79,15 @@ export function registerCartTools(ctx: ToolContext) {
 
       if (error) {
         console.error("Error adding items to cart:", error);
-        throw new Error(
-          `Failed to add items to cart: ${JSON.stringify(error)}`,
-        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to add items to cart: ${JSON.stringify(error)}`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       console.log(
@@ -77,12 +102,7 @@ export function registerCartTools(ctx: ToolContext) {
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              message: `Successfully added ${items.length} item(s) to cart${locationInfo}`,
-              itemsAdded: items.length,
-              locationId: resolved.locationId,
-              success: true,
-            }),
+            text: `Successfully added ${items.length} item(s) to cart${locationInfo}.`,
           },
         ],
       };

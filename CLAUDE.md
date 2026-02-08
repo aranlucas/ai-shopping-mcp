@@ -57,9 +57,9 @@ npm run generate:identity  # Generate identity.d.ts from identity.yaml
   - **tools/cart.ts**: Cart management tools (`add_to_cart`)
   - **tools/location.ts**: Location search and preference tools (`search_locations`, `get_location_details`, `set_preferred_location`)
   - **tools/product.ts**: Product search and details tools (`search_products`, `get_product_details`)
-  - **tools/inventory.ts**: Pantry, equipment, and order history tools
+  - **tools/inventory.ts**: Consolidated pantry (`manage_pantry`), equipment (`manage_equipment`), and order history (`mark_order_placed`) tools
   - **tools/recipes.ts**: Recipe search and AI-powered meal planning tools (`search_recipes_from_web`, `plan_meals`)
-  - **tools/shopping-list.ts**: Shopping list management tools (add, remove, update, clear, checkout)
+  - **tools/shopping-list.ts**: Consolidated shopping list tool (`manage_shopping_list`) and checkout (`checkout_shopping_list`)
   - **tools/resources.ts**: MCP Resource definitions (read-only user data)
   - **tools/types.ts**: Shared `ToolContext` type and helper functions
 - **prompts.ts**: MCP Prompt definitions for guided workflows
@@ -144,7 +144,7 @@ Set in `redirectToKroger` function (kroger-handler.ts):
 
 ### MCP Tools
 
-The server exposes 20 MCP tools, organized into modular files under `src/tools/`:
+The server exposes 13 MCP tools, organized into modular files under `src/tools/`. Tools follow MCP best practices: consolidated CRUD operations use action discriminators, all tools include annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and errors use `isError: true` instead of throwing.
 
 **Shopping & Products** (`tools/cart.ts`, `tools/location.ts`, `tools/product.ts`):
 1. **add_to_cart**: Add items to cart with UPC, quantity, modality
@@ -152,29 +152,30 @@ The server exposes 20 MCP tools, organized into modular files under `src/tools/`
 3. **get_location_details**: Get store details by location ID
 4. **search_products**: Bulk search for products using multiple terms (1-10 terms, 10 items per term limit, parallel execution)
 5. **get_product_details**: Get product details by product ID
-
-**User Data Persistence** (`tools/location.ts`, `tools/inventory.ts`):
 6. **set_preferred_location**: Save user's preferred store
-7. **add_to_pantry**: Add items to pantry inventory
-8. **remove_from_pantry**: Remove items from pantry
-9. **clear_pantry**: Clear pantry inventory
-10. **add_to_equipment**: Add kitchen equipment/tools to inventory
-11. **remove_from_equipment**: Remove equipment from inventory
-12. **clear_equipment**: Clear equipment inventory
-13. **mark_order_placed**: Record completed order in history
+
+**User Data Management** (`tools/inventory.ts`):
+7. **manage_pantry**: Consolidated pantry tool with `action: "add" | "remove" | "clear"`. Add items with quantity/expiry, remove by name, or clear all.
+8. **manage_equipment**: Consolidated equipment tool with `action: "add" | "remove" | "clear"`. Add equipment with optional category, remove by name, or clear all.
+9. **mark_order_placed**: Record completed order in history
 
 **Shopping List** (`tools/shopping-list.ts`):
-14. **add_to_shopping_list**: Add items to shopping list (with optional UPC, quantity, notes; deduplicates by name)
-15. **remove_from_shopping_list**: Remove item from shopping list by name
-16. **update_shopping_list_item**: Modify item quantity, UPC, or notes
-17. **clear_shopping_list**: Remove all shopping list items
-18. **checkout_shopping_list**: Add unchecked items with UPCs to Kroger cart; reports items missing UPCs separately
+10. **manage_shopping_list**: Consolidated shopping list tool with `action: "add" | "remove" | "update" | "clear"`. Add items (with optional UPC, quantity, notes), remove/update by name, or clear all.
+11. **checkout_shopping_list**: Add unchecked items with UPCs to Kroger cart; reports items missing UPCs separately
 
 **AI-Powered Tools** (`tools/recipes.ts`):
-19. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API
-20. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
+12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API
+13. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
 
 **Note:** User data reads (pantry, equipment, location, order history, shopping list) are provided via **MCP Resources** (see below), not tools. This allows the AI to automatically access context without explicit tool calls.
+
+### Tool Annotations
+
+All tools include MCP annotations to help clients understand tool behavior:
+- **readOnlyHint**: `true` for search/query tools, `false` for mutation tools
+- **destructiveHint**: `true` for tools with clear/delete capability, `false` for additive-only
+- **idempotentHint**: `true` for search tools and set_preferred_location (same input = same result)
+- **openWorldHint**: `true` for tools that call external APIs (Kroger, recipe API), `false` for local-only tools
 
 ### MCP Resources
 
