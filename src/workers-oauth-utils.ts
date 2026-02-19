@@ -6,23 +6,6 @@ const ONE_YEAR_IN_SECONDS = 31536000;
 // --- Helper Functions ---
 
 /**
- * Encodes arbitrary data to a URL-safe base64 string.
- * @param data - The data to encode (will be stringified).
- * @returns A URL-safe base64 encoded string.
- */
-function _encodeState(data: unknown): string {
-  try {
-    const jsonString = JSON.stringify(data);
-    // Use btoa for simplicity, assuming Worker environment supports it well enough
-    // For complex binary data, a Buffer/Uint8Array approach might be better
-    return btoa(jsonString);
-  } catch (e) {
-    console.error("Error encoding state:", e);
-    throw new Error("Could not encode state");
-  }
-}
-
-/**
  * Decodes a URL-safe base64 string back to its original data.
  * @param encoded - The URL-safe base64 encoded string.
  * @returns The original data.
@@ -612,7 +595,11 @@ export async function parseRedirectApproval(
     throw new Error("Invalid request method. Expected POST.");
   }
 
-  let state: Record<string, unknown>;
+  interface DecodedState extends Record<string, unknown> {
+    oauthReqInfo?: { clientId?: string };
+  }
+
+  let state: DecodedState;
   let clientId: string | undefined;
 
   try {
@@ -623,9 +610,8 @@ export async function parseRedirectApproval(
       throw new Error("Missing or invalid 'state' in form data.");
     }
 
-    state = decodeState<{ oauthReqInfo?: { clientId?: string } }>(encodedState); // Decode the state
-    // @ts-expect-error
-    clientId = state?.oauthReqInfo?.clientId; // Extract clientId from within the state
+    state = decodeState<DecodedState>(encodedState);
+    clientId = state?.oauthReqInfo?.clientId;
 
     if (!clientId) {
       throw new Error("Could not extract clientId from state object.");

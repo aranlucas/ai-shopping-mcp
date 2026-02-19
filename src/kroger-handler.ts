@@ -345,7 +345,6 @@ app.get("/callback", async (c) => {
         accessToken,
         refreshToken,
         tokenExpiresAt,
-        expiresIn: tokenData.expires_in,
         krogerClientId: c.env.KROGER_CLIENT_ID,
         krogerClientSecret: c.env.KROGER_CLIENT_SECRET,
       },
