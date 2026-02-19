@@ -61,7 +61,7 @@ npm run generate:identity  # Generate identity.d.ts from identity.yaml
   - **tools/recipes.ts**: Recipe search and AI-powered meal planning tools (`search_recipes_from_web`, `plan_meals`)
   - **tools/shopping-list.ts**: Consolidated shopping list tool (`manage_shopping_list`) and checkout (`checkout_shopping_list`)
   - **tools/resources.ts**: MCP Resource definitions (read-only user data)
-  - **tools/types.ts**: Shared `ToolContext` type and helper functions
+  - **tools/types.ts**: Shared types (`Props`, `GrantProps`, `ToolContext`) and helper functions (`requireAuth`, `resolveLocationId`)
 - **prompts.ts**: MCP Prompt definitions for guided workflows
 - **kroger-handler.ts**: Hono-based HTTP handlers for OAuth flow (`/authorize`, `/callback`)
 - **workers-oauth-utils.ts**: OAuth utilities for approval dialogs and client verification
@@ -85,7 +85,11 @@ All Kroger API clients are in `src/services/kroger/`:
 ### Key OAuth Implementation Details
 - **Authorization**: `/authorize` endpoint initiates OAuth, redirecting to Kroger
 - **Callback**: `/callback` endpoint exchanges code for tokens, fetches user profile, stores tokens in `props`
-- **Props Structure**: User ID, Kroger access/refresh tokens, expiry timestamp, and Kroger credentials are encrypted in the MCP token
+- **Props/GrantProps Split** (defined in `tools/types.ts`):
+  - `Props` = `{ id, accessToken, tokenExpiresAt }` — minimal data for runtime API calls, sent as `accessTokenProps`
+  - `GrantProps` = `Props & { refreshToken?, krogerClientId, krogerClientSecret }` — full grant data, stays server-side in `newProps`
+  - The `tokenExchangeCallback` destructures `GrantProps` into `{ refreshToken, krogerClientId, krogerClientSecret, ...accessTokenProps }` to split them
+  - `Props` is structurally compatible with `KrogerTokenInfo`, so `configureKrogerAuth` receives `this.props` directly
 - **Token Refresh**: Single-layer refresh strategy (IMPORTANT for Kroger's single-use refresh tokens):
   - Middleware (`createKrogerAuthMiddleware`): Only adds Authorization headers, does NOT refresh tokens
   - `tokenExchangeCallback`: Handles ALL token refresh operations
@@ -479,9 +483,9 @@ type ProductItem = NonNullable<Product>[number];
 
 ### Token Management
 - Access tokens expire after 30 minutes (1800s default)
-- Refresh buffer is 5 minutes (client.ts)
+- Refresh buffer is 5 minutes (`isKrogerTokenExpiring` in client.ts), clock skew buffer is 1 minute (middleware)
 - Token refresh handled exclusively by `tokenExchangeCallback` in server.ts (NOT in middleware)
-- Kroger credentials must be stored in props for token refresh to work
+- Kroger credentials (`krogerClientId`, `krogerClientSecret`) stored in `GrantProps` (server-side grant), not in `Props` (access token)
 
 ### API Client Pattern
 All Kroger API interactions use `openapi-fetch` with typed clients, except:

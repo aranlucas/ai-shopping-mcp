@@ -57,15 +57,23 @@ The Kroger MCP server provides the following tools:
   - Parameters: locationId
 
 ### Product Search
-- **search_products** - Searches for products by term, brand, or product ID
-  - Parameters: term, locationId, productId, start, limit
+- **search_products** - Bulk search for products using multiple terms (parallel execution)
+  - Parameters: terms (array of 1-10 search strings), locationId
 - **get_product_details** - Gets detailed information about a specific product
   - Parameters: productId, locationId
 
-### Weekly Deals
-- **get_weekly_deals** - Retrieves current weekly deals and promotions
-  - Parameters: locationId, divisionCode, divisionName
-  - Returns: Active weekly ad deals including product names, prices, savings, and validity dates
+### User Data Management
+- **manage_pantry** - Add, remove, or clear pantry items (action discriminator)
+- **manage_equipment** - Add, remove, or clear kitchen equipment (action discriminator)
+- **mark_order_placed** - Record a completed order in history
+
+### Shopping List
+- **manage_shopping_list** - Add, remove, update, or clear shopping list items (action discriminator)
+- **checkout_shopping_list** - Add unchecked items with UPCs to Kroger cart
+
+### AI-Powered Tools
+- **search_recipes_from_web** - Search and extract recipes via web API
+- **plan_meals** - AI-powered meal suggestions from pantry, equipment, and dietary preferences
 
 ## MCP Prompts
 
