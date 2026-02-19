@@ -1,7 +1,6 @@
-import OAuthProvider from "@cloudflare/workers-oauth-provider";
+import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
-import dotenv from "dotenv";
 import { KrogerHandler } from "./kroger-handler.js";
 import { registerPrompts } from "./prompts.js";
 import {
@@ -18,8 +17,6 @@ import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import type { Props } from "./tools/types.js";
-
-dotenv.config();
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
   server = new McpServer({
@@ -64,7 +61,7 @@ export default new OAuthProvider({
     "/sse": MyMCP.serveSSE("/sse"), // deprecated SSE protocol - use /mcp instead
     "/mcp": MyMCP.serve("/mcp"), // Streamable-HTTP protocol
   },
-  // biome-ignore lint/suspicious/noExplicitAny: needed from docs
+  // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
   defaultHandler: KrogerHandler as any,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
@@ -85,15 +82,37 @@ export default new OAuthProvider({
    * 4. Matches MCP token TTL to Kroger's for synchronized expiry
    */
   tokenExchangeCallback: async ({ grantType, props }) => {
-    // Only handle refresh token grants
-    if (grantType !== "refresh_token") {
+    const typedProps = props as Props;
+
+    // Handle initial authorization code exchange
+    // Set MCP access token TTL to match Kroger's token expiry for synchronized refresh
+    if (grantType === GrantType.AUTHORIZATION_CODE) {
+      if (!typedProps?.tokenExpiresAt) {
+        console.log(
+          "Token exchange callback (authorization_code): no Kroger token expiry, using default TTL",
+        );
+        return {};
+      }
+
+      const remainingSeconds = Math.max(
+        Math.floor((typedProps.tokenExpiresAt - Date.now()) / 1000),
+        60, // minimum 60 seconds to avoid immediate expiry
+      );
+
       console.log(
-        `Token exchange callback: ignoring grant type "${grantType}"`,
+        `Token exchange callback (authorization_code): setting MCP token TTL to ${remainingSeconds}s to match Kroger token expiry`,
+      );
+
+      return { accessTokenTTL: remainingSeconds };
+    }
+
+    // Only handle refresh token grants from here
+    if (grantType !== GrantType.REFRESH_TOKEN) {
+      console.log(
+        `Token exchange callback: ignoring unexpected grant type "${grantType}"`,
       );
       return {};
     }
-
-    const typedProps = props as Props;
 
     // Check if we have a refresh token and credentials
     if (!typedProps?.refreshToken || !typedProps?.tokenExpiresAt) {
