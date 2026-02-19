@@ -6,7 +6,6 @@ import { registerPrompts } from "./prompts.js";
 import {
   configureKrogerAuth,
   isKrogerTokenExpiring,
-  type KrogerTokenInfo,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
 import { registerCartTools } from "./tools/cart.js";
@@ -16,7 +15,7 @@ import { registerProductTools } from "./tools/product.js";
 import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
-import type { Props } from "./tools/types.js";
+import type { GrantProps, Props } from "./tools/types.js";
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
   server = new McpServer({
@@ -25,15 +24,12 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
   });
 
   async init() {
-    // Configure Kroger auth for all API clients
-    configureKrogerAuth((): KrogerTokenInfo | null => {
+    // Configure Kroger auth middleware — only needs access token info for API calls
+    configureKrogerAuth(() => {
       if (!this.props?.accessToken) return null;
       return {
         accessToken: this.props.accessToken,
-        refreshToken: this.props.refreshToken,
         tokenExpiresAt: this.props.tokenExpiresAt,
-        krogerClientId: this.props.krogerClientId,
-        krogerClientSecret: this.props.krogerClientSecret,
       };
     });
 
@@ -68,117 +64,91 @@ export default new OAuthProvider({
   clientRegistrationEndpoint: "/register",
 
   /**
-   * Token exchange callback - syncs Kroger tokens during MCP token refresh.
+   * Token exchange callback — syncs Kroger tokens with MCP token lifecycle.
    *
-   * CRITICAL: This is the ONLY place where Kroger tokens are refreshed.
-   * Kroger uses single-use refresh tokens - once used, they're invalidated.
-   * This callback is the only place that can persist the new refresh token
-   * to the grant. Middleware does NOT refresh to avoid token conflicts.
+   * Uses accessTokenProps/newProps separation per the library's README pattern:
+   * - accessTokenProps: minimal data for runtime API calls (sent with every request)
+   * - newProps: full grant data including Kroger refresh token + credentials (stays server-side)
    *
-   * When the MCP token expires, this callback:
-   * 1. Checks if Kroger token is expiring (5-minute buffer)
-   * 2. Uses the refresh token to get new access + refresh tokens
-   * 3. Saves new tokens to props (persisted in the grant)
-   * 4. Matches MCP token TTL to Kroger's for synchronized expiry
+   * CRITICAL: Kroger uses single-use refresh tokens. This callback is the ONLY
+   * place that refreshes them, ensuring the new token is persisted to the grant.
    */
   tokenExchangeCallback: async ({ grantType, props }) => {
-    const typedProps = props as Props;
+    const grant = props as GrantProps;
 
-    // Handle initial authorization code exchange
-    // Set MCP access token TTL to match Kroger's token expiry for synchronized refresh
+    // Initial auth code exchange — strip grant-only fields from access token
     if (grantType === GrantType.AUTHORIZATION_CODE) {
-      if (!typedProps?.tokenExpiresAt) {
-        console.log(
-          "Token exchange callback (authorization_code): no Kroger token expiry, using default TTL",
-        );
-        return {};
-      }
+      const remainingSeconds = grant?.tokenExpiresAt
+        ? Math.max(Math.floor((grant.tokenExpiresAt - Date.now()) / 1000), 60)
+        : 1800;
 
-      const remainingSeconds = Math.max(
-        Math.floor((typedProps.tokenExpiresAt - Date.now()) / 1000),
-        60, // minimum 60 seconds to avoid immediate expiry
-      );
-
-      console.log(
-        `Token exchange callback (authorization_code): setting MCP token TTL to ${remainingSeconds}s to match Kroger token expiry`,
-      );
-
-      return { accessTokenTTL: remainingSeconds };
-    }
-
-    // Only handle refresh token grants from here
-    if (grantType !== GrantType.REFRESH_TOKEN) {
-      console.log(
-        `Token exchange callback: ignoring unexpected grant type "${grantType}"`,
-      );
-      return {};
-    }
-
-    // Check if we have a refresh token and credentials
-    if (!typedProps?.refreshToken || !typedProps?.tokenExpiresAt) {
-      console.warn(
-        "Token exchange callback: No Kroger refresh token or expiry available",
-        {
-          hasRefreshToken: !!typedProps?.refreshToken,
-          hasTokenExpiresAt: !!typedProps?.tokenExpiresAt,
+      return {
+        accessTokenProps: {
+          id: grant.id,
+          accessToken: grant.accessToken,
+          tokenExpiresAt: grant.tokenExpiresAt,
         },
-      );
-      return { accessTokenTTL: 1 };
+        accessTokenTTL: remainingSeconds,
+      };
     }
 
-    if (!typedProps?.krogerClientId || !typedProps?.krogerClientSecret) {
-      console.warn(
-        "Token exchange callback: No Kroger credentials in props. This should not happen.",
-      );
-      return { accessTokenTTL: 1 };
-    }
-
-    // Check if Kroger token is expiring (with 5-minute buffer)
-    const tokenExpiresIn = typedProps.tokenExpiresAt - Date.now();
-    if (!isKrogerTokenExpiring(typedProps.tokenExpiresAt)) {
-      console.log(
-        `Token exchange callback: Kroger token still valid (expires in ${Math.round(tokenExpiresIn / 1000)}s), no refresh needed`,
-      );
+    if (grantType !== GrantType.REFRESH_TOKEN) {
       return {};
+    }
+
+    // Validate grant has refresh credentials
+    if (
+      !grant?.refreshToken ||
+      !grant?.krogerClientId ||
+      !grant?.krogerClientSecret
+    ) {
+      return { accessTokenTTL: 1 }; // Force re-auth
+    }
+
+    // Skip refresh if Kroger token is still valid (5-minute buffer)
+    if (!isKrogerTokenExpiring(grant.tokenExpiresAt)) {
+      return {
+        accessTokenProps: {
+          id: grant.id,
+          accessToken: grant.accessToken,
+          tokenExpiresAt: grant.tokenExpiresAt,
+        },
+      };
     }
 
     try {
-      console.log(
-        `Token exchange callback: Refreshing Kroger token (expires in ${Math.round(tokenExpiresIn / 1000)}s)...`,
+      const result = await refreshKrogerToken(
+        grant.refreshToken,
+        grant.krogerClientId,
+        grant.krogerClientSecret,
       );
 
-      const refreshResult = await refreshKrogerToken(
-        typedProps.refreshToken,
-        typedProps.krogerClientId,
-        typedProps.krogerClientSecret,
-      );
-
-      console.log(
-        `Token exchange callback: Kroger token refreshed successfully. New token expires in ${refreshResult.expiresIn}s`,
-      );
-
-      // CRITICAL: Kroger returns a NEW refresh token that must be saved
-      // The old refresh token is now invalid (single-use tokens)
-      if (!refreshResult.refreshToken) {
+      if (!result.refreshToken) {
         console.error(
-          "Token exchange callback: CRITICAL - Kroger refresh response missing new refresh token. " +
-            "Old refresh token is now invalid (single-use). User will need to re-authenticate.",
+          "Token exchange callback: Kroger refresh missing new refresh token (single-use). Re-auth required.",
         );
         return { accessTokenTTL: 1 };
       }
 
       return {
-        newProps: {
-          ...typedProps,
-          accessToken: refreshResult.accessToken,
-          refreshToken: refreshResult.refreshToken,
-          tokenExpiresAt: refreshResult.tokenExpiresAt,
+        // Access token gets only what middleware needs
+        accessTokenProps: {
+          id: grant.id,
+          accessToken: result.accessToken,
+          tokenExpiresAt: result.tokenExpiresAt,
         },
-        accessTokenTTL: refreshResult.expiresIn,
+        // Grant persists full data including new refresh token + credentials
+        newProps: {
+          ...grant,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          tokenExpiresAt: result.tokenExpiresAt,
+        },
+        accessTokenTTL: result.expiresIn,
       };
     } catch (error) {
       console.error(
-        "Token exchange callback: Failed to refresh Kroger token:",
+        "Token exchange callback: Kroger refresh failed:",
         error instanceof Error ? error.message : String(error),
       );
       return { accessTokenTTL: 1 };
