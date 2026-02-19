@@ -6,10 +6,7 @@ import type { paths as ProductPaths } from "./product.js";
 
 export interface KrogerTokenInfo {
   accessToken: string;
-  refreshToken?: string;
   tokenExpiresAt: number;
-  krogerClientId: string;
-  krogerClientSecret: string;
 }
 
 export interface KrogerTokenRefreshResult {

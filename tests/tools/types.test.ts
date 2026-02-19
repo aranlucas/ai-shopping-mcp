@@ -10,8 +10,6 @@ describe("requireAuth", () => {
       id: "user-123",
       accessToken: "token",
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
-      krogerClientId: "client-id",
-      krogerClientSecret: "client-secret",
     };
 
     const ctx = {
@@ -37,8 +35,6 @@ describe("requireAuth", () => {
         id: "",
         accessToken: "token",
         tokenExpiresAt: Date.now(),
-        krogerClientId: "id",
-        krogerClientSecret: "secret",
       }),
     } as unknown as ToolContext;
 

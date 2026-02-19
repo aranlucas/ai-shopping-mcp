@@ -191,8 +191,6 @@ describe("createKrogerAuthMiddleware", () => {
     const middleware = createKrogerAuthMiddleware(() => ({
       accessToken: "my-access-token",
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
-      krogerClientId: "id",
-      krogerClientSecret: "secret",
     }));
 
     const request = new Request("https://api.kroger.com/v1/products");
@@ -207,8 +205,6 @@ describe("createKrogerAuthMiddleware", () => {
     const middleware = createKrogerAuthMiddleware(() => ({
       accessToken: "expired-token",
       tokenExpiresAt: Date.now() - 10 * 60 * 1000,
-      krogerClientId: "id",
-      krogerClientSecret: "secret",
     }));
 
     const request = new Request("https://api.kroger.com/v1/products");
@@ -222,8 +218,6 @@ describe("createKrogerAuthMiddleware", () => {
     const middleware = createKrogerAuthMiddleware(() => ({
       accessToken: "token",
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
-      krogerClientId: "id",
-      krogerClientSecret: "secret",
     }));
 
     const response = new Response(JSON.stringify({}), { status: 401 });
@@ -238,8 +232,6 @@ describe("createKrogerAuthMiddleware", () => {
     const middleware = createKrogerAuthMiddleware(() => ({
       accessToken: "token",
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
-      krogerClientId: "id",
-      krogerClientSecret: "secret",
     }));
 
     const response = new Response(JSON.stringify({ data: [] }), {

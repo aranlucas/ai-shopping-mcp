@@ -1,14 +1,18 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { createUserStorage } from "../utils/user-storage.js";
 
-// Context from the auth process, encrypted & stored in the auth token
-// and provided to the DurableMCP as this.props
+// Props stored in the access token and provided to McpAgent as this.props.
+// Only contains what's needed for runtime API calls — no refresh credentials.
 export type Props = {
   id: string;
   accessToken: string;
-  refreshToken?: string;
   tokenExpiresAt: number;
-  // Kroger credentials stored for token refresh in tokenExchangeCallback
+};
+
+// Full props stored in the grant for token refresh.
+// Contains Kroger credentials needed by tokenExchangeCallback to refresh upstream tokens.
+export type GrantProps = Props & {
+  refreshToken?: string;
   krogerClientId: string;
   krogerClientSecret: string;
 };
