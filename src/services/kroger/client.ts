@@ -88,22 +88,6 @@ export function isKrogerTokenExpiring(
   return Date.now() + bufferTimeMs >= tokenExpiresAt;
 }
 
-/**
- * Creates a Kroger OAuth middleware that adds authentication headers to requests.
- *
- * IMPORTANT: This middleware does NOT refresh tokens. Token refresh is handled
- * exclusively by tokenExchangeCallback in OAuthProvider to avoid conflicts with
- * Kroger's single-use refresh tokens.
- *
- * Kroger's refresh tokens are single-use - once used, they're invalidated and
- * replaced with a new one. Only tokenExchangeCallback can persist the new refresh
- * token to the grant. If middleware also refreshed, it would invalidate the token
- * before tokenExchangeCallback could use it, causing "invalid_refresh_token" errors.
- */
-/**
- * Custom error class for Kroger token expiration.
- * This signals that the Kroger token is invalid and the user needs to re-authenticate.
- */
 export class KrogerTokenExpiredError extends Error {
   constructor(message: string) {
     super(message);
@@ -111,70 +95,45 @@ export class KrogerTokenExpiredError extends Error {
   }
 }
 
+const REAUTH_MSG = "Please reconnect to the MCP server to re-authenticate.";
+
+/**
+ * Middleware that adds Kroger Bearer tokens to requests.
+ * Does NOT refresh tokens — that's handled exclusively by tokenExchangeCallback
+ * to avoid conflicts with Kroger's single-use refresh tokens.
+ */
 export function createKrogerAuthMiddleware(
   getTokenInfo: () => KrogerTokenInfo | null,
 ): Middleware {
-  const middleware: Middleware = {
+  return {
     async onRequest({ request }) {
       const tokenInfo = getTokenInfo();
-
       if (!tokenInfo) {
         throw new KrogerTokenExpiredError(
-          "No Kroger token information available. Please reconnect to the MCP server to re-authenticate.",
+          `No Kroger token available. ${REAUTH_MSG}`,
         );
       }
 
-      const accessToken = tokenInfo.accessToken;
-
-      // Check if token is expired (not just expiring, but actually expired)
-      // We use a 1-minute clock skew buffer here (not the 5-minute refresh buffer
-      // used in tokenExchangeCallback). This is intentional:
-      // - tokenExchangeCallback refreshes 5 minutes BEFORE expiry (proactive)
-      // - Middleware only checks if token is ACTUALLY expired (reactive)
-      // - 1-minute buffer accounts for clock drift between client/server
-      const CLOCK_SKEW_BUFFER = 60 * 1000; // 1 minute
-      if (Date.now() - CLOCK_SKEW_BUFFER >= tokenInfo.tokenExpiresAt) {
+      // 1-minute clock skew buffer (vs 5-minute proactive refresh in tokenExchangeCallback)
+      if (Date.now() - 60_000 >= tokenInfo.tokenExpiresAt) {
         throw new KrogerTokenExpiredError(
-          "Kroger access token has expired. Please reconnect to the MCP server in your client (e.g., restart Claude Desktop or run 'mcp reconnect') to re-authenticate.",
+          `Kroger access token has expired. ${REAUTH_MSG}`,
         );
       }
 
-      // Add Authorization header to the request
-      request.headers.set("Authorization", `Bearer ${accessToken}`);
+      request.headers.set("Authorization", `Bearer ${tokenInfo.accessToken}`);
       return request;
     },
 
     async onResponse({ response }) {
-      // Detect 401 Unauthorized responses from Kroger API
-      // This indicates the token was rejected by Kroger (e.g., user revoked access,
-      // token was invalidated server-side, or token is expired despite local checks)
       if (response.status === 401) {
-        // Try to parse the error response for more details
-        let errorMessage =
-          "Kroger rejected the access token. Please reconnect to the MCP server in your client (e.g., restart Claude Desktop or run 'mcp reconnect') to re-authenticate.";
-
-        try {
-          const errorBody = (await response.clone().json()) as {
-            errors?: {
-              error?: string;
-              error_description?: string;
-            };
-          };
-          if (errorBody?.errors?.error_description) {
-            errorMessage = `Kroger authentication failed: ${errorBody.errors.error_description}. Please reconnect to the MCP server to re-authenticate.`;
-          }
-        } catch {
-          // Ignore JSON parsing errors, use default message
-        }
-
-        throw new KrogerTokenExpiredError(errorMessage);
+        throw new KrogerTokenExpiredError(
+          `Kroger rejected the access token. ${REAUTH_MSG}`,
+        );
       }
-
       return response;
     },
   };
-
-  return middleware;
 }
 
 // Create clients with base configuration (no auth initially)

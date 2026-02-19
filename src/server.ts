@@ -24,14 +24,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
   });
 
   async init() {
-    // Configure Kroger auth middleware — only needs access token info for API calls
-    configureKrogerAuth(() => {
-      if (!this.props?.accessToken) return null;
-      return {
-        accessToken: this.props.accessToken,
-        tokenExpiresAt: this.props.tokenExpiresAt,
-      };
-    });
+    // Props (id, accessToken, tokenExpiresAt) is a superset of KrogerTokenInfo — pass directly
+    configureKrogerAuth(() => this.props ?? null);
 
     // Shared context for all tool/resource registration functions
     const ctx = {
@@ -63,92 +57,72 @@ export default new OAuthProvider({
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",
 
-  /**
-   * Token exchange callback — syncs Kroger tokens with MCP token lifecycle.
-   *
-   * Uses accessTokenProps/newProps separation per the library's README pattern:
-   * - accessTokenProps: minimal data for runtime API calls (sent with every request)
-   * - newProps: full grant data including Kroger refresh token + credentials (stays server-side)
-   *
-   * CRITICAL: Kroger uses single-use refresh tokens. This callback is the ONLY
-   * place that refreshes them, ensuring the new token is persisted to the grant.
-   */
+  // Syncs Kroger tokens with MCP token lifecycle using accessTokenProps/newProps separation:
+  // - accessTokenProps: only what middleware needs (id, accessToken, tokenExpiresAt)
+  // - newProps: full grant including Kroger refresh token + credentials (stays server-side)
+  // CRITICAL: Kroger single-use refresh tokens — only refreshed here to persist to grant.
   tokenExchangeCallback: async ({ grantType, props }) => {
-    const grant = props as GrantProps;
+    // Destructure grant-only fields; rest is exactly the access token props (Props type)
+    const {
+      refreshToken,
+      krogerClientId,
+      krogerClientSecret,
+      ...accessTokenProps
+    } = props as GrantProps;
 
-    // Initial auth code exchange — strip grant-only fields from access token
     if (grantType === GrantType.AUTHORIZATION_CODE) {
-      const remainingSeconds = grant?.tokenExpiresAt
-        ? Math.max(Math.floor((grant.tokenExpiresAt - Date.now()) / 1000), 60)
+      const ttl = accessTokenProps.tokenExpiresAt
+        ? Math.max(
+            Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000),
+            60,
+          )
         : 1800;
-
-      return {
-        accessTokenProps: {
-          id: grant.id,
-          accessToken: grant.accessToken,
-          tokenExpiresAt: grant.tokenExpiresAt,
-        },
-        accessTokenTTL: remainingSeconds,
-      };
+      return { accessTokenProps, accessTokenTTL: ttl };
     }
 
-    if (grantType !== GrantType.REFRESH_TOKEN) {
-      return {};
-    }
+    if (grantType !== GrantType.REFRESH_TOKEN) return {};
 
-    // Validate grant has refresh credentials
-    if (
-      !grant?.refreshToken ||
-      !grant?.krogerClientId ||
-      !grant?.krogerClientSecret
-    ) {
+    if (!refreshToken || !krogerClientId || !krogerClientSecret) {
       return { accessTokenTTL: 1 }; // Force re-auth
     }
 
-    // Skip refresh if Kroger token is still valid (5-minute buffer)
-    if (!isKrogerTokenExpiring(grant.tokenExpiresAt)) {
-      return {
-        accessTokenProps: {
-          id: grant.id,
-          accessToken: grant.accessToken,
-          tokenExpiresAt: grant.tokenExpiresAt,
-        },
-      };
+    if (!isKrogerTokenExpiring(accessTokenProps.tokenExpiresAt)) {
+      return { accessTokenProps };
     }
 
     try {
       const result = await refreshKrogerToken(
-        grant.refreshToken,
-        grant.krogerClientId,
-        grant.krogerClientSecret,
+        refreshToken,
+        krogerClientId,
+        krogerClientSecret,
       );
 
       if (!result.refreshToken) {
         console.error(
-          "Token exchange callback: Kroger refresh missing new refresh token (single-use). Re-auth required.",
+          "Kroger refresh missing new refresh token (single-use). Re-auth required.",
         );
         return { accessTokenTTL: 1 };
       }
 
       return {
-        // Access token gets only what middleware needs
         accessTokenProps: {
-          id: grant.id,
+          ...accessTokenProps,
           accessToken: result.accessToken,
           tokenExpiresAt: result.tokenExpiresAt,
         },
-        // Grant persists full data including new refresh token + credentials
         newProps: {
-          ...grant,
+          ...accessTokenProps,
           accessToken: result.accessToken,
           refreshToken: result.refreshToken,
           tokenExpiresAt: result.tokenExpiresAt,
+          krogerClientId,
+          krogerClientSecret,
         },
         accessTokenTTL: result.expiresIn,
       };
     } catch (error) {
       console.error(
-        "Token exchange callback: Kroger refresh failed:",
+        "Kroger token refresh failed:",
         error instanceof Error ? error.message : String(error),
       );
       return { accessTokenTTL: 1 };
