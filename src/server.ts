@@ -4,7 +4,7 @@ import { McpAgent } from "agents/mcp";
 import { KrogerHandler } from "./kroger-handler.js";
 import { registerPrompts } from "./prompts.js";
 import {
-  configureKrogerAuth,
+  createKrogerClients,
   isKrogerTokenExpiring,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
@@ -24,12 +24,11 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
   });
 
   async init() {
-    // Props (id, accessToken, tokenExpiresAt) is a superset of KrogerTokenInfo — pass directly
-    configureKrogerAuth(() => this.props ?? null);
+    const clients = createKrogerClients(() => this.props ?? null);
 
-    // Shared context for all tool/resource registration functions
     const ctx = {
       server: this.server,
+      clients,
       getProps: () => this.props,
       getEnv: () => this.env,
     };

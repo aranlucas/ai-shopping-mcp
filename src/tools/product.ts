@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { productClient } from "../services/kroger/client.js";
 import {
   formatProductCompact,
   formatProductList,
@@ -7,6 +6,8 @@ import {
 import type { ToolContext } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
+  const { productClient } = ctx.clients;
+
   ctx.server.registerTool(
     "search_products",
     {

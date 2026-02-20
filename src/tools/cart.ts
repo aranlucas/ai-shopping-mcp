@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { components } from "../services/kroger/cart.js";
-import { cartClient } from "../services/kroger/client.js";
 import { createUserStorage } from "../utils/user-storage.js";
 import { requireAuth, resolveLocationId, type ToolContext } from "./types.js";
 
@@ -8,6 +7,8 @@ type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
 export function registerCartTools(ctx: ToolContext) {
+  const { cartClient } = ctx.clients;
+
   ctx.server.registerTool(
     "add_to_cart",
     {

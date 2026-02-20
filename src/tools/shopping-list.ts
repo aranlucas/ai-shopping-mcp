@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { components } from "../services/kroger/cart.js";
-import { cartClient } from "../services/kroger/client.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import {
   createUserStorage,
@@ -12,7 +11,7 @@ type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
 export function registerShoppingListTools(ctx: ToolContext) {
-  // --- Consolidated shopping list management tool ---
+  const { cartClient } = ctx.clients;
 
   ctx.server.registerTool(
     "manage_shopping_list",

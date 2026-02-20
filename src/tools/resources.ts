@@ -1,9 +1,10 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { productClient } from "../services/kroger/client.js";
 import { createUserStorage } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 export function registerResources(ctx: ToolContext) {
+  const { productClient } = ctx.clients;
+
   ctx.server.registerResource(
     "Pantry Inventory",
     "shopping://user/pantry",

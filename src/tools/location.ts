@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { locationClient } from "../services/kroger/client.js";
 import {
   formatLocation,
   formatLocationListCompact,
@@ -12,6 +11,8 @@ import {
 import { requireAuth, type ToolContext } from "./types.js";
 
 export function registerLocationTools(ctx: ToolContext) {
+  const { locationClient } = ctx.clients;
+
   ctx.server.registerTool(
     "search_locations",
     {
