@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { KrogerClients } from "../services/kroger/client.js";
 import type { createUserStorage } from "../utils/user-storage.js";
 
 // Props stored in the access token and provided to McpAgent as this.props.
@@ -20,6 +21,7 @@ export type GrantProps = Props & {
 // Shared context passed to all tool registration functions
 export type ToolContext = {
   server: McpServer;
+  clients: KrogerClients;
   getProps: () => Props | undefined;
   getEnv: () => Env;
 };

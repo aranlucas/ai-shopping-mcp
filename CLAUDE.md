@@ -78,7 +78,7 @@ The application uses a two-tier OAuth system:
 
 ### Kroger API Client Architecture
 All Kroger API clients are in `src/services/kroger/`:
-- **client.ts**: Creates typed `openapi-fetch` clients with authentication middleware that adds Bearer tokens to requests
+- **client.ts**: `createKrogerClients(getTokenInfo)` factory creates all 4 typed `openapi-fetch` clients with auth middleware applied. Clients are passed to tool files via `ctx.clients` (no global singletons).
 - **cart.d.ts, location.d.ts, product.d.ts, identity.d.ts**: Auto-generated TypeScript types from OpenAPI specs
 - Middleware (`createKrogerAuthMiddleware`) adds Authorization headers but does NOT refresh tokens (see Token Refresh section below)
 
@@ -89,7 +89,7 @@ All Kroger API clients are in `src/services/kroger/`:
   - `Props` = `{ id, accessToken, tokenExpiresAt }` — minimal data for runtime API calls, sent as `accessTokenProps`
   - `GrantProps` = `Props & { refreshToken?, krogerClientId, krogerClientSecret }` — full grant data, stays server-side in `newProps`
   - The `tokenExchangeCallback` destructures `GrantProps` into `{ refreshToken, krogerClientId, krogerClientSecret, ...accessTokenProps }` to split them
-  - `Props` is structurally compatible with `KrogerTokenInfo`, so `configureKrogerAuth` receives `this.props` directly
+  - `Props` is structurally compatible with `KrogerTokenInfo`, so `createKrogerClients` receives `this.props` directly
 - **Token Refresh**: Single-layer refresh strategy (IMPORTANT for Kroger's single-use refresh tokens):
   - Middleware (`createKrogerAuthMiddleware`): Only adds Authorization headers, does NOT refresh tokens
   - `tokenExchangeCallback`: Handles ALL token refresh operations
