@@ -9,20 +9,19 @@ type KrogerProduct = ProductComponents["schemas"]["products.productModel"];
 // Helpers
 // ---------------------------------------------------------------------------
 
-function mockOkResponse(data: unknown) {
-  return {
-    ok: true,
-    status: 200,
-    text: () => Promise.resolve(JSON.stringify(data)),
-  };
+function mockOkResponse(data: unknown): Response {
+  return new Response(JSON.stringify(data), { status: 200 });
 }
 
-function mockErrorResponse(status: number, data: unknown = {}) {
-  return {
-    ok: false,
-    status,
-    text: () => Promise.resolve(JSON.stringify(data)),
-  };
+function mockErrorResponse(status: number, data: unknown = {}): Response {
+  return new Response(JSON.stringify(data), { status });
+}
+
+/** Extract a URL string from any fetch input type. */
+function urlOf(input: string | Request | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
 }
 
 /** Build a minimal Kroger product with optional pricing. */
@@ -123,22 +122,20 @@ const MOCK_PAGE_RESPONSE = {
 // Test setup
 // ---------------------------------------------------------------------------
 
-const originalFetch = global.fetch;
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
 
 beforeEach(() => {
-  fetchMock = vi.fn();
-  global.fetch = fetchMock as unknown as typeof fetch;
+  fetchMock = vi.spyOn(global, "fetch");
 });
 
 afterEach(() => {
-  global.fetch = originalFetch;
   vi.restoreAllMocks();
 });
 
 /** Configure fetchMock for the happy print-ad path. */
 function setupPrintAdFetch() {
-  fetchMock.mockImplementation((url: string) => {
+  fetchMock.mockImplementation((input: string | Request | URL) => {
+    const url = urlOf(input);
     if (url.includes("digitalads/v1/circulars")) {
       return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
     }
@@ -226,7 +223,8 @@ describe("getQfcWeeklyDeals", () => {
 
     it("deduplicates offers with the same id across pages", async () => {
       // Return the same offer on both pages
-      fetchMock.mockImplementation((url: string) => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
         if (url.includes("digitalads/v1/circulars")) {
           return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
         }
@@ -470,7 +468,8 @@ describe("getQfcWeeklyDeals", () => {
 
   describe("search API fallback when print-ad fails", () => {
     function setupFailedPrintFetch() {
-      fetchMock.mockImplementation((url: string) => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
         if (url.includes("digitalads/v1/circulars")) {
           return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
         }
@@ -621,7 +620,8 @@ describe("getQfcWeeklyDeals", () => {
 
   describe("error handling", () => {
     it("throws when print-ad fails and no searchProducts provided", async () => {
-      fetchMock.mockImplementation((url: string) => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
         if (url.includes("digitalads/v1/circulars")) {
           return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
         }
@@ -636,7 +636,8 @@ describe("getQfcWeeklyDeals", () => {
     it("returns empty deals (not throws) when print-ad fails and search API errors are all caught per-term", async () => {
       // Per-term errors in fetchDealsBySearchApi are swallowed via .catch(() => []),
       // so the overall call succeeds with 0 deals rather than throwing.
-      fetchMock.mockImplementation((url: string) => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
         if (url.includes("digitalads/v1/circulars")) {
           return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
         }
@@ -660,7 +661,8 @@ describe("getQfcWeeklyDeals", () => {
     });
 
     it("throws when no print circular is found and no searchProducts provided", async () => {
-      fetchMock.mockImplementation((url: string) => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
         if (url.includes("digitalads/v1/circulars")) {
           // Return circulars without a print type
           return Promise.resolve(
@@ -684,7 +686,8 @@ describe("getQfcWeeklyDeals", () => {
     });
 
     it("adds warning but continues when circular fetch fails", async () => {
-      fetchMock.mockImplementation((url: string) => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
         if (url.includes("digitalads/v1/circulars")) {
           return Promise.resolve(mockErrorResponse(500));
         }
@@ -724,7 +727,8 @@ describe("getQfcWeeklyDeals", () => {
     });
 
     it("uses explicit divisionCode when provided", async () => {
-      fetchMock.mockImplementation((url: string) => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
         if (url.includes("digitalads/v1/circulars")) {
           return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
         }
