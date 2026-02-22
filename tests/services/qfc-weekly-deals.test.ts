@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
-import type {
-  NormalizedWeeklyDeal,
-  ProductSearchFn,
-} from "../../src/services/qfc-weekly-deals.js";
+import type { ProductSearchFn } from "../../src/services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
 
 type KrogerProduct = ProductComponents["schemas"]["products.productModel"];
@@ -131,7 +128,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   fetchMock = vi.fn();
-  global.fetch = fetchMock;
+  global.fetch = fetchMock as unknown as typeof fetch;
 });
 
 afterEach(() => {
@@ -453,9 +450,7 @@ describe("getQfcWeeklyDeals", () => {
 
     it("calls searchProducts with the deal title and correct locationId", async () => {
       setupPrintAdFetch();
-      const searchProducts = vi
-        .fn<Parameters<ProductSearchFn>, ReturnType<ProductSearchFn>>()
-        .mockResolvedValue([]);
+      const searchProducts = vi.fn<ProductSearchFn>().mockResolvedValue([]);
 
       await getQfcWeeklyDeals({
         locationId: "70500847",
