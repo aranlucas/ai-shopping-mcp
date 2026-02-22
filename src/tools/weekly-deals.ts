@@ -42,9 +42,7 @@ function getCacheKv(ctx: ToolContext): KvLike | null {
 function buildWeeklyDealsCacheKey(params: {
   locationId?: string;
   limit: number;
-  includeCoupons: boolean;
   pageLimit: number;
-  hasLafObject: boolean;
 }): string {
   const locationId = params.locationId || "default";
   return [
@@ -53,9 +51,7 @@ function buildWeeklyDealsCacheKey(params: {
     `v${WEEKLY_DEALS_CACHE_VERSION}`,
     `loc:${locationId}`,
     `limit:${params.limit}`,
-    `coupons:${params.includeCoupons ? 1 : 0}`,
     `pages:${params.pageLimit}`,
-    `laf:${params.hasLafObject ? 1 : 0}`,
   ].join("|");
 }
 
@@ -149,7 +145,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
     {
       title: "Get Weekly Deals",
       description:
-        "Fetches current QFC weekly deals. Tries shoppable weekly deals first and falls back to parsing the print ad if anti-bot protections block shoppable data.",
+        "Fetches current QFC/Kroger weekly deals by searching the Kroger Product API for on-sale items across common grocery categories. Falls back to print-ad parsing if the search API is unavailable.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -172,13 +168,6 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           .optional()
           .default(25)
           .describe("Maximum number of deals to return"),
-        includeCoupons: z
-          .boolean()
-          .optional()
-          .default(false)
-          .describe(
-            "Include Weekly Digital Deal coupons when shoppable source works",
-          ),
         pageLimit: z
           .number()
           .int()
@@ -187,22 +176,14 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           .optional()
           .default(2)
           .describe("Print-ad fallback only: number of ad pages to parse"),
-        lafObject: z
-          .array(z.unknown())
-          .optional()
-          .describe(
-            "Optional QFC LAF object (from browser session) to improve shoppable deals reliability",
-          ),
       }),
     },
-    async ({ locationId, limit, includeCoupons, pageLimit, lafObject }) => {
+    async ({ locationId, limit, pageLimit }) => {
       const kv = getCacheKv(ctx);
       const cacheKey = buildWeeklyDealsCacheKey({
         locationId,
         limit,
-        includeCoupons,
         pageLimit,
-        hasLafObject: Boolean(lafObject),
       });
 
       let staleEntry: WeeklyDealsCacheEntry | null = null;
@@ -220,12 +201,24 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           staleEntry = cached.entry;
         }
 
+        const { productClient } = ctx.clients;
         const result = await getQfcWeeklyDeals({
           locationId,
           limit,
-          includeCoupons,
           pageLimit,
-          lafObject,
+          searchProducts: async (term, locId, searchLimit) => {
+            const { data, error } = await productClient.GET("/v1/products", {
+              params: {
+                query: {
+                  "filter.term": term,
+                  "filter.locationId": locId,
+                  "filter.limit": searchLimit,
+                },
+              },
+            });
+            if (error) return [];
+            return data?.data || [];
+          },
         });
         await writeWeeklyDealsCache(kv, cacheKey, result);
 
@@ -272,8 +265,13 @@ function formatWeeklyDealsToolResponse(
     })),
   );
 
+  const sourceLabel =
+    result.sourceMode === "search_api"
+      ? "Kroger Product Search API (on-sale items)"
+      : "Print ad fallback";
+
   const lines: string[] = [
-    `Weekly deals source: ${result.sourceMode === "shoppable" ? "Shoppable QFC API" : "Print ad fallback"}`,
+    `Weekly deals source: ${sourceLabel}`,
     `Location: ${result.locationId} (division ${result.divisionCode})`,
     `Deals returned: ${result.deals.length}`,
   ];
@@ -284,8 +282,8 @@ function formatWeeklyDealsToolResponse(
     );
   }
 
-  if (typeof result.coupons?.length === "number") {
-    lines.push(`Weekly digital coupons: ${result.coupons.length}`);
+  if (result.meta?.termCount !== undefined) {
+    lines.push(`Search categories: ${result.meta.termCount}`);
   }
 
   if (result.warnings.length > 0) {

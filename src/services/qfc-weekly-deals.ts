@@ -1,11 +1,5 @@
-import type {
-  Circular,
-  CircularsResponse,
-  Coupon,
-  CouponsResponse,
-  WeeklyDeal as QfcShoppableDeal,
-  WeeklyDealsResponse,
-} from "./kroger/weekly-deals.js";
+import type { components as ProductComponents } from "./kroger/product.js";
+import type { Circular, CircularsResponse } from "./kroger/weekly-deals.js";
 
 const QFC_WEEKLY_AD_BASE = "https://www.qfc.com";
 const KROGER_DIGITAL_ADS_BASE = "https://api.kroger.com";
@@ -14,14 +8,29 @@ const DACS_PUBLIC_API_KEY = "bqwwosbzrzcvffztxzyczieljzsahmkp";
 const DEFAULT_QFC_LOCATION_ID = "70500847";
 
 type JsonRecord = Record<string, unknown>;
+type KrogerProduct = ProductComponents["schemas"]["products.productModel"];
+
+/**
+ * Callback for searching Kroger products via the authenticated Product API.
+ * Returns an array of products matching the search term at the given location.
+ */
+export type ProductSearchFn = (
+  term: string,
+  locationId: string,
+  limit: number,
+) => Promise<KrogerProduct[]>;
 
 export interface QfcWeeklyDealsOptions {
   locationId?: string;
   divisionCode?: string;
-  includeCoupons?: boolean;
   limit?: number;
   pageLimit?: number;
-  lafObject?: unknown;
+  /**
+   * Authenticated Kroger Product Search API callback.
+   * When provided, deals are sourced from the search API (products with promo
+   * pricing) rather than the print-ad fallback.
+   */
+  searchProducts?: ProductSearchFn;
   signal?: AbortSignal;
 }
 
@@ -37,35 +46,21 @@ export interface NormalizedWeeklyDeal {
   validTill?: string;
   disclaimer?: string;
   imageUrl?: string;
-  source: "shoppable" | "print";
+  source: "search_api" | "print";
   rawType?: string;
 }
 
 export interface QfcDealsApiResponse {
-  sourceMode: "shoppable" | "print_fallback";
+  sourceMode: "search_api" | "print_fallback";
   locationId: string;
   divisionCode: string;
   shoppableCircular?: Circular;
   printCircular?: Circular;
   warnings: string[];
-  shoppableError?: string;
-  printError?: string;
   deals: NormalizedWeeklyDeal[];
-  coupons?: Coupon[];
   meta?: {
-    adGroupCount?: number;
+    termCount?: number;
     pageCount?: number;
-    lafBootstrap?: LafBootstrapStatus;
-  };
-}
-
-type LafBootstrapStatus = "provided" | "bootstrapped" | "unavailable";
-
-interface ModalityPreferencesResponse {
-  data?: {
-    modalityPreferences?: {
-      lafObject?: unknown[];
-    };
   };
 }
 
@@ -117,49 +112,6 @@ function formatPrice(
   const price =
     value >= 1 ? `$${value.toFixed(2)}` : `${Math.round(value * 100)}¢`;
   return uom ? `${price}/${uom}` : price;
-}
-
-function parseBooleanFlag(value: string | undefined): boolean {
-  if (!value) return false;
-  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
-}
-
-function validateLafObject(lafObject: unknown): unknown[] | undefined {
-  if (!lafObject) return undefined;
-  if (!Array.isArray(lafObject)) {
-    throw new Error("lafObject must be a JSON array");
-  }
-  return lafObject;
-}
-
-function makeQfcHeaders(params: {
-  locationId: string;
-  lafObject: unknown[];
-  refererPath?: string;
-  callOrigin?: { page: string; component: string };
-}): HeadersInit {
-  const {
-    locationId,
-    lafObject,
-    refererPath = "/weeklyad/weeklyad",
-    callOrigin,
-  } = params;
-  return {
-    accept: "application/json, text/plain, */*",
-    "user-agent": "Mozilla/5.0",
-    referer: `${QFC_WEEKLY_AD_BASE}${refererPath}`,
-    origin: QFC_WEEKLY_AD_BASE,
-    dnt: "1",
-    "x-kroger-channel": "WEB",
-    "x-modality": JSON.stringify({ type: "PICKUP", locationId }),
-    "x-modality-type": "PICKUP",
-    "x-facility-id": locationId,
-    "x-call-origin": JSON.stringify(
-      callOrigin || { component: "weekly ad", page: "weekly ad" },
-    ),
-    "x-laf-object": JSON.stringify(lafObject),
-    "user-time-zone": "America/Los_Angeles",
-  };
 }
 
 async function fetchJson<T>(
@@ -233,111 +185,112 @@ function selectCurrentCirculars(circulars: Circular[]) {
   return { shoppable, print };
 }
 
-async function tryBootstrapLafObjectFromQfc(params: {
-  locationId: string;
-  signal?: AbortSignal;
-}): Promise<unknown[] | undefined> {
-  const locationId = params.locationId;
+// ---------------------------------------------------------------------------
+// Kroger Product Search API — deal discovery
+// ---------------------------------------------------------------------------
 
-  const weeklyAdResp = await fetch(`${QFC_WEEKLY_AD_BASE}/weeklyad`, {
-    headers: {
-      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "user-agent": "Mozilla/5.0",
-    },
-    signal: params.signal,
-  });
+/**
+ * Broad grocery category terms used to discover on-sale products via the
+ * Kroger Product Search API. We search all categories in parallel and filter
+ * for items where price.promo < price.regular.
+ */
+const DEAL_SEARCH_TERMS = [
+  "chicken",
+  "beef",
+  "milk",
+  "bread",
+  "frozen",
+  "juice",
+  "snack",
+  "vegetable",
+  "seafood",
+  "cereal",
+] as const;
 
-  if (!weeklyAdResp.ok) {
-    throw new Error(
-      `Failed to bootstrap QFC session: HTTP ${weeklyAdResp.status}`,
-    );
+const PRODUCTS_PER_TERM = 50;
+
+function normalizeProductAsDeal(product: KrogerProduct): NormalizedWeeklyDeal {
+  const item = product.items?.[0];
+  const promo = item?.price?.promo;
+  const regular = item?.price?.regular;
+
+  let price: string | undefined;
+  let savings: string | undefined;
+
+  if (typeof promo === "number") {
+    price = formatPrice(promo);
+    if (typeof regular === "number" && regular > promo) {
+      savings = `Save ${formatPrice(regular - promo)} (was ${formatPrice(regular)})`;
+    }
+  } else if (typeof regular === "number") {
+    price = formatPrice(regular);
   }
 
-  const getSetCookie =
-    // Cloudflare Workers has getAll in some runtimes; Node/undici exposes getSetCookie
-    (
-      weeklyAdResp.headers as Headers & { getSetCookie?: () => string[] }
-    ).getSetCookie?.() || [];
+  const department = product.categories?.[0];
+  const title = product.description || "Unknown Product";
 
-  const cookieJar = getSetCookie.map((cookie) => cookie.split(";", 1)[0]);
-  cookieJar.push(
-    `x-active-modality=${JSON.stringify({
-      type: "PICKUP",
-      locationId,
-      source: "FALLBACK_ACTIVE_MODALITY_COOKIE",
-      createdDate: Date.now(),
-    })}`,
-  );
-  cookieJar.push(`DD_modStore=${locationId}`);
+  const defaultImage =
+    product.images?.find((img) => img.default) || product.images?.[0];
+  const imageUrl =
+    defaultImage?.sizes?.find((s) => s.size === "medium")?.url ||
+    defaultImage?.sizes?.[0]?.url;
 
-  const { data } = await fetchJson<ModalityPreferencesResponse>(
-    `${QFC_WEEKLY_AD_BASE}/atlas/v1/modality/preferences?filter.restrictLafToFc=false`,
-    {
-      method: "POST",
-      headers: {
-        accept: "application/json, text/plain, */*",
-        "user-agent": "Mozilla/5.0",
-        referer: `${QFC_WEEKLY_AD_BASE}/weeklyad`,
-        origin: QFC_WEEKLY_AD_BASE,
-        dnt: "1",
-        "x-kroger-channel": "WEB",
-        "x-call-origin": JSON.stringify({ page: "all", component: "CSR" }),
-        cookie: cookieJar.join("; "),
-      },
-      signal: params.signal,
-    },
-  );
-
-  return validateLafObject(data?.data?.modalityPreferences?.lafObject);
+  return {
+    id: product.productId || product.upc || Math.random().toString(36).slice(2),
+    title,
+    details: item?.size || undefined,
+    price,
+    savings,
+    department,
+    imageUrl,
+    source: "search_api",
+  };
 }
 
-async function fetchShoppableWeeklyDeals(params: {
+async function fetchDealsBySearchApi(params: {
   locationId: string;
-  circularId: string;
-  lafObject: unknown[];
-  signal?: AbortSignal;
-}): Promise<WeeklyDealsResponse["data"]["shoppableWeeklyDeals"]> {
-  const url = new URL(
-    "/atlas/v1/shoppable-weekly-deals/deals",
-    QFC_WEEKLY_AD_BASE,
-  );
-  url.searchParams.set("filter.circularId", params.circularId);
-  url.searchParams.set("filter.adGroupName.like", "");
-  url.searchParams.set("fields.ads", "");
+  searchProducts: ProductSearchFn;
+  limit?: number;
+}): Promise<{ deals: NormalizedWeeklyDeal[]; termCount: number }> {
+  const limit = Math.max(1, Math.min(params.limit || 50, 200));
 
-  const { data } = await fetchJson<WeeklyDealsResponse>(url.toString(), {
-    headers: makeQfcHeaders({
-      locationId: params.locationId,
-      lafObject: params.lafObject,
-    }),
-    signal: params.signal,
+  const searchPromises = DEAL_SEARCH_TERMS.map((term) =>
+    params
+      .searchProducts(term, params.locationId, PRODUCTS_PER_TERM)
+      .catch(() => [] as KrogerProduct[]),
+  );
+
+  const results = await Promise.all(searchPromises);
+  const allProducts = results.flat();
+
+  // Keep only products with an active promo price below the regular price
+  const onSale = allProducts.filter((product) => {
+    const item = product.items?.[0];
+    const promo = item?.price?.promo;
+    const regular = item?.price?.regular;
+    return (
+      typeof promo === "number" &&
+      typeof regular === "number" &&
+      promo < regular
+    );
   });
 
-  return data.data.shoppableWeeklyDeals;
-}
-
-async function fetchWeeklyDigitalCoupons(params: {
-  locationId: string;
-  lafObject: unknown[];
-  signal?: AbortSignal;
-}): Promise<Coupon[]> {
-  const url = new URL(
-    "/atlas/v1/savings-coupons/v1/coupons",
-    QFC_WEEKLY_AD_BASE,
-  );
-  url.searchParams.append("filter.specialSavings", "wdd");
-  url.searchParams.append("projections", "coupons.compact");
-
-  const { data } = await fetchJson<CouponsResponse>(url.toString(), {
-    headers: makeQfcHeaders({
-      locationId: params.locationId,
-      lafObject: params.lafObject,
-    }),
-    signal: params.signal,
+  // Deduplicate by productId / upc
+  const seen = new Set<string>();
+  const unique = onSale.filter((product) => {
+    const id = product.productId || product.upc;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
   });
 
-  return data.data.coupons || [];
+  const deals = unique.slice(0, limit).map(normalizeProductAsDeal);
+  return { deals, termCount: DEAL_SEARCH_TERMS.length };
 }
+
+// ---------------------------------------------------------------------------
+// Print-ad fallback (DACS)
+// ---------------------------------------------------------------------------
 
 async function fetchPrintAdListing(params: {
   eventId: string;
@@ -434,55 +387,6 @@ function dedupeDealsById<T extends { id: string }>(deals: T[]): T[] {
   return unique;
 }
 
-function normalizeShoppableDeals(
-  shoppable: WeeklyDealsResponse["data"]["shoppableWeeklyDeals"],
-  limit?: number,
-): { deals: NormalizedWeeklyDeal[]; adGroupCount: number } {
-  const ads = shoppable.ads || [];
-  const max = Math.max(1, Math.min(limit || 50, 200));
-
-  const deals = ads.slice(0, max).map((deal: QfcShoppableDeal) => {
-    const department = deal.departments?.[0]?.department;
-    const price = formatPrice(
-      deal.salePrice ?? deal.retailPrice ?? deal.price,
-      deal.uom,
-    );
-
-    let savings: string | undefined;
-    if (typeof deal.saveAmount === "number" && deal.saveAmount > 0) {
-      savings = `Save ${formatPrice(deal.saveAmount)}`;
-    } else if (typeof deal.savePercent === "number" && deal.savePercent > 0) {
-      savings = `Save ${deal.savePercent}%`;
-    } else if (typeof deal.percentOff === "number" && deal.percentOff > 0) {
-      savings = `${deal.percentOff}% off`;
-    }
-
-    return {
-      id: deal.id,
-      title: deal.mainlineCopy || "Unknown Deal",
-      details: deal.underlineCopy || undefined,
-      price: price || undefined,
-      savings,
-      loyalty: deal.loyaltyIndicator || undefined,
-      department,
-      validFrom: deal.validFrom || undefined,
-      validTill: deal.validTill || undefined,
-      disclaimer: deal.disclaimer || undefined,
-      imageUrl: deal.images?.[0]?.url,
-      source: "shoppable" as const,
-      rawType: deal.type,
-    };
-  });
-
-  return {
-    deals,
-    adGroupCount:
-      ((shoppable as unknown as { adGroups?: unknown[] }).adGroups?.length as
-        | number
-        | undefined) || 0,
-  };
-}
-
 async function normalizePrintDeals(params: {
   printCircular: Circular;
   locationId: string;
@@ -539,105 +443,64 @@ async function normalizePrintDeals(params: {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
+
 export async function getQfcWeeklyDeals(
   options: QfcWeeklyDealsOptions = {},
 ): Promise<QfcDealsApiResponse> {
   const locationId = getDefaultLocationId(options.locationId);
   const divisionCode = inferDivisionCode(locationId, options.divisionCode);
-  const includeCoupons = options.includeCoupons !== false;
   const warnings: string[] = [];
 
-  const circulars = await fetchQfcWeeklyCirculars({
-    divisionCode,
-    signal: options.signal,
-  });
-  const { shoppable: shoppableCircular, print: printCircular } =
-    selectCurrentCirculars(circulars);
-
-  if (!shoppableCircular && !printCircular) {
-    throw new Error(
-      `No current QFC weekly ad circulars found for division ${divisionCode}`,
+  // Fetch circular metadata for date context (no auth required)
+  let shoppableCircular: Circular | undefined;
+  let printCircular: Circular | undefined;
+  try {
+    const circulars = await fetchQfcWeeklyCirculars({
+      divisionCode,
+      signal: options.signal,
+    });
+    const selected = selectCurrentCirculars(circulars);
+    shoppableCircular = selected.shoppable;
+    printCircular = selected.print;
+  } catch (error) {
+    warnings.push(
+      `Unable to fetch weekly circulars for date context: ${safeErrorMessage(error)}`,
     );
   }
 
-  let lafObject = validateLafObject(options.lafObject);
-  let lafBootstrap: LafBootstrapStatus | undefined;
-  if (lafObject) {
-    lafBootstrap = "provided";
-  }
-
-  let shoppableError: string | undefined;
-
-  if (!lafObject && shoppableCircular) {
+  // Primary: Kroger Product Search API (requires auth)
+  if (options.searchProducts) {
     try {
-      lafObject = await tryBootstrapLafObjectFromQfc({
+      const { deals, termCount } = await fetchDealsBySearchApi({
         locationId,
-        signal: options.signal,
+        searchProducts: options.searchProducts,
+        limit: options.limit,
       });
-      if (lafObject) lafBootstrap = "bootstrapped";
-    } catch (error) {
-      shoppableError = safeErrorMessage(error);
-      warnings.push(
-        "Unable to bootstrap QFC modality LAF object for shoppable deals; falling back to print-ad parsing.",
-      );
-      lafBootstrap = "unavailable";
-    }
-  }
-
-  if (shoppableCircular && lafObject) {
-    try {
-      const shoppable = await fetchShoppableWeeklyDeals({
-        locationId,
-        circularId: shoppableCircular.id,
-        lafObject,
-        signal: options.signal,
-      });
-
-      const { deals, adGroupCount } = normalizeShoppableDeals(
-        shoppable,
-        options.limit,
-      );
-
-      let coupons: Coupon[] | undefined;
-      if (includeCoupons) {
-        try {
-          coupons = await fetchWeeklyDigitalCoupons({
-            locationId,
-            lafObject,
-            signal: options.signal,
-          });
-        } catch (error) {
-          warnings.push(
-            `Weekly digital coupons unavailable: ${safeErrorMessage(error)}`,
-          );
-        }
-      }
 
       return {
-        sourceMode: "shoppable",
+        sourceMode: "search_api",
         locationId,
         divisionCode,
         shoppableCircular,
         printCircular,
         warnings,
         deals,
-        coupons,
-        meta: {
-          adGroupCount,
-          lafBootstrap,
-        },
+        meta: { termCount },
       };
     } catch (error) {
-      shoppableError = safeErrorMessage(error);
       warnings.push(
-        `Shoppable weekly deals request failed; using print-ad fallback. (${shoppableError})`,
+        `Search API deal fetch failed; falling back to print-ad. (${safeErrorMessage(error)})`,
       );
     }
   }
 
+  // Fallback: print-ad parsing via DACS (no auth required)
   if (!printCircular) {
     throw new Error(
-      `Shoppable deals failed and no print circular was available. ${shoppableError || ""}`.trim(),
+      `No print circular available for deal fallback (division ${divisionCode}). ${warnings.join(" ")}`.trim(),
     );
   }
 
@@ -658,55 +521,13 @@ export async function getQfcWeeklyDeals(
       shoppableCircular,
       printCircular,
       warnings,
-      shoppableError,
       deals,
-      meta: {
-        pageCount,
-        lafBootstrap,
-      },
+      meta: { pageCount },
     };
   } catch (error) {
     printError = safeErrorMessage(error);
     throw new Error(
-      `Failed to fetch weekly deals from both shoppable and print sources. Shoppable: ${shoppableError || "n/a"} | Print: ${printError}`,
+      `Failed to fetch deals from both search API and print-ad sources. Print: ${printError}`,
     );
   }
-}
-
-export function getQfcWeeklyDealsDefaults() {
-  return { defaultLocationId: DEFAULT_QFC_LOCATION_ID };
-}
-
-export function parseLafObjectQueryParam(
-  value: string | undefined,
-): unknown[] | undefined {
-  if (!value) return undefined;
-  const parsed = JSON.parse(value) as unknown;
-  return validateLafObject(parsed);
-}
-
-export function parseDealsQueryParams(input: {
-  locationId?: string;
-  divisionCode?: string;
-  includeCoupons?: string;
-  limit?: string;
-  pageLimit?: string;
-  lafObject?: string;
-}): QfcWeeklyDealsOptions {
-  const limit = input.limit ? Number.parseInt(input.limit, 10) : undefined;
-  const pageLimit = input.pageLimit
-    ? Number.parseInt(input.pageLimit, 10)
-    : undefined;
-
-  return {
-    locationId: input.locationId,
-    divisionCode: input.divisionCode,
-    includeCoupons:
-      typeof input.includeCoupons === "string"
-        ? parseBooleanFlag(input.includeCoupons)
-        : undefined,
-    limit: Number.isFinite(limit as number) ? limit : undefined,
-    pageLimit: Number.isFinite(pageLimit as number) ? pageLimit : undefined,
-    lafObject: parseLafObjectQueryParam(input.lafObject),
-  };
 }
