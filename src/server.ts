@@ -16,6 +16,7 @@ import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import type { GrantProps, Props } from "./tools/types.js";
+import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
   server = new McpServer({
@@ -41,6 +42,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     registerInventoryTools(ctx);
     registerRecipeTools(ctx);
     registerShoppingListTools(ctx);
+    registerWeeklyDealsTools(ctx);
     registerResources(ctx);
   }
 }
