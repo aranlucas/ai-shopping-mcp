@@ -145,7 +145,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
     {
       title: "Get Weekly Deals",
       description:
-        "Fetches current QFC/Kroger weekly deals by searching the Kroger Product API for on-sale items across common grocery categories. Falls back to print-ad parsing if the search API is unavailable.",
+        "Fetches current QFC/Kroger weekly deals from the print ad (DACS), then augments each deal with real pricing from the Kroger Product Search API. Falls back to search-API-only deal discovery if print-ad parsing fails.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -279,6 +279,12 @@ function formatWeeklyDealsToolResponse(
   if (cacheState !== "miss") {
     lines.push(
       `Cache: ${cacheState === "fresh" ? "KV hit (fresh)" : "KV hit (stale)"}`,
+    );
+  }
+
+  if (result.meta?.augmentedCount !== undefined) {
+    lines.push(
+      `Pricing augmented via Kroger Search API: ${result.meta.augmentedCount} of ${result.deals.length} deals`,
     );
   }
 
