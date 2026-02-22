@@ -61,6 +61,7 @@ export interface QfcDealsApiResponse {
   meta?: {
     termCount?: number;
     pageCount?: number;
+    augmentedCount?: number;
   };
 }
 
@@ -444,6 +445,60 @@ async function normalizePrintDeals(params: {
 }
 
 // ---------------------------------------------------------------------------
+// Search API augmentation for print-ad deals
+// ---------------------------------------------------------------------------
+
+/**
+ * For each print-ad deal, searches the Kroger Product API by deal title and
+ * merges real pricing (regular + promo) into the normalized deal. Deals that
+ * don't match any product are returned unchanged.
+ */
+async function augmentPrintDealsWithSearchApi(
+  deals: NormalizedWeeklyDeal[],
+  searchProducts: ProductSearchFn,
+  locationId: string,
+): Promise<{ augmented: NormalizedWeeklyDeal[]; augmentedCount: number }> {
+  const augmentPromises = deals.map(async (deal) => {
+    const products = await searchProducts(deal.title, locationId, 5).catch(
+      () => [] as KrogerProduct[],
+    );
+
+    // Prefer a product that has a promo price, otherwise take any priced product
+    const match =
+      products.find((p) => typeof p.items?.[0]?.price?.promo === "number") ||
+      products.find((p) => typeof p.items?.[0]?.price?.regular === "number");
+
+    if (!match) return deal;
+
+    const item = match.items?.[0];
+    const promo = item?.price?.promo;
+    const regular = item?.price?.regular;
+
+    let price: string | undefined;
+    let savings: string | undefined;
+
+    if (typeof promo === "number") {
+      price = formatPrice(promo);
+      if (typeof regular === "number" && regular > promo) {
+        savings = `Save ${formatPrice(regular - promo)} (was ${formatPrice(regular)})`;
+      }
+    } else if (typeof regular === "number") {
+      price = formatPrice(regular);
+    }
+
+    if (!price) return deal;
+    return { ...deal, price, savings };
+  });
+
+  const augmented = await Promise.all(augmentPromises);
+  const augmentedCount = augmented.filter(
+    (d, i) => d.price !== deals[i].price,
+  ).length;
+
+  return { augmented, augmentedCount };
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -482,6 +537,25 @@ export async function getQfcWeeklyDeals(
         signal: options.signal,
       });
 
+      // Augment print deals with real pricing from the Kroger Search API
+      let finalDeals = deals;
+      let augmentedCount: number | undefined;
+      if (options.searchProducts && deals.length > 0) {
+        try {
+          const result = await augmentPrintDealsWithSearchApi(
+            deals,
+            options.searchProducts,
+            locationId,
+          );
+          finalDeals = result.augmented;
+          augmentedCount = result.augmentedCount;
+        } catch (error) {
+          warnings.push(
+            `Search API pricing augmentation failed: ${safeErrorMessage(error)}`,
+          );
+        }
+      }
+
       return {
         sourceMode: "print_fallback",
         locationId,
@@ -489,8 +563,8 @@ export async function getQfcWeeklyDeals(
         shoppableCircular,
         printCircular,
         warnings,
-        deals,
-        meta: { pageCount },
+        deals: finalDeals,
+        meta: { pageCount, augmentedCount },
       };
     } catch (error) {
       warnings.push(
