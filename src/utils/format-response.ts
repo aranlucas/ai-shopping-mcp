@@ -464,6 +464,38 @@ export function formatWeeklyDealsList(deals: WeeklyDeal[]): string {
 }
 
 /**
+ * COMPACT: Token-efficient weekly deal formatting
+ * Format: Name | details | $price (savings) | Dept
+ */
+export function formatWeeklyDealCompact(deal: WeeklyDeal): string {
+  const parts: string[] = [];
+
+  parts.push(deal.product);
+
+  if (deal.details) parts.push(deal.details);
+
+  const priceParts: string[] = [deal.price];
+  if (deal.savings) priceParts.push(`(${deal.savings})`);
+  parts.push(priceParts.join(" "));
+
+  if (deal.loyalty) parts.push(deal.loyalty);
+  if (deal.department) parts.push(deal.department);
+
+  return parts.join(" | ");
+}
+
+/**
+ * COMPACT: Format multiple weekly deals efficiently
+ */
+export function formatWeeklyDealsListCompact(deals: WeeklyDeal[]): string {
+  if (deals.length === 0) return "No weekly deals found.";
+
+  return deals
+    .map((deal, index) => `${index + 1}. ${formatWeeklyDealCompact(deal)}`)
+    .join("\n");
+}
+
+/**
  * Format pantry item for display
  */
 export function formatPantryItem(item: PantryItem): string {

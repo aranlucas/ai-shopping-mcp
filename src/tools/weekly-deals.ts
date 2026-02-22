@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
-import { formatWeeklyDealsList } from "../utils/format-response.js";
+import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
 import type { ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -166,7 +166,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           .min(1)
           .max(200)
           .optional()
-          .default(25)
+          .default(50)
           .describe("Maximum number of deals to return"),
         pageLimit: z
           .number()
@@ -251,7 +251,7 @@ function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,
   cacheState: "miss" | "fresh" | "stale",
 ) {
-  const formattedDeals = formatWeeklyDealsList(
+  const formattedDeals = formatWeeklyDealsListCompact(
     result.deals.map((deal) => ({
       product: deal.title,
       details: deal.details,
@@ -259,7 +259,6 @@ function formatWeeklyDealsToolResponse(
       savings: deal.savings,
       loyalty: deal.loyalty,
       department: deal.department,
-      disclaimer: deal.disclaimer,
     })),
   );
 

@@ -29,7 +29,9 @@ import {
   formatShoppingListItem,
   formatShoppingListItemCompact,
   formatWeeklyDeal,
+  formatWeeklyDealCompact,
   formatWeeklyDealsList,
+  formatWeeklyDealsListCompact,
 } from "../../src/utils/format-response.js";
 
 // ----- Product Formatting -----
@@ -342,6 +344,52 @@ describe("formatWeeklyDeal", () => {
 describe("formatWeeklyDealsList", () => {
   it("returns empty message for no deals", () => {
     expect(formatWeeklyDealsList([])).toBe("No weekly deals found.");
+  });
+});
+
+describe("formatWeeklyDealCompact", () => {
+  it("formats a full deal in compact pipe-separated format", () => {
+    const deal = {
+      product: "Ground Beef",
+      details: "80% Lean",
+      price: "$3.99/lb",
+      savings: "Save $2.00",
+      loyalty: "Card Required",
+      department: "Meat",
+    };
+    const result = formatWeeklyDealCompact(deal);
+    expect(result).toBe(
+      "Ground Beef | 80% Lean | $3.99/lb (Save $2.00) | Card Required | Meat",
+    );
+  });
+
+  it("formats a minimal deal compactly", () => {
+    const deal = { product: "Bananas", price: "$0.59/lb" };
+    const result = formatWeeklyDealCompact(deal);
+    expect(result).toBe("Bananas | $0.59/lb");
+  });
+
+  it("omits optional fields when absent", () => {
+    const deal = { product: "Milk", price: "$2.99", department: "Dairy" };
+    const result = formatWeeklyDealCompact(deal);
+    expect(result).toBe("Milk | $2.99 | Dairy");
+  });
+});
+
+describe("formatWeeklyDealsListCompact", () => {
+  it("returns empty message for no deals", () => {
+    expect(formatWeeklyDealsListCompact([])).toBe("No weekly deals found.");
+  });
+
+  it("formats numbered list on single lines", () => {
+    const deals = [
+      { product: "Apples", price: "$1.99/lb" },
+      { product: "Oranges", price: "$2.49/lb", department: "Produce" },
+    ];
+    const result = formatWeeklyDealsListCompact(deals);
+    expect(result).toBe(
+      "1. Apples | $1.99/lb\n2. Oranges | $2.49/lb | Produce",
+    );
   });
 });
 
