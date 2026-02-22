@@ -471,7 +471,35 @@ export async function getQfcWeeklyDeals(
     );
   }
 
-  // Primary: Kroger Product Search API (requires auth)
+  // Primary: print-ad parsing via DACS (no auth required)
+  if (printCircular) {
+    try {
+      const { deals, pageCount } = await normalizePrintDeals({
+        printCircular,
+        locationId,
+        pageLimit: options.pageLimit,
+        limit: options.limit,
+        signal: options.signal,
+      });
+
+      return {
+        sourceMode: "print_fallback",
+        locationId,
+        divisionCode,
+        shoppableCircular,
+        printCircular,
+        warnings,
+        deals,
+        meta: { pageCount },
+      };
+    } catch (error) {
+      warnings.push(
+        `Print-ad parsing failed; falling back to search API. (${safeErrorMessage(error)})`,
+      );
+    }
+  }
+
+  // Fallback: Kroger Product Search API (requires auth)
   if (options.searchProducts) {
     try {
       const { deals, termCount } = await fetchDealsBySearchApi({
@@ -492,42 +520,12 @@ export async function getQfcWeeklyDeals(
       };
     } catch (error) {
       warnings.push(
-        `Search API deal fetch failed; falling back to print-ad. (${safeErrorMessage(error)})`,
+        `Search API deal fetch also failed. (${safeErrorMessage(error)})`,
       );
     }
   }
 
-  // Fallback: print-ad parsing via DACS (no auth required)
-  if (!printCircular) {
-    throw new Error(
-      `No print circular available for deal fallback (division ${divisionCode}). ${warnings.join(" ")}`.trim(),
-    );
-  }
-
-  let printError: string | undefined;
-  try {
-    const { deals, pageCount } = await normalizePrintDeals({
-      printCircular,
-      locationId,
-      pageLimit: options.pageLimit,
-      limit: options.limit,
-      signal: options.signal,
-    });
-
-    return {
-      sourceMode: "print_fallback",
-      locationId,
-      divisionCode,
-      shoppableCircular,
-      printCircular,
-      warnings,
-      deals,
-      meta: { pageCount },
-    };
-  } catch (error) {
-    printError = safeErrorMessage(error);
-    throw new Error(
-      `Failed to fetch deals from both search API and print-ad sources. Print: ${printError}`,
-    );
-  }
+  throw new Error(
+    `Failed to fetch deals from all sources (division ${divisionCode}). ${warnings.join(" ")}`.trim(),
+  );
 }
