@@ -266,9 +266,9 @@ function formatWeeklyDealsToolResponse(
   );
 
   const sourceLabel =
-    result.sourceMode === "search_api"
-      ? "Kroger Product Search API (on-sale items)"
-      : "Print ad fallback";
+    result.sourceMode === "print_fallback"
+      ? "Print ad (DACS)"
+      : "Kroger Product Search API (on-sale items, fallback)";
 
   const lines: string[] = [
     `Weekly deals source: ${sourceLabel}`,
