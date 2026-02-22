@@ -497,33 +497,19 @@ export function formatWeeklyDealCompact(
   return parts.join(" | ");
 }
 
-const COMPACT_THRESHOLD = 50;
-
 /**
  * COMPACT: Format multiple weekly deals efficiently.
- * First 50 deals show full info. After 50, already-seen departments and
- * loyalty tags are suppressed to save tokens. A department summary is
- * appended at the end when deals exceed the threshold.
+ * Repeated loyalty tags and departments are suppressed after their first
+ * occurrence to avoid redundancy across the list.
  */
 export function formatWeeklyDealsListCompact(deals: WeeklyDeal[]): string {
   if (deals.length === 0) return "No weekly deals found.";
 
   const seenDepts = new Set<string>();
   const seenLoyalty = new Set<string>();
-  const deptCounts = new Map<string, number>();
 
   const lines = deals.map((deal, index) => {
-    // Track department counts for the summary
-    if (deal.department) {
-      deptCounts.set(
-        deal.department,
-        (deptCounts.get(deal.department) || 0) + 1,
-      );
-    }
-
-    const suppress =
-      index >= COMPACT_THRESHOLD ? { seenDepts, seenLoyalty } : undefined;
-    const line = `${index + 1}. ${formatWeeklyDealCompact(deal, suppress)}`;
+    const line = `${index + 1}. ${formatWeeklyDealCompact(deal, { seenDepts, seenLoyalty })}`;
 
     // Record values AFTER formatting so the first occurrence still prints
     if (deal.department) seenDepts.add(deal.department);
@@ -531,15 +517,6 @@ export function formatWeeklyDealsListCompact(deals: WeeklyDeal[]): string {
 
     return line;
   });
-
-  // Append a department breakdown when we suppressed repeats
-  if (deals.length > COMPACT_THRESHOLD && deptCounts.size > 0) {
-    const summary = [...deptCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([dept, count]) => `${dept}(${count})`)
-      .join(", ");
-    lines.push("", `Dept breakdown: ${summary}`);
-  }
 
   return lines.join("\n");
 }

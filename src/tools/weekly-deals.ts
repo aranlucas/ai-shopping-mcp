@@ -262,11 +262,6 @@ function formatWeeklyDealsToolResponse(
     })),
   );
 
-  const sourceLabel =
-    result.sourceMode === "print_fallback"
-      ? "Print ad (DACS)"
-      : "Kroger Product Search API (on-sale items, fallback)";
-
   // Determine the valid period once from the circular (all deals share the same ad period)
   const validFrom =
     result.printCircular?.eventStartDate ??
@@ -278,29 +273,12 @@ function formatWeeklyDealsToolResponse(
     result.deals.find((d) => d.validTill)?.validTill;
 
   const lines: string[] = [
-    `Weekly deals source: ${sourceLabel}`,
-    `Location: ${result.locationId} (division ${result.divisionCode})`,
-    `Deals returned: ${result.deals.length}`,
+    `Location: ${result.locationId}`,
+    `Deals: ${result.deals.length}`,
   ];
 
   if (validFrom && validTill) {
-    lines.push(`Valid: ${validFrom} - ${validTill}`);
-  }
-
-  if (cacheState !== "miss") {
-    lines.push(
-      `Cache: ${cacheState === "fresh" ? "KV hit (fresh)" : "KV hit (stale)"}`,
-    );
-  }
-
-  if (result.meta?.augmentedCount !== undefined) {
-    lines.push(
-      `Pricing augmented via Kroger Search API: ${result.meta.augmentedCount} of ${result.deals.length} deals`,
-    );
-  }
-
-  if (result.meta?.termCount !== undefined) {
-    lines.push(`Search categories: ${result.meta.termCount}`);
+    lines.push(`Valid: ${validFrom} – ${validTill}`);
   }
 
   if (result.warnings.length > 0) {
