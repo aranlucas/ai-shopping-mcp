@@ -257,17 +257,9 @@ function formatWeeklyDealsToolResponse(
       details: deal.details,
       price: deal.price || "See weekly ad",
       savings: deal.savings,
-      loyalty: deal.loyalty,
-      department: deal.department,
     })),
   );
 
-  const sourceLabel =
-    result.sourceMode === "print_fallback"
-      ? "Print ad (DACS)"
-      : "Kroger Product Search API (on-sale items, fallback)";
-
-  // Determine the valid period once from the circular (all deals share the same ad period)
   const validFrom =
     result.printCircular?.eventStartDate ??
     result.shoppableCircular?.eventStartDate ??
@@ -277,41 +269,22 @@ function formatWeeklyDealsToolResponse(
     result.shoppableCircular?.eventEndDate ??
     result.deals.find((d) => d.validTill)?.validTill;
 
-  const lines: string[] = [
-    `Weekly deals source: ${sourceLabel}`,
-    `Location: ${result.locationId} (division ${result.divisionCode})`,
-    `Deals returned: ${result.deals.length}`,
-  ];
+  const headerLines: string[] = [];
+  if (validFrom && validTill)
+    headerLines.push(`Valid: ${validFrom} – ${validTill}`);
+  if (result.warnings.length > 0)
+    headerLines.push(`Warnings: ${result.warnings.join(" | ")}`);
 
-  if (validFrom && validTill) {
-    lines.push(`Valid: ${validFrom} - ${validTill}`);
-  }
-
-  if (cacheState !== "miss") {
-    lines.push(
-      `Cache: ${cacheState === "fresh" ? "KV hit (fresh)" : "KV hit (stale)"}`,
-    );
-  }
-
-  if (result.meta?.augmentedCount !== undefined) {
-    lines.push(
-      `Pricing augmented via Kroger Search API: ${result.meta.augmentedCount} of ${result.deals.length} deals`,
-    );
-  }
-
-  if (result.meta?.termCount !== undefined) {
-    lines.push(`Search categories: ${result.meta.termCount}`);
-  }
-
-  if (result.warnings.length > 0) {
-    lines.push(`Warnings: ${result.warnings.join(" | ")}`);
-  }
+  const text =
+    headerLines.length > 0
+      ? `${headerLines.join("\n")}\n\n${formattedDeals}`
+      : formattedDeals;
 
   return {
     content: [
       {
         type: "text" as const,
-        text: `${lines.join("\n")}\n\n${formattedDeals}`,
+        text,
       },
     ],
     structuredContent: {
