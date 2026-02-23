@@ -464,61 +464,24 @@ export function formatWeeklyDealsList(deals: WeeklyDeal[]): string {
 }
 
 /**
- * COMPACT: Token-efficient weekly deal formatting
- * Format: Name | details | $price (savings) | Loyalty | Dept
- * When suppressRepeats is provided, already-seen department/loyalty values are omitted.
+ * COMPACT: Format a single deal as "Name | details | price (savings)"
  */
-export function formatWeeklyDealCompact(
-  deal: WeeklyDeal,
-  suppressRepeats?: { seenDepts: Set<string>; seenLoyalty: Set<string> },
-): string {
-  const parts: string[] = [];
-
-  parts.push(deal.product);
-
+export function formatWeeklyDealCompact(deal: WeeklyDeal): string {
+  const parts: string[] = [deal.product];
   if (deal.details) parts.push(deal.details);
-
-  const priceParts: string[] = [deal.price];
-  if (deal.savings) priceParts.push(`(${deal.savings})`);
-  parts.push(priceParts.join(" "));
-
-  if (deal.loyalty) {
-    if (!suppressRepeats || !suppressRepeats.seenLoyalty.has(deal.loyalty)) {
-      parts.push(deal.loyalty);
-    }
-  }
-
-  if (deal.department) {
-    if (!suppressRepeats || !suppressRepeats.seenDepts.has(deal.department)) {
-      parts.push(deal.department);
-    }
-  }
-
+  const price = deal.savings ? `${deal.price} (${deal.savings})` : deal.price;
+  parts.push(price);
   return parts.join(" | ");
 }
 
 /**
- * COMPACT: Format multiple weekly deals efficiently.
- * Repeated loyalty tags and departments are suppressed after their first
- * occurrence to avoid redundancy across the list.
+ * COMPACT: Numbered list of deals — name, size/details, price, savings only.
  */
 export function formatWeeklyDealsListCompact(deals: WeeklyDeal[]): string {
   if (deals.length === 0) return "No weekly deals found.";
-
-  const seenDepts = new Set<string>();
-  const seenLoyalty = new Set<string>();
-
-  const lines = deals.map((deal, index) => {
-    const line = `${index + 1}. ${formatWeeklyDealCompact(deal, { seenDepts, seenLoyalty })}`;
-
-    // Record values AFTER formatting so the first occurrence still prints
-    if (deal.department) seenDepts.add(deal.department);
-    if (deal.loyalty) seenLoyalty.add(deal.loyalty);
-
-    return line;
-  });
-
-  return lines.join("\n");
+  return deals
+    .map((deal, index) => `${index + 1}. ${formatWeeklyDealCompact(deal)}`)
+    .join("\n");
 }
 
 /**
