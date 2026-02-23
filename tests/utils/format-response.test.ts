@@ -358,9 +358,7 @@ describe("formatWeeklyDealCompact", () => {
       department: "Meat",
     };
     const result = formatWeeklyDealCompact(deal);
-    expect(result).toBe(
-      "Ground Beef | 80% Lean | $3.99/lb (Save $2.00) | Card Required | Meat",
-    );
+    expect(result).toBe("Ground Beef | 80% Lean | $3.99/lb (Save $2.00)");
   });
 
   it("formats a minimal deal compactly", () => {
@@ -372,7 +370,7 @@ describe("formatWeeklyDealCompact", () => {
   it("omits optional fields when absent", () => {
     const deal = { product: "Milk", price: "$2.99", department: "Dairy" };
     const result = formatWeeklyDealCompact(deal);
-    expect(result).toBe("Milk | $2.99 | Dairy");
+    expect(result).toBe("Milk | $2.99");
   });
 });
 
@@ -387,9 +385,7 @@ describe("formatWeeklyDealsListCompact", () => {
       { product: "Oranges", price: "$2.49/lb", department: "Produce" },
     ];
     const result = formatWeeklyDealsListCompact(deals);
-    expect(result).toBe(
-      "1. Apples | $1.99/lb\n2. Oranges | $2.49/lb | Produce",
-    );
+    expect(result).toBe("1. Apples | $1.99/lb\n2. Oranges | $2.49/lb");
   });
 });
 
