@@ -257,12 +257,9 @@ function formatWeeklyDealsToolResponse(
       details: deal.details,
       price: deal.price || "See weekly ad",
       savings: deal.savings,
-      loyalty: deal.loyalty,
-      department: deal.department,
     })),
   );
 
-  // Determine the valid period once from the circular (all deals share the same ad period)
   const validFrom =
     result.printCircular?.eventStartDate ??
     result.shoppableCircular?.eventStartDate ??
@@ -272,24 +269,22 @@ function formatWeeklyDealsToolResponse(
     result.shoppableCircular?.eventEndDate ??
     result.deals.find((d) => d.validTill)?.validTill;
 
-  const lines: string[] = [
-    `Location: ${result.locationId}`,
-    `Deals: ${result.deals.length}`,
-  ];
+  const headerLines: string[] = [];
+  if (validFrom && validTill)
+    headerLines.push(`Valid: ${validFrom} – ${validTill}`);
+  if (result.warnings.length > 0)
+    headerLines.push(`Warnings: ${result.warnings.join(" | ")}`);
 
-  if (validFrom && validTill) {
-    lines.push(`Valid: ${validFrom} – ${validTill}`);
-  }
-
-  if (result.warnings.length > 0) {
-    lines.push(`Warnings: ${result.warnings.join(" | ")}`);
-  }
+  const text =
+    headerLines.length > 0
+      ? `${headerLines.join("\n")}\n\n${formattedDeals}`
+      : formattedDeals;
 
   return {
     content: [
       {
         type: "text" as const,
-        text: `${lines.join("\n")}\n\n${formattedDeals}`,
+        text,
       },
     ],
     structuredContent: {
