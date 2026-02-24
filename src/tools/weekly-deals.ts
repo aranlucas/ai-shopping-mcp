@@ -6,7 +6,7 @@ import type { ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
 
-type WeeklyDealsCacheEntry = {
+export type WeeklyDealsCacheEntry = {
   version: 1;
   createdAt: number;
   freshUntil: number;
@@ -23,7 +23,7 @@ const WEEKLY_DEALS_CACHE_VERSION = 1;
 const FRESH_CACHE_MS = 6 * 60 * 60 * 1000;
 const STALE_GRACE_MS = 48 * 60 * 60 * 1000;
 
-function isKvLike(value: unknown): value is KvLike {
+export function isKvLike(value: unknown): value is KvLike {
   return (
     !!value && typeof value === "object" && "get" in value && "put" in value
   );
@@ -39,7 +39,7 @@ function getCacheKv(ctx: ToolContext): KvLike | null {
   }
 }
 
-function buildWeeklyDealsCacheKey(params: {
+export function buildWeeklyDealsCacheKey(params: {
   locationId?: string;
   limit: number;
   pageLimit: number;
@@ -55,7 +55,9 @@ function buildWeeklyDealsCacheKey(params: {
   ].join("|");
 }
 
-function parseCacheEntry(raw: string | null): WeeklyDealsCacheEntry | null {
+export function parseCacheEntry(
+  raw: string | null,
+): WeeklyDealsCacheEntry | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as WeeklyDealsCacheEntry;
@@ -89,7 +91,9 @@ async function readWeeklyDealsCache(
   return { kind: "miss" };
 }
 
-function getLatestCircularEndTime(result: QfcDealsApiResponse): number | null {
+export function getLatestCircularEndTime(
+  result: QfcDealsApiResponse,
+): number | null {
   const candidates = [
     result.shoppableCircular?.eventEndDate,
     result.printCircular?.eventEndDate,
@@ -129,7 +133,7 @@ async function writeWeeklyDealsCache(
   await kv.put(key, JSON.stringify(entry), { expirationTtl });
 }
 
-function addCacheWarning(
+export function addCacheWarning(
   result: QfcDealsApiResponse,
   message: string,
 ): QfcDealsApiResponse {
@@ -247,7 +251,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
   );
 }
 
-function formatWeeklyDealsToolResponse(
+export function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,
   cacheState: "miss" | "fresh" | "stale",
 ) {
