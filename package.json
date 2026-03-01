@@ -23,7 +23,8 @@
   "description": "",
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.2.3",
-    "agents": "^0.3.4",
+    "@modelcontextprotocol/sdk": "1.26.0",
+    "agents": "^0.6.0",
     "hono": "^4.11.3",
     "openapi-fetch": "^0.15.0"
   },
