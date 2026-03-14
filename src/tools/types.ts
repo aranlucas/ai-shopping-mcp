@@ -24,6 +24,7 @@ export type ToolContext = {
   clients: KrogerClients;
   getProps: () => Props | undefined;
   getEnv: () => Env;
+  keepAliveWhile: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
 /**

@@ -265,6 +265,46 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const resultParts: string[] = [];
 
       if (withUpc.length > 0) {
+        // Use MCP elicitation to confirm checkout with the user
+        try {
+          const itemSummary = withUpc
+            .map((i) => `${i.productName} x${i.quantity}`)
+            .join(", ");
+
+          const elicitResult = await ctx.server.server.elicitInput({
+            message: `Add ${withUpc.length} item(s) to your Kroger cart? Items: ${itemSummary}`,
+            requestedSchema: {
+              type: "object" as const,
+              properties: {
+                confirm: {
+                  type: "boolean" as const,
+                  title: "Confirm checkout",
+                  description: "Add these items to your Kroger cart?",
+                  default: true,
+                },
+              },
+            },
+          });
+
+          if (
+            elicitResult.action === "decline" ||
+            elicitResult.action === "cancel" ||
+            (elicitResult.action === "accept" &&
+              elicitResult.content?.confirm === false)
+          ) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Checkout cancelled. Your shopping list remains unchanged.",
+                },
+              ],
+            };
+          }
+        } catch {
+          // Elicitation not supported by client — proceed without confirmation
+        }
+
         const cartItems: CartItem[] = withUpc.map((item) => ({
           upc: item.upc as string,
           quantity: item.quantity,
