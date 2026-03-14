@@ -19,10 +19,16 @@ import type { GrantProps, Props } from "./tools/types.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
-  server = new McpServer({
-    name: "kroger-ai-assistant",
-    version: "1.0.0",
-  });
+  server = new McpServer(
+    {
+      name: "kroger-ai-assistant",
+      version: "1.0.0",
+    },
+    {
+      instructions:
+        "AI shopping assistant for Kroger/QFC stores. Manage shopping lists, search products, find store locations, track pantry inventory, and plan meals. Use MCP Resources to read user context (pantry, equipment, shopping list, preferred location) before making suggestions.",
+    },
+  );
 
   async init() {
     const clients = createKrogerClients(() => this.props ?? null);
@@ -32,6 +38,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       clients,
       getProps: () => this.props,
       getEnv: () => this.env,
+      keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
     };
 
     // Register all MCP features

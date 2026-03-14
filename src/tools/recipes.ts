@@ -359,16 +359,19 @@ export function registerRecipeTools(ctx: ToolContext) {
       }
 
       // Try MCP sampling for AI-powered meal suggestions
+      // Use keepAliveWhile to prevent Durable Object eviction during LLM sampling
       try {
-        const result = await ctx.server.server.createMessage({
-          messages: [
-            {
-              role: "user",
-              content: { type: "text", text: prompt },
-            },
-          ],
-          maxTokens: 2000,
-        });
+        const result = await ctx.keepAliveWhile(() =>
+          ctx.server.server.createMessage({
+            messages: [
+              {
+                role: "user",
+                content: { type: "text", text: prompt },
+              },
+            ],
+            maxTokens: 2000,
+          }),
+        );
 
         // result.content may be a single content item or an array
         const contentItem = Array.isArray(result.content)
