@@ -2,7 +2,11 @@ import { z } from "zod";
 import type { components } from "../services/kroger/cart.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
-import { resolveLocationId, type ToolContext } from "./types.js";
+import {
+  getSessionScopedUserId,
+  resolveLocationId,
+  type ToolContext,
+} from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -84,6 +88,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     async ({ action, items, productName, quantity, upc, notes }) => {
       const props = ctx.requireUser();
       const { storage } = ctx;
+      const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
       switch (action) {
         case "add": {
@@ -109,10 +114,10 @@ export function registerShoppingListTools(ctx: ToolContext) {
               addedAt: now,
               checked: false,
             };
-            await storage.shoppingList.add(props.id, listItem);
+            await storage.shoppingList.add(scopedId, listItem);
           }
 
-          const list = await storage.shoppingList.getAll(props.id);
+          const list = await storage.shoppingList.getAll(scopedId);
           const formatted = formatShoppingListCompact(list);
 
           return {
@@ -138,9 +143,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
             };
           }
 
-          await storage.shoppingList.remove(props.id, productName);
+          await storage.shoppingList.remove(scopedId, productName);
 
-          const list = await storage.shoppingList.getAll(props.id);
+          const list = await storage.shoppingList.getAll(scopedId);
           const formatted = formatShoppingListCompact(list);
 
           return {
@@ -173,9 +178,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
           if (upc !== undefined) updates.upc = upc;
           if (notes !== undefined) updates.notes = notes;
 
-          await storage.shoppingList.updateItem(props.id, productName, updates);
+          await storage.shoppingList.updateItem(scopedId, productName, updates);
 
-          const list = await storage.shoppingList.getAll(props.id);
+          const list = await storage.shoppingList.getAll(scopedId);
           const formatted = formatShoppingListCompact(list);
 
           return {
@@ -189,7 +194,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         }
 
         case "clear": {
-          await storage.shoppingList.clear(props.id);
+          await storage.shoppingList.clear(scopedId);
 
           return {
             content: [
@@ -232,8 +237,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
     async ({ locationId, modality }) => {
       const props = ctx.requireUser();
       const { storage } = ctx;
+      const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
-      const uncheckedItems = await storage.shoppingList.getUnchecked(props.id);
+      const uncheckedItems = await storage.shoppingList.getUnchecked(scopedId);
 
       if (uncheckedItems.length === 0) {
         return {
@@ -344,7 +350,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         }
 
         for (const item of withUpc) {
-          await storage.shoppingList.updateItem(props.id, item.productName, {
+          await storage.shoppingList.updateItem(scopedId, item.productName, {
             checked: true,
           });
         }
@@ -364,7 +370,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         );
       }
 
-      const updatedList = await storage.shoppingList.getAll(props.id);
+      const updatedList = await storage.shoppingList.getAll(scopedId);
       const formatted = formatShoppingListCompact(updatedList);
       resultParts.push(`\nYour shopping list:\n\n${formatted}`);
 

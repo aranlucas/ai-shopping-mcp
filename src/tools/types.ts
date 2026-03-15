@@ -30,8 +30,20 @@ export type ToolContext = {
   getUser: () => Props | null;
   requireUser: () => Props;
   getEnv: () => Env;
+  getSessionId: () => string;
   keepAliveWhile: <T>(fn: () => Promise<T>) => Promise<T>;
 };
+
+/**
+ * Returns a session-scoped storage key for shopping list isolation.
+ * Each MCP session (chat) gets its own shopping list.
+ */
+export function getSessionScopedUserId(
+  userId: string,
+  sessionId: string,
+): string {
+  return `${userId}:session:${sessionId}`;
+}
 
 /**
  * Resolves a location ID, falling back to the user's preferred location.

@@ -1,5 +1,5 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ToolContext } from "./types.js";
+import { getSessionScopedUserId, type ToolContext } from "./types.js";
 
 export function registerResources(ctx: ToolContext) {
   const { productClient } = ctx.clients;
@@ -210,7 +210,8 @@ export function registerResources(ctx: ToolContext) {
         };
       }
 
-      const list = await ctx.storage.shoppingList.getAll(props.id);
+      const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
+      const list = await ctx.storage.shoppingList.getAll(scopedId);
       const unchecked = list.filter((i) => !i.checked);
       const withUpc = unchecked.filter((i) => i.upc);
       const withoutUpc = unchecked.filter((i) => !i.upc);
