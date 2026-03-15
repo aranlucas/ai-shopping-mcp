@@ -4,13 +4,12 @@ import {
   formatOrderHistoryCompact,
   formatPantryListCompact,
 } from "../utils/format-response.js";
-import {
-  createUserStorage,
-  type EquipmentItem,
-  type OrderRecord,
-  type PantryItem,
+import type {
+  EquipmentItem,
+  OrderRecord,
+  PantryItem,
 } from "../utils/user-storage.js";
-import { requireAuth, type ToolContext } from "./types.js";
+import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
   // --- Consolidated pantry tool ---
@@ -56,8 +55,8 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, productName }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
+      const props = ctx.requireUser();
+      const { storage } = ctx;
 
       switch (action) {
         case "add": {
@@ -185,8 +184,8 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, equipmentName }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
+      const props = ctx.requireUser();
+      const { storage } = ctx;
 
       switch (action) {
         case "add": {
@@ -297,8 +296,8 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ items, locationId, notes }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
+      const props = ctx.requireUser();
+      const { storage } = ctx;
 
       const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 

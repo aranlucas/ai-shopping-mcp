@@ -15,8 +15,9 @@ import { registerProductTools } from "./tools/product.js";
 import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
-import type { GrantProps, Props } from "./tools/types.js";
+import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
+import { createUserStorage } from "./utils/user-storage.js";
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
   server = new McpServer(
@@ -32,11 +33,17 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
   async init() {
     const clients = createKrogerClients(() => this.props ?? null);
+    const storage = createUserStorage(this.env.USER_DATA_KV);
 
-    const ctx = {
+    const ctx: ToolContext = {
       server: this.server,
       clients,
-      getProps: () => this.props,
+      storage,
+      getUser: () => this.props ?? null,
+      requireUser: () => {
+        if (!this.props?.id) throw new Error("User not authenticated");
+        return this.props;
+      },
       getEnv: () => this.env,
       keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
     };

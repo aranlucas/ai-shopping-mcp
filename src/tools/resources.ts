@@ -1,5 +1,4 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createUserStorage } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 export function registerResources(ctx: ToolContext) {
@@ -14,7 +13,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getProps();
+      const props = ctx.getUser();
       if (!props?.id) {
         return {
           contents: [
@@ -27,8 +26,7 @@ export function registerResources(ctx: ToolContext) {
         };
       }
 
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      const pantry = await storage.pantry.getAll(props.id);
+      const pantry = await ctx.storage.pantry.getAll(props.id);
 
       return {
         contents: [
@@ -59,7 +57,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getProps();
+      const props = ctx.getUser();
       if (!props?.id) {
         return {
           contents: [
@@ -72,8 +70,7 @@ export function registerResources(ctx: ToolContext) {
         };
       }
 
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      const equipment = await storage.equipment.getAll(props.id);
+      const equipment = await ctx.storage.equipment.getAll(props.id);
 
       return {
         contents: [
@@ -104,7 +101,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getProps();
+      const props = ctx.getUser();
       if (!props?.id) {
         return {
           contents: [
@@ -117,8 +114,7 @@ export function registerResources(ctx: ToolContext) {
         };
       }
 
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      const location = await storage.preferredLocation.get(props.id);
+      const location = await ctx.storage.preferredLocation.get(props.id);
 
       if (!location) {
         return {
@@ -157,7 +153,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getProps();
+      const props = ctx.getUser();
       if (!props?.id) {
         return {
           contents: [
@@ -170,8 +166,7 @@ export function registerResources(ctx: ToolContext) {
         };
       }
 
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      const orders = await storage.orderHistory.getRecent(props.id, 20);
+      const orders = await ctx.storage.orderHistory.getRecent(props.id, 20);
 
       return {
         contents: [
@@ -202,7 +197,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getProps();
+      const props = ctx.getUser();
       if (!props?.id) {
         return {
           contents: [
@@ -215,8 +210,7 @@ export function registerResources(ctx: ToolContext) {
         };
       }
 
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-      const list = await storage.shoppingList.getAll(props.id);
+      const list = await ctx.storage.shoppingList.getAll(props.id);
       const unchecked = list.filter((i) => !i.checked);
       const withUpc = unchecked.filter((i) => i.upc);
       const withoutUpc = unchecked.filter((i) => !i.upc);
@@ -274,10 +268,9 @@ export function registerResources(ctx: ToolContext) {
       const productId = match[1];
 
       let locationId: string | undefined;
-      const props = ctx.getProps();
+      const props = ctx.getUser();
       if (props?.id) {
-        const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
-        const location = await storage.preferredLocation.get(props.id);
+        const location = await ctx.storage.preferredLocation.get(props.id);
         locationId = location?.locationId;
       }
 

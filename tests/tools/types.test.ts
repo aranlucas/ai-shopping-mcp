@@ -1,10 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Props, ToolContext } from "../../src/tools/types.js";
-import { requireAuth, resolveLocationId } from "../../src/tools/types.js";
+import type { Props, ToolContext, UserStorage } from "../../src/tools/types.js";
+import { resolveLocationId } from "../../src/tools/types.js";
 
-// ----- requireAuth -----
+// ----- requireUser (via ToolContext) -----
 
-describe("requireAuth", () => {
+describe("requireUser", () => {
+  function makeCtx(props: Props | undefined): ToolContext {
+    return {
+      getUser: () => props ?? null,
+      requireUser: () => {
+        if (!props?.id) throw new Error("User not authenticated");
+        return props;
+      },
+    } as unknown as ToolContext;
+  }
+
   it("returns props when user is authenticated", () => {
     const props: Props = {
       id: "user-123",
@@ -12,33 +22,52 @@ describe("requireAuth", () => {
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
     };
 
-    const ctx = {
-      getProps: () => props,
-    } as unknown as ToolContext;
+    const ctx = makeCtx(props);
 
-    const result = requireAuth(ctx);
+    const result = ctx.requireUser();
     expect(result).toEqual(props);
     expect(result.id).toBe("user-123");
   });
 
   it("throws when props is undefined", () => {
-    const ctx = {
-      getProps: () => undefined,
-    } as unknown as ToolContext;
+    const ctx = makeCtx(undefined);
 
-    expect(() => requireAuth(ctx)).toThrow("User not authenticated");
+    expect(() => ctx.requireUser()).toThrow("User not authenticated");
   });
 
   it("throws when props.id is empty", () => {
+    const ctx = makeCtx({
+      id: "",
+      accessToken: "token",
+      tokenExpiresAt: Date.now(),
+    });
+
+    expect(() => ctx.requireUser()).toThrow("User not authenticated");
+  });
+});
+
+// ----- getUser -----
+
+describe("getUser", () => {
+  it("returns null when not authenticated", () => {
     const ctx = {
-      getProps: () => ({
-        id: "",
-        accessToken: "token",
-        tokenExpiresAt: Date.now(),
-      }),
+      getUser: () => null,
     } as unknown as ToolContext;
 
-    expect(() => requireAuth(ctx)).toThrow("User not authenticated");
+    expect(ctx.getUser()).toBeNull();
+  });
+
+  it("returns props when authenticated", () => {
+    const props: Props = {
+      id: "user-123",
+      accessToken: "token",
+      tokenExpiresAt: Date.now(),
+    };
+    const ctx = {
+      getUser: () => props,
+    } as unknown as ToolContext;
+
+    expect(ctx.getUser()).toEqual(props);
   });
 });
 
@@ -56,9 +85,7 @@ describe("resolveLocationId", () => {
       equipment: {},
       orderHistory: {},
       shoppingList: {},
-    } as unknown as ReturnType<
-      typeof import("../../src/utils/user-storage.js").createUserStorage
-    >;
+    } as unknown as UserStorage;
   }
 
   it("returns the provided locationId directly", async () => {

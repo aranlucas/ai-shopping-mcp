@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { createUserStorage } from "../utils/user-storage.js";
-import { requireAuth, type ToolContext } from "./types.js";
+import type { ToolContext } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
   ctx.server.registerTool(
@@ -223,8 +222,8 @@ export function registerRecipeTools(ctx: ToolContext) {
       dietaryPreferences,
       prioritizeExpiring,
     }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
+      const props = ctx.requireUser();
+      const { storage } = ctx;
 
       const [pantry, equipment, recentOrders] = await Promise.all([
         storage.pantry.getAll(props.id),

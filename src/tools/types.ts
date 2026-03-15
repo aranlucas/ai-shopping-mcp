@@ -18,33 +18,27 @@ export type GrantProps = Props & {
   krogerClientSecret: string;
 };
 
-// Shared context passed to all tool registration functions
+/** Storage instance type, created once and shared via ToolContext */
+export type UserStorage = ReturnType<typeof createUserStorage>;
+
+// Shared context passed to all tool registration functions.
+// Dependencies are injected here (storage, auth) rather than created per-call.
 export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;
-  getProps: () => Props | undefined;
+  storage: UserStorage;
+  getUser: () => Props | null;
+  requireUser: () => Props;
   getEnv: () => Env;
   keepAliveWhile: <T>(fn: () => Promise<T>) => Promise<T>;
 };
-
-/**
- * Validates that the user is authenticated and returns typed props.
- * Throws if not authenticated.
- */
-export function requireAuth(ctx: ToolContext): Props {
-  const props = ctx.getProps();
-  if (!props?.id) {
-    throw new Error("User not authenticated");
-  }
-  return props;
-}
 
 /**
  * Resolves a location ID, falling back to the user's preferred location.
  * Throws if no location is available.
  */
 export async function resolveLocationId(
-  storage: ReturnType<typeof createUserStorage>,
+  storage: UserStorage,
   userId: string,
   locationId?: string,
 ): Promise<{ locationId: string; locationName?: string }> {
