@@ -45,6 +45,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
         return this.props;
       },
       getEnv: () => this.env,
+      getSessionId: () => this.getSessionId(),
       keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
     };
 
