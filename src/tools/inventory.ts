@@ -37,10 +37,11 @@ export function registerInventoryTools(ctx: ToolContext) {
               productName: z
                 .string()
                 .min(1)
+                .max(200)
                 .describe(
                   "Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')",
                 ),
-              quantity: z.number().min(1),
+              quantity: z.number().min(1).max(999),
               expiresAt: z.string().optional(),
             }),
           )
@@ -49,6 +50,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         productName: z
           .string()
           .min(1)
+          .max(200)
           .optional()
           .describe("Name of product to remove (required for 'remove' action)"),
       }),
@@ -160,9 +162,10 @@ export function registerInventoryTools(ctx: ToolContext) {
         items: z
           .array(
             z.object({
-              equipmentName: z.string().min(1),
+              equipmentName: z.string().min(1).max(200),
               category: z
                 .string()
+                .max(100)
                 .optional()
                 .describe(
                   "Optional category (e.g., 'Baking', 'Cooking', 'Utensils', 'Appliances')",
@@ -174,6 +177,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         equipmentName: z
           .string()
           .min(1)
+          .max(200)
           .optional()
           .describe(
             "Name of equipment to remove (required for 'remove' action)",
@@ -283,13 +287,13 @@ export function registerInventoryTools(ctx: ToolContext) {
         items: z.array(
           z.object({
             productId: z.string(),
-            productName: z.string(),
-            quantity: z.number().min(1),
-            price: z.number().optional(),
+            productName: z.string().max(200),
+            quantity: z.number().min(1).max(999),
+            price: z.number().min(0).optional(),
           }),
         ),
         locationId: z.string().optional(),
-        notes: z.string().optional(),
+        notes: z.string().max(500).optional(),
       }),
     },
     async ({ items, locationId, notes }) => {

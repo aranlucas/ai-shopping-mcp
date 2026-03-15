@@ -35,6 +35,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
               productName: z
                 .string()
                 .min(1)
+                .max(200)
                 .describe(
                   "Product name (e.g., 'Whole Milk', 'Sourdough Bread')",
                 ),
@@ -45,9 +46,10 @@ export function registerShoppingListTools(ctx: ToolContext) {
                 .describe(
                   "13-digit UPC from product search, needed for cart checkout",
                 ),
-              quantity: z.number().min(1).default(1),
+              quantity: z.number().min(1).max(999).default(1),
               notes: z
                 .string()
+                .max(500)
                 .optional()
                 .describe("Optional notes (e.g., 'get organic if available')"),
             }),
@@ -57,6 +59,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         productName: z
           .string()
           .min(1)
+          .max(200)
           .optional()
           .describe(
             "Name of product to remove or update (required for 'remove' and 'update' actions)",
@@ -64,6 +67,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         quantity: z
           .number()
           .min(1)
+          .max(999)
           .optional()
           .describe("New quantity (for 'update' action)"),
         upc: z
@@ -75,6 +79,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           ),
         notes: z
           .string()
+          .max(500)
           .optional()
           .describe("Updated notes (for 'update' action)"),
       }),
@@ -301,8 +306,14 @@ export function registerShoppingListTools(ctx: ToolContext) {
               ],
             };
           }
-        } catch {
+        } catch (elicitError) {
           // Elicitation not supported by client — proceed without confirmation
+          console.warn(
+            "Elicitation unavailable, proceeding without confirmation:",
+            elicitError instanceof Error
+              ? elicitError.message
+              : String(elicitError),
+          );
         }
 
         const cartItems: CartItem[] = withUpc.map((item) => ({

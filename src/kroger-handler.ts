@@ -3,6 +3,7 @@ import type {
   OAuthHelpers,
 } from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
+import type { KrogerTokenResponse } from "./services/kroger/client.js";
 import {
   clientIdAlreadyApproved,
   parseRedirectApproval,
@@ -114,6 +115,14 @@ async function redirectToKroger(
 ) {
   console.log("Building Kroger redirect URL");
 
+  if (!env.KROGER_CLIENT_ID || !env.KROGER_CLIENT_SECRET) {
+    console.error("Missing Kroger OAuth credentials in environment");
+    return new Response(
+      "Server configuration error: Missing Kroger OAuth credentials",
+      { status: 500 },
+    );
+  }
+
   const redirectUri = new URL("/callback", request.url).href;
 
   // Build authorization URL manually with encodeURIComponent to ensure
@@ -148,14 +157,6 @@ async function redirectToKroger(
     full_url_length: fullUrl.length,
     url_preview: `${fullUrl.substring(0, 150)}...`,
   });
-
-  if (!env.KROGER_CLIENT_ID) {
-    console.error("KROGER_CLIENT_ID is not set!");
-    return new Response(
-      "Server configuration error: Missing KROGER_CLIENT_ID",
-      { status: 500 },
-    );
-  }
 
   return new Response(null, {
     status: 302,
@@ -269,17 +270,11 @@ app.get("/callback", async (c) => {
         Authorization: `Basic ${btoa(`${c.env.KROGER_CLIENT_ID}:${c.env.KROGER_CLIENT_SECRET}`)}`,
       },
       body: tokenBody.toString(),
+      signal: AbortSignal.timeout(30_000),
     },
   );
 
-  const tokenData = (await tokenResponse.json()) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-    token_type?: string;
-    error?: string;
-    error_description?: string;
-  };
+  const tokenData = (await tokenResponse.json()) as KrogerTokenResponse;
 
   // Check for errors
   if (!tokenResponse.ok) {
@@ -313,6 +308,7 @@ app.get("/callback", async (c) => {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
       },
+      signal: AbortSignal.timeout(15_000),
     },
   );
 

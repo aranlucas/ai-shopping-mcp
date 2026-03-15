@@ -16,6 +16,16 @@ export interface KrogerTokenRefreshResult {
   expiresIn: number;
 }
 
+/** Raw response shape from Kroger's OAuth token endpoint */
+export interface KrogerTokenResponse {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+}
+
 /**
  * Refreshes a Kroger access token using a refresh token.
  * This is a standalone function that can be used by both the middleware
@@ -40,16 +50,11 @@ export async function refreshKrogerToken(
         Authorization: `Basic ${btoa(`${krogerClientId}:${krogerClientSecret}`)}`,
       },
       body: refreshBody.toString(),
+      signal: AbortSignal.timeout(30_000),
     },
   );
 
-  const responseData = (await refreshResponse.json()) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-    error?: string;
-    error_description?: string;
-  };
+  const responseData = (await refreshResponse.json()) as KrogerTokenResponse;
 
   if (!refreshResponse.ok) {
     console.error("Failed to refresh Kroger access token:", {
