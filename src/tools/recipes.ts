@@ -19,6 +19,7 @@ export function registerRecipeTools(ctx: ToolContext) {
         searchQuery: z
           .string()
           .min(1)
+          .max(200)
           .describe("Recipe search query (e.g., 'Cookie', 'Pasta', 'Chicken')"),
       }),
     },
@@ -33,6 +34,7 @@ export function registerRecipeTools(ctx: ToolContext) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ query: searchQuery }),
+          signal: AbortSignal.timeout(15_000),
         });
 
         if (!response.ok) {
@@ -201,6 +203,7 @@ export function registerRecipeTools(ctx: ToolContext) {
           .describe("Type of meals to suggest"),
         dietaryPreferences: z
           .string()
+          .max(300)
           .optional()
           .describe(
             "Dietary preferences or restrictions (e.g., 'vegetarian', 'low-carb', 'gluten-free')",
@@ -245,8 +248,11 @@ export function registerRecipeTools(ctx: ToolContext) {
       const categorizedPantry = pantry.map((item) => {
         if (!item.expiresAt)
           return { ...item, urgency: "none" as const, daysUntil: undefined };
+        const expiresAtMs = new Date(item.expiresAt).getTime();
+        if (Number.isNaN(expiresAtMs))
+          return { ...item, urgency: "none" as const, daysUntil: undefined };
         const daysUntil = Math.floor(
-          (new Date(item.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
+          (expiresAtMs - now) / (1000 * 60 * 60 * 24),
         );
         if (daysUntil < 0)
           return { ...item, urgency: "expired" as const, daysUntil };

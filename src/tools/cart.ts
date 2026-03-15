@@ -29,7 +29,8 @@ export function registerCartTools(ctx: ToolContext) {
             }),
             quantity: z
               .number()
-              .min(1, { message: "Quantity must be at least 1" }),
+              .min(1, { message: "Quantity must be at least 1" })
+              .max(99, { message: "Quantity must be at most 99" }),
             modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
           }),
         ),
