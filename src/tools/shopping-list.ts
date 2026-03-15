@@ -1,11 +1,8 @@
 import { z } from "zod";
 import type { components } from "../services/kroger/cart.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
-import {
-  createUserStorage,
-  type ShoppingListItem,
-} from "../utils/user-storage.js";
-import { requireAuth, resolveLocationId, type ToolContext } from "./types.js";
+import type { ShoppingListItem } from "../utils/user-storage.js";
+import { resolveLocationId, type ToolContext } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -85,8 +82,8 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
+      const props = ctx.requireUser();
+      const { storage } = ctx;
 
       switch (action) {
         case "add": {
@@ -233,8 +230,8 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId, modality }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
+      const props = ctx.requireUser();
+      const { storage } = ctx;
 
       const uncheckedItems = await storage.shoppingList.getUnchecked(props.id);
 

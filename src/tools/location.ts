@@ -4,11 +4,8 @@ import {
   formatLocationListCompact,
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
-import {
-  createUserStorage,
-  type PreferredLocation,
-} from "../utils/user-storage.js";
-import { requireAuth, type ToolContext } from "./types.js";
+import type { PreferredLocation } from "../utils/user-storage.js";
+import type { ToolContext } from "./types.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
@@ -169,7 +166,7 @@ export function registerLocationTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId }) => {
-      const props = requireAuth(ctx);
+      const props = ctx.requireUser();
 
       const { data, error } = await locationClient.GET(
         "/v1/locations/{locationId}",
@@ -191,7 +188,6 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const location = data.data;
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
 
       const preferredLocation: PreferredLocation = {
         locationId: location.locationId || "",
@@ -202,7 +198,7 @@ export function registerLocationTools(ctx: ToolContext) {
         setAt: new Date().toISOString(),
       };
 
-      await storage.preferredLocation.set(props.id, preferredLocation);
+      await ctx.storage.preferredLocation.set(props.id, preferredLocation);
 
       const formatted = formatPreferredLocationCompact(preferredLocation);
 

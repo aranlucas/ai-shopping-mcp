@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { components } from "../services/kroger/cart.js";
-import { createUserStorage } from "../utils/user-storage.js";
-import { requireAuth, resolveLocationId, type ToolContext } from "./types.js";
+import { resolveLocationId, type ToolContext } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -44,8 +43,8 @@ export function registerCartTools(ctx: ToolContext) {
       }),
     },
     async ({ items, locationId }) => {
-      const props = requireAuth(ctx);
-      const storage = createUserStorage(ctx.getEnv().USER_DATA_KV);
+      const props = ctx.requireUser();
+      const { storage } = ctx;
 
       let resolved: { locationId: string; locationName?: string };
       try {
