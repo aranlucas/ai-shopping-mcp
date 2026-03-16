@@ -26,11 +26,10 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
-      if (!props?.id) return unauthenticatedResource("shopping://user/pantry");
+      if (!ctx.userId) return unauthenticatedResource("shopping://user/pantry");
 
       const result = await safeStorage(
-        () => ctx.storage.pantry.getAll(props.id),
+        () => ctx.storage.pantry.getAll(ctx.userId),
         "fetch pantry",
       );
 
@@ -58,12 +57,11 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
-      if (!props?.id)
+      if (!ctx.userId)
         return unauthenticatedResource("shopping://user/equipment");
 
       const result = await safeStorage(
-        () => ctx.storage.equipment.getAll(props.id),
+        () => ctx.storage.equipment.getAll(ctx.userId),
         "fetch equipment",
       );
 
@@ -91,12 +89,11 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
-      if (!props?.id)
+      if (!ctx.userId)
         return unauthenticatedResource("shopping://user/location");
 
       const result = await safeStorage(
-        () => ctx.storage.preferredLocation.get(props.id),
+        () => ctx.storage.preferredLocation.get(ctx.userId),
         "fetch preferred location",
       );
 
@@ -128,11 +125,10 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
-      if (!props?.id) return unauthenticatedResource("shopping://user/orders");
+      if (!ctx.userId) return unauthenticatedResource("shopping://user/orders");
 
       const result = await safeStorage(
-        () => ctx.storage.orderHistory.getRecent(props.id, 20),
+        () => ctx.storage.orderHistory.getRecent(ctx.userId, 20),
         "fetch order history",
       );
 
@@ -160,11 +156,10 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
-      if (!props?.id)
+      if (!ctx.userId)
         return unauthenticatedResource("shopping://user/shopping-list");
 
-      const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
+      const scopedId = getSessionScopedUserId(ctx.userId, ctx.getSessionId());
       const result = await safeStorage(
         () => ctx.storage.shoppingList.getAll(scopedId),
         "fetch shopping list",
@@ -214,11 +209,10 @@ export function registerResources(ctx: ToolContext) {
 
       const productId = match[1];
 
-      const props = ctx.getUser();
-      const locationId = props?.id
+      const locationId = ctx.userId
         ? (
             await safeStorage(
-              () => ctx.storage.preferredLocation.get(props.id),
+              () => ctx.storage.preferredLocation.get(ctx.userId),
               "fetch preferred location",
             )
           )

@@ -49,7 +49,7 @@ export function registerCartTools(ctx: ToolContext) {
       }),
     },
     async ({ items, locationId }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
+      const result = requireAuth(ctx.getUser()).asyncAndThen((props) =>
         safeResolveLocationId(ctx.storage, props.id, locationId).andThen(
           (resolved) => {
             const cartItems: CartItem[] = items.map((item) => ({

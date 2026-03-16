@@ -39,6 +39,9 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       server: this.server,
       clients,
       storage,
+      // Direct auth context access — aligned with Cloudflare McpAgent auth context pattern.
+      // Empty string means unauthenticated (OAuthProvider guarantees this is set in valid sessions).
+      userId: this.props?.id ?? "",
       getUser: () => this.props ?? null,
       getEnv: () => this.env,
       getSessionId: () => this.getSessionId(),

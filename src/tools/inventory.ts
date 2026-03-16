@@ -56,7 +56,7 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, productName }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(ctx.getUser()).asyncAndThen((props) => {
         const { storage } = ctx;
 
         switch (action) {
@@ -159,7 +159,7 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, equipmentName }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(ctx.getUser()).asyncAndThen((props) => {
         const { storage } = ctx;
 
         switch (action) {
@@ -245,7 +245,7 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ items, locationId, notes }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(ctx.getUser()).asyncAndThen((props) => {
         const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
         const estimatedTotal = items.reduce(

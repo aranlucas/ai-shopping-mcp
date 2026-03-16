@@ -125,7 +125,7 @@ export function registerLocationTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
+      const result = requireAuth(ctx.getUser()).asyncAndThen((props) =>
         fromApiResponse(
           locationClient.GET("/v1/locations/{locationId}", {
             params: { path: { locationId } },

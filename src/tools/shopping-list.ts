@@ -96,7 +96,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(ctx.getUser()).asyncAndThen((props) => {
         const { storage } = ctx;
         const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
@@ -217,7 +217,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
       // Use safeTry for the entire checkout flow, including auth
       const result = await safeTry(async function* () {
-        const props = yield* requireAuth(ctx.getUser).safeUnwrap();
+        const props = yield* requireAuth(ctx.getUser()).safeUnwrap();
         const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
         const uncheckedItems = yield* safeStorage(

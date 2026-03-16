@@ -73,17 +73,14 @@ export function fromApiResponse<T>(
 // --- Auth Helpers ---
 
 /**
- * Result-based version of requireUser.
- * Returns Ok(Props) or Err(AuthError).
+ * Result-based auth check. Returns Ok(Props) or Err(AuthError).
+ * Aligns with Cloudflare McpAgent pattern of passing auth context directly.
  */
-export function requireAuth(
-  getUser: () => Props | null,
-): Result<Props, AppError> {
-  const props = getUser();
-  if (!props?.id) {
+export function requireAuth(user: Props | null): Result<Props, AppError> {
+  if (!user?.id) {
     return err(authError("User not authenticated"));
   }
-  return ok(props);
+  return ok(user);
 }
 
 // --- Location Resolution ---
