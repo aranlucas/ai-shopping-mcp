@@ -1,11 +1,19 @@
+import { err, ok } from "neverthrow";
 import { z } from "zod";
+import { notFoundError } from "../errors.js";
 import {
   formatLocation,
   formatLocationListCompact,
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
+import {
+  fromApiResponse,
+  requireAuth,
+  safeStorage,
+  toMcpResponse,
+} from "../utils/result.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
-import { errorResult, type ToolContext, textResult } from "./types.js";
+import type { ToolContext } from "./types.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
@@ -44,24 +52,17 @@ export function registerLocationTools(ctx: ToolContext) {
         queryParams["filter.chain"] = chain;
       }
 
-      console.log("Query parameters for location search:", queryParams);
-      const { data, error } = await locationClient.GET("/v1/locations", {
-        params: { query: queryParams },
+      const result = fromApiResponse(
+        locationClient.GET("/v1/locations", {
+          params: { query: queryParams },
+        }),
+        "search locations",
+      ).map((data) => {
+        const locations = data?.data || [];
+        return `Found ${locations.length} location(s):\n${formatLocationListCompact(locations)}`;
       });
 
-      if (error) {
-        console.error("Error searching locations:", error);
-        return errorResult(
-          `Failed to search locations: ${JSON.stringify(error)}`,
-        );
-      }
-
-      const locations = data?.data || [];
-      console.log(`Found ${locations.length} locations`);
-
-      return textResult(
-        `Found ${locations.length} location(s):\n${formatLocationListCompact(locations)}`,
-      );
+      return toMcpResponse(await result);
     },
   );
 
@@ -84,27 +85,24 @@ export function registerLocationTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId }) => {
-      const { data, error } = await locationClient.GET(
-        "/v1/locations/{locationId}",
-        { params: { path: { locationId } } },
-      );
+      const result = fromApiResponse(
+        locationClient.GET("/v1/locations/{locationId}", {
+          params: { path: { locationId } },
+        }),
+        "get location details",
+      ).andThen((data) => {
+        const location = data?.data;
+        if (!location) {
+          return err(
+            notFoundError(
+              `No information found for location ID: ${locationId}`,
+            ),
+          );
+        }
+        return ok(`Location Details:\n\n${formatLocation(location)}`);
+      });
 
-      if (error) {
-        console.error("Error getting location details:", error);
-        return errorResult(
-          `Failed to get location details: ${JSON.stringify(error)}`,
-        );
-      }
-
-      const location = data?.data;
-      if (!location) {
-        return errorResult(
-          `No information found for location ID: ${locationId}`,
-        );
-      }
-
-      console.log(`Retrieved details for location: ${location.name}`);
-      return textResult(`Location Details:\n\n${formatLocation(location)}`);
+      return toMcpResponse(await result);
     },
   );
 
@@ -127,34 +125,43 @@ export function registerLocationTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId }) => {
-      const props = ctx.requireUser();
+      const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
+        fromApiResponse(
+          locationClient.GET("/v1/locations/{locationId}", {
+            params: { path: { locationId } },
+          }),
+          "get location details",
+        ).andThen((data) => {
+          const location = data?.data;
+          if (!location) {
+            return err(
+              notFoundError(
+                `No information found for location ID: ${locationId}`,
+              ),
+            );
+          }
 
-      const { data, error } = await locationClient.GET(
-        "/v1/locations/{locationId}",
-        { params: { path: { locationId } } },
+          const preferredLocation: PreferredLocation = {
+            locationId: location.locationId || "",
+            locationName: location.name || "",
+            address:
+              `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
+            chain: location.chain || "",
+            setAt: new Date().toISOString(),
+          };
+
+          return safeStorage(
+            () =>
+              ctx.storage.preferredLocation.set(props.id, preferredLocation),
+            "save preferred location",
+          ).map(
+            () =>
+              `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
+          );
+        }),
       );
 
-      if (error || !data?.data) {
-        return errorResult(
-          `Failed to get location details: ${JSON.stringify(error)}`,
-        );
-      }
-
-      const location = data.data;
-      const preferredLocation: PreferredLocation = {
-        locationId: location.locationId || "",
-        locationName: location.name || "",
-        address:
-          `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
-        chain: location.chain || "",
-        setAt: new Date().toISOString(),
-      };
-
-      await ctx.storage.preferredLocation.set(props.id, preferredLocation);
-
-      return textResult(
-        `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
-      );
+      return toMcpResponse(await result);
     },
   );
 }

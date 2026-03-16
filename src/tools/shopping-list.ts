@@ -1,11 +1,18 @@
+import { errAsync } from "neverthrow";
 import { z } from "zod";
+import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
+import {
+  fromApiResponse,
+  requireAuth,
+  safeResolveLocationId,
+  safeStorage,
+  toMcpResponse,
+} from "../utils/result.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import {
-  errorResult,
   getSessionScopedUserId,
-  resolveLocationId,
   type ToolContext,
   textResult,
 } from "./types.js";
@@ -88,77 +95,96 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
-      const props = ctx.requireUser();
-      const { storage } = ctx;
-      const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
+      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+        const { storage } = ctx;
+        const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
-      switch (action) {
-        case "add": {
-          if (!items || items.length === 0) {
-            return errorResult(
-              "Error: 'items' array is required for the 'add' action.",
+        switch (action) {
+          case "add": {
+            if (!items || items.length === 0) {
+              return errAsync(
+                validationError(
+                  "Error: 'items' array is required for the 'add' action.",
+                ),
+              );
+            }
+
+            const now = new Date().toISOString();
+            return safeStorage(async () => {
+              for (const item of items) {
+                const listItem: ShoppingListItem = {
+                  productName: item.productName,
+                  upc: item.upc,
+                  quantity: item.quantity,
+                  notes: item.notes,
+                  addedAt: now,
+                  checked: false,
+                };
+                await storage.shoppingList.add(scopedId, listItem);
+              }
+              return storage.shoppingList.getAll(scopedId);
+            }, "add shopping list items").map(
+              (list) =>
+                `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
             );
           }
 
-          const now = new Date().toISOString();
-          for (const item of items) {
-            const listItem: ShoppingListItem = {
-              productName: item.productName,
-              upc: item.upc,
-              quantity: item.quantity,
-              notes: item.notes,
-              addedAt: now,
-              checked: false,
-            };
-            await storage.shoppingList.add(scopedId, listItem);
-          }
+          case "remove": {
+            if (!productName) {
+              return errAsync(
+                validationError(
+                  "Error: 'productName' is required for the 'remove' action.",
+                ),
+              );
+            }
 
-          const list = await storage.shoppingList.getAll(scopedId);
-          return textResult(
-            `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-          );
-        }
-
-        case "remove": {
-          if (!productName) {
-            return errorResult(
-              "Error: 'productName' is required for the 'remove' action.",
+            return safeStorage(async () => {
+              await storage.shoppingList.remove(scopedId, productName);
+              return storage.shoppingList.getAll(scopedId);
+            }, "remove shopping list item").map(
+              (list) =>
+                `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
             );
           }
 
-          await storage.shoppingList.remove(scopedId, productName);
-          const list = await storage.shoppingList.getAll(scopedId);
-          return textResult(
-            `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-          );
-        }
+          case "update": {
+            if (!productName) {
+              return errAsync(
+                validationError(
+                  "Error: 'productName' is required for the 'update' action.",
+                ),
+              );
+            }
 
-        case "update": {
-          if (!productName) {
-            return errorResult(
-              "Error: 'productName' is required for the 'update' action.",
+            const updates: Partial<
+              Pick<ShoppingListItem, "quantity" | "upc" | "notes">
+            > = {};
+            if (quantity !== undefined) updates.quantity = quantity;
+            if (upc !== undefined) updates.upc = upc;
+            if (notes !== undefined) updates.notes = notes;
+
+            return safeStorage(async () => {
+              await storage.shoppingList.updateItem(
+                scopedId,
+                productName,
+                updates,
+              );
+              return storage.shoppingList.getAll(scopedId);
+            }, "update shopping list item").map(
+              (list) =>
+                `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
             );
           }
 
-          const updates: Partial<
-            Pick<ShoppingListItem, "quantity" | "upc" | "notes">
-          > = {};
-          if (quantity !== undefined) updates.quantity = quantity;
-          if (upc !== undefined) updates.upc = upc;
-          if (notes !== undefined) updates.notes = notes;
-
-          await storage.shoppingList.updateItem(scopedId, productName, updates);
-          const list = await storage.shoppingList.getAll(scopedId);
-          return textResult(
-            `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-          );
+          case "clear":
+            return safeStorage(
+              () => storage.shoppingList.clear(scopedId),
+              "clear shopping list",
+            ).map(() => "Shopping list cleared successfully.");
         }
+      });
 
-        case "clear": {
-          await storage.shoppingList.clear(scopedId);
-          return textResult("Shopping list cleared successfully.");
-        }
-      }
+      return toMcpResponse(await result);
     },
   );
 
@@ -201,15 +227,18 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const withUpc = uncheckedItems.filter((item) => item.upc);
       const withoutUpc = uncheckedItems.filter((item) => !item.upc);
 
-      let resolved: { locationId: string; locationName?: string };
-      try {
-        resolved = await resolveLocationId(storage, props.id, locationId);
-      } catch (error) {
-        return errorResult(
-          `Error: ${error instanceof Error ? error.message : String(error)}`,
-        );
+      // Resolve location using Result-based helper
+      const resolvedResult = await safeResolveLocationId(
+        storage,
+        props.id,
+        locationId,
+      );
+
+      if (resolvedResult.isErr()) {
+        return toMcpResponse(resolvedResult.map(() => ""));
       }
 
+      const resolved = resolvedResult.value;
       const resultParts: string[] = [];
 
       if (withUpc.length > 0) {
@@ -262,16 +291,16 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
         const requestBody: CartItemRequest = { items: cartItems };
 
-        const { error } = await cartClient.PUT("/v1/cart/add", {
-          body: requestBody,
-          headers: { "Content-Type": "application/json" },
-        });
+        const addResult = await fromApiResponse(
+          cartClient.PUT("/v1/cart/add", {
+            body: requestBody,
+            headers: { "Content-Type": "application/json" },
+          }),
+          "add shopping list items to cart",
+        );
 
-        if (error) {
-          console.error("Error adding shopping list items to cart:", error);
-          return errorResult(
-            `Failed to add items to cart: ${JSON.stringify(error)}`,
-          );
+        if (addResult.isErr()) {
+          return toMcpResponse(addResult.map(() => ""));
         }
 
         for (const item of withUpc) {

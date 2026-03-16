@@ -1,11 +1,12 @@
 import { z } from "zod";
 import type { components } from "../services/kroger/cart.js";
 import {
-  errorResult,
-  resolveLocationId,
-  type ToolContext,
-  textResult,
-} from "./types.js";
+  fromApiResponse,
+  requireAuth,
+  safeResolveLocationId,
+  toMcpResponse,
+} from "../utils/result.js";
+import type { ToolContext } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -48,49 +49,35 @@ export function registerCartTools(ctx: ToolContext) {
       }),
     },
     async ({ items, locationId }) => {
-      const props = ctx.requireUser();
-      const { storage } = ctx;
+      const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
+        safeResolveLocationId(ctx.storage, props.id, locationId).andThen(
+          (resolved) => {
+            const cartItems: CartItem[] = items.map((item) => ({
+              upc: item.upc,
+              quantity: item.quantity,
+              modality: item.modality,
+            }));
 
-      let resolved: { locationId: string; locationName?: string };
-      try {
-        resolved = await resolveLocationId(storage, props.id, locationId);
-      } catch (error) {
-        return errorResult(
-          `Error: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
+            const requestBody: CartItemRequest = { items: cartItems };
 
-      const cartItems: CartItem[] = items.map((item) => ({
-        upc: item.upc,
-        quantity: item.quantity,
-        modality: item.modality,
-      }));
+            return fromApiResponse(
+              cartClient.PUT("/v1/cart/add", {
+                body: requestBody,
+                headers: { "Content-Type": "application/json" },
+              }),
+              "add items to cart",
+            ).map(() => {
+              const locationInfo = resolved.locationName
+                ? ` at ${resolved.locationName}`
+                : ` (Location: ${resolved.locationId})`;
 
-      const requestBody: CartItemRequest = { items: cartItems };
-
-      const { error } = await cartClient.PUT("/v1/cart/add", {
-        body: requestBody,
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (error) {
-        console.error("Error adding items to cart:", error);
-        return errorResult(
-          `Failed to add items to cart: ${JSON.stringify(error)}`,
-        );
-      }
-
-      console.log(
-        `Items successfully added to cart for location ${resolved.locationId}`,
+              return `Successfully added ${items.length} item(s) to cart${locationInfo}.`;
+            });
+          },
+        ),
       );
 
-      const locationInfo = resolved.locationName
-        ? ` at ${resolved.locationName}`
-        : ` (Location: ${resolved.locationId})`;
-
-      return textResult(
-        `Successfully added ${items.length} item(s) to cart${locationInfo}.`,
-      );
+      return toMcpResponse(await result);
     },
   );
 }
