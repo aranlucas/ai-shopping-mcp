@@ -26,6 +26,7 @@
     "@modelcontextprotocol/sdk": "1.27.1",
     "agents": "^0.7.6",
     "hono": "^4.12.8",
+    "neverthrow": "^8.2.0",
     "openapi-fetch": "^0.17.0"
   },
   "devDependencies": {

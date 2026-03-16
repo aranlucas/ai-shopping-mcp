@@ -1,15 +1,18 @@
+import { errAsync } from "neverthrow";
 import { z } from "zod";
+import { validationError } from "../errors.js";
 import {
   formatEquipmentListCompact,
   formatOrderHistoryCompact,
   formatPantryListCompact,
 } from "../utils/format-response.js";
+import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 import type {
   EquipmentItem,
   OrderRecord,
   PantryItem,
 } from "../utils/user-storage.js";
-import { errorResult, type ToolContext, textResult } from "./types.js";
+import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
   ctx.server.registerTool(
@@ -53,53 +56,64 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, productName }) => {
-      const props = ctx.requireUser();
-      const { storage } = ctx;
+      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+        const { storage } = ctx;
 
-      switch (action) {
-        case "add": {
-          if (!items || items.length === 0) {
-            return errorResult(
-              "Error: 'items' array is required for the 'add' action.",
+        switch (action) {
+          case "add": {
+            if (!items || items.length === 0) {
+              return errAsync(
+                validationError(
+                  "Error: 'items' array is required for the 'add' action.",
+                ),
+              );
+            }
+
+            const now = new Date().toISOString();
+            return safeStorage(async () => {
+              for (const item of items) {
+                const pantryItem: PantryItem = {
+                  productName: item.productName,
+                  quantity: item.quantity,
+                  addedAt: now,
+                  expiresAt: item.expiresAt,
+                };
+                await storage.pantry.add(props.id, pantryItem);
+              }
+              return storage.pantry.getAll(props.id);
+            }, "add pantry items").map(
+              (pantry) =>
+                `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
             );
           }
 
-          const now = new Date().toISOString();
-          for (const item of items) {
-            const pantryItem: PantryItem = {
-              productName: item.productName,
-              quantity: item.quantity,
-              addedAt: now,
-              expiresAt: item.expiresAt,
-            };
-            await storage.pantry.add(props.id, pantryItem);
-          }
+          case "remove": {
+            if (!productName) {
+              return errAsync(
+                validationError(
+                  "Error: 'productName' is required for the 'remove' action.",
+                ),
+              );
+            }
 
-          const pantry = await storage.pantry.getAll(props.id);
-          return textResult(
-            `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-          );
-        }
-
-        case "remove": {
-          if (!productName) {
-            return errorResult(
-              "Error: 'productName' is required for the 'remove' action.",
+            return safeStorage(async () => {
+              await storage.pantry.remove(props.id, productName);
+              return storage.pantry.getAll(props.id);
+            }, "remove pantry item").map(
+              (pantry) =>
+                `Item removed from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
             );
           }
 
-          await storage.pantry.remove(props.id, productName);
-          const pantry = await storage.pantry.getAll(props.id);
-          return textResult(
-            `Item removed from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-          );
+          case "clear":
+            return safeStorage(
+              () => storage.pantry.clear(props.id),
+              "clear pantry",
+            ).map(() => "Pantry cleared successfully.");
         }
+      });
 
-        case "clear": {
-          await storage.pantry.clear(props.id);
-          return textResult("Pantry cleared successfully.");
-        }
-      }
+      return toMcpResponse(await result);
     },
   );
 
@@ -145,52 +159,63 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, equipmentName }) => {
-      const props = ctx.requireUser();
-      const { storage } = ctx;
+      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+        const { storage } = ctx;
 
-      switch (action) {
-        case "add": {
-          if (!items || items.length === 0) {
-            return errorResult(
-              "Error: 'items' array is required for the 'add' action.",
+        switch (action) {
+          case "add": {
+            if (!items || items.length === 0) {
+              return errAsync(
+                validationError(
+                  "Error: 'items' array is required for the 'add' action.",
+                ),
+              );
+            }
+
+            const now = new Date().toISOString();
+            return safeStorage(async () => {
+              for (const item of items) {
+                const equipmentItem: EquipmentItem = {
+                  equipmentName: item.equipmentName,
+                  category: item.category,
+                  addedAt: now,
+                };
+                await storage.equipment.add(props.id, equipmentItem);
+              }
+              return storage.equipment.getAll(props.id);
+            }, "add equipment items").map(
+              (equipment) =>
+                `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
             );
           }
 
-          const now = new Date().toISOString();
-          for (const item of items) {
-            const equipmentItem: EquipmentItem = {
-              equipmentName: item.equipmentName,
-              category: item.category,
-              addedAt: now,
-            };
-            await storage.equipment.add(props.id, equipmentItem);
-          }
+          case "remove": {
+            if (!equipmentName) {
+              return errAsync(
+                validationError(
+                  "Error: 'equipmentName' is required for the 'remove' action.",
+                ),
+              );
+            }
 
-          const equipment = await storage.equipment.getAll(props.id);
-          return textResult(
-            `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-          );
-        }
-
-        case "remove": {
-          if (!equipmentName) {
-            return errorResult(
-              "Error: 'equipmentName' is required for the 'remove' action.",
+            return safeStorage(async () => {
+              await storage.equipment.remove(props.id, equipmentName);
+              return storage.equipment.getAll(props.id);
+            }, "remove equipment item").map(
+              (equipment) =>
+                `Item removed from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
             );
           }
 
-          await storage.equipment.remove(props.id, equipmentName);
-          const equipment = await storage.equipment.getAll(props.id);
-          return textResult(
-            `Item removed from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-          );
+          case "clear":
+            return safeStorage(
+              () => storage.equipment.clear(props.id),
+              "clear equipment",
+            ).map(() => "Equipment cleared successfully.");
         }
+      });
 
-        case "clear": {
-          await storage.equipment.clear(props.id);
-          return textResult("Equipment cleared successfully.");
-        }
-      }
+      return toMcpResponse(await result);
     },
   );
 
@@ -220,30 +245,34 @@ export function registerInventoryTools(ctx: ToolContext) {
       }),
     },
     async ({ items, locationId, notes }) => {
-      const props = ctx.requireUser();
-      const { storage } = ctx;
+      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+        const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+        const estimatedTotal = items.reduce(
+          (sum, item) => sum + (item.price || 0) * item.quantity,
+          0,
+        );
 
-      const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-      const estimatedTotal = items.reduce(
-        (sum, item) => sum + (item.price || 0) * item.quantity,
-        0,
-      );
+        const order: OrderRecord = {
+          orderId,
+          items,
+          totalItems,
+          estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
+          placedAt: new Date().toISOString(),
+          locationId,
+          notes,
+        };
 
-      const order: OrderRecord = {
-        orderId,
-        items,
-        totalItems,
-        estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
-        placedAt: new Date().toISOString(),
-        locationId,
-        notes,
-      };
+        return safeStorage(
+          () => ctx.storage.orderHistory.add(props.id, order),
+          "record order",
+        ).map(
+          () =>
+            `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
+        );
+      });
 
-      await storage.orderHistory.add(props.id, order);
-      return textResult(
-        `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
-      );
+      return toMcpResponse(await result);
     },
   );
 }

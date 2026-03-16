@@ -1,4 +1,5 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { fromApiResponse, safeStorage } from "../utils/result.js";
 import { getSessionScopedUserId, type ToolContext } from "./types.js";
 
 function jsonResource(uri: string, data: unknown) {
@@ -28,12 +29,23 @@ export function registerResources(ctx: ToolContext) {
       const props = ctx.getUser();
       if (!props?.id) return authError("shopping://user/pantry");
 
-      const pantry = await ctx.storage.pantry.getAll(props.id);
-      return jsonResource("shopping://user/pantry", {
-        itemCount: pantry.length,
-        items: pantry,
-        lastUpdated: new Date().toISOString(),
-      });
+      const result = await safeStorage(
+        () => ctx.storage.pantry.getAll(props.id),
+        "fetch pantry",
+      );
+
+      return result.match(
+        (pantry) =>
+          jsonResource("shopping://user/pantry", {
+            itemCount: pantry.length,
+            items: pantry,
+            lastUpdated: new Date().toISOString(),
+          }),
+        () =>
+          jsonResource("shopping://user/pantry", {
+            error: "Failed to fetch pantry data",
+          }),
+      );
     },
   );
 
@@ -49,12 +61,23 @@ export function registerResources(ctx: ToolContext) {
       const props = ctx.getUser();
       if (!props?.id) return authError("shopping://user/equipment");
 
-      const equipment = await ctx.storage.equipment.getAll(props.id);
-      return jsonResource("shopping://user/equipment", {
-        itemCount: equipment.length,
-        items: equipment,
-        lastUpdated: new Date().toISOString(),
-      });
+      const result = await safeStorage(
+        () => ctx.storage.equipment.getAll(props.id),
+        "fetch equipment",
+      );
+
+      return result.match(
+        (equipment) =>
+          jsonResource("shopping://user/equipment", {
+            itemCount: equipment.length,
+            items: equipment,
+            lastUpdated: new Date().toISOString(),
+          }),
+        () =>
+          jsonResource("shopping://user/equipment", {
+            error: "Failed to fetch equipment data",
+          }),
+      );
     },
   );
 
@@ -70,17 +93,27 @@ export function registerResources(ctx: ToolContext) {
       const props = ctx.getUser();
       if (!props?.id) return authError("shopping://user/location");
 
-      const location = await ctx.storage.preferredLocation.get(props.id);
+      const result = await safeStorage(
+        () => ctx.storage.preferredLocation.get(props.id),
+        "fetch preferred location",
+      );
 
-      if (!location) {
-        return jsonResource("shopping://user/location", {
-          message: "No preferred location set",
-          instruction:
-            "Ask the user for their zip code, then use search_locations to find nearby stores and set_preferred_location to save their choice.",
-        });
-      }
-
-      return jsonResource("shopping://user/location", location);
+      return result.match(
+        (location) => {
+          if (!location) {
+            return jsonResource("shopping://user/location", {
+              message: "No preferred location set",
+              instruction:
+                "Ask the user for their zip code, then use search_locations to find nearby stores and set_preferred_location to save their choice.",
+            });
+          }
+          return jsonResource("shopping://user/location", location);
+        },
+        () =>
+          jsonResource("shopping://user/location", {
+            error: "Failed to fetch location data",
+          }),
+      );
     },
   );
 
@@ -96,12 +129,23 @@ export function registerResources(ctx: ToolContext) {
       const props = ctx.getUser();
       if (!props?.id) return authError("shopping://user/orders");
 
-      const orders = await ctx.storage.orderHistory.getRecent(props.id, 20);
-      return jsonResource("shopping://user/orders", {
-        orderCount: orders.length,
-        orders,
-        lastUpdated: new Date().toISOString(),
-      });
+      const result = await safeStorage(
+        () => ctx.storage.orderHistory.getRecent(props.id, 20),
+        "fetch order history",
+      );
+
+      return result.match(
+        (orders) =>
+          jsonResource("shopping://user/orders", {
+            orderCount: orders.length,
+            orders,
+            lastUpdated: new Date().toISOString(),
+          }),
+        () =>
+          jsonResource("shopping://user/orders", {
+            error: "Failed to fetch order data",
+          }),
+      );
     },
   );
 
@@ -118,19 +162,31 @@ export function registerResources(ctx: ToolContext) {
       if (!props?.id) return authError("shopping://user/shopping-list");
 
       const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
-      const list = await ctx.storage.shoppingList.getAll(scopedId);
-      const unchecked = list.filter((i) => !i.checked);
-      const withUpc = unchecked.filter((i) => i.upc);
-      const withoutUpc = unchecked.filter((i) => !i.upc);
+      const result = await safeStorage(
+        () => ctx.storage.shoppingList.getAll(scopedId),
+        "fetch shopping list",
+      );
 
-      return jsonResource("shopping://user/shopping-list", {
-        totalItems: list.length,
-        uncheckedCount: unchecked.length,
-        readyForCheckout: withUpc.length,
-        needsUpc: withoutUpc.length,
-        items: list,
-        lastUpdated: new Date().toISOString(),
-      });
+      return result.match(
+        (list) => {
+          const unchecked = list.filter((i) => !i.checked);
+          const withUpc = unchecked.filter((i) => i.upc);
+          const withoutUpc = unchecked.filter((i) => !i.upc);
+
+          return jsonResource("shopping://user/shopping-list", {
+            totalItems: list.length,
+            uncheckedCount: unchecked.length,
+            readyForCheckout: withUpc.length,
+            needsUpc: withoutUpc.length,
+            items: list,
+            lastUpdated: new Date().toISOString(),
+          });
+        },
+        () =>
+          jsonResource("shopping://user/shopping-list", {
+            error: "Failed to fetch shopping list data",
+          }),
+      );
     },
   );
 
@@ -158,8 +214,13 @@ export function registerResources(ctx: ToolContext) {
       let locationId: string | undefined;
       const props = ctx.getUser();
       if (props?.id) {
-        const location = await ctx.storage.preferredLocation.get(props.id);
-        locationId = location?.locationId;
+        const locResult = await safeStorage(
+          () => ctx.storage.preferredLocation.get(props.id),
+          "fetch preferred location",
+        );
+        if (locResult.isOk() && locResult.value) {
+          locationId = locResult.value.locationId;
+        }
       }
 
       const queryParams: Record<string, string> = {};
@@ -167,27 +228,31 @@ export function registerResources(ctx: ToolContext) {
         queryParams["filter.locationId"] = locationId;
       }
 
-      const { data, error } = await productClient.GET("/v1/products/{id}", {
-        params: {
-          path: { id: productId },
-          query: queryParams,
+      const result = await fromApiResponse(
+        productClient.GET("/v1/products/{id}", {
+          params: {
+            path: { id: productId },
+            query: queryParams,
+          },
+        }),
+        "fetch product details",
+      );
+
+      return result.match(
+        (data) => {
+          const product = data.data;
+          if (!product) {
+            return jsonResource(uri.href, {
+              error: `No product found with ID: ${productId}`,
+            });
+          }
+          return jsonResource(uri.href, product);
         },
-      });
-
-      if (error) {
-        return jsonResource(uri.href, {
-          error: `Failed to fetch product: ${JSON.stringify(error)}`,
-        });
-      }
-
-      const product = data.data;
-      if (!product) {
-        return jsonResource(uri.href, {
-          error: `No product found with ID: ${productId}`,
-        });
-      }
-
-      return jsonResource(uri.href, product);
+        (error) =>
+          jsonResource(uri.href, {
+            error: `Failed to fetch product: ${error.message}`,
+          }),
+      );
     },
   );
 }

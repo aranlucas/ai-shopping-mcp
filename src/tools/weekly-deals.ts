@@ -1,4 +1,7 @@
+import { ok, ResultAsync } from "neverthrow";
 import { z } from "zod";
+import type { AppError } from "../errors.js";
+import { networkError, storageError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
@@ -76,19 +79,29 @@ export function parseCacheEntry(
   }
 }
 
-async function readWeeklyDealsCache(
+function readWeeklyDealsCacheSafe(
   kv: KvLike | null,
   key: string,
-): Promise<CacheReadResult> {
-  if (!kv) return { kind: "miss" };
-  const raw = await kv.get(key);
-  const entry = parseCacheEntry(raw);
-  if (!entry) return { kind: "miss" };
+): ResultAsync<CacheReadResult, AppError> {
+  if (!kv)
+    return ResultAsync.fromSafePromise(
+      Promise.resolve(ok({ kind: "miss" as const })),
+    ).andThen((r) => r);
 
-  const now = Date.now();
-  if (now <= entry.freshUntil) return { kind: "fresh", entry };
-  if (now <= entry.staleUntil) return { kind: "stale", entry };
-  return { kind: "miss" };
+  return ResultAsync.fromPromise(kv.get(key), (e) =>
+    storageError(
+      `Failed to read cache: ${e instanceof Error ? e.message : String(e)}`,
+      e,
+    ),
+  ).map((raw) => {
+    const entry = parseCacheEntry(raw);
+    if (!entry) return { kind: "miss" as const };
+
+    const now = Date.now();
+    if (now <= entry.freshUntil) return { kind: "fresh" as const, entry };
+    if (now <= entry.staleUntil) return { kind: "stale" as const, entry };
+    return { kind: "miss" as const };
+  });
 }
 
 export function getLatestCircularEndTime(
@@ -190,10 +203,13 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         pageLimit,
       });
 
+      // Read cache using Result
+      const cacheResult = await readWeeklyDealsCacheSafe(kv, cacheKey);
+
       let staleEntry: WeeklyDealsCacheEntry | null = null;
 
-      try {
-        const cached = await readWeeklyDealsCache(kv, cacheKey);
+      if (cacheResult.isOk()) {
+        const cached = cacheResult.value;
         if (cached.kind === "fresh") {
           const result = addCacheWarning(
             cached.entry.data,
@@ -204,41 +220,56 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         if (cached.kind === "stale") {
           staleEntry = cached.entry;
         }
-
-        const { productClient } = ctx.clients;
-        const result = await getQfcWeeklyDeals({
-          locationId,
-          limit,
-          pageLimit,
-          searchProducts: async (term, locId, searchLimit) => {
-            const { data, error } = await productClient.GET("/v1/products", {
-              params: {
-                query: {
-                  "filter.term": term,
-                  "filter.locationId": locId,
-                  "filter.limit": searchLimit,
-                },
-              },
-            });
-            if (error) return [];
-            return data?.data || [];
-          },
-        });
-        await writeWeeklyDealsCache(kv, cacheKey, result);
-
-        return formatWeeklyDealsToolResponse(result, "miss");
-      } catch (error) {
-        if (staleEntry) {
-          const staleResult = addCacheWarning(
-            staleEntry.data,
-            `Live refresh failed; served stale KV cache. (${error instanceof Error ? error.message : String(error)})`,
-          );
-          return formatWeeklyDealsToolResponse(staleResult, "stale");
-        }
-
-        const message = error instanceof Error ? error.message : String(error);
-        return errorResult(`Failed to fetch weekly deals: ${message}`);
       }
+
+      // Fetch live data
+      const liveResult = await ResultAsync.fromPromise(
+        (async () => {
+          const { productClient } = ctx.clients;
+          const result = await getQfcWeeklyDeals({
+            locationId,
+            limit,
+            pageLimit,
+            searchProducts: async (term, locId, searchLimit) => {
+              const { data, error } = await productClient.GET("/v1/products", {
+                params: {
+                  query: {
+                    "filter.term": term,
+                    "filter.locationId": locId,
+                    "filter.limit": searchLimit,
+                  },
+                },
+              });
+              if (error) return [];
+              return data?.data || [];
+            },
+          });
+          await writeWeeklyDealsCache(kv, cacheKey, result);
+          return result;
+        })(),
+        (e): AppError =>
+          networkError(
+            `Failed to fetch weekly deals: ${e instanceof Error ? e.message : String(e)}`,
+            e,
+          ),
+      );
+
+      if (liveResult.isOk()) {
+        return formatWeeklyDealsToolResponse(liveResult.value, "miss");
+      }
+
+      // Live fetch failed — use stale cache if available
+      if (staleEntry) {
+        const staleResult = addCacheWarning(
+          staleEntry.data,
+          `Live refresh failed; served stale KV cache. (${liveResult.error.message})`,
+        );
+        return formatWeeklyDealsToolResponse(staleResult, "stale");
+      }
+
+      return errorResult(
+        `Failed to fetch weekly deals: ${liveResult.error.message}`,
+      );
     },
   );
 }

@@ -1,5 +1,14 @@
+import { err, ok, ResultAsync } from "neverthrow";
 import { z } from "zod";
-import { errorResult, type ToolContext, textResult } from "./types.js";
+import type { AppError } from "../errors.js";
+import { networkError } from "../errors.js";
+import {
+  requireAuth,
+  safeFetch,
+  safeStorage,
+  toMcpResponse,
+} from "../utils/result.js";
+import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
   ctx.server.registerTool(
@@ -23,123 +32,127 @@ export function registerRecipeTools(ctx: ToolContext) {
       }),
     },
     async ({ searchQuery }) => {
-      try {
-        const apiUrl = "https://janella-cookbook.vercel.app/api/search";
-        console.log(`Searching recipes via API: ${searchQuery}`);
+      const apiUrl = "https://janella-cookbook.vercel.app/api/search";
 
-        const response = await fetch(apiUrl, {
+      const result = safeFetch(
+        apiUrl,
+        {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: searchQuery }),
           signal: AbortSignal.timeout(15_000),
-        });
-
-        if (!response.ok) {
-          return errorResult(
-            `Recipe API request failed: ${response.status} ${response.statusText}`,
-          );
-        }
-
-        const apiResponse = (await response.json()) as {
-          success: boolean;
-          data?: {
-            results: Array<{
-              recipe: {
-                title: string;
-                description?: string;
-                prepTime?: number;
-                cookTime?: number;
-                totalTime?: number;
-                servings?: string;
-                difficulty?: string;
-                cuisine?: string;
-                slug: string;
-                ingredients?: Array<{
-                  quantity?: string;
-                  unit?: string;
-                  name: string;
-                  notes?: string;
-                }>;
-                instructions?: Array<{
-                  stepNumber: number;
-                  instruction: string;
+        },
+        "Recipe API request",
+      )
+        .andThen((response) =>
+          ResultAsync.fromPromise(
+            response.json() as Promise<{
+              success: boolean;
+              data?: {
+                results: Array<{
+                  recipe: {
+                    title: string;
+                    description?: string;
+                    prepTime?: number;
+                    cookTime?: number;
+                    totalTime?: number;
+                    servings?: string;
+                    difficulty?: string;
+                    cuisine?: string;
+                    slug: string;
+                    ingredients?: Array<{
+                      quantity?: string;
+                      unit?: string;
+                      name: string;
+                      notes?: string;
+                    }>;
+                    instructions?: Array<{
+                      stepNumber: number;
+                      instruction: string;
+                    }>;
+                  };
                 }>;
               };
-            }>;
-          };
-          error?: { message: string };
-        };
-
-        if (!apiResponse.success || !apiResponse.data?.results) {
-          return errorResult(
-            `Recipe search failed: ${apiResponse.error?.message || "No results returned from API"}`,
-          );
-        }
-
-        const recipes = apiResponse.data.results;
-
-        if (recipes.length === 0) {
-          return textResult(
-            `No recipes found for "${searchQuery}". Try a different search term.`,
-          );
-        }
-
-        const formattedRecipes = recipes
-          .map((result, idx) => {
-            const recipe = result.recipe;
-            const parts = [`**${idx + 1}. ${recipe.title}**`];
-
-            if (recipe.description) {
-              parts.push(recipe.description);
-            }
-
-            const metadata = [];
-            if (recipe.cuisine) metadata.push(recipe.cuisine);
-            if (recipe.difficulty)
-              metadata.push(recipe.difficulty.toLowerCase());
-            if (recipe.totalTime) metadata.push(`${recipe.totalTime}min total`);
-            else if (recipe.cookTime)
-              metadata.push(`${recipe.cookTime}min cook`);
-            if (recipe.servings) metadata.push(recipe.servings);
-            if (metadata.length > 0) {
-              parts.push(`*${metadata.join(" • ")}*`);
-            }
-
-            if (recipe.ingredients && recipe.ingredients.length > 0) {
-              parts.push("\n**Ingredients:**");
-              recipe.ingredients.forEach((ing) => {
-                const amount = [ing.quantity, ing.unit]
-                  .filter(Boolean)
-                  .join(" ");
-                const notes = ing.notes ? ` (${ing.notes})` : "";
-                parts.push(`- ${amount} ${ing.name}${notes}`.trim());
-              });
-            }
-
-            if (recipe.instructions && recipe.instructions.length > 0) {
-              parts.push("\n**Instructions:**");
-              recipe.instructions.forEach((step) => {
-                parts.push(`${step.stepNumber}. ${step.instruction}`);
-              });
-            }
-
-            parts.push(
-              `\n*View online: https://janella-cookbook.vercel.app/recipe/${recipe.slug}*`,
+              error?: { message: string };
+            }>,
+            (e) =>
+              networkError(
+                `Failed to parse recipe response: ${e instanceof Error ? e.message : String(e)}`,
+                e,
+              ),
+          ),
+        )
+        .andThen((apiResponse) => {
+          if (!apiResponse.success || !apiResponse.data?.results) {
+            return err(
+              networkError(
+                `Recipe search failed: ${apiResponse.error?.message || "No results returned from API"}`,
+              ),
             );
+          }
 
-            return parts.join("\n");
-          })
-          .join("\n\n---\n\n");
+          const recipes = apiResponse.data.results;
 
-        return textResult(
-          `**Recipe Search Results for "${searchQuery}"**\n\nFound ${recipes.length} recipe(s):\n\n${formattedRecipes}`,
-        );
-      } catch (error) {
-        console.error("Error fetching recipes:", error);
-        return errorResult(
-          `Failed to fetch recipes: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
-      }
+          if (recipes.length === 0) {
+            return ok(
+              `No recipes found for "${searchQuery}". Try a different search term.`,
+            );
+          }
+
+          const formattedRecipes = recipes
+            .map((result, idx) => {
+              const recipe = result.recipe;
+              const parts = [`**${idx + 1}. ${recipe.title}**`];
+
+              if (recipe.description) {
+                parts.push(recipe.description);
+              }
+
+              const metadata = [];
+              if (recipe.cuisine) metadata.push(recipe.cuisine);
+              if (recipe.difficulty)
+                metadata.push(recipe.difficulty.toLowerCase());
+              if (recipe.totalTime)
+                metadata.push(`${recipe.totalTime}min total`);
+              else if (recipe.cookTime)
+                metadata.push(`${recipe.cookTime}min cook`);
+              if (recipe.servings) metadata.push(recipe.servings);
+              if (metadata.length > 0) {
+                parts.push(`*${metadata.join(" • ")}*`);
+              }
+
+              if (recipe.ingredients && recipe.ingredients.length > 0) {
+                parts.push("\n**Ingredients:**");
+                for (const ing of recipe.ingredients) {
+                  const amount = [ing.quantity, ing.unit]
+                    .filter(Boolean)
+                    .join(" ");
+                  const notes = ing.notes ? ` (${ing.notes})` : "";
+                  parts.push(`- ${amount} ${ing.name}${notes}`.trim());
+                }
+              }
+
+              if (recipe.instructions && recipe.instructions.length > 0) {
+                parts.push("\n**Instructions:**");
+                for (const step of recipe.instructions) {
+                  parts.push(`${step.stepNumber}. ${step.instruction}`);
+                }
+              }
+
+              parts.push(
+                `\n*View online: https://janella-cookbook.vercel.app/recipe/${recipe.slug}*`,
+              );
+
+              return parts.join("\n");
+            })
+            .join("\n\n---\n\n");
+
+          return ok(
+            `**Recipe Search Results for "${searchQuery}"**\n\nFound ${recipes.length} recipe(s):\n\n${formattedRecipes}`,
+          );
+        });
+
+      return toMcpResponse(await result);
     },
   );
 
@@ -190,14 +203,31 @@ export function registerRecipeTools(ctx: ToolContext) {
       dietaryPreferences,
       prioritizeExpiring,
     }) => {
-      const props = ctx.requireUser();
+      const authResult = requireAuth(ctx.getUser);
+      if (authResult.isErr()) {
+        return toMcpResponse(authResult.map(() => ""));
+      }
+      const props = authResult.value;
       const { storage } = ctx;
 
-      const [pantry, equipment, recentOrders] = await Promise.all([
-        storage.pantry.getAll(props.id),
-        storage.equipment.getAll(props.id),
-        storage.orderHistory.getRecent(props.id, 10),
+      // Fetch user data in parallel using ResultAsync.combine
+      const dataResult = await ResultAsync.combine([
+        safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),
+        safeStorage(
+          () => storage.equipment.getAll(props.id),
+          "fetch equipment",
+        ),
+        safeStorage(
+          () => storage.orderHistory.getRecent(props.id, 10),
+          "fetch order history",
+        ),
       ]);
+
+      if (dataResult.isErr()) {
+        return toMcpResponse(dataResult.map(() => ""));
+      }
+
+      const [pantry, equipment, recentOrders] = dataResult.value;
 
       if (pantry.length === 0) {
         return textResult(
@@ -327,9 +357,8 @@ export function registerRecipeTools(ctx: ToolContext) {
       }
 
       // Try MCP sampling for AI-powered meal suggestions
-      // Use keepAliveWhile to prevent Durable Object eviction during LLM sampling
-      try {
-        const result = await ctx.keepAliveWhile(() =>
+      const samplingResult = await ResultAsync.fromPromise(
+        ctx.keepAliveWhile(() =>
           ctx.server.server.createMessage({
             messages: [
               {
@@ -339,78 +368,86 @@ export function registerRecipeTools(ctx: ToolContext) {
             ],
             maxTokens: 2000,
           }),
-        );
+        ),
+        (e): AppError =>
+          networkError(
+            `MCP sampling failed: ${e instanceof Error ? e.message : String(e)}`,
+            e,
+          ),
+      );
 
-        // result.content may be a single content item or an array
-        const contentItem = Array.isArray(result.content)
-          ? result.content[0]
-          : result.content;
+      if (samplingResult.isOk()) {
+        const contentItem = Array.isArray(samplingResult.value.content)
+          ? samplingResult.value.content[0]
+          : samplingResult.value.content;
         const responseText =
           contentItem && "type" in contentItem && contentItem.type === "text"
             ? contentItem.text
             : "Unable to process meal plan response.";
 
         return textResult(`${headerParts.join("")}\n\n${responseText}`);
-      } catch (samplingError) {
-        console.error("MCP sampling failed for meal planning:", samplingError);
-
-        // Fallback: return structured context so the outer AI can generate
-        // meal suggestions itself.
-        const fallbackParts: string[] = [];
-        fallbackParts.push(headerParts.join(""));
-
-        if (dietaryPreferences) {
-          fallbackParts.push(`\nDietary preferences: ${dietaryPreferences}`);
-        }
-
-        if (expiringItems.length > 0) {
-          fallbackParts.push("\n**⚠️ Expiring Soon (use first!):**");
-          for (const item of expiringItems) {
-            const urgency =
-              item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
-            fallbackParts.push(
-              `- ${item.productName} x${item.quantity} (${urgency})`,
-            );
-          }
-        }
-
-        if (expiredItems.length > 0) {
-          fallbackParts.push("\n**❌ Expired (discard):**");
-          for (const item of expiredItems) {
-            fallbackParts.push(`- ${item.productName}`);
-          }
-        }
-
-        fallbackParts.push(`\n**Pantry (${availableItems.length} items):**`);
-        for (const item of availableItems) {
-          fallbackParts.push(`- ${item.productName} x${item.quantity}`);
-        }
-
-        if (equipment.length > 0) {
-          fallbackParts.push(`\n**Equipment (${equipment.length} items):**`);
-          for (const item of equipment) {
-            fallbackParts.push(
-              `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
-            );
-          }
-        }
-
-        if (frequentItems.length > 0) {
-          fallbackParts.push("\n**Frequently Purchased (user preferences):**");
-          for (const [name, count] of frequentItems) {
-            fallbackParts.push(`- ${name} (ordered ${count}x)`);
-          }
-        }
-
-        fallbackParts.push(
-          `\n---\n**Action Required:** Please suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using the pantry items above.`,
-          "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
-          "Prioritize using expiring items first to reduce food waste.",
-          "After suggesting meals, offer to add any missing ingredients to the shopping list using manage_shopping_list with action 'add'.",
-        );
-
-        return textResult(fallbackParts.join("\n"));
       }
+
+      // Fallback: return structured context so the outer AI can generate suggestions
+      console.error(
+        "MCP sampling failed for meal planning:",
+        samplingResult.error.message,
+      );
+
+      const fallbackParts: string[] = [];
+      fallbackParts.push(headerParts.join(""));
+
+      if (dietaryPreferences) {
+        fallbackParts.push(`\nDietary preferences: ${dietaryPreferences}`);
+      }
+
+      if (expiringItems.length > 0) {
+        fallbackParts.push("\n**⚠️ Expiring Soon (use first!):**");
+        for (const item of expiringItems) {
+          const urgency =
+            item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
+          fallbackParts.push(
+            `- ${item.productName} x${item.quantity} (${urgency})`,
+          );
+        }
+      }
+
+      if (expiredItems.length > 0) {
+        fallbackParts.push("\n**❌ Expired (discard):**");
+        for (const item of expiredItems) {
+          fallbackParts.push(`- ${item.productName}`);
+        }
+      }
+
+      fallbackParts.push(`\n**Pantry (${availableItems.length} items):**`);
+      for (const item of availableItems) {
+        fallbackParts.push(`- ${item.productName} x${item.quantity}`);
+      }
+
+      if (equipment.length > 0) {
+        fallbackParts.push(`\n**Equipment (${equipment.length} items):**`);
+        for (const item of equipment) {
+          fallbackParts.push(
+            `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
+          );
+        }
+      }
+
+      if (frequentItems.length > 0) {
+        fallbackParts.push("\n**Frequently Purchased (user preferences):**");
+        for (const [name, count] of frequentItems) {
+          fallbackParts.push(`- ${name} (ordered ${count}x)`);
+        }
+      }
+
+      fallbackParts.push(
+        `\n---\n**Action Required:** Please suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using the pantry items above.`,
+        "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
+        "Prioritize using expiring items first to reduce food waste.",
+        "After suggesting meals, offer to add any missing ingredients to the shopping list using manage_shopping_list with action 'add'.",
+      );
+
+      return textResult(fallbackParts.join("\n"));
     },
   );
 }

@@ -1,0 +1,171 @@
+/**
+ * neverthrow utilities for bridging Result types with MCP tool responses
+ * and wrapping common async operations.
+ */
+import { err, ok, okAsync, type Result, ResultAsync } from "neverthrow";
+import {
+  type AppError,
+  apiError,
+  authError,
+  formatAppError,
+  networkError,
+  notFoundError,
+  storageError,
+} from "../errors.js";
+import type { Props, UserStorage } from "../tools/types.js";
+
+// --- MCP Response Bridge ---
+
+/** MCP tool result type (mirrors what registerTool handlers return) */
+type McpToolResult = {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: true;
+};
+
+/**
+ * Converts a Result<string, AppError> into an MCP tool response.
+ * Ok values become textResult, Err values become errorResult.
+ */
+export function toMcpResponse(result: Result<string, AppError>): McpToolResult {
+  return result.match(
+    (text) => ({ content: [{ type: "text" as const, text }] }),
+    (error) => ({
+      content: [{ type: "text" as const, text: formatAppError(error) }],
+      isError: true as const,
+    }),
+  );
+}
+
+/**
+ * Converts a ResultAsync<string, AppError> into an MCP tool response.
+ */
+export async function toMcpResponseAsync(
+  result: ResultAsync<string, AppError>,
+): Promise<McpToolResult> {
+  return toMcpResponse(await result);
+}
+
+// --- API Call Wrappers ---
+
+/**
+ * Wraps an openapi-fetch response { data, error } into a ResultAsync.
+ * Handles the common pattern of checking error, then checking data existence.
+ */
+export function fromApiResponse<T>(
+  promise: Promise<{ data?: T; error?: unknown }>,
+  context: string,
+): ResultAsync<T, AppError> {
+  return ResultAsync.fromPromise(promise, (e) =>
+    networkError(
+      `${context}: ${e instanceof Error ? e.message : String(e)}`,
+      e,
+    ),
+  ).andThen(({ data, error }) => {
+    if (error) {
+      return err(apiError(`Failed to ${context}`, error));
+    }
+    if (data === undefined || data === null) {
+      return err(notFoundError(`No data returned from ${context}`));
+    }
+    return ok(data);
+  });
+}
+
+// --- Auth Helpers ---
+
+/**
+ * Result-based version of requireUser.
+ * Returns Ok(Props) or Err(AuthError).
+ */
+export function requireAuth(
+  getUser: () => Props | null,
+): Result<Props, AppError> {
+  const props = getUser();
+  if (!props?.id) {
+    return err(authError("User not authenticated"));
+  }
+  return ok(props);
+}
+
+// --- Location Resolution ---
+
+/**
+ * Result-based version of resolveLocationId.
+ * Returns Ok with resolved location info or Err with validation error.
+ */
+export function safeResolveLocationId(
+  storage: UserStorage,
+  userId: string,
+  locationId?: string,
+): ResultAsync<{ locationId: string; locationName?: string }, AppError> {
+  if (locationId) {
+    return okAsync<{ locationId: string; locationName?: string }, AppError>({
+      locationId,
+    });
+  }
+
+  return ResultAsync.fromPromise(storage.preferredLocation.get(userId), (e) =>
+    storageError(
+      `Failed to fetch preferred location: ${e instanceof Error ? e.message : String(e)}`,
+      e,
+    ),
+  ).andThen((preferredLocation) => {
+    if (!preferredLocation) {
+      return err(
+        notFoundError(
+          "No location specified and no preferred location set. Please provide a locationId or set your preferred location using set_preferred_location.",
+        ),
+      );
+    }
+    return ok({
+      locationId: preferredLocation.locationId,
+      locationName: preferredLocation.locationName,
+    });
+  });
+}
+
+// --- Storage Wrappers ---
+
+/**
+ * Wraps a storage operation that may throw into a ResultAsync.
+ */
+export function safeStorage<T>(
+  operation: () => Promise<T>,
+  context: string,
+): ResultAsync<T, AppError> {
+  return ResultAsync.fromPromise(operation(), (e) =>
+    storageError(
+      `${context}: ${e instanceof Error ? e.message : String(e)}`,
+      e,
+    ),
+  );
+}
+
+// --- Fetch Wrapper ---
+
+/**
+ * Wraps a fetch call into a ResultAsync, handling network errors and non-ok responses.
+ */
+export function safeFetch(
+  input: RequestInfo,
+  init?: RequestInit,
+  context = "fetch",
+): ResultAsync<Response, AppError> {
+  return ResultAsync.fromPromise(fetch(input, init), (e) =>
+    networkError(
+      `${context}: ${e instanceof Error ? e.message : String(e)}`,
+      e,
+    ),
+  ).andThen((response) => {
+    if (!response.ok) {
+      return err(
+        apiError(
+          `${context} failed: ${response.status} ${response.statusText}`,
+          undefined,
+          response.status,
+        ),
+      );
+    }
+    return ok(response);
+  });
+}

@@ -1,9 +1,13 @@
+import { err, ok } from "neverthrow";
 import { z } from "zod";
+import type { AppError } from "../errors.js";
+import { notFoundError } from "../errors.js";
 import {
   formatProductCompact,
   formatProductList,
 } from "../utils/format-response.js";
-import { errorResult, type ToolContext, textResult } from "./types.js";
+import { fromApiResponse, toMcpResponse } from "../utils/result.js";
+import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
@@ -51,17 +55,12 @@ export function registerProductTools(ctx: ToolContext) {
           "filter.limit": ITEMS_PER_TERM,
         };
 
-        const { data, error } = await productClient.GET("/v1/products", {
-          params: { query: queryParams },
-        });
-
-        if (error) {
-          console.error(`Error searching products for term "${term}":`, error);
-          return { term, products: [], count: 0 };
-        }
-
-        const products = data?.data || [];
-        console.log(`Found ${products.length} products for term "${term}"`);
+        const apiResult = await fromApiResponse(
+          productClient.GET("/v1/products", {
+            params: { query: queryParams },
+          }),
+          `search products for "${term}"`,
+        );
 
         completedSearches++;
         if (progressToken && extra?.sendNotification) {
@@ -74,12 +73,24 @@ export function registerProductTools(ctx: ToolContext) {
                 total: totalSearches,
               },
             });
-          } catch (error) {
-            console.error("Failed to send progress notification:", error);
+          } catch (notifyError) {
+            console.error("Failed to send progress notification:", notifyError);
           }
         }
 
-        return { term, products, count: products.length };
+        return apiResult.match(
+          (data) => {
+            const products = data?.data || [];
+            return { term, products, count: products.length };
+          },
+          (error: AppError) => {
+            console.error(
+              `Error searching products for "${term}":`,
+              error.message,
+            );
+            return { term, products: [] as never[], count: 0 };
+          },
+        );
       });
 
       const results = await Promise.all(searchPromises);
@@ -154,27 +165,25 @@ export function registerProductTools(ctx: ToolContext) {
         queryParams["filter.locationId"] = locationId;
       }
 
-      const { data, error } = await productClient.GET("/v1/products/{id}", {
-        params: {
-          path: { id: productId },
-          query: queryParams,
-        },
+      const result = fromApiResponse(
+        productClient.GET("/v1/products/{id}", {
+          params: {
+            path: { id: productId },
+            query: queryParams,
+          },
+        }),
+        "get product details",
+      ).andThen((data) => {
+        const product = data.data;
+        if (!product) {
+          return err(
+            notFoundError(`No information found for product ID: ${productId}`),
+          );
+        }
+        return ok(`Product Details:\n\n${formatProductList([product])}`);
       });
 
-      if (error) {
-        console.error("Error getting product details:", error);
-        return errorResult(
-          `Failed to get product details: ${JSON.stringify(error)}`,
-        );
-      }
-
-      const product = data.data;
-      if (!product) {
-        return errorResult(`No information found for product ID: ${productId}`);
-      }
-
-      console.log(`Retrieved details for product: ${product.description}`);
-      return textResult(`Product Details:\n\n${formatProductList([product])}`);
+      return toMcpResponse(await result);
     },
   );
 }
