@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
-import type { ToolContext } from "./types.js";
+import { errorResult, type ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
 
@@ -237,15 +237,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         }
 
         const message = error instanceof Error ? error.message : String(error);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to fetch weekly deals: ${message}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(`Failed to fetch weekly deals: ${message}`);
       }
     },
   );

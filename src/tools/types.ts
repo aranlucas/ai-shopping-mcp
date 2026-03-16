@@ -34,6 +34,16 @@ export type ToolContext = {
   keepAliveWhile: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
+// --- Response helpers ---
+
+export function textResult(text: string) {
+  return { content: [{ type: "text" as const, text }] };
+}
+
+export function errorResult(text: string) {
+  return { content: [{ type: "text" as const, text }], isError: true as const };
+}
+
 /**
  * Returns a session-scoped storage key for shopping list isolation.
  * Each MCP session (chat) gets its own shopping list.

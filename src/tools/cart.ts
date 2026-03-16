@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { components } from "../services/kroger/cart.js";
-import { resolveLocationId, type ToolContext } from "./types.js";
+import {
+  errorResult,
+  resolveLocationId,
+  type ToolContext,
+  textResult,
+} from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -50,15 +55,9 @@ export function registerCartTools(ctx: ToolContext) {
       try {
         resolved = await resolveLocationId(storage, props.id, locationId);
       } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       const cartItems: CartItem[] = items.map((item) => ({
@@ -67,28 +66,18 @@ export function registerCartTools(ctx: ToolContext) {
         modality: item.modality,
       }));
 
-      const requestBody: CartItemRequest = {
-        items: cartItems,
-      };
+      const requestBody: CartItemRequest = { items: cartItems };
 
       const { error } = await cartClient.PUT("/v1/cart/add", {
         body: requestBody,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       });
 
       if (error) {
         console.error("Error adding items to cart:", error);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to add items to cart: ${JSON.stringify(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `Failed to add items to cart: ${JSON.stringify(error)}`,
+        );
       }
 
       console.log(
@@ -99,14 +88,9 @@ export function registerCartTools(ctx: ToolContext) {
         ? ` at ${resolved.locationName}`
         : ` (Location: ${resolved.locationId})`;
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Successfully added ${items.length} item(s) to cart${locationInfo}.`,
-          },
-        ],
-      };
+      return textResult(
+        `Successfully added ${items.length} item(s) to cart${locationInfo}.`,
+      );
     },
   );
 }

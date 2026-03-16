@@ -3,9 +3,11 @@ import type { components } from "../services/kroger/cart.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import {
+  errorResult,
   getSessionScopedUserId,
   resolveLocationId,
   type ToolContext,
+  textResult,
 } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
@@ -93,15 +95,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       switch (action) {
         case "add": {
           if (!items || items.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Error: 'items' array is required for the 'add' action.",
-                },
-              ],
-              isError: true,
-            };
+            return errorResult(
+              "Error: 'items' array is required for the 'add' action.",
+            );
           }
 
           const now = new Date().toISOString();
@@ -118,57 +114,30 @@ export function registerShoppingListTools(ctx: ToolContext) {
           }
 
           const list = await storage.shoppingList.getAll(scopedId);
-          const formatted = formatShoppingListCompact(list);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatted}`,
-              },
-            ],
-          };
+          return textResult(
+            `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
+          );
         }
 
         case "remove": {
           if (!productName) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Error: 'productName' is required for the 'remove' action.",
-                },
-              ],
-              isError: true,
-            };
+            return errorResult(
+              "Error: 'productName' is required for the 'remove' action.",
+            );
           }
 
           await storage.shoppingList.remove(scopedId, productName);
-
           const list = await storage.shoppingList.getAll(scopedId);
-          const formatted = formatShoppingListCompact(list);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatted}`,
-              },
-            ],
-          };
+          return textResult(
+            `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
+          );
         }
 
         case "update": {
           if (!productName) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Error: 'productName' is required for the 'update' action.",
-                },
-              ],
-              isError: true,
-            };
+            return errorResult(
+              "Error: 'productName' is required for the 'update' action.",
+            );
           }
 
           const updates: Partial<
@@ -179,37 +148,19 @@ export function registerShoppingListTools(ctx: ToolContext) {
           if (notes !== undefined) updates.notes = notes;
 
           await storage.shoppingList.updateItem(scopedId, productName, updates);
-
           const list = await storage.shoppingList.getAll(scopedId);
-          const formatted = formatShoppingListCompact(list);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatted}`,
-              },
-            ],
-          };
+          return textResult(
+            `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
+          );
         }
 
         case "clear": {
           await storage.shoppingList.clear(scopedId);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Shopping list cleared successfully.",
-              },
-            ],
-          };
+          return textResult("Shopping list cleared successfully.");
         }
       }
     },
   );
-
-  // --- Checkout tool (kept separate - distinct Kroger API interaction) ---
 
   ctx.server.registerTool(
     "checkout_shopping_list",
@@ -242,14 +193,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const uncheckedItems = await storage.shoppingList.getUnchecked(scopedId);
 
       if (uncheckedItems.length === 0) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "No unchecked items on your shopping list to checkout.",
-            },
-          ],
-        };
+        return textResult(
+          "No unchecked items on your shopping list to checkout.",
+        );
       }
 
       const withUpc = uncheckedItems.filter((item) => item.upc);
@@ -259,15 +205,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       try {
         resolved = await resolveLocationId(storage, props.id, locationId);
       } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       const resultParts: string[] = [];
@@ -300,14 +240,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
             (elicitResult.action === "accept" &&
               elicitResult.content?.confirm === false)
           ) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Checkout cancelled. Your shopping list remains unchanged.",
-                },
-              ],
-            };
+            return textResult(
+              "Checkout cancelled. Your shopping list remains unchanged.",
+            );
           }
         } catch (elicitError) {
           // Elicitation not supported by client — proceed without confirmation
@@ -325,28 +260,18 @@ export function registerShoppingListTools(ctx: ToolContext) {
           modality,
         }));
 
-        const requestBody: CartItemRequest = {
-          items: cartItems,
-        };
+        const requestBody: CartItemRequest = { items: cartItems };
 
         const { error } = await cartClient.PUT("/v1/cart/add", {
           body: requestBody,
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         });
 
         if (error) {
           console.error("Error adding shopping list items to cart:", error);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Failed to add items to cart: ${JSON.stringify(error)}`,
-              },
-            ],
-            isError: true,
-          };
+          return errorResult(
+            `Failed to add items to cart: ${JSON.stringify(error)}`,
+          );
         }
 
         for (const item of withUpc) {
@@ -371,17 +296,11 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const updatedList = await storage.shoppingList.getAll(scopedId);
-      const formatted = formatShoppingListCompact(updatedList);
-      resultParts.push(`\nYour shopping list:\n\n${formatted}`);
+      resultParts.push(
+        `\nYour shopping list:\n\n${formatShoppingListCompact(updatedList)}`,
+      );
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: resultParts.join("\n\n"),
-          },
-        ],
-      };
+      return textResult(resultParts.join("\n\n"));
     },
   );
 }
