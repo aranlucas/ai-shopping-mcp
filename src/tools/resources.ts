@@ -10,7 +10,7 @@ function jsonResource(uri: string, data: unknown) {
   };
 }
 
-function authError(uri: string) {
+function unauthenticatedResource(uri: string) {
   return jsonResource(uri, { error: "User not authenticated" });
 }
 
@@ -27,7 +27,7 @@ export function registerResources(ctx: ToolContext) {
     },
     async () => {
       const props = ctx.getUser();
-      if (!props?.id) return authError("shopping://user/pantry");
+      if (!props?.id) return unauthenticatedResource("shopping://user/pantry");
 
       const result = await safeStorage(
         () => ctx.storage.pantry.getAll(props.id),
@@ -59,7 +59,8 @@ export function registerResources(ctx: ToolContext) {
     },
     async () => {
       const props = ctx.getUser();
-      if (!props?.id) return authError("shopping://user/equipment");
+      if (!props?.id)
+        return unauthenticatedResource("shopping://user/equipment");
 
       const result = await safeStorage(
         () => ctx.storage.equipment.getAll(props.id),
@@ -91,7 +92,8 @@ export function registerResources(ctx: ToolContext) {
     },
     async () => {
       const props = ctx.getUser();
-      if (!props?.id) return authError("shopping://user/location");
+      if (!props?.id)
+        return unauthenticatedResource("shopping://user/location");
 
       const result = await safeStorage(
         () => ctx.storage.preferredLocation.get(props.id),
@@ -127,7 +129,7 @@ export function registerResources(ctx: ToolContext) {
     },
     async () => {
       const props = ctx.getUser();
-      if (!props?.id) return authError("shopping://user/orders");
+      if (!props?.id) return unauthenticatedResource("shopping://user/orders");
 
       const result = await safeStorage(
         () => ctx.storage.orderHistory.getRecent(props.id, 20),
@@ -159,7 +161,8 @@ export function registerResources(ctx: ToolContext) {
     },
     async () => {
       const props = ctx.getUser();
-      if (!props?.id) return authError("shopping://user/shopping-list");
+      if (!props?.id)
+        return unauthenticatedResource("shopping://user/shopping-list");
 
       const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
       const result = await safeStorage(

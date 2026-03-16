@@ -40,10 +40,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       clients,
       storage,
       getUser: () => this.props ?? null,
-      requireUser: () => {
-        if (!this.props?.id) throw new Error("User not authenticated");
-        return this.props;
-      },
       getEnv: () => this.env,
       getSessionId: () => this.getSessionId(),
       keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),

@@ -1,4 +1,4 @@
-import { errAsync } from "neverthrow";
+import { errAsync, ok, safeTry } from "neverthrow";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
@@ -8,6 +8,7 @@ import {
   requireAuth,
   safeResolveLocationId,
   safeStorage,
+  toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
@@ -212,124 +213,129 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId, modality }) => {
-      const props = ctx.requireUser();
+      const authResult = requireAuth(ctx.getUser);
+      if (authResult.isErr()) return toMcpError(authResult.error);
+
+      const props = authResult.value;
       const { storage } = ctx;
       const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
-      const uncheckedItems = await storage.shoppingList.getUnchecked(scopedId);
+      // Use safeTry for the multi-step checkout flow
+      const result = await safeTry(async function* () {
+        const uncheckedItems = yield* safeStorage(
+          () => storage.shoppingList.getUnchecked(scopedId),
+          "fetch unchecked items",
+        ).safeUnwrap();
 
-      if (uncheckedItems.length === 0) {
-        return textResult(
-          "No unchecked items on your shopping list to checkout.",
-        );
-      }
-
-      const withUpc = uncheckedItems.filter((item) => item.upc);
-      const withoutUpc = uncheckedItems.filter((item) => !item.upc);
-
-      // Resolve location using Result-based helper
-      const resolvedResult = await safeResolveLocationId(
-        storage,
-        props.id,
-        locationId,
-      );
-
-      if (resolvedResult.isErr()) {
-        return toMcpResponse(resolvedResult.map(() => ""));
-      }
-
-      const resolved = resolvedResult.value;
-      const resultParts: string[] = [];
-
-      if (withUpc.length > 0) {
-        // Use MCP elicitation to confirm checkout with the user
-        try {
-          const itemSummary = withUpc
-            .map((i) => `${i.productName} x${i.quantity}`)
-            .join(", ");
-
-          const elicitResult = await ctx.server.server.elicitInput({
-            message: `Add ${withUpc.length} item(s) to your Kroger cart? Items: ${itemSummary}`,
-            requestedSchema: {
-              type: "object" as const,
-              properties: {
-                confirm: {
-                  type: "boolean" as const,
-                  title: "Confirm checkout",
-                  description: "Add these items to your Kroger cart?",
-                  default: true,
-                },
-              },
-            },
-          });
-
-          if (
-            elicitResult.action === "decline" ||
-            elicitResult.action === "cancel" ||
-            (elicitResult.action === "accept" &&
-              elicitResult.content?.confirm === false)
-          ) {
-            return textResult(
-              "Checkout cancelled. Your shopping list remains unchanged.",
-            );
-          }
-        } catch (elicitError) {
-          // Elicitation not supported by client — proceed without confirmation
-          console.warn(
-            "Elicitation unavailable, proceeding without confirmation:",
-            elicitError instanceof Error
-              ? elicitError.message
-              : String(elicitError),
+        if (uncheckedItems.length === 0) {
+          return ok(
+            textResult("No unchecked items on your shopping list to checkout."),
           );
         }
 
-        const cartItems: CartItem[] = withUpc.map((item) => ({
-          upc: item.upc as string,
-          quantity: item.quantity,
-          modality,
-        }));
+        const withUpc = uncheckedItems.filter((item) => item.upc);
+        const withoutUpc = uncheckedItems.filter((item) => !item.upc);
 
-        const requestBody: CartItemRequest = { items: cartItems };
+        const resolved = yield* safeResolveLocationId(
+          storage,
+          props.id,
+          locationId,
+        ).safeUnwrap();
 
-        const addResult = await fromApiResponse(
-          cartClient.PUT("/v1/cart/add", {
-            body: requestBody,
-            headers: { "Content-Type": "application/json" },
-          }),
-          "add shopping list items to cart",
-        );
+        const resultParts: string[] = [];
 
-        if (addResult.isErr()) {
-          return toMcpResponse(addResult.map(() => ""));
+        if (withUpc.length > 0) {
+          // Use MCP elicitation to confirm checkout with the user
+          try {
+            const itemSummary = withUpc
+              .map((i) => `${i.productName} x${i.quantity}`)
+              .join(", ");
+
+            const elicitResult = await ctx.server.server.elicitInput({
+              message: `Add ${withUpc.length} item(s) to your Kroger cart? Items: ${itemSummary}`,
+              requestedSchema: {
+                type: "object" as const,
+                properties: {
+                  confirm: {
+                    type: "boolean" as const,
+                    title: "Confirm checkout",
+                    description: "Add these items to your Kroger cart?",
+                    default: true,
+                  },
+                },
+              },
+            });
+
+            if (
+              elicitResult.action === "decline" ||
+              elicitResult.action === "cancel" ||
+              (elicitResult.action === "accept" &&
+                elicitResult.content?.confirm === false)
+            ) {
+              return ok(
+                textResult(
+                  "Checkout cancelled. Your shopping list remains unchanged.",
+                ),
+              );
+            }
+          } catch (elicitError) {
+            // Elicitation not supported by client — proceed without confirmation
+            console.warn(
+              "Elicitation unavailable, proceeding without confirmation:",
+              elicitError instanceof Error
+                ? elicitError.message
+                : String(elicitError),
+            );
+          }
+
+          const cartItems: CartItem[] = withUpc.map((item) => ({
+            upc: item.upc as string,
+            quantity: item.quantity,
+            modality,
+          }));
+
+          const requestBody: CartItemRequest = { items: cartItems };
+
+          yield* fromApiResponse(
+            cartClient.PUT("/v1/cart/add", {
+              body: requestBody,
+              headers: { "Content-Type": "application/json" },
+            }),
+            "add shopping list items to cart",
+          ).safeUnwrap();
+
+          for (const item of withUpc) {
+            await storage.shoppingList.updateItem(scopedId, item.productName, {
+              checked: true,
+            });
+          }
+
+          const locationInfo = resolved.locationName
+            ? ` at ${resolved.locationName}`
+            : ` (Location: ${resolved.locationId})`;
+
+          resultParts.push(
+            `Added ${withUpc.length} item(s) to cart${locationInfo}:\n${withUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+          );
         }
 
-        for (const item of withUpc) {
-          await storage.shoppingList.updateItem(scopedId, item.productName, {
-            checked: true,
-          });
+        if (withoutUpc.length > 0) {
+          resultParts.push(
+            `${withoutUpc.length} item(s) need a UPC before checkout (use search_products to find them, then manage_shopping_list with action 'update' to add the UPC):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+          );
         }
 
-        const locationInfo = resolved.locationName
-          ? ` at ${resolved.locationName}`
-          : ` (Location: ${resolved.locationId})`;
-
+        const updatedList = await storage.shoppingList.getAll(scopedId);
         resultParts.push(
-          `Added ${withUpc.length} item(s) to cart${locationInfo}:\n${withUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+          `\nYour shopping list:\n\n${formatShoppingListCompact(updatedList)}`,
         );
-      }
 
-      if (withoutUpc.length > 0) {
-        resultParts.push(
-          `${withoutUpc.length} item(s) need a UPC before checkout (use search_products to find them, then manage_shopping_list with action 'update' to add the UPC):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
-        );
-      }
+        return ok(textResult(resultParts.join("\n\n")));
+      });
 
-      const updatedList = await storage.shoppingList.getAll(scopedId);
-      resultParts.push(
-        `\nYour shopping list:\n\n${formatShoppingListCompact(updatedList)}`,
-      );
-
-      return textResult(resultParts.join("\n\n"));
+      // safeTry returns Result — if Err, convert to MCP error; if Ok, return the MCP response directly
+      if (result.isErr()) return toMcpError(result.error);
+      return result.value;
     },
   );
 }

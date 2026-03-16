@@ -1,23 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
 import { err, ok } from "neverthrow";
+import { describe, expect, it, vi } from "vitest";
 import {
   apiError,
   authError,
-  networkError,
   notFoundError,
   storageError,
-  validationError,
 } from "../../src/errors.js";
+import type { Props, UserStorage } from "../../src/tools/types.js";
 import {
   fromApiResponse,
   requireAuth,
   safeFetch,
   safeResolveLocationId,
   safeStorage,
+  toMcpError,
   toMcpResponse,
-  toMcpResponseAsync,
 } from "../../src/utils/result.js";
-import type { Props, UserStorage } from "../../src/tools/types.js";
 
 // --- toMcpResponse ---
 
@@ -47,13 +45,20 @@ describe("toMcpResponse", () => {
   });
 });
 
-describe("toMcpResponseAsync", () => {
-  it("handles async ok result", async () => {
-    const { ResultAsync } = await import("neverthrow");
-    const asyncResult = ResultAsync.fromSafePromise(Promise.resolve("async hello"));
-    const result = await toMcpResponseAsync(asyncResult);
+describe("toMcpError", () => {
+  it("converts AppError to MCP error response", () => {
+    const result = toMcpError(authError("not authenticated"));
     expect(result).toEqual({
-      content: [{ type: "text", text: "async hello" }],
+      content: [{ type: "text", text: "not authenticated" }],
+      isError: true,
+    });
+  });
+
+  it("formats API errors with detail", () => {
+    const result = toMcpError(apiError("request failed", { status: 400 }));
+    expect(result).toEqual({
+      content: [{ type: "text", text: 'request failed: {"status":400}' }],
+      isError: true,
     });
   });
 });
@@ -254,5 +259,72 @@ describe("safeFetch", () => {
     expect(error.message).toContain("network error");
 
     vi.unstubAllGlobals();
+  });
+});
+
+// --- Integration: composing Result utilities like tool handlers ---
+
+describe("tool handler error path integration", () => {
+  it("requireAuth → toMcpError short-circuits unauthenticated requests", () => {
+    const authResult = requireAuth(() => null);
+    expect(authResult.isErr()).toBe(true);
+    const mcpResult = toMcpError(authResult._unsafeUnwrapErr());
+    expect(mcpResult.isError).toBe(true);
+    expect(mcpResult.content[0].text).toContain("not authenticated");
+  });
+
+  it("requireAuth → asyncAndThen chain propagates auth errors", async () => {
+    const { errAsync } = await import("neverthrow");
+    const result = requireAuth(() => null).asyncAndThen(() =>
+      errAsync(storageError("should not reach")),
+    );
+    const awaited = await result;
+    expect(awaited.isErr()).toBe(true);
+    expect(awaited._unsafeUnwrapErr().type).toBe("AUTH_ERROR");
+  });
+
+  it("safeStorage failure produces valid MCP error via toMcpResponse", async () => {
+    const result = await safeStorage(
+      () => Promise.reject(new Error("KV down")),
+      "fetch pantry",
+    );
+    const mcpResult = toMcpResponse(result.map(() => "unused"));
+    expect(mcpResult.isError).toBe(true);
+    expect(mcpResult.content[0].text).toContain("KV down");
+  });
+
+  it("fromApiResponse → andThen chain produces correct not-found error", async () => {
+    const result = await fromApiResponse(
+      Promise.resolve({ data: { item: null }, error: undefined }),
+      "get product",
+    ).andThen((data) => {
+      if (!(data as { item: unknown }).item) {
+        return err(notFoundError("Product not found"));
+      }
+      return ok("found");
+    });
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr().type).toBe("NOT_FOUND");
+    expect(result._unsafeUnwrapErr().message).toBe("Product not found");
+  });
+
+  it("safeResolveLocationId → toMcpError for missing location", async () => {
+    const storage = {
+      preferredLocation: {
+        get: vi.fn().mockResolvedValue(null),
+        set: vi.fn(),
+        delete: vi.fn(),
+      },
+      pantry: {},
+      equipment: {},
+      orderHistory: {},
+      shoppingList: {},
+    } as unknown as UserStorage;
+
+    const result = await safeResolveLocationId(storage, "user1");
+    expect(result.isErr()).toBe(true);
+    const mcpResult = toMcpError(result._unsafeUnwrapErr());
+    expect(mcpResult.isError).toBe(true);
+    expect(mcpResult.content[0].text).toContain("No location specified");
   });
 });

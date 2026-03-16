@@ -1,4 +1,4 @@
-import { err, ok, ResultAsync } from "neverthrow";
+import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
 import { networkError } from "../errors.js";
@@ -6,6 +6,7 @@ import {
   requireAuth,
   safeFetch,
   safeStorage,
+  toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
 import { type ToolContext, textResult } from "./types.js";
@@ -204,30 +205,31 @@ export function registerRecipeTools(ctx: ToolContext) {
       prioritizeExpiring,
     }) => {
       const authResult = requireAuth(ctx.getUser);
-      if (authResult.isErr()) {
-        return toMcpResponse(authResult.map(() => ""));
-      }
+      if (authResult.isErr()) return toMcpError(authResult.error);
+
       const props = authResult.value;
       const { storage } = ctx;
 
-      // Fetch user data in parallel using ResultAsync.combine
-      const dataResult = await ResultAsync.combine([
-        safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),
-        safeStorage(
-          () => storage.equipment.getAll(props.id),
-          "fetch equipment",
-        ),
-        safeStorage(
-          () => storage.orderHistory.getRecent(props.id, 10),
-          "fetch order history",
-        ),
-      ]);
+      // Fetch user data in parallel using safeTry + ResultAsync.combine
+      const dataResult = await safeTry(async function* () {
+        const [pantry, equipment, recentOrders] = yield* ResultAsync.combine([
+          safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),
+          safeStorage(
+            () => storage.equipment.getAll(props.id),
+            "fetch equipment",
+          ),
+          safeStorage(
+            () => storage.orderHistory.getRecent(props.id, 10),
+            "fetch order history",
+          ),
+        ]).safeUnwrap();
 
-      if (dataResult.isErr()) {
-        return toMcpResponse(dataResult.map(() => ""));
-      }
+        return ok({ pantry, equipment, recentOrders });
+      });
 
-      const [pantry, equipment, recentOrders] = dataResult.value;
+      if (dataResult.isErr()) return toMcpError(dataResult.error);
+
+      const { pantry, equipment, recentOrders } = dataResult.value;
 
       if (pantry.length === 0) {
         return textResult(
@@ -374,6 +376,8 @@ export function registerRecipeTools(ctx: ToolContext) {
             `MCP sampling failed: ${e instanceof Error ? e.message : String(e)}`,
             e,
           ),
+      ).orTee((error) =>
+        console.error("MCP sampling failed for meal planning:", error.message),
       );
 
       if (samplingResult.isOk()) {
@@ -389,10 +393,6 @@ export function registerRecipeTools(ctx: ToolContext) {
       }
 
       // Fallback: return structured context so the outer AI can generate suggestions
-      console.error(
-        "MCP sampling failed for meal planning:",
-        samplingResult.error.message,
-      );
 
       const fallbackParts: string[] = [];
       fallbackParts.push(headerParts.join(""));

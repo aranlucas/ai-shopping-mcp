@@ -28,7 +28,6 @@ export type ToolContext = {
   clients: KrogerClients;
   storage: UserStorage;
   getUser: () => Props | null;
-  requireUser: () => Props;
   getEnv: () => Env;
   getSessionId: () => string;
   keepAliveWhile: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -53,30 +52,4 @@ export function getSessionScopedUserId(
   sessionId: string,
 ): string {
   return `${userId}:session:${sessionId}`;
-}
-
-/**
- * Resolves a location ID, falling back to the user's preferred location.
- * Throws if no location is available.
- */
-export async function resolveLocationId(
-  storage: UserStorage,
-  userId: string,
-  locationId?: string,
-): Promise<{ locationId: string; locationName?: string }> {
-  if (locationId) {
-    return { locationId };
-  }
-
-  const preferredLocation = await storage.preferredLocation.get(userId);
-  if (!preferredLocation) {
-    throw new Error(
-      "No location specified and no preferred location set. Please provide a locationId or set your preferred location using set_preferred_location.",
-    );
-  }
-
-  return {
-    locationId: preferredLocation.locationId,
-    locationName: preferredLocation.locationName,
-  };
 }
