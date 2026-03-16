@@ -29,20 +29,19 @@ type McpToolResult = {
 export function toMcpResponse(result: Result<string, AppError>): McpToolResult {
   return result.match(
     (text) => ({ content: [{ type: "text" as const, text }] }),
-    (error) => ({
-      content: [{ type: "text" as const, text: formatAppError(error) }],
-      isError: true as const,
-    }),
+    (error) => toMcpError(error),
   );
 }
 
 /**
- * Converts a ResultAsync<string, AppError> into an MCP tool response.
+ * Converts an AppError directly into an MCP error response.
+ * Use this when you have an error but not a full Result (e.g., early returns).
  */
-export async function toMcpResponseAsync(
-  result: ResultAsync<string, AppError>,
-): Promise<McpToolResult> {
-  return toMcpResponse(await result);
+export function toMcpError(error: AppError): McpToolResult {
+  return {
+    content: [{ type: "text" as const, text: formatAppError(error) }],
+    isError: true as const,
+  };
 }
 
 // --- API Call Wrappers ---

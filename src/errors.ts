@@ -87,17 +87,8 @@ export const networkError = (
 
 /** Format any AppError into a user-facing message */
 export function formatAppError(error: AppError): string {
-  switch (error.type) {
-    case "API_ERROR":
-      return error.detail
-        ? `${error.message}: ${JSON.stringify(error.detail)}`
-        : error.message;
-    case "AUTH_ERROR":
-    case "NOT_FOUND":
-    case "VALIDATION_ERROR":
-      return error.message;
-    case "STORAGE_ERROR":
-    case "NETWORK_ERROR":
-      return error.message;
+  if (error.type === "API_ERROR" && error.detail) {
+    return `${error.message}: ${JSON.stringify(error.detail)}`;
   }
+  return error.message;
 }

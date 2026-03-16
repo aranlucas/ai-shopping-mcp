@@ -1,4 +1,4 @@
-import { ok, ResultAsync } from "neverthrow";
+import { err, ok, okAsync, ResultAsync } from "neverthrow";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
 import { networkError, storageError } from "../errors.js";
@@ -83,10 +83,7 @@ function readWeeklyDealsCacheSafe(
   kv: KvLike | null,
   key: string,
 ): ResultAsync<CacheReadResult, AppError> {
-  if (!kv)
-    return ResultAsync.fromSafePromise(
-      Promise.resolve(ok({ kind: "miss" as const })),
-    ).andThen((r) => r);
+  if (!kv) return okAsync({ kind: "miss" as const });
 
   return ResultAsync.fromPromise(kv.get(key), (e) =>
     storageError(
@@ -254,22 +251,23 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           ),
       );
 
-      if (liveResult.isOk()) {
-        return formatWeeklyDealsToolResponse(liveResult.value, "miss");
-      }
-
-      // Live fetch failed — use stale cache if available
-      if (staleEntry) {
-        const staleResult = addCacheWarning(
-          staleEntry.data,
-          `Live refresh failed; served stale KV cache. (${liveResult.error.message})`,
+      return liveResult
+        .map((data) => formatWeeklyDealsToolResponse(data, "miss"))
+        .orElse((liveError) => {
+          if (staleEntry) {
+            const staleData = addCacheWarning(
+              staleEntry.data,
+              `Live refresh failed; served stale KV cache. (${liveError.message})`,
+            );
+            return ok(formatWeeklyDealsToolResponse(staleData, "stale"));
+          }
+          return err(liveError);
+        })
+        .match(
+          (response) => response,
+          (error) =>
+            errorResult(`Failed to fetch weekly deals: ${error.message}`),
         );
-        return formatWeeklyDealsToolResponse(staleResult, "stale");
-      }
-
-      return errorResult(
-        `Failed to fetch weekly deals: ${liveResult.error.message}`,
-      );
     },
   );
 }
