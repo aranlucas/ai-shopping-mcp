@@ -77,10 +77,12 @@ describe("refreshKrogerToken", () => {
       "client-secret",
     );
 
-    expect(result.accessToken).toBe("new-access-token");
-    expect(result.refreshToken).toBe("new-refresh-token");
-    expect(result.expiresIn).toBe(1800);
-    expect(result.tokenExpiresAt).toBeGreaterThan(Date.now());
+    expect(result.isOk()).toBe(true);
+    const value = result._unsafeUnwrap();
+    expect(value.accessToken).toBe("new-access-token");
+    expect(value.refreshToken).toBe("new-refresh-token");
+    expect(value.expiresIn).toBe(1800);
+    expect(value.tokenExpiresAt).toBeGreaterThan(Date.now());
 
     // Verify fetch was called with correct parameters
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
@@ -93,7 +95,7 @@ describe("refreshKrogerToken", () => {
     expect(fetchCall[1].headers.Authorization).toContain("Basic ");
   });
 
-  it("throws on non-ok response", async () => {
+  it("returns Err on non-ok response", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
@@ -105,20 +107,33 @@ describe("refreshKrogerToken", () => {
         }),
     });
 
-    await expect(
-      refreshKrogerToken("bad-token", "client-id", "client-secret"),
-    ).rejects.toThrow("Refresh token is invalid");
+    const result = await refreshKrogerToken(
+      "bad-token",
+      "client-id",
+      "client-secret",
+    );
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("API_ERROR");
+    expect(error.message).toContain("Refresh token is invalid");
   });
 
-  it("throws when response has no access_token", async () => {
+  it("returns Err when response has no access_token", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({}),
     });
 
-    await expect(
-      refreshKrogerToken("token", "client-id", "client-secret"),
-    ).rejects.toThrow("Invalid response from Kroger token refresh endpoint");
+    const result = await refreshKrogerToken(
+      "token",
+      "client-id",
+      "client-secret",
+    );
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.message).toContain(
+      "Invalid response from Kroger token refresh endpoint",
+    );
   });
 
   it("defaults expires_in to 1800 when not provided", async () => {
@@ -131,7 +146,8 @@ describe("refreshKrogerToken", () => {
     });
 
     const result = await refreshKrogerToken("token", "id", "secret");
-    expect(result.expiresIn).toBe(1800);
+    expect(result.isOk()).toBe(true);
+    expect(result._unsafeUnwrap().expiresIn).toBe(1800);
   });
 });
 

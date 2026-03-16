@@ -1,4 +1,4 @@
-import { errAsync, ok, safeTry } from "neverthrow";
+import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
@@ -213,15 +213,13 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId, modality }) => {
-      const authResult = requireAuth(ctx.getUser);
-      if (authResult.isErr()) return toMcpError(authResult.error);
-
-      const props = authResult.value;
       const { storage } = ctx;
-      const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
-      // Use safeTry for the multi-step checkout flow
+      // Use safeTry for the entire checkout flow, including auth
       const result = await safeTry(async function* () {
+        const props = yield* requireAuth(ctx.getUser).safeUnwrap();
+        const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
+
         const uncheckedItems = yield* safeStorage(
           () => storage.shoppingList.getUnchecked(scopedId),
           "fetch unchecked items",
@@ -246,13 +244,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
         if (withUpc.length > 0) {
           // Use MCP elicitation to confirm checkout with the user
-          try {
-            const itemSummary = withUpc
-              .map((i) => `${i.productName} x${i.quantity}`)
-              .join(", ");
-
-            const elicitResult = await ctx.server.server.elicitInput({
-              message: `Add ${withUpc.length} item(s) to your Kroger cart? Items: ${itemSummary}`,
+          const elicitResult = await ResultAsync.fromPromise(
+            ctx.server.server.elicitInput({
+              message: `Add ${withUpc.length} item(s) to your Kroger cart? Items: ${withUpc.map((i) => `${i.productName} x${i.quantity}`).join(", ")}`,
               requestedSchema: {
                 type: "object" as const,
                 properties: {
@@ -264,13 +258,20 @@ export function registerShoppingListTools(ctx: ToolContext) {
                   },
                 },
               },
-            });
+            }),
+            () => null, // Elicitation not supported by client
+          ).orTee(() =>
+            console.warn(
+              "Elicitation unavailable, proceeding without confirmation",
+            ),
+          );
 
+          if (elicitResult.isOk()) {
+            const elicit = elicitResult.value;
             if (
-              elicitResult.action === "decline" ||
-              elicitResult.action === "cancel" ||
-              (elicitResult.action === "accept" &&
-                elicitResult.content?.confirm === false)
+              elicit.action === "decline" ||
+              elicit.action === "cancel" ||
+              (elicit.action === "accept" && elicit.content?.confirm === false)
             ) {
               return ok(
                 textResult(
@@ -278,14 +279,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
                 ),
               );
             }
-          } catch (elicitError) {
-            // Elicitation not supported by client — proceed without confirmation
-            console.warn(
-              "Elicitation unavailable, proceeding without confirmation:",
-              elicitError instanceof Error
-                ? elicitError.message
-                : String(elicitError),
-            );
           }
 
           const cartItems: CartItem[] = withUpc.map((item) => ({
@@ -304,11 +297,16 @@ export function registerShoppingListTools(ctx: ToolContext) {
             "add shopping list items to cart",
           ).safeUnwrap();
 
-          for (const item of withUpc) {
-            await storage.shoppingList.updateItem(scopedId, item.productName, {
-              checked: true,
-            });
-          }
+          // Mark checked items via safeStorage to avoid unhandled rejections
+          yield* safeStorage(async () => {
+            for (const item of withUpc) {
+              await storage.shoppingList.updateItem(
+                scopedId,
+                item.productName,
+                { checked: true },
+              );
+            }
+          }, "mark items as checked").safeUnwrap();
 
           const locationInfo = resolved.locationName
             ? ` at ${resolved.locationName}`
@@ -325,7 +323,11 @@ export function registerShoppingListTools(ctx: ToolContext) {
           );
         }
 
-        const updatedList = await storage.shoppingList.getAll(scopedId);
+        const updatedList = yield* safeStorage(
+          () => storage.shoppingList.getAll(scopedId),
+          "fetch updated shopping list",
+        ).safeUnwrap();
+
         resultParts.push(
           `\nYour shopping list:\n\n${formatShoppingListCompact(updatedList)}`,
         );

@@ -1,4 +1,4 @@
-import { err, ok, okAsync, ResultAsync } from "neverthrow";
+import { err, fromThrowable, ok, okAsync, ResultAsync } from "neverthrow";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
 import { networkError, storageError } from "../errors.js";
@@ -32,14 +32,16 @@ export function isKvLike(value: unknown): value is KvLike {
   );
 }
 
-function getCacheKv(ctx: ToolContext): KvLike | null {
-  try {
+const safeGetCacheKv = fromThrowable(
+  (ctx: ToolContext) => {
     const env = ctx.getEnv();
-    if (isKvLike(env?.USER_DATA_KV)) return env.USER_DATA_KV;
-    return null;
-  } catch {
-    return null;
-  }
+    return isKvLike(env?.USER_DATA_KV) ? env.USER_DATA_KV : null;
+  },
+  () => null,
+);
+
+function getCacheKv(ctx: ToolContext): KvLike | null {
+  return safeGetCacheKv(ctx).unwrapOr(null);
 }
 
 export function buildWeeklyDealsCacheKey(params: {
@@ -58,25 +60,29 @@ export function buildWeeklyDealsCacheKey(params: {
   ].join("|");
 }
 
+const safeJsonParse = fromThrowable(
+  (raw: string) => JSON.parse(raw) as WeeklyDealsCacheEntry,
+  () => null,
+);
+
 export function parseCacheEntry(
   raw: string | null,
 ): WeeklyDealsCacheEntry | null {
   if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as WeeklyDealsCacheEntry;
-    if (
-      !parsed ||
-      parsed.version !== 1 ||
-      typeof parsed.freshUntil !== "number" ||
-      typeof parsed.staleUntil !== "number" ||
-      !parsed.data
-    ) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
+  return safeJsonParse(raw)
+    .map((parsed) => {
+      if (
+        !parsed ||
+        parsed.version !== 1 ||
+        typeof parsed.freshUntil !== "number" ||
+        typeof parsed.staleUntil !== "number" ||
+        !parsed.data
+      ) {
+        return null;
+      }
+      return parsed;
+    })
+    .unwrapOr(null);
 }
 
 function readWeeklyDealsCacheSafe(
@@ -115,12 +121,12 @@ export function getLatestCircularEndTime(
   return Math.max(...candidates);
 }
 
-async function writeWeeklyDealsCache(
+function writeWeeklyDealsCache(
   kv: KvLike | null,
   key: string,
   data: QfcDealsApiResponse,
-): Promise<void> {
-  if (!kv) return;
+): ResultAsync<void, AppError> {
+  if (!kv) return okAsync(undefined);
 
   const now = Date.now();
   const eventEnd = getLatestCircularEndTime(data);
@@ -140,7 +146,14 @@ async function writeWeeklyDealsCache(
   };
 
   const expirationTtl = Math.max(300, Math.ceil((staleUntil - now) / 1000));
-  await kv.put(key, JSON.stringify(entry), { expirationTtl });
+  return ResultAsync.fromPromise(
+    kv.put(key, JSON.stringify(entry), { expirationTtl }),
+    (e) =>
+      storageError(
+        `Cache write failed: ${e instanceof Error ? e.message : String(e)}`,
+        e,
+      ),
+  );
 }
 
 export function addCacheWarning(
@@ -241,7 +254,9 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
               return data?.data || [];
             },
           });
-          await writeWeeklyDealsCache(kv, cacheKey, result);
+          await writeWeeklyDealsCache(kv, cacheKey, result).orTee((e) =>
+            console.warn("Cache write failed (non-fatal):", e.message),
+          );
           return result;
         })(),
         (e): AppError =>

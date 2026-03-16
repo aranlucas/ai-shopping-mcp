@@ -204,14 +204,12 @@ export function registerRecipeTools(ctx: ToolContext) {
       dietaryPreferences,
       prioritizeExpiring,
     }) => {
-      const authResult = requireAuth(ctx.getUser);
-      if (authResult.isErr()) return toMcpError(authResult.error);
-
-      const props = authResult.value;
       const { storage } = ctx;
 
-      // Fetch user data in parallel using safeTry + ResultAsync.combine
+      // Fetch user data in parallel using safeTry + ResultAsync.combine (auth folded in)
       const dataResult = await safeTry(async function* () {
+        const props = yield* requireAuth(ctx.getUser).safeUnwrap();
+
         const [pantry, equipment, recentOrders] = yield* ResultAsync.combine([
           safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),
           safeStorage(
