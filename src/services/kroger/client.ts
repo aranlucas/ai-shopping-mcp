@@ -1,4 +1,6 @@
+import { err, ok, ResultAsync } from "neverthrow";
 import createClient, { type Middleware } from "openapi-fetch";
+import { type AppError, apiError, networkError } from "../../errors.js";
 import type { paths as CartPaths } from "./cart.js";
 import type { paths as IdentityPaths } from "./identity.js";
 import type { paths as LocationPaths } from "./location.js";
@@ -28,22 +30,20 @@ export interface KrogerTokenResponse {
 
 /**
  * Refreshes a Kroger access token using a refresh token.
- * This is a standalone function that can be used by both the middleware
- * and the OAuth tokenExchangeCallback.
+ * Returns ResultAsync instead of throwing for consistent error handling.
  */
-export async function refreshKrogerToken(
+export function refreshKrogerToken(
   refreshToken: string,
   krogerClientId: string,
   krogerClientSecret: string,
-): Promise<KrogerTokenRefreshResult> {
+): ResultAsync<KrogerTokenRefreshResult, AppError> {
   const refreshBody = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
   });
 
-  const refreshResponse = await fetch(
-    "https://api.kroger.com/v1/connect/oauth2/token",
-    {
+  return ResultAsync.fromPromise(
+    fetch("https://api.kroger.com/v1/connect/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -51,35 +51,53 @@ export async function refreshKrogerToken(
       },
       body: refreshBody.toString(),
       signal: AbortSignal.timeout(30_000),
-    },
+    }),
+    (e) =>
+      networkError(
+        `Token refresh network error: ${e instanceof Error ? e.message : String(e)}`,
+        e,
+      ),
+  ).andThen((refreshResponse) =>
+    ResultAsync.fromPromise(
+      refreshResponse.json() as Promise<KrogerTokenResponse>,
+      (e) =>
+        networkError(
+          `Failed to parse token refresh response: ${e instanceof Error ? e.message : String(e)}`,
+          e,
+        ),
+    ).andThen((responseData) => {
+      if (!refreshResponse.ok) {
+        console.error("Failed to refresh Kroger access token:", {
+          status: refreshResponse.status,
+          statusText: refreshResponse.statusText,
+          error: responseData.error,
+          errorDescription: responseData.error_description,
+        });
+        return err(
+          apiError(
+            `Failed to refresh Kroger access token: ${responseData.error_description || responseData.error || "Unknown error"}`,
+            responseData,
+            refreshResponse.status,
+          ),
+        );
+      }
+
+      if (!responseData.access_token) {
+        return err(
+          apiError("Invalid response from Kroger token refresh endpoint"),
+        );
+      }
+
+      const expiresIn = responseData.expires_in || 1800;
+
+      return ok({
+        accessToken: responseData.access_token,
+        refreshToken: responseData.refresh_token,
+        tokenExpiresAt: Date.now() + expiresIn * 1000,
+        expiresIn,
+      });
+    }),
   );
-
-  const responseData = (await refreshResponse.json()) as KrogerTokenResponse;
-
-  if (!refreshResponse.ok) {
-    console.error("Failed to refresh Kroger access token:", {
-      status: refreshResponse.status,
-      statusText: refreshResponse.statusText,
-      error: responseData.error,
-      errorDescription: responseData.error_description,
-    });
-    throw new Error(
-      `Failed to refresh Kroger access token: ${responseData.error_description || responseData.error || "Unknown error"}`,
-    );
-  }
-
-  if (!responseData.access_token) {
-    throw new Error("Invalid response from Kroger token refresh endpoint");
-  }
-
-  const expiresIn = responseData.expires_in || 1800;
-
-  return {
-    accessToken: responseData.access_token,
-    refreshToken: responseData.refresh_token,
-    tokenExpiresAt: Date.now() + expiresIn * 1000,
-    expiresIn,
-  };
 }
 
 /**

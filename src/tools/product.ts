@@ -1,6 +1,5 @@
-import { err, ok } from "neverthrow";
+import { err, ok, ResultAsync } from "neverthrow";
 import { z } from "zod";
-import type { AppError } from "../errors.js";
 import { notFoundError } from "../errors.js";
 import {
   formatProductCompact,
@@ -64,43 +63,64 @@ export function registerProductTools(ctx: ToolContext) {
 
         completedSearches++;
         if (progressToken && extra?.sendNotification) {
-          try {
-            await extra.sendNotification({
+          await ResultAsync.fromPromise(
+            extra.sendNotification({
               method: "notifications/progress",
               params: {
                 progressToken,
                 progress: completedSearches,
                 total: totalSearches,
               },
-            });
-          } catch (notifyError) {
-            console.error("Failed to send progress notification:", notifyError);
-          }
+            }),
+            (e) => e,
+          ).orTee((e) =>
+            console.error("Failed to send progress notification:", e),
+          );
         }
 
-        return apiResult.match(
-          (data) => {
+        // Preserve Result type — map Ok to success shape, log and convert Err
+        return apiResult
+          .map((data) => {
             const products = data?.data || [];
-            return { term, products, count: products.length };
-          },
-          (error: AppError) => {
+            return {
+              term,
+              products,
+              count: products.length,
+              failed: false as const,
+            };
+          })
+          .orTee((error) =>
             console.error(
               `Error searching products for "${term}":`,
               error.message,
-            );
-            return { term, products: [] as never[], count: 0 };
-          },
-        );
+            ),
+          )
+          .unwrapOr({
+            term,
+            products: [] as never[],
+            count: 0,
+            failed: true as const,
+          });
       });
 
       const results = await Promise.all(searchPromises);
       const totalProducts = results.reduce((sum, r) => sum + r.count, 0);
+      const failedTerms = results.filter((r) => r.failed);
 
-      if (totalProducts === 0) {
+      if (totalProducts === 0 && failedTerms.length === 0) {
         return textResult("No products found matching your search terms.");
       }
 
+      if (totalProducts === 0 && failedTerms.length > 0) {
+        return textResult(
+          `Search failed for: ${failedTerms.map((r) => r.term).join(", ")}. Please try again.`,
+        );
+      }
+
       const formattedSections = results.map((result) => {
+        if (result.failed) {
+          return `**${result.term}** — search failed`;
+        }
         if (result.count === 0) {
           return `**${result.term}** (0 items)\nNo products found.`;
         }

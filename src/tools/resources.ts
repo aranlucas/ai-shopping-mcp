@@ -214,17 +214,17 @@ export function registerResources(ctx: ToolContext) {
 
       const productId = match[1];
 
-      let locationId: string | undefined;
       const props = ctx.getUser();
-      if (props?.id) {
-        const locResult = await safeStorage(
-          () => ctx.storage.preferredLocation.get(props.id),
-          "fetch preferred location",
-        );
-        if (locResult.isOk() && locResult.value) {
-          locationId = locResult.value.locationId;
-        }
-      }
+      const locationId = props?.id
+        ? (
+            await safeStorage(
+              () => ctx.storage.preferredLocation.get(props.id),
+              "fetch preferred location",
+            )
+          )
+            .map((loc) => loc?.locationId)
+            .unwrapOr(undefined)
+        : undefined;
 
       const queryParams: Record<string, string> = {};
       if (locationId) {

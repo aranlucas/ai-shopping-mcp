@@ -102,42 +102,41 @@ export default new OAuthProvider({
       return { accessTokenProps };
     }
 
-    try {
-      const result = await refreshKrogerToken(
+    return (
+      await refreshKrogerToken(
         refreshToken,
         krogerClientId,
         krogerClientSecret,
-      );
+      ).orTee((error) =>
+        console.error("Kroger token refresh failed:", error.message),
+      )
+    ).match(
+      (result) => {
+        if (!result.refreshToken) {
+          console.error(
+            "Kroger refresh missing new refresh token (single-use). Re-auth required.",
+          );
+          return { accessTokenTTL: 1 };
+        }
 
-      if (!result.refreshToken) {
-        console.error(
-          "Kroger refresh missing new refresh token (single-use). Re-auth required.",
-        );
-        return { accessTokenTTL: 1 };
-      }
-
-      return {
-        accessTokenProps: {
-          ...accessTokenProps,
-          accessToken: result.accessToken,
-          tokenExpiresAt: result.tokenExpiresAt,
-        },
-        newProps: {
-          ...accessTokenProps,
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-          tokenExpiresAt: result.tokenExpiresAt,
-          krogerClientId,
-          krogerClientSecret,
-        },
-        accessTokenTTL: result.expiresIn,
-      };
-    } catch (error) {
-      console.error(
-        "Kroger token refresh failed:",
-        error instanceof Error ? error.message : String(error),
-      );
-      return { accessTokenTTL: 1 };
-    }
+        return {
+          accessTokenProps: {
+            ...accessTokenProps,
+            accessToken: result.accessToken,
+            tokenExpiresAt: result.tokenExpiresAt,
+          },
+          newProps: {
+            ...accessTokenProps,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+            tokenExpiresAt: result.tokenExpiresAt,
+            krogerClientId,
+            krogerClientSecret,
+          },
+          accessTokenTTL: result.expiresIn,
+        };
+      },
+      () => ({ accessTokenTTL: 1 }),
+    );
   },
 });
