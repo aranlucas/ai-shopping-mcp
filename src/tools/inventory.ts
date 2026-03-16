@@ -9,11 +9,9 @@ import type {
   OrderRecord,
   PantryItem,
 } from "../utils/user-storage.js";
-import type { ToolContext } from "./types.js";
+import { errorResult, type ToolContext, textResult } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
-  // --- Consolidated pantry tool ---
-
   ctx.server.registerTool(
     "manage_pantry",
     {
@@ -61,15 +59,9 @@ export function registerInventoryTools(ctx: ToolContext) {
       switch (action) {
         case "add": {
           if (!items || items.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Error: 'items' array is required for the 'add' action.",
-                },
-              ],
-              isError: true,
-            };
+            return errorResult(
+              "Error: 'items' array is required for the 'add' action.",
+            );
           }
 
           const now = new Date().toISOString();
@@ -84,63 +76,32 @@ export function registerInventoryTools(ctx: ToolContext) {
           }
 
           const pantry = await storage.pantry.getAll(props.id);
-          const formatted = formatPantryListCompact(pantry);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatted}`,
-              },
-            ],
-          };
+          return textResult(
+            `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
+          );
         }
 
         case "remove": {
           if (!productName) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Error: 'productName' is required for the 'remove' action.",
-                },
-              ],
-              isError: true,
-            };
+            return errorResult(
+              "Error: 'productName' is required for the 'remove' action.",
+            );
           }
 
           await storage.pantry.remove(props.id, productName);
-
           const pantry = await storage.pantry.getAll(props.id);
-          const formatted = formatPantryListCompact(pantry);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Item removed from pantry.\n\nYour pantry:\n\n${formatted}`,
-              },
-            ],
-          };
+          return textResult(
+            `Item removed from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
+          );
         }
 
         case "clear": {
           await storage.pantry.clear(props.id);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Pantry cleared successfully.",
-              },
-            ],
-          };
+          return textResult("Pantry cleared successfully.");
         }
       }
     },
   );
-
-  // --- Consolidated equipment tool ---
 
   ctx.server.registerTool(
     "manage_equipment",
@@ -190,15 +151,9 @@ export function registerInventoryTools(ctx: ToolContext) {
       switch (action) {
         case "add": {
           if (!items || items.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Error: 'items' array is required for the 'add' action.",
-                },
-              ],
-              isError: true,
-            };
+            return errorResult(
+              "Error: 'items' array is required for the 'add' action.",
+            );
           }
 
           const now = new Date().toISOString();
@@ -212,63 +167,32 @@ export function registerInventoryTools(ctx: ToolContext) {
           }
 
           const equipment = await storage.equipment.getAll(props.id);
-          const formatted = formatEquipmentListCompact(equipment);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatted}`,
-              },
-            ],
-          };
+          return textResult(
+            `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
+          );
         }
 
         case "remove": {
           if (!equipmentName) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Error: 'equipmentName' is required for the 'remove' action.",
-                },
-              ],
-              isError: true,
-            };
+            return errorResult(
+              "Error: 'equipmentName' is required for the 'remove' action.",
+            );
           }
 
           await storage.equipment.remove(props.id, equipmentName);
-
           const equipment = await storage.equipment.getAll(props.id);
-          const formatted = formatEquipmentListCompact(equipment);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Item removed from equipment.\n\nYour equipment:\n\n${formatted}`,
-              },
-            ],
-          };
+          return textResult(
+            `Item removed from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
+          );
         }
 
         case "clear": {
           await storage.equipment.clear(props.id);
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Equipment cleared successfully.",
-              },
-            ],
-          };
+          return textResult("Equipment cleared successfully.");
         }
       }
     },
   );
-
-  // --- Order history ---
 
   ctx.server.registerTool(
     "mark_order_placed",
@@ -300,11 +224,11 @@ export function registerInventoryTools(ctx: ToolContext) {
       const { storage } = ctx;
 
       const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-      const estimatedTotal = items.reduce((sum, item) => {
-        return sum + (item.price || 0) * item.quantity;
-      }, 0);
+      const estimatedTotal = items.reduce(
+        (sum, item) => sum + (item.price || 0) * item.quantity,
+        0,
+      );
 
       const order: OrderRecord = {
         orderId,
@@ -317,17 +241,9 @@ export function registerInventoryTools(ctx: ToolContext) {
       };
 
       await storage.orderHistory.add(props.id, order);
-
-      const formatted = formatOrderHistoryCompact([order]);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Order recorded successfully:\n\n${formatted}`,
-          },
-        ],
-      };
+      return textResult(
+        `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
+      );
     },
   );
 }

@@ -3,7 +3,7 @@ import {
   formatProductCompact,
   formatProductList,
 } from "../utils/format-response.js";
-import type { ToolContext } from "./types.js";
+import { errorResult, type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
@@ -52,9 +52,7 @@ export function registerProductTools(ctx: ToolContext) {
         };
 
         const { data, error } = await productClient.GET("/v1/products", {
-          params: {
-            query: queryParams,
-          },
+          params: { query: queryParams },
         });
 
         if (error) {
@@ -85,18 +83,10 @@ export function registerProductTools(ctx: ToolContext) {
       });
 
       const results = await Promise.all(searchPromises);
-
       const totalProducts = results.reduce((sum, r) => sum + r.count, 0);
 
       if (totalProducts === 0) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "No products found matching your search terms.",
-            },
-          ],
-        };
+        return textResult("No products found matching your search terms.");
       }
 
       const formattedSections = results.map((result) => {
@@ -127,14 +117,9 @@ export function registerProductTools(ctx: ToolContext) {
         return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
       });
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
-          },
-        ],
-      };
+      return textResult(
+        `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
+      );
     },
   );
 
@@ -165,7 +150,6 @@ export function registerProductTools(ctx: ToolContext) {
     },
     async ({ productId, locationId }) => {
       const queryParams: Record<string, string> = {};
-
       if (locationId) {
         queryParams["filter.locationId"] = locationId;
       }
@@ -179,42 +163,18 @@ export function registerProductTools(ctx: ToolContext) {
 
       if (error) {
         console.error("Error getting product details:", error);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to get product details: ${JSON.stringify(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `Failed to get product details: ${JSON.stringify(error)}`,
+        );
       }
 
       const product = data.data;
       if (!product) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `No information found for product ID: ${productId}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(`No information found for product ID: ${productId}`);
       }
 
       console.log(`Retrieved details for product: ${product.description}`);
-
-      const formattedProduct = formatProductList([product]);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Product Details:\n\n${formattedProduct}`,
-          },
-        ],
-      };
+      return textResult(`Product Details:\n\n${formatProductList([product])}`);
     },
   );
 }

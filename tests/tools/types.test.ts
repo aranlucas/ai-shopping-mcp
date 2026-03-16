@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Props, ToolContext, UserStorage } from "../../src/tools/types.js";
-import { resolveLocationId } from "../../src/tools/types.js";
+import {
+  errorResult,
+  resolveLocationId,
+  textResult,
+} from "../../src/tools/types.js";
 
 // ----- requireUser (via ToolContext) -----
 
@@ -68,6 +72,25 @@ describe("getUser", () => {
     } as unknown as ToolContext;
 
     expect(ctx.getUser()).toEqual(props);
+  });
+});
+
+// ----- textResult / errorResult -----
+
+describe("textResult", () => {
+  it("wraps text in MCP content format", () => {
+    expect(textResult("hello")).toEqual({
+      content: [{ type: "text", text: "hello" }],
+    });
+  });
+});
+
+describe("errorResult", () => {
+  it("wraps text in MCP error format", () => {
+    expect(errorResult("bad")).toEqual({
+      content: [{ type: "text", text: "bad" }],
+      isError: true,
+    });
   });
 });
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolContext } from "./types.js";
+import { errorResult, type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
   ctx.server.registerTool(
@@ -29,23 +29,15 @@ export function registerRecipeTools(ctx: ToolContext) {
 
         const response = await fetch(apiUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: searchQuery }),
           signal: AbortSignal.timeout(15_000),
         });
 
         if (!response.ok) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Recipe API request failed: ${response.status} ${response.statusText}`,
-              },
-            ],
-            isError: true,
-          };
+          return errorResult(
+            `Recipe API request failed: ${response.status} ${response.statusText}`,
+          );
         }
 
         const apiResponse = (await response.json()) as {
@@ -75,34 +67,21 @@ export function registerRecipeTools(ctx: ToolContext) {
               };
             }>;
           };
-          error?: {
-            message: string;
-          };
+          error?: { message: string };
         };
 
         if (!apiResponse.success || !apiResponse.data?.results) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Recipe search failed: ${apiResponse.error?.message || "No results returned from API"}`,
-              },
-            ],
-            isError: true,
-          };
+          return errorResult(
+            `Recipe search failed: ${apiResponse.error?.message || "No results returned from API"}`,
+          );
         }
 
         const recipes = apiResponse.data.results;
 
         if (recipes.length === 0) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `No recipes found for "${searchQuery}". Try a different search term.`,
-              },
-            ],
-          };
+          return textResult(
+            `No recipes found for "${searchQuery}". Try a different search term.`,
+          );
         }
 
         const formattedRecipes = recipes
@@ -152,25 +131,14 @@ export function registerRecipeTools(ctx: ToolContext) {
           })
           .join("\n\n---\n\n");
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: `**Recipe Search Results for "${searchQuery}"**\n\nFound ${recipes.length} recipe(s):\n\n${formattedRecipes}`,
-            },
-          ],
-        };
+        return textResult(
+          `**Recipe Search Results for "${searchQuery}"**\n\nFound ${recipes.length} recipe(s):\n\n${formattedRecipes}`,
+        );
       } catch (error) {
         console.error("Error fetching recipes:", error);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to fetch recipes: ${error instanceof Error ? error.message : "Unknown error"}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `Failed to fetch recipes: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
     },
   );
@@ -232,14 +200,9 @@ export function registerRecipeTools(ctx: ToolContext) {
       ]);
 
       if (pantry.length === 0) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "Your pantry is empty. Add items to your pantry first using manage_pantry with action 'add', then try planning meals again.",
-            },
-          ],
-        };
+        return textResult(
+          "Your pantry is empty. Add items to your pantry first using manage_pantry with action 'add', then try planning meals again.",
+        );
       }
 
       // Categorize pantry items by expiry urgency
@@ -387,20 +350,12 @@ export function registerRecipeTools(ctx: ToolContext) {
             ? contentItem.text
             : "Unable to process meal plan response.";
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: `${headerParts.join("")}\n\n${responseText}`,
-            },
-          ],
-        };
+        return textResult(`${headerParts.join("")}\n\n${responseText}`);
       } catch (samplingError) {
         console.error("MCP sampling failed for meal planning:", samplingError);
 
         // Fallback: return structured context so the outer AI can generate
-        // meal suggestions itself. This works because the MCP client (e.g.
-        // Claude) receives this tool response and can reason over it.
+        // meal suggestions itself.
         const fallbackParts: string[] = [];
         fallbackParts.push(headerParts.join(""));
 
@@ -454,14 +409,7 @@ export function registerRecipeTools(ctx: ToolContext) {
           "After suggesting meals, offer to add any missing ingredients to the shopping list using manage_shopping_list with action 'add'.",
         );
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: fallbackParts.join("\n"),
-            },
-          ],
-        };
+        return textResult(fallbackParts.join("\n"));
       }
     },
   );

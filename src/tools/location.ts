@@ -5,7 +5,7 @@ import {
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
-import type { ToolContext } from "./types.js";
+import { errorResult, type ToolContext, textResult } from "./types.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
@@ -46,37 +46,22 @@ export function registerLocationTools(ctx: ToolContext) {
 
       console.log("Query parameters for location search:", queryParams);
       const { data, error } = await locationClient.GET("/v1/locations", {
-        params: {
-          query: queryParams,
-        },
+        params: { query: queryParams },
       });
 
       if (error) {
         console.error("Error searching locations:", error);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to search locations: ${JSON.stringify(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `Failed to search locations: ${JSON.stringify(error)}`,
+        );
       }
 
       const locations = data?.data || [];
       console.log(`Found ${locations.length} locations`);
 
-      const formattedLocations = formatLocationListCompact(locations);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Found ${locations.length} location(s):\n${formattedLocations}`,
-          },
-        ],
-      };
+      return textResult(
+        `Found ${locations.length} location(s):\n${formatLocationListCompact(locations)}`,
+      );
     },
   );
 
@@ -101,49 +86,25 @@ export function registerLocationTools(ctx: ToolContext) {
     async ({ locationId }) => {
       const { data, error } = await locationClient.GET(
         "/v1/locations/{locationId}",
-        {
-          params: { path: { locationId } },
-        },
+        { params: { path: { locationId } } },
       );
 
       if (error) {
         console.error("Error getting location details:", error);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to get location details: ${JSON.stringify(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `Failed to get location details: ${JSON.stringify(error)}`,
+        );
       }
 
       const location = data?.data;
       if (!location) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `No information found for location ID: ${locationId}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `No information found for location ID: ${locationId}`,
+        );
       }
 
       console.log(`Retrieved details for location: ${location.name}`);
-
-      const formattedLocation = formatLocation(location);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Location Details:\n\n${formattedLocation}`,
-          },
-        ],
-      };
+      return textResult(`Location Details:\n\n${formatLocation(location)}`);
     },
   );
 
@@ -170,25 +131,16 @@ export function registerLocationTools(ctx: ToolContext) {
 
       const { data, error } = await locationClient.GET(
         "/v1/locations/{locationId}",
-        {
-          params: { path: { locationId } },
-        },
+        { params: { path: { locationId } } },
       );
 
       if (error || !data?.data) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to get location details: ${JSON.stringify(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        return errorResult(
+          `Failed to get location details: ${JSON.stringify(error)}`,
+        );
       }
 
       const location = data.data;
-
       const preferredLocation: PreferredLocation = {
         locationId: location.locationId || "",
         locationName: location.name || "",
@@ -200,16 +152,9 @@ export function registerLocationTools(ctx: ToolContext) {
 
       await ctx.storage.preferredLocation.set(props.id, preferredLocation);
 
-      const formatted = formatPreferredLocationCompact(preferredLocation);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Preferred location set successfully:\n\n${formatted}`,
-          },
-        ],
-      };
+      return textResult(
+        `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
+      );
     },
   );
 }
