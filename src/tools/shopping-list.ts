@@ -1,4 +1,4 @@
-import { err, ok, ResultAsync, safeTry } from "neverthrow";
+import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
@@ -101,21 +101,18 @@ export function registerShoppingListTools(ctx: ToolContext) {
     async ({ action, items, productName, quantity, upc, notes }) => {
       const { storage, userId } = ctx;
       const scopedId = getSessionScopedUserId(userId, ctx.getSessionId());
-
-      switch (action) {
-        case "add": {
-          if (!items || items.length === 0) {
-            return toMcpResponse(
-              err(
+      const result = (() => {
+        switch (action) {
+          case "add": {
+            if (!items || items.length === 0) {
+              return errAsync(
                 validationError(
                   "Error: 'items' array is required for the 'add' action.",
                 ),
-              ),
-            );
-          }
-          const now = new Date().toISOString();
-          return toMcpResponse(
-            await safeStorage(async () => {
+              );
+            }
+            const now = new Date().toISOString();
+            return safeStorage(async () => {
               for (const item of items) {
                 const listItem: ShoppingListItem = {
                   productName: item.productName,
@@ -131,50 +128,42 @@ export function registerShoppingListTools(ctx: ToolContext) {
             }, "add shopping list items").map(
               (list) =>
                 `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            ),
-          );
-        }
+            );
+          }
 
-        case "remove": {
-          if (!productName) {
-            return toMcpResponse(
-              err(
+          case "remove": {
+            if (!productName) {
+              return errAsync(
                 validationError(
                   "Error: 'productName' is required for the 'remove' action.",
                 ),
-              ),
-            );
-          }
-          return toMcpResponse(
-            await safeStorage(async () => {
+              );
+            }
+            return safeStorage(async () => {
               await storage.shoppingList.remove(scopedId, productName);
               return storage.shoppingList.getAll(scopedId);
             }, "remove shopping list item").map(
               (list) =>
                 `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            ),
-          );
-        }
+            );
+          }
 
-        case "update": {
-          if (!productName) {
-            return toMcpResponse(
-              err(
+          case "update": {
+            if (!productName) {
+              return errAsync(
                 validationError(
                   "Error: 'productName' is required for the 'update' action.",
                 ),
-              ),
-            );
-          }
-          const updates: Partial<
-            Pick<ShoppingListItem, "quantity" | "upc" | "notes">
-          > = {};
-          if (quantity !== undefined) updates.quantity = quantity;
-          if (upc !== undefined) updates.upc = upc;
-          if (notes !== undefined) updates.notes = notes;
+              );
+            }
+            const updates: Partial<
+              Pick<ShoppingListItem, "quantity" | "upc" | "notes">
+            > = {};
+            if (quantity !== undefined) updates.quantity = quantity;
+            if (upc !== undefined) updates.upc = upc;
+            if (notes !== undefined) updates.notes = notes;
 
-          return toMcpResponse(
-            await safeStorage(async () => {
+            return safeStorage(async () => {
               await storage.shoppingList.updateItem(
                 scopedId,
                 productName,
@@ -184,18 +173,17 @@ export function registerShoppingListTools(ctx: ToolContext) {
             }, "update shopping list item").map(
               (list) =>
                 `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            ),
-          );
-        }
+            );
+          }
 
-        case "clear":
-          return toMcpResponse(
-            await safeStorage(
+          case "clear":
+            return safeStorage(
               () => storage.shoppingList.clear(scopedId),
               "clear shopping list",
-            ).map(() => "Shopping list cleared successfully."),
-          );
-      }
+            ).map(() => "Shopping list cleared successfully.");
+        }
+      })();
+      return toMcpResponse(await result);
     },
   );
 
@@ -238,8 +226,11 @@ export function registerShoppingListTools(ctx: ToolContext) {
           );
         }
 
-        const withUpc = uncheckedItems.filter((item) => item.upc);
-        const withoutUpc = uncheckedItems.filter((item) => !item.upc);
+        const withUpc: typeof uncheckedItems = [];
+        const withoutUpc: typeof uncheckedItems = [];
+        for (const item of uncheckedItems) {
+          (item.upc ? withUpc : withoutUpc).push(item);
+        }
 
         const resolved = yield* safeResolveLocationId(
           storage,

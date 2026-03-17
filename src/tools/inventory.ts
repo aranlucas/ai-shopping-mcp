@@ -1,4 +1,4 @@
-import { err } from "neverthrow";
+import { errAsync } from "neverthrow";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import {
@@ -7,11 +7,7 @@ import {
   formatPantryListCompact,
 } from "../utils/format-response.js";
 import { safeStorage, toMcpResponse } from "../utils/result.js";
-import type {
-  EquipmentItem,
-  OrderRecord,
-  PantryItem,
-} from "../utils/user-storage.js";
+import type { OrderRecord } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
@@ -61,67 +57,56 @@ export function registerInventoryTools(ctx: ToolContext) {
     },
     async ({ action, items, productName }) => {
       const { storage, userId } = ctx;
-
-      switch (action) {
-        case "add": {
-          if (!items || items.length === 0) {
-            return toMcpResponse(
-              err(
+      const result = (() => {
+        switch (action) {
+          case "add": {
+            if (!items?.length) {
+              return errAsync(
                 validationError(
                   "Error: 'items' array is required for the 'add' action.",
                 ),
-              ),
-            );
-          }
-          const now = new Date().toISOString();
-          return toMcpResponse(
-            await safeStorage(async () => {
+              );
+            }
+            const now = new Date().toISOString();
+            return safeStorage(async () => {
               for (const item of items) {
-                const pantryItem: PantryItem = {
+                await storage.pantry.add(userId, {
                   productName: item.productName,
                   quantity: item.quantity,
                   addedAt: now,
                   expiresAt: item.expiresAt,
-                };
-                await storage.pantry.add(userId, pantryItem);
+                });
               }
               return storage.pantry.getAll(userId);
             }, "add pantry items").map(
               (pantry) =>
                 `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-            ),
-          );
-        }
-
-        case "remove": {
-          if (!productName) {
-            return toMcpResponse(
-              err(
+            );
+          }
+          case "remove": {
+            if (!productName) {
+              return errAsync(
                 validationError(
                   "Error: 'productName' is required for the 'remove' action.",
                 ),
-              ),
-            );
-          }
-          return toMcpResponse(
-            await safeStorage(async () => {
+              );
+            }
+            return safeStorage(async () => {
               await storage.pantry.remove(userId, productName);
               return storage.pantry.getAll(userId);
             }, "remove pantry item").map(
               (pantry) =>
                 `Item removed from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-            ),
-          );
-        }
-
-        case "clear":
-          return toMcpResponse(
-            await safeStorage(
+            );
+          }
+          case "clear":
+            return safeStorage(
               () => storage.pantry.clear(userId),
               "clear pantry",
-            ).map(() => "Pantry cleared successfully."),
-          );
-      }
+            ).map(() => "Pantry cleared successfully.");
+        }
+      })();
+      return toMcpResponse(await result);
     },
   );
 
@@ -168,66 +153,55 @@ export function registerInventoryTools(ctx: ToolContext) {
     },
     async ({ action, items, equipmentName }) => {
       const { storage, userId } = ctx;
-
-      switch (action) {
-        case "add": {
-          if (!items || items.length === 0) {
-            return toMcpResponse(
-              err(
+      const result = (() => {
+        switch (action) {
+          case "add": {
+            if (!items?.length) {
+              return errAsync(
                 validationError(
                   "Error: 'items' array is required for the 'add' action.",
                 ),
-              ),
-            );
-          }
-          const now = new Date().toISOString();
-          return toMcpResponse(
-            await safeStorage(async () => {
+              );
+            }
+            const now = new Date().toISOString();
+            return safeStorage(async () => {
               for (const item of items) {
-                const equipmentItem: EquipmentItem = {
+                await storage.equipment.add(userId, {
                   equipmentName: item.equipmentName,
                   category: item.category,
                   addedAt: now,
-                };
-                await storage.equipment.add(userId, equipmentItem);
+                });
               }
               return storage.equipment.getAll(userId);
             }, "add equipment items").map(
               (equipment) =>
                 `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-            ),
-          );
-        }
-
-        case "remove": {
-          if (!equipmentName) {
-            return toMcpResponse(
-              err(
+            );
+          }
+          case "remove": {
+            if (!equipmentName) {
+              return errAsync(
                 validationError(
                   "Error: 'equipmentName' is required for the 'remove' action.",
                 ),
-              ),
-            );
-          }
-          return toMcpResponse(
-            await safeStorage(async () => {
+              );
+            }
+            return safeStorage(async () => {
               await storage.equipment.remove(userId, equipmentName);
               return storage.equipment.getAll(userId);
             }, "remove equipment item").map(
               (equipment) =>
                 `Item removed from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-            ),
-          );
-        }
-
-        case "clear":
-          return toMcpResponse(
-            await safeStorage(
+            );
+          }
+          case "clear":
+            return safeStorage(
               () => storage.equipment.clear(userId),
               "clear equipment",
-            ).map(() => "Equipment cleared successfully."),
-          );
-      }
+            ).map(() => "Equipment cleared successfully.");
+        }
+      })();
+      return toMcpResponse(await result);
     },
   );
 

@@ -167,15 +167,21 @@ export function registerResources(ctx: ToolContext) {
 
       return result.match(
         (list) => {
-          const unchecked = list.filter((i) => !i.checked);
-          const withUpc = unchecked.filter((i) => i.upc);
-          const withoutUpc = unchecked.filter((i) => !i.upc);
+          let uncheckedCount = 0,
+            readyForCheckout = 0,
+            needsUpc = 0;
+          for (const item of list) {
+            if (!item.checked) {
+              uncheckedCount++;
+              item.upc ? readyForCheckout++ : needsUpc++;
+            }
+          }
 
           return jsonResource("shopping://user/shopping-list", {
             totalItems: list.length,
-            uncheckedCount: unchecked.length,
-            readyForCheckout: withUpc.length,
-            needsUpc: withoutUpc.length,
+            uncheckedCount,
+            readyForCheckout,
+            needsUpc,
             items: list,
             lastUpdated: new Date().toISOString(),
           });
