@@ -1,11 +1,10 @@
-import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
+import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import {
   fromApiResponse,
-  requireAuth,
   safeResolveLocationId,
   safeStorage,
   toMcpError,
@@ -100,22 +99,23 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
-      const result = requireAuth(ctx.getUser()).asyncAndThen((props) => {
-        const { storage } = ctx;
-        const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
+      const { storage, userId } = ctx;
+      const scopedId = getSessionScopedUserId(userId, ctx.getSessionId());
 
-        switch (action) {
-          case "add": {
-            if (!items || items.length === 0) {
-              return errAsync(
+      switch (action) {
+        case "add": {
+          if (!items || items.length === 0) {
+            return toMcpResponse(
+              err(
                 validationError(
                   "Error: 'items' array is required for the 'add' action.",
                 ),
-              );
-            }
-
-            const now = new Date().toISOString();
-            return safeStorage(async () => {
+              ),
+            );
+          }
+          const now = new Date().toISOString();
+          return toMcpResponse(
+            await safeStorage(async () => {
               for (const item of items) {
                 const listItem: ShoppingListItem = {
                   productName: item.productName,
@@ -131,44 +131,50 @@ export function registerShoppingListTools(ctx: ToolContext) {
             }, "add shopping list items").map(
               (list) =>
                 `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            );
-          }
+            ),
+          );
+        }
 
-          case "remove": {
-            if (!productName) {
-              return errAsync(
+        case "remove": {
+          if (!productName) {
+            return toMcpResponse(
+              err(
                 validationError(
                   "Error: 'productName' is required for the 'remove' action.",
                 ),
-              );
-            }
-
-            return safeStorage(async () => {
+              ),
+            );
+          }
+          return toMcpResponse(
+            await safeStorage(async () => {
               await storage.shoppingList.remove(scopedId, productName);
               return storage.shoppingList.getAll(scopedId);
             }, "remove shopping list item").map(
               (list) =>
                 `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            );
-          }
+            ),
+          );
+        }
 
-          case "update": {
-            if (!productName) {
-              return errAsync(
+        case "update": {
+          if (!productName) {
+            return toMcpResponse(
+              err(
                 validationError(
                   "Error: 'productName' is required for the 'update' action.",
                 ),
-              );
-            }
+              ),
+            );
+          }
+          const updates: Partial<
+            Pick<ShoppingListItem, "quantity" | "upc" | "notes">
+          > = {};
+          if (quantity !== undefined) updates.quantity = quantity;
+          if (upc !== undefined) updates.upc = upc;
+          if (notes !== undefined) updates.notes = notes;
 
-            const updates: Partial<
-              Pick<ShoppingListItem, "quantity" | "upc" | "notes">
-            > = {};
-            if (quantity !== undefined) updates.quantity = quantity;
-            if (upc !== undefined) updates.upc = upc;
-            if (notes !== undefined) updates.notes = notes;
-
-            return safeStorage(async () => {
+          return toMcpResponse(
+            await safeStorage(async () => {
               await storage.shoppingList.updateItem(
                 scopedId,
                 productName,
@@ -178,18 +184,18 @@ export function registerShoppingListTools(ctx: ToolContext) {
             }, "update shopping list item").map(
               (list) =>
                 `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            );
-          }
+            ),
+          );
+        }
 
-          case "clear":
-            return safeStorage(
+        case "clear":
+          return toMcpResponse(
+            await safeStorage(
               () => storage.shoppingList.clear(scopedId),
               "clear shopping list",
-            ).map(() => "Shopping list cleared successfully.");
-        }
-      });
-
-      return toMcpResponse(await result);
+            ).map(() => "Shopping list cleared successfully."),
+          );
+      }
     },
   );
 
@@ -217,13 +223,10 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId, modality }) => {
-      const { storage } = ctx;
+      const { storage, userId } = ctx;
+      const scopedId = getSessionScopedUserId(userId, ctx.getSessionId());
 
-      // Use safeTry for the entire checkout flow, including auth
       const result = await safeTry(async function* () {
-        const props = yield* requireAuth(ctx.getUser()).safeUnwrap();
-        const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
-
         const uncheckedItems = yield* safeStorage(
           () => storage.shoppingList.getUnchecked(scopedId),
           "fetch unchecked items",
@@ -240,7 +243,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
         const resolved = yield* safeResolveLocationId(
           storage,
-          props.id,
+          userId,
           locationId,
         ).safeUnwrap();
 

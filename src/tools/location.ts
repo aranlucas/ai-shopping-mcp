@@ -8,7 +8,6 @@ import {
 } from "../utils/format-response.js";
 import {
   fromApiResponse,
-  requireAuth,
   safeStorage,
   toMcpResponse,
 } from "../utils/result.js";
@@ -128,41 +127,39 @@ export function registerLocationTools(ctx: ToolContext) {
         }),
       },
       async ({ locationId }) => {
-        const result = requireAuth(ctx.getUser()).asyncAndThen((props) =>
-          fromApiResponse(
-            locationClient.GET("/v1/locations/{locationId}", {
-              params: { path: { locationId } },
-            }),
-            "get location details",
-          ).andThen((data) => {
-            const location = data?.data;
-            if (!location) {
-              return err(
-                notFoundError(
-                  `No information found for location ID: ${locationId}`,
-                ),
-              );
-            }
-
-            const preferredLocation: PreferredLocation = {
-              locationId: location.locationId || "",
-              locationName: location.name || "",
-              address:
-                `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
-              chain: location.chain || "",
-              setAt: new Date().toISOString(),
-            };
-
-            return safeStorage(
-              () =>
-                ctx.storage.preferredLocation.set(props.id, preferredLocation),
-              "save preferred location",
-            ).map(
-              () =>
-                `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
-            );
+        const result = fromApiResponse(
+          locationClient.GET("/v1/locations/{locationId}", {
+            params: { path: { locationId } },
           }),
-        );
+          "get location details",
+        ).andThen((data) => {
+          const location = data?.data;
+          if (!location) {
+            return err(
+              notFoundError(
+                `No information found for location ID: ${locationId}`,
+              ),
+            );
+          }
+
+          const preferredLocation: PreferredLocation = {
+            locationId: location.locationId || "",
+            locationName: location.name || "",
+            address:
+              `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
+            chain: location.chain || "",
+            setAt: new Date().toISOString(),
+          };
+
+          return safeStorage(
+            () =>
+              ctx.storage.preferredLocation.set(ctx.userId, preferredLocation),
+            "save preferred location",
+          ).map(
+            () =>
+              `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
+          );
+        });
 
         return toMcpResponse(await result);
       },

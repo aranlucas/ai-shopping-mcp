@@ -6,13 +6,12 @@ import { err, ok, okAsync, type Result, ResultAsync } from "neverthrow";
 import {
   type AppError,
   apiError,
-  authError,
   formatAppError,
   networkError,
   notFoundError,
   storageError,
 } from "../errors.js";
-import type { Props, UserStorage } from "../tools/types.js";
+import type { UserStorage } from "../tools/types.js";
 
 // --- MCP Response Bridge ---
 
@@ -68,19 +67,6 @@ export function fromApiResponse<T>(
     }
     return ok(data);
   });
-}
-
-// --- Auth Helpers ---
-
-/**
- * Result-based auth check. Returns Ok(Props) or Err(AuthError).
- * Aligns with Cloudflare McpAgent pattern of passing auth context directly.
- */
-export function requireAuth(user: Props | null): Result<Props, AppError> {
-  if (!user?.id) {
-    return err(authError("User not authenticated"));
-  }
-  return ok(user);
 }
 
 // --- Location Resolution ---

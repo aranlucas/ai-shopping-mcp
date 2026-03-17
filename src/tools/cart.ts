@@ -2,7 +2,6 @@ import { z } from "zod";
 import type { components } from "../services/kroger/cart.js";
 import {
   fromApiResponse,
-  requireAuth,
   safeResolveLocationId,
   toMcpResponse,
 } from "../utils/result.js";
@@ -53,33 +52,33 @@ export function registerCartTools(ctx: ToolContext) {
       }),
     },
     async ({ items, locationId }) => {
-      const result = requireAuth(ctx.getUser()).asyncAndThen((props) =>
-        safeResolveLocationId(ctx.storage, props.id, locationId).andThen(
-          (resolved) => {
-            const cartItems: CartItem[] = items.map((item) => ({
-              upc: item.upc,
-              quantity: item.quantity,
-              modality: item.modality,
-            }));
+      const result = safeResolveLocationId(
+        ctx.storage,
+        ctx.userId,
+        locationId,
+      ).andThen((resolved) => {
+        const cartItems: CartItem[] = items.map((item) => ({
+          upc: item.upc,
+          quantity: item.quantity,
+          modality: item.modality,
+        }));
 
-            const requestBody: CartItemRequest = { items: cartItems };
+        const requestBody: CartItemRequest = { items: cartItems };
 
-            return fromApiResponse(
-              cartClient.PUT("/v1/cart/add", {
-                body: requestBody,
-                headers: { "Content-Type": "application/json" },
-              }),
-              "add items to cart",
-            ).map(() => {
-              const locationInfo = resolved.locationName
-                ? ` at ${resolved.locationName}`
-                : ` (Location: ${resolved.locationId})`;
+        return fromApiResponse(
+          cartClient.PUT("/v1/cart/add", {
+            body: requestBody,
+            headers: { "Content-Type": "application/json" },
+          }),
+          "add items to cart",
+        ).map(() => {
+          const locationInfo = resolved.locationName
+            ? ` at ${resolved.locationName}`
+            : ` (Location: ${resolved.locationId})`;
 
-              return `Successfully added ${items.length} item(s) to cart${locationInfo}.`;
-            });
-          },
-        ),
-      );
+          return `Successfully added ${items.length} item(s) to cart${locationInfo}.`;
+        });
+      });
 
       return toMcpResponse(await result);
     },

@@ -1,9 +1,8 @@
-import { err, ok, ResultAsync, safeTry } from "neverthrow";
+import { err, ok, ResultAsync } from "neverthrow";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
 import { networkError } from "../errors.js";
 import {
-  requireAuth,
   safeFetch,
   safeStorage,
   toMcpError,
@@ -207,30 +206,24 @@ export function registerRecipeTools(ctx: ToolContext) {
         dietaryPreferences,
         prioritizeExpiring,
       }) => {
-        const { storage } = ctx;
+        const { storage, userId } = ctx;
 
-        // Fetch user data in parallel using safeTry + ResultAsync.combine (auth folded in)
-        const dataResult = await safeTry(async function* () {
-          const props = yield* requireAuth(ctx.getUser()).safeUnwrap();
-
-          const [pantry, equipment, recentOrders] = yield* ResultAsync.combine([
-            safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),
-            safeStorage(
-              () => storage.equipment.getAll(props.id),
-              "fetch equipment",
-            ),
-            safeStorage(
-              () => storage.orderHistory.getRecent(props.id, 10),
-              "fetch order history",
-            ),
-          ]).safeUnwrap();
-
-          return ok({ pantry, equipment, recentOrders });
-        });
+        // Fetch user data in parallel
+        const dataResult = await ResultAsync.combine([
+          safeStorage(() => storage.pantry.getAll(userId), "fetch pantry"),
+          safeStorage(
+            () => storage.equipment.getAll(userId),
+            "fetch equipment",
+          ),
+          safeStorage(
+            () => storage.orderHistory.getRecent(userId, 10),
+            "fetch order history",
+          ),
+        ]);
 
         if (dataResult.isErr()) return toMcpError(dataResult.error);
 
-        const { pantry, equipment, recentOrders } = dataResult.value;
+        const [pantry, equipment, recentOrders] = dataResult.value;
 
         if (pantry.length === 0) {
           return textResult(
