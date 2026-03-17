@@ -12,6 +12,10 @@ type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
 export function registerCartTools(ctx: ToolContext) {
+  // All cart tools require authentication — skip if user is not authenticated.
+  // This prevents the LLM from seeing tools it can't use (Cloudflare MCP auth pattern).
+  if (!ctx.userId) return;
+
   const { cartClient } = ctx.clients;
 
   ctx.server.registerTool(

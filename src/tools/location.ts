@@ -106,62 +106,66 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
-    "set_preferred_location",
-    {
-      title: "Set Preferred Store",
-      description:
-        "Saves a store as your preferred location for future product searches and cart operations.",
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-      inputSchema: z.object({
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" }),
-      }),
-    },
-    async ({ locationId }) => {
-      const result = requireAuth(ctx.getUser()).asyncAndThen((props) =>
-        fromApiResponse(
-          locationClient.GET("/v1/locations/{locationId}", {
-            params: { path: { locationId } },
-          }),
-          "get location details",
-        ).andThen((data) => {
-          const location = data?.data;
-          if (!location) {
-            return err(
-              notFoundError(
-                `No information found for location ID: ${locationId}`,
-              ),
-            );
-          }
-
-          const preferredLocation: PreferredLocation = {
-            locationId: location.locationId || "",
-            locationName: location.name || "",
-            address:
-              `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
-            chain: location.chain || "",
-            setAt: new Date().toISOString(),
-          };
-
-          return safeStorage(
-            () =>
-              ctx.storage.preferredLocation.set(props.id, preferredLocation),
-            "save preferred location",
-          ).map(
-            () =>
-              `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
-          );
+  // set_preferred_location requires authentication — only register if user is authenticated.
+  // Unauthenticated sessions won't see this tool at all (Cloudflare MCP auth pattern).
+  if (ctx.userId) {
+    ctx.server.registerTool(
+      "set_preferred_location",
+      {
+        title: "Set Preferred Store",
+        description:
+          "Saves a store as your preferred location for future product searches and cart operations.",
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+        inputSchema: z.object({
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be exactly 8 characters" }),
         }),
-      );
+      },
+      async ({ locationId }) => {
+        const result = requireAuth(ctx.getUser()).asyncAndThen((props) =>
+          fromApiResponse(
+            locationClient.GET("/v1/locations/{locationId}", {
+              params: { path: { locationId } },
+            }),
+            "get location details",
+          ).andThen((data) => {
+            const location = data?.data;
+            if (!location) {
+              return err(
+                notFoundError(
+                  `No information found for location ID: ${locationId}`,
+                ),
+              );
+            }
 
-      return toMcpResponse(await result);
-    },
-  );
+            const preferredLocation: PreferredLocation = {
+              locationId: location.locationId || "",
+              locationName: location.name || "",
+              address:
+                `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
+              chain: location.chain || "",
+              setAt: new Date().toISOString(),
+            };
+
+            return safeStorage(
+              () =>
+                ctx.storage.preferredLocation.set(props.id, preferredLocation),
+              "save preferred location",
+            ).map(
+              () =>
+                `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
+            );
+          }),
+        );
+
+        return toMcpResponse(await result);
+      },
+    );
+  }
 }

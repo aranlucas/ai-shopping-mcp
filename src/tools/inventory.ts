@@ -15,6 +15,10 @@ import type {
 import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
+  // All inventory tools require authentication — skip if user is not authenticated.
+  // This prevents the LLM from seeing tools it can't use (Cloudflare MCP auth pattern).
+  if (!ctx.userId) return;
+
   ctx.server.registerTool(
     "manage_pantry",
     {
