@@ -8,7 +8,6 @@ import {
 } from "../utils/format-response.js";
 import {
   fromApiResponse,
-  requireAuth,
   safeStorage,
   toMcpResponse,
 } from "../utils/result.js";
@@ -106,27 +105,29 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
-    "set_preferred_location",
-    {
-      title: "Set Preferred Store",
-      description:
-        "Saves a store as your preferred location for future product searches and cart operations.",
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
+  // set_preferred_location requires authentication — only register if user is authenticated.
+  // Unauthenticated sessions won't see this tool at all (Cloudflare MCP auth pattern).
+  if (ctx.userId) {
+    ctx.server.registerTool(
+      "set_preferred_location",
+      {
+        title: "Set Preferred Store",
+        description:
+          "Saves a store as your preferred location for future product searches and cart operations.",
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+        inputSchema: z.object({
+          locationId: z
+            .string()
+            .length(8, { message: "Location ID must be exactly 8 characters" }),
+        }),
       },
-      inputSchema: z.object({
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" }),
-      }),
-    },
-    async ({ locationId }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
-        fromApiResponse(
+      async ({ locationId }) => {
+        const result = fromApiResponse(
           locationClient.GET("/v1/locations/{locationId}", {
             params: { path: { locationId } },
           }),
@@ -152,16 +153,16 @@ export function registerLocationTools(ctx: ToolContext) {
 
           return safeStorage(
             () =>
-              ctx.storage.preferredLocation.set(props.id, preferredLocation),
+              ctx.storage.preferredLocation.set(ctx.userId, preferredLocation),
             "save preferred location",
           ).map(
             () =>
               `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
           );
-        }),
-      );
+        });
 
-      return toMcpResponse(await result);
-    },
-  );
+        return toMcpResponse(await result);
+      },
+    );
+  }
 }

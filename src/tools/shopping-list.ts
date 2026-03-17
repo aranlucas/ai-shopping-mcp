@@ -5,7 +5,6 @@ import type { components } from "../services/kroger/cart.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import {
   fromApiResponse,
-  requireAuth,
   safeResolveLocationId,
   safeStorage,
   toMcpError,
@@ -22,6 +21,10 @@ type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
 export function registerShoppingListTools(ctx: ToolContext) {
+  // All shopping list tools require authentication — skip if user is not authenticated.
+  // This prevents the LLM from seeing tools it can't use (Cloudflare MCP auth pattern).
+  if (!ctx.userId) return;
+
   const { cartClient } = ctx.clients;
 
   ctx.server.registerTool(
@@ -96,10 +99,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
-        const { storage } = ctx;
-        const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
-
+      const { storage, userId } = ctx;
+      const scopedId = getSessionScopedUserId(userId, ctx.getSessionId());
+      const result = (() => {
         switch (action) {
           case "add": {
             if (!items || items.length === 0) {
@@ -109,7 +111,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
                 ),
               );
             }
-
             const now = new Date().toISOString();
             return safeStorage(async () => {
               for (const item of items) {
@@ -138,7 +139,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
                 ),
               );
             }
-
             return safeStorage(async () => {
               await storage.shoppingList.remove(scopedId, productName);
               return storage.shoppingList.getAll(scopedId);
@@ -156,7 +156,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
                 ),
               );
             }
-
             const updates: Partial<
               Pick<ShoppingListItem, "quantity" | "upc" | "notes">
             > = {};
@@ -183,8 +182,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
               "clear shopping list",
             ).map(() => "Shopping list cleared successfully.");
         }
-      });
-
+      })();
       return toMcpResponse(await result);
     },
   );
@@ -213,13 +211,10 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId, modality }) => {
-      const { storage } = ctx;
+      const { storage, userId } = ctx;
+      const scopedId = getSessionScopedUserId(userId, ctx.getSessionId());
 
-      // Use safeTry for the entire checkout flow, including auth
       const result = await safeTry(async function* () {
-        const props = yield* requireAuth(ctx.getUser).safeUnwrap();
-        const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
-
         const uncheckedItems = yield* safeStorage(
           () => storage.shoppingList.getUnchecked(scopedId),
           "fetch unchecked items",
@@ -231,12 +226,15 @@ export function registerShoppingListTools(ctx: ToolContext) {
           );
         }
 
-        const withUpc = uncheckedItems.filter((item) => item.upc);
-        const withoutUpc = uncheckedItems.filter((item) => !item.upc);
+        const withUpc: typeof uncheckedItems = [];
+        const withoutUpc: typeof uncheckedItems = [];
+        for (const item of uncheckedItems) {
+          (item.upc ? withUpc : withoutUpc).push(item);
+        }
 
         const resolved = yield* safeResolveLocationId(
           storage,
-          props.id,
+          userId,
           locationId,
         ).safeUnwrap();
 

@@ -27,6 +27,9 @@ export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;
   storage: UserStorage;
+  /** Authenticated user ID — empty string if not authenticated. Use for storage keys and auth checks. */
+  userId: string;
+  /** Full auth props including access token. Use when you need the token (e.g. passing to API clients). */
   getUser: () => Props | null;
   getEnv: () => Env;
   getSessionId: () => string;

@@ -6,13 +6,12 @@ import { err, ok, okAsync, type Result, ResultAsync } from "neverthrow";
 import {
   type AppError,
   apiError,
-  authError,
   formatAppError,
   networkError,
   notFoundError,
   storageError,
 } from "../errors.js";
-import type { Props, UserStorage } from "../tools/types.js";
+import type { UserStorage } from "../tools/types.js";
 
 // --- MCP Response Bridge ---
 
@@ -68,22 +67,6 @@ export function fromApiResponse<T>(
     }
     return ok(data);
   });
-}
-
-// --- Auth Helpers ---
-
-/**
- * Result-based version of requireUser.
- * Returns Ok(Props) or Err(AuthError).
- */
-export function requireAuth(
-  getUser: () => Props | null,
-): Result<Props, AppError> {
-  const props = getUser();
-  if (!props?.id) {
-    return err(authError("User not authenticated"));
-  }
-  return ok(props);
 }
 
 // --- Location Resolution ---

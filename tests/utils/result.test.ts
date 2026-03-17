@@ -1,15 +1,9 @@
 import { err, ok } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
-import {
-  apiError,
-  authError,
-  notFoundError,
-  storageError,
-} from "../../src/errors.js";
-import type { Props, UserStorage } from "../../src/tools/types.js";
+import { apiError, authError, notFoundError } from "../../src/errors.js";
+import type { UserStorage } from "../../src/tools/types.js";
 import {
   fromApiResponse,
-  requireAuth,
   safeFetch,
   safeResolveLocationId,
   safeStorage,
@@ -104,37 +98,6 @@ describe("fromApiResponse", () => {
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
     expect(error.message).toContain("network fail");
-  });
-});
-
-// --- requireAuth ---
-
-describe("requireAuth", () => {
-  it("returns Ok when user is authenticated", () => {
-    const props: Props = {
-      id: "user-123",
-      accessToken: "token",
-      tokenExpiresAt: Date.now() + 30 * 60 * 1000,
-    };
-    const result = requireAuth(() => props);
-    expect(result.isOk()).toBe(true);
-    expect(result._unsafeUnwrap()).toEqual(props);
-  });
-
-  it("returns Err when user is null", () => {
-    const result = requireAuth(() => null);
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("AUTH_ERROR");
-  });
-
-  it("returns Err when user has empty id", () => {
-    const result = requireAuth(() => ({
-      id: "",
-      accessToken: "token",
-      tokenExpiresAt: Date.now(),
-    }));
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("AUTH_ERROR");
   });
 });
 
@@ -265,24 +228,6 @@ describe("safeFetch", () => {
 // --- Integration: composing Result utilities like tool handlers ---
 
 describe("tool handler error path integration", () => {
-  it("requireAuth → toMcpError short-circuits unauthenticated requests", () => {
-    const authResult = requireAuth(() => null);
-    expect(authResult.isErr()).toBe(true);
-    const mcpResult = toMcpError(authResult._unsafeUnwrapErr());
-    expect(mcpResult.isError).toBe(true);
-    expect(mcpResult.content[0].text).toContain("not authenticated");
-  });
-
-  it("requireAuth → asyncAndThen chain propagates auth errors", async () => {
-    const { errAsync } = await import("neverthrow");
-    const result = requireAuth(() => null).asyncAndThen(() =>
-      errAsync(storageError("should not reach")),
-    );
-    const awaited = await result;
-    expect(awaited.isErr()).toBe(true);
-    expect(awaited._unsafeUnwrapErr().type).toBe("AUTH_ERROR");
-  });
-
   it("safeStorage failure produces valid MCP error via toMcpResponse", async () => {
     const result = await safeStorage(
       () => Promise.reject(new Error("KV down")),
