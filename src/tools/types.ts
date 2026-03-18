@@ -31,8 +31,6 @@ export type ToolContext = {
   getEnv: () => Env;
   getSessionId: () => string;
   keepAliveWhile: <T>(fn: () => Promise<T>) => Promise<T>;
-  /** Stores the latest SSR HTML per resource URI for MCP Apps resource handlers. */
-  htmlStore: Map<string, string>;
 };
 
 // --- Response helpers ---

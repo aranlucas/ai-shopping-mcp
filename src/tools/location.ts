@@ -14,21 +14,15 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { LocationDetail, LocationResults } from "../utils/ui/locations.js";
-import { registerAppToolWithUI, storeReactHtml } from "../utils/ui-resource.js";
+import { renderReactUI } from "../utils/ui-resource.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
-
-const LOCATION_RESULTS_URI = "ui://location-results/app.html";
-const LOCATION_DETAILS_URI = "ui://location-details/app.html";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
 
-  registerAppToolWithUI(
-    ctx,
+  ctx.server.registerTool(
     "search_locations",
-    LOCATION_RESULTS_URI,
-    "Location Search Results",
     {
       title: "Search Store Locations",
       description:
@@ -79,23 +73,19 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const { locations, text } = result.value;
-      storeReactHtml(
-        ctx,
-        LOCATION_RESULTS_URI,
+      const ui = await renderReactUI(
+        "ui://location-results",
         createElement(LocationResults, { locations }),
       );
 
       return {
-        content: [{ type: "text" as const, text }],
+        content: [{ type: "text" as const, text }, ui],
       };
     },
   );
 
-  registerAppToolWithUI(
-    ctx,
+  ctx.server.registerTool(
     "get_location_details",
-    LOCATION_DETAILS_URI,
-    "Store Details",
     {
       title: "Get Store Details",
       description:
@@ -135,9 +125,8 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const location = result.value;
-      storeReactHtml(
-        ctx,
-        LOCATION_DETAILS_URI,
+      const ui = await renderReactUI(
+        "ui://location-details",
         createElement(LocationDetail, { location }),
       );
 
@@ -147,6 +136,7 @@ export function registerLocationTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Location Details:\n\n${formatLocation(location)}`,
           },
+          ui,
         ],
       };
     },

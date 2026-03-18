@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
-import type { ToolContext } from "../../src/tools/types.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
 import {
   addCacheWarning,
@@ -10,17 +9,15 @@ import {
   parseCacheEntry,
 } from "../../src/tools/weekly-deals.js";
 
-/** Minimal mock ToolContext for formatWeeklyDealsToolResponse (only htmlStore is used). */
-const mockCtx = { htmlStore: new Map<string, string>() } as ToolContext;
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /** Extract the text content from the first text item in a tool response */
-function getTextContent(
-  response: ReturnType<typeof formatWeeklyDealsToolResponse>,
-): string {
+async function getTextContent(
+  responsePromise: ReturnType<typeof formatWeeklyDealsToolResponse>,
+): Promise<string> {
+  const response = await responsePromise;
   const textItem = response.content.find(
     (c): c is { type: "text"; text: string } =>
       "type" in c && c.type === "text",
@@ -222,18 +219,19 @@ describe("addCacheWarning", () => {
 // ---------------------------------------------------------------------------
 
 describe("formatWeeklyDealsToolResponse", () => {
-  it("returns plain deals list when no dates and no warnings", () => {
+  it("returns plain deals list when no dates and no warnings", async () => {
     const result = makeMinimalResult({
       deals: [
         { id: "1", title: "Bananas", price: "$0.59/lb", source: "print" },
       ],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).toBe("1. Bananas | $0.59/lb");
   });
 
-  it("prepends valid date range when both printCircular dates are present", () => {
+  it("prepends valid date range when both printCircular dates are present", async () => {
     const result = makeMinimalResult({
       printCircular: makeCircular(
         "2025-01-07T00:00:00Z",
@@ -241,15 +239,16 @@ describe("formatWeeklyDealsToolResponse", () => {
       ),
       deals: [{ id: "1", title: "Apples", price: "$1.99/lb", source: "print" }],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).toContain(
       "Valid: 2025-01-01T00:00:00Z – 2025-01-07T00:00:00Z",
     );
     expect(text).toContain("1. Apples | $1.99/lb");
   });
 
-  it("prepends valid date range from shoppableCircular when no printCircular", () => {
+  it("prepends valid date range from shoppableCircular when no printCircular", async () => {
     const result = makeMinimalResult({
       shoppableCircular: makeCircular(
         "2025-01-08T00:00:00Z",
@@ -257,14 +256,15 @@ describe("formatWeeklyDealsToolResponse", () => {
       ),
       deals: [{ id: "1", title: "Milk", price: "$3.49", source: "search_api" }],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).toContain(
       "Valid: 2025-01-02T00:00:00Z – 2025-01-08T00:00:00Z",
     );
   });
 
-  it("falls back to deal-level dates when no circular dates present", () => {
+  it("falls back to deal-level dates when no circular dates present", async () => {
     const result = makeMinimalResult({
       deals: [
         {
@@ -277,12 +277,13 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).toContain("Valid: 2025-01-01 – 2025-01-07");
   });
 
-  it("omits date line when only one date is available", () => {
+  it("omits date line when only one date is available", async () => {
     const result = makeMinimalResult({
       deals: [
         {
@@ -294,26 +295,28 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).not.toContain("Valid:");
   });
 
-  it("includes warnings in header when present", () => {
+  it("includes warnings in header when present", async () => {
     const result = makeMinimalResult({
       warnings: ["Print-ad parsing failed", "Using fallback"],
       deals: [
         { id: "1", title: "Chicken", price: "$4.99", source: "search_api" },
       ],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).toContain(
       "Warnings: Print-ad parsing failed | Using fallback",
     );
   });
 
-  it("includes both dates and warnings separated by newline", () => {
+  it("includes both dates and warnings separated by newline", async () => {
     const result = makeMinimalResult({
       printCircular: makeCircular(
         "2025-01-07T00:00:00Z",
@@ -322,77 +325,77 @@ describe("formatWeeklyDealsToolResponse", () => {
       warnings: ["Some warning"],
       deals: [{ id: "1", title: "Beef", price: "$5.99", source: "print" }],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     const lines = text.split("\n");
     expect(lines[0]).toContain("Valid:");
     expect(lines[1]).toContain("Warnings:");
     expect(text).toContain("\n\n"); // blank line separates header from deals
   });
 
-  it("does not include source label in output", () => {
+  it("does not include source label in output", async () => {
     const result = makeMinimalResult({
       sourceMode: "print_fallback",
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).not.toContain("Weekly deals source:");
     expect(text).not.toContain("print_fallback");
   });
 
-  it("does not include location or division info in output", () => {
+  it("does not include location or division info in output", async () => {
     const result = makeMinimalResult({
       locationId: "70500847",
       divisionCode: "705",
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).not.toContain("Location:");
     expect(text).not.toContain("division");
   });
 
-  it("does not include deals count in output", () => {
+  it("does not include deals count in output", async () => {
     const result = makeMinimalResult({
       deals: [
         { id: "1", title: "A", price: "$1.00", source: "print" },
         { id: "2", title: "B", price: "$2.00", source: "print" },
       ],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).not.toContain("Deals returned:");
   });
 
-  it("does not include cache state label in text output", () => {
+  it("does not include cache state label in text output", async () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
-    const freshResponse = formatWeeklyDealsToolResponse(
-      mockCtx,
-      result,
-      "fresh",
+    const freshText = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "fresh"),
     );
-    expect(getTextContent(freshResponse)).not.toContain("Cache:");
-    const staleResponse = formatWeeklyDealsToolResponse(
-      mockCtx,
-      result,
-      "stale",
+    expect(freshText).not.toContain("Cache:");
+    const staleText = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "stale"),
     );
-    expect(getTextContent(staleResponse)).not.toContain("Cache:");
+    expect(staleText).not.toContain("Cache:");
   });
 
-  it("includes structuredContent with cache state", () => {
+  it("includes structuredContent with cache state", async () => {
     const result = makeMinimalResult({ deals: [] });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "fresh");
+    const response = await formatWeeklyDealsToolResponse(result, "fresh");
     expect(response.structuredContent).toBeDefined();
     expect(
       (response.structuredContent as { cache: { state: string } }).cache.state,
     ).toBe("fresh");
   });
 
-  it("includes deal details and savings in compact format", () => {
+  it("includes deal details and savings in compact format", async () => {
     const result = makeMinimalResult({
       deals: [
         {
@@ -405,22 +408,27 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    const text = getTextContent(response);
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
     expect(text).toBe("1. Ground Beef | 80% Lean | $3.99/lb (Save $2.00)");
   });
 
-  it("shows 'See weekly ad' when deal has no price", () => {
+  it("shows 'See weekly ad' when deal has no price", async () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Special Item", source: "print" }],
     });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    expect(getTextContent(response)).toContain("See weekly ad");
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
+    expect(text).toContain("See weekly ad");
   });
 
-  it("returns empty deals message when no deals", () => {
+  it("returns empty deals message when no deals", async () => {
     const result = makeMinimalResult({ deals: [] });
-    const response = formatWeeklyDealsToolResponse(mockCtx, result, "miss");
-    expect(getTextContent(response)).toBe("No weekly deals found.");
+    const text = await getTextContent(
+      formatWeeklyDealsToolResponse(result, "miss"),
+    );
+    expect(text).toBe("No weekly deals found.");
   });
 });
