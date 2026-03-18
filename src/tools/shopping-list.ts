@@ -11,6 +11,8 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
+import { htmlResource } from "../utils/ui-resource.js";
+import { shoppingListHtml } from "../utils/ui-templates.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import {
   getSessionScopedUserId,
@@ -124,10 +126,11 @@ export function registerShoppingListTools(ctx: ToolContext) {
                 await storage.shoppingList.add(scopedId, listItem);
               }
               return storage.shoppingList.getAll(scopedId);
-            }, "add shopping list items").map(
-              (list) =>
-                `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            );
+            }, "add shopping list items").map((list) => ({
+              text: `Added ${items.length} item(s) to shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
+              list,
+              actionDetail: `Added ${items.length} item(s)`,
+            }));
           }
 
           case "remove": {
@@ -142,10 +145,11 @@ export function registerShoppingListTools(ctx: ToolContext) {
             return safeStorage(async () => {
               await storage.shoppingList.remove(scopedId, productName);
               return storage.shoppingList.getAll(scopedId);
-            }, "remove shopping list item").map(
-              (list) =>
-                `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            );
+            }, "remove shopping list item").map((list) => ({
+              text: `Removed "${productName}" from shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
+              list,
+              actionDetail: `Removed "${productName}"`,
+            }));
           }
 
           case "update": {
@@ -171,21 +175,39 @@ export function registerShoppingListTools(ctx: ToolContext) {
                 updates,
               );
               return storage.shoppingList.getAll(scopedId);
-            }, "update shopping list item").map(
-              (list) =>
-                `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
-            );
+            }, "update shopping list item").map((list) => ({
+              text: `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
+              list,
+              actionDetail: `Updated "${productName}"`,
+            }));
           }
 
           case "clear":
             return safeStorage(
               () => storage.shoppingList.clear(scopedId),
               "clear shopping list",
-            ).map(() => "Shopping list cleared successfully.");
+            ).map(() => ({
+              text: "Shopping list cleared successfully.",
+              list: [] as ShoppingListItem[],
+              actionDetail: "List cleared",
+            }));
         }
       });
 
-      return toMcpResponse(await result);
+      const res = await result;
+      if (res.isErr()) {
+        return toMcpResponse(res.map(() => ""));
+      }
+
+      const { text, list, actionDetail } = res.value;
+      const ui = htmlResource(
+        "ui://shopping-list",
+        shoppingListHtml(list, action, actionDetail),
+      );
+
+      return {
+        content: [{ type: "text" as const, text }, ui],
+      };
     },
   );
 
@@ -332,7 +354,17 @@ export function registerShoppingListTools(ctx: ToolContext) {
           `\nYour shopping list:\n\n${formatShoppingListCompact(updatedList)}`,
         );
 
-        return ok(textResult(resultParts.join("\n\n")));
+        const text = resultParts.join("\n\n");
+        const ui = htmlResource(
+          "ui://shopping-list",
+          shoppingListHtml(
+            updatedList,
+            "checkout",
+            `Checkout complete: ${withUpc.length} item(s) added to cart`,
+          ),
+        );
+
+        return ok({ content: [{ type: "text" as const, text }, ui] });
       });
 
       // safeTry returns Result — if Err, convert to MCP error; if Ok, return the MCP response directly

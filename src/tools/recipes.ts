@@ -9,6 +9,8 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
+import { htmlResource } from "../utils/ui-resource.js";
+import { recipeResultsHtml } from "../utils/ui-templates.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
@@ -95,9 +97,10 @@ export function registerRecipeTools(ctx: ToolContext) {
           const recipes = apiResponse.data.results;
 
           if (recipes.length === 0) {
-            return ok(
-              `No recipes found for "${searchQuery}". Try a different search term.`,
-            );
+            return ok({
+              text: `No recipes found for "${searchQuery}". Try a different search term.`,
+              recipes: [] as typeof recipes,
+            });
           }
 
           const formattedRecipes = recipes
@@ -148,12 +151,33 @@ export function registerRecipeTools(ctx: ToolContext) {
             })
             .join("\n\n---\n\n");
 
-          return ok(
-            `**Recipe Search Results for "${searchQuery}"**\n\nFound ${recipes.length} recipe(s):\n\n${formattedRecipes}`,
-          );
+          return ok({
+            text: `**Recipe Search Results for "${searchQuery}"**\n\nFound ${recipes.length} recipe(s):\n\n${formattedRecipes}`,
+            recipes,
+          });
         });
 
-      return toMcpResponse(await result);
+      const res = await result;
+      if (res.isErr()) {
+        return toMcpResponse(res.map(() => ""));
+      }
+
+      const { text, recipes: recipeData } = res.value;
+      if (recipeData.length === 0) {
+        return textResult(text);
+      }
+
+      const ui = htmlResource(
+        "ui://recipe-results",
+        recipeResultsHtml(
+          recipeData.map((r) => r.recipe),
+          searchQuery,
+        ),
+      );
+
+      return {
+        content: [{ type: "text" as const, text }, ui],
+      };
     },
   );
 
