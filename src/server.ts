@@ -35,6 +35,8 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     const clients = createKrogerClients(() => this.props ?? null);
     const storage = createUserStorage(this.env.USER_DATA_KV);
 
+    const htmlStore = new Map<string, string>();
+
     const ctx: ToolContext = {
       server: this.server,
       clients,
@@ -43,6 +45,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       getEnv: () => this.env,
       getSessionId: () => this.getSessionId(),
       keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
+      htmlStore,
     };
 
     // Register all MCP features

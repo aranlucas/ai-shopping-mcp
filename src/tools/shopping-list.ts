@@ -13,7 +13,7 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { ShoppingList } from "../utils/ui/shopping-list.js";
-import { reactResource } from "../utils/ui-resource.js";
+import { registerAppToolWithUI, storeReactHtml } from "../utils/ui-resource.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import {
   getSessionScopedUserId,
@@ -24,11 +24,16 @@ import {
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
+const SHOPPING_LIST_URI = "ui://shopping-list/app.html";
+
 export function registerShoppingListTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
-  ctx.server.registerTool(
+  registerAppToolWithUI(
+    ctx,
     "manage_shopping_list",
+    SHOPPING_LIST_URI,
+    "Shopping List",
     {
       title: "Manage Shopping List",
       description:
@@ -201,19 +206,23 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const { text, list, actionDetail } = res.value;
-      const ui = reactResource(
-        "ui://shopping-list",
+      storeReactHtml(
+        ctx,
+        SHOPPING_LIST_URI,
         createElement(ShoppingList, { items: list, actionDetail }),
       );
 
       return {
-        content: [{ type: "text" as const, text }, ui],
+        content: [{ type: "text" as const, text }],
       };
     },
   );
 
-  ctx.server.registerTool(
+  registerAppToolWithUI(
+    ctx,
     "checkout_shopping_list",
+    SHOPPING_LIST_URI,
+    "Shopping List Checkout",
     {
       title: "Checkout Shopping List to Cart",
       description:
@@ -356,15 +365,16 @@ export function registerShoppingListTools(ctx: ToolContext) {
         );
 
         const text = resultParts.join("\n\n");
-        const ui = reactResource(
-          "ui://shopping-list",
+        storeReactHtml(
+          ctx,
+          SHOPPING_LIST_URI,
           createElement(ShoppingList, {
             items: updatedList,
             actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
           }),
         );
 
-        return ok({ content: [{ type: "text" as const, text }, ui] });
+        return ok({ content: [{ type: "text" as const, text }] });
       });
 
       // safeTry returns Result — if Err, convert to MCP error; if Ok, return the MCP response directly
