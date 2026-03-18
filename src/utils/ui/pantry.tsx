@@ -39,7 +39,7 @@ function PantryItemCard({ item }: { item: PantryItem }) {
           type="button"
           className="btn btn-secondary"
           onClick={
-            `postAction({type:'tool',payload:{toolName:'manage_pantry',params:{action:'remove',productName:'${esc(item.productName)}'}}})` as never
+            `toolCall('manage_pantry',{action:'remove',productName:'${esc(item.productName)}'})` as never
           }
         >
           &#10005;

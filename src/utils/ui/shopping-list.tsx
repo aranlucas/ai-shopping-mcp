@@ -43,7 +43,7 @@ function ShoppingItem({ item }: { item: ShoppingListItem }) {
             type="button"
             className="btn btn-secondary"
             onClick={
-              `postAction({type:'tool',payload:{toolName:'manage_shopping_list',params:{action:'remove',productName:'${esc(item.productName)}'}}})` as never
+              `toolCall('manage_shopping_list',{action:'remove',productName:'${esc(item.productName)}'})` as never
             }
           >
             &#10005;

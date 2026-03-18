@@ -68,30 +68,29 @@ body {
 }
 `;
 
+/**
+ * Client-side action script for MCP UI iframes.
+ * Uses the same wire format as @mcp-ui/server's postUIActionResult / uiActionResultToolCall:
+ *   postMessage({ type: 'tool', payload: { toolName, params } }, '*')
+ */
 export const ACTION_SCRIPT = `
-function postAction(result) {
+function postUIActionResult(result) {
   try {
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'ui-action-result', ...result }, '*');
+      window.parent.postMessage(result, '*');
     }
-  } catch (e) { console.warn('postAction failed:', e); }
+  } catch (e) { console.warn('postUIActionResult failed:', e); }
+}
+function toolCall(toolName, params) {
+  postUIActionResult({ type: 'tool', payload: { toolName: toolName, params: params } });
 }
 function addToCart(upc, quantity) {
-  postAction({ type: 'tool', payload: {
-    toolName: 'add_to_cart',
-    params: { items: [{ upc, quantity: quantity || 1, modality: 'PICKUP' }] }
-  }});
+  toolCall('add_to_cart', { items: [{ upc: upc, quantity: quantity || 1, modality: 'PICKUP' }] });
 }
 function addToShoppingList(productName, upc) {
-  postAction({ type: 'tool', payload: {
-    toolName: 'manage_shopping_list',
-    params: { action: 'add', items: [{ productName, upc: upc || undefined, quantity: 1 }] }
-  }});
+  toolCall('manage_shopping_list', { action: 'add', items: [{ productName: productName, upc: upc || undefined, quantity: 1 }] });
 }
 function searchProducts(term) {
-  postAction({ type: 'tool', payload: {
-    toolName: 'search_products',
-    params: { terms: [term] }
-  }});
+  toolCall('search_products', { terms: [term] });
 }
 `;

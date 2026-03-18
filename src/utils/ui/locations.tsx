@@ -31,7 +31,7 @@ function LocationCard({ location }: { location: Location }) {
           type="button"
           className="btn btn-primary"
           onClick={
-            `postAction({type:'tool',payload:{toolName:'set_preferred_location',params:{locationId:'${esc(id)}'}}})` as never
+            `toolCall('set_preferred_location',{locationId:'${esc(id)}'})` as never
           }
         >
           Set as Preferred
@@ -41,7 +41,7 @@ function LocationCard({ location }: { location: Location }) {
           className="btn btn-secondary"
           style={{ marginLeft: 6 }}
           onClick={
-            `postAction({type:'tool',payload:{toolName:'get_location_details',params:{locationId:'${esc(id)}'}}})` as never
+            `toolCall('get_location_details',{locationId:'${esc(id)}'})` as never
           }
         >
           Details
@@ -133,7 +133,7 @@ export function LocationDetail({ location }: { location: Location }) {
             type="button"
             className="btn btn-primary"
             onClick={
-              `postAction({type:'tool',payload:{toolName:'set_preferred_location',params:{locationId:'${esc(id)}'}}})` as never
+              `toolCall('set_preferred_location',{locationId:'${esc(id)}'})` as never
             }
           >
             Set as Preferred Store
