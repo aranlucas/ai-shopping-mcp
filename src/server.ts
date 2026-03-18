@@ -31,7 +31,12 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     },
   );
 
+  private initialized = false;
+
   async init() {
+    // Guard against duplicate registration on SSE reconnection
+    if (this.initialized) return;
+    this.initialized = true;
     const clients = createKrogerClients(() => this.props ?? null);
     const storage = createUserStorage(this.env.USER_DATA_KV);
 

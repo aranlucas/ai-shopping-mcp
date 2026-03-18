@@ -45,12 +45,17 @@ export function storeReactHtml(
 /**
  * Register an MCP Apps resource that serves SSR HTML from the htmlStore.
  * Call once per resource URI during tool registration (in `init()`).
+ * Skips registration if the URI has already been registered (uses htmlStore
+ * keys with a sentinel prefix to track registrations per context).
  */
 export function registerHtmlAppResource(
   ctx: ToolContext,
   name: string,
   uri: string,
 ): void {
+  const sentinel = `__registered__${uri}`;
+  if (ctx.htmlStore.has(sentinel)) return;
+  ctx.htmlStore.set(sentinel, "1");
   registerAppResource(ctx.server, name, uri, {}, async () => ({
     contents: [
       {
