@@ -1,4 +1,5 @@
 import { err, ok } from "neverthrow";
+import { createElement } from "react";
 import { z } from "zod";
 import { notFoundError } from "../errors.js";
 import {
@@ -12,11 +13,8 @@ import {
   safeStorage,
   toMcpResponse,
 } from "../utils/result.js";
-import { htmlResource } from "../utils/ui-resource.js";
-import {
-  locationDetailHtml,
-  locationResultsHtml,
-} from "../utils/ui-templates.js";
+import { LocationDetail, LocationResults } from "../utils/ui/locations.js";
+import { reactResource } from "../utils/ui-resource.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
@@ -75,9 +73,9 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const { locations, text } = result.value;
-      const ui = htmlResource(
+      const ui = reactResource(
         "ui://location-results",
-        locationResultsHtml(locations),
+        createElement(LocationResults, { locations }),
       );
 
       return {
@@ -127,9 +125,9 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const location = result.value;
-      const ui = htmlResource(
+      const ui = reactResource(
         "ui://location-details",
-        locationDetailHtml(location),
+        createElement(LocationDetail, { location }),
       );
 
       return {
