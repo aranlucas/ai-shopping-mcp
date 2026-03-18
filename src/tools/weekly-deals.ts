@@ -1,12 +1,13 @@
 import { err, fromThrowable, ok, okAsync, ResultAsync } from "neverthrow";
+import { createElement } from "react";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
 import { networkError, storageError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
-import { htmlResource } from "../utils/ui-resource.js";
-import { weeklyDealsHtml } from "../utils/ui-templates.js";
+import { WeeklyDeals } from "../utils/ui/weekly-deals.js";
+import { reactResource } from "../utils/ui-resource.js";
 import { errorResult, type ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -322,10 +323,10 @@ export function formatWeeklyDealsToolResponse(
       ? `${headerLines.join("\n")}\n\n${formattedDeals}`
       : formattedDeals;
 
-  const ui = htmlResource(
+  const ui = reactResource(
     "ui://weekly-deals",
-    weeklyDealsHtml(
-      result.deals.map((deal) => ({
+    createElement(WeeklyDeals, {
+      deals: result.deals.map((deal) => ({
         title: deal.title,
         details: deal.details,
         price: deal.price,
@@ -335,7 +336,7 @@ export function formatWeeklyDealsToolResponse(
       })),
       validFrom,
       validTill,
-    ),
+    }),
   );
 
   return {

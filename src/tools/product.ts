@@ -1,4 +1,5 @@
 import { err, ok, ResultAsync } from "neverthrow";
+import { createElement } from "react";
 import { z } from "zod";
 import { notFoundError } from "../errors.js";
 import {
@@ -6,11 +7,9 @@ import {
   formatProductList,
 } from "../utils/format-response.js";
 import { fromApiResponse, toMcpResponse } from "../utils/result.js";
-import { htmlResource } from "../utils/ui-resource.js";
-import {
-  productDetailHtml,
-  productSearchResultsHtml,
-} from "../utils/ui-templates.js";
+import { ProductDetail } from "../utils/ui/product-detail.js";
+import { ProductSearchResults } from "../utils/ui/product-search.js";
+import { reactResource } from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
@@ -153,9 +152,9 @@ export function registerProductTools(ctx: ToolContext) {
         return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
       });
 
-      const ui = htmlResource(
+      const ui = reactResource(
         "ui://search-products",
-        productSearchResultsHtml(results, totalProducts),
+        createElement(ProductSearchResults, { results, totalProducts }),
       );
 
       return {
@@ -224,9 +223,9 @@ export function registerProductTools(ctx: ToolContext) {
       }
 
       const product = result.value;
-      const ui = htmlResource(
+      const ui = reactResource(
         "ui://product-details",
-        productDetailHtml(product),
+        createElement(ProductDetail, { product }),
       );
 
       return {

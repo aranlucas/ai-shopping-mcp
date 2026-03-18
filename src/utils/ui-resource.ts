@@ -1,13 +1,14 @@
 /**
  * MCP UI resource helper.
- * Wraps @mcp-ui/server's createUIResource for consistent usage across tools.
+ * Renders React components to static HTML and wraps them as MCP UI resources.
  */
 
 import { createUIResource, type UIResource } from "@mcp-ui/server";
+import type { ReactElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 /**
- * Create a UI resource content item from raw HTML.
- * Include this in the tool response `content` array alongside text content.
+ * Create a UI resource content item from raw HTML string.
  */
 export function htmlResource(uri: `ui://${string}`, html: string): UIResource {
   return createUIResource({
@@ -15,4 +16,16 @@ export function htmlResource(uri: `ui://${string}`, html: string): UIResource {
     content: { type: "rawHtml", htmlString: html },
     encoding: "text",
   });
+}
+
+/**
+ * Render a React element to a MCP UI resource.
+ * Uses renderToStaticMarkup for lightweight output (no React hydration attributes).
+ */
+export function reactResource(
+  uri: `ui://${string}`,
+  element: ReactElement,
+): UIResource {
+  const html = `<!DOCTYPE html>${renderToStaticMarkup(element)}`;
+  return htmlResource(uri, html);
 }

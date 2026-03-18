@@ -1,4 +1,5 @@
 import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
+import { createElement } from "react";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
@@ -11,8 +12,8 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
-import { htmlResource } from "../utils/ui-resource.js";
-import { shoppingListHtml } from "../utils/ui-templates.js";
+import { ShoppingList } from "../utils/ui/shopping-list.js";
+import { reactResource } from "../utils/ui-resource.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import {
   getSessionScopedUserId,
@@ -200,9 +201,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const { text, list, actionDetail } = res.value;
-      const ui = htmlResource(
+      const ui = reactResource(
         "ui://shopping-list",
-        shoppingListHtml(list, action, actionDetail),
+        createElement(ShoppingList, { items: list, actionDetail }),
       );
 
       return {
@@ -355,13 +356,12 @@ export function registerShoppingListTools(ctx: ToolContext) {
         );
 
         const text = resultParts.join("\n\n");
-        const ui = htmlResource(
+        const ui = reactResource(
           "ui://shopping-list",
-          shoppingListHtml(
-            updatedList,
-            "checkout",
-            `Checkout complete: ${withUpc.length} item(s) added to cart`,
-          ),
+          createElement(ShoppingList, {
+            items: updatedList,
+            actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
+          }),
         );
 
         return ok({ content: [{ type: "text" as const, text }, ui] });

@@ -1,4 +1,5 @@
 import { errAsync } from "neverthrow";
+import { createElement } from "react";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import {
@@ -7,8 +8,8 @@ import {
   formatPantryListCompact,
 } from "../utils/format-response.js";
 import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
-import { htmlResource } from "../utils/ui-resource.js";
-import { pantryListHtml } from "../utils/ui-templates.js";
+import { PantryList } from "../utils/ui/pantry.js";
+import { reactResource } from "../utils/ui-resource.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -127,9 +128,9 @@ export function registerInventoryTools(ctx: ToolContext) {
       }
 
       const { text, pantry, actionDetail } = res.value;
-      const ui = htmlResource(
+      const ui = reactResource(
         "ui://pantry",
-        pantryListHtml(pantry, actionDetail),
+        createElement(PantryList, { items: pantry, actionDetail }),
       );
 
       return {

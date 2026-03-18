@@ -1,4 +1,5 @@
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
+import { createElement } from "react";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
 import { networkError } from "../errors.js";
@@ -9,8 +10,8 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
-import { htmlResource } from "../utils/ui-resource.js";
-import { recipeResultsHtml } from "../utils/ui-templates.js";
+import { RecipeResults } from "../utils/ui/recipes.js";
+import { reactResource } from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
@@ -167,12 +168,12 @@ export function registerRecipeTools(ctx: ToolContext) {
         return textResult(text);
       }
 
-      const ui = htmlResource(
+      const ui = reactResource(
         "ui://recipe-results",
-        recipeResultsHtml(
-          recipeData.map((r) => r.recipe),
+        createElement(RecipeResults, {
+          recipes: recipeData.map((r) => r.recipe),
           searchQuery,
-        ),
+        }),
       );
 
       return {
