@@ -6,6 +6,11 @@ import {
   formatProductList,
 } from "../utils/format-response.js";
 import { fromApiResponse, toMcpResponse } from "../utils/result.js";
+import { htmlResource } from "../utils/ui-resource.js";
+import {
+  productDetailHtml,
+  productSearchResultsHtml,
+} from "../utils/ui-templates.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
@@ -148,9 +153,20 @@ export function registerProductTools(ctx: ToolContext) {
         return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
       });
 
-      return textResult(
-        `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
+      const ui = htmlResource(
+        "ui://search-products",
+        productSearchResultsHtml(results, totalProducts),
       );
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
+          },
+          ui,
+        ],
+      };
     },
   );
 
@@ -185,7 +201,7 @@ export function registerProductTools(ctx: ToolContext) {
         queryParams["filter.locationId"] = locationId;
       }
 
-      const result = fromApiResponse(
+      const result = await fromApiResponse(
         productClient.GET("/v1/products/{id}", {
           params: {
             path: { id: productId },
@@ -200,10 +216,28 @@ export function registerProductTools(ctx: ToolContext) {
             notFoundError(`No information found for product ID: ${productId}`),
           );
         }
-        return ok(`Product Details:\n\n${formatProductList([product])}`);
+        return ok(product);
       });
 
-      return toMcpResponse(await result);
+      if (result.isErr()) {
+        return toMcpResponse(result.map(() => ""));
+      }
+
+      const product = result.value;
+      const ui = htmlResource(
+        "ui://product-details",
+        productDetailHtml(product),
+      );
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Product Details:\n\n${formatProductList([product])}`,
+          },
+          ui,
+        ],
+      };
     },
   );
 }

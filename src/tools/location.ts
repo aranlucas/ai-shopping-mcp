@@ -12,6 +12,11 @@ import {
   safeStorage,
   toMcpResponse,
 } from "../utils/result.js";
+import { htmlResource } from "../utils/ui-resource.js";
+import {
+  locationDetailHtml,
+  locationResultsHtml,
+} from "../utils/ui-templates.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
@@ -52,17 +57,32 @@ export function registerLocationTools(ctx: ToolContext) {
         queryParams["filter.chain"] = chain;
       }
 
-      const result = fromApiResponse(
+      const result = await fromApiResponse(
         locationClient.GET("/v1/locations", {
           params: { query: queryParams },
         }),
         "search locations",
       ).map((data) => {
         const locations = data?.data || [];
-        return `Found ${locations.length} location(s):\n${formatLocationListCompact(locations)}`;
+        return {
+          locations,
+          text: `Found ${locations.length} location(s):\n${formatLocationListCompact(locations)}`,
+        };
       });
 
-      return toMcpResponse(await result);
+      if (result.isErr()) {
+        return toMcpResponse(result.map(() => ""));
+      }
+
+      const { locations, text } = result.value;
+      const ui = htmlResource(
+        "ui://location-results",
+        locationResultsHtml(locations),
+      );
+
+      return {
+        content: [{ type: "text" as const, text }, ui],
+      };
     },
   );
 
@@ -85,7 +105,7 @@ export function registerLocationTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId }) => {
-      const result = fromApiResponse(
+      const result = await fromApiResponse(
         locationClient.GET("/v1/locations/{locationId}", {
           params: { path: { locationId } },
         }),
@@ -99,10 +119,28 @@ export function registerLocationTools(ctx: ToolContext) {
             ),
           );
         }
-        return ok(`Location Details:\n\n${formatLocation(location)}`);
+        return ok(location);
       });
 
-      return toMcpResponse(await result);
+      if (result.isErr()) {
+        return toMcpResponse(result.map(() => ""));
+      }
+
+      const location = result.value;
+      const ui = htmlResource(
+        "ui://location-details",
+        locationDetailHtml(location),
+      );
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Location Details:\n\n${formatLocation(location)}`,
+          },
+          ui,
+        ],
+      };
     },
   );
 

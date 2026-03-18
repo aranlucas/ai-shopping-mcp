@@ -7,6 +7,8 @@ import {
   formatPantryListCompact,
 } from "../utils/format-response.js";
 import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
+import { htmlResource } from "../utils/ui-resource.js";
+import { pantryListHtml } from "../utils/ui-templates.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -81,10 +83,11 @@ export function registerInventoryTools(ctx: ToolContext) {
                 await storage.pantry.add(props.id, pantryItem);
               }
               return storage.pantry.getAll(props.id);
-            }, "add pantry items").map(
-              (pantry) =>
-                `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-            );
+            }, "add pantry items").map((pantry) => ({
+              text: `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
+              pantry,
+              actionDetail: `Added ${items.length} item(s)`,
+            }));
           }
 
           case "remove": {
@@ -99,21 +102,39 @@ export function registerInventoryTools(ctx: ToolContext) {
             return safeStorage(async () => {
               await storage.pantry.remove(props.id, productName);
               return storage.pantry.getAll(props.id);
-            }, "remove pantry item").map(
-              (pantry) =>
-                `Item removed from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-            );
+            }, "remove pantry item").map((pantry) => ({
+              text: `Item removed from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
+              pantry,
+              actionDetail: `Removed "${productName}"`,
+            }));
           }
 
           case "clear":
             return safeStorage(
               () => storage.pantry.clear(props.id),
               "clear pantry",
-            ).map(() => "Pantry cleared successfully.");
+            ).map(() => ({
+              text: "Pantry cleared successfully.",
+              pantry: [] as PantryItem[],
+              actionDetail: "Pantry cleared",
+            }));
         }
       });
 
-      return toMcpResponse(await result);
+      const res = await result;
+      if (res.isErr()) {
+        return toMcpResponse(res.map(() => ""));
+      }
+
+      const { text, pantry, actionDetail } = res.value;
+      const ui = htmlResource(
+        "ui://pantry",
+        pantryListHtml(pantry, actionDetail),
+      );
+
+      return {
+        content: [{ type: "text" as const, text }, ui],
+      };
     },
   );
 
