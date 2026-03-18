@@ -1,5 +1,4 @@
 import { err, ok } from "neverthrow";
-import { createElement } from "react";
 import { z } from "zod";
 import { notFoundError } from "../errors.js";
 import {
@@ -73,10 +72,9 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const { locations, text } = result.value;
-      const ui = await renderReactUI(
-        "ui://location-results",
-        createElement(LocationResults, { locations }),
-      );
+      const ui = await renderReactUI("ui://location-results", LocationResults, {
+        locations,
+      });
 
       return {
         content: [{ type: "text" as const, text }, ui],
@@ -125,10 +123,9 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const location = result.value;
-      const ui = await renderReactUI(
-        "ui://location-details",
-        createElement(LocationDetail, { location }),
-      );
+      const ui = await renderReactUI("ui://location-details", LocationDetail, {
+        location,
+      });
 
       return {
         content: [

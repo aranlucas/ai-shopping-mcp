@@ -1,5 +1,4 @@
 import { errAsync } from "neverthrow";
-import { createElement } from "react";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import {
@@ -128,10 +127,10 @@ export function registerInventoryTools(ctx: ToolContext) {
       }
 
       const { text, pantry, actionDetail } = res.value;
-      const ui = await renderReactUI(
-        "ui://pantry",
-        createElement(PantryList, { items: pantry, actionDetail }),
-      );
+      const ui = await renderReactUI("ui://pantry", PantryList, {
+        items: pantry,
+        actionDetail,
+      });
 
       return {
         content: [{ type: "text" as const, text }, ui],

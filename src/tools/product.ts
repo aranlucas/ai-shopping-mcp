@@ -1,5 +1,4 @@
 import { err, ok, ResultAsync } from "neverthrow";
-import { createElement } from "react";
 import { z } from "zod";
 import { notFoundError } from "../errors.js";
 import {
@@ -154,7 +153,8 @@ export function registerProductTools(ctx: ToolContext) {
 
       const ui = await renderReactUI(
         "ui://search-products",
-        createElement(ProductSearchResults, { results, totalProducts }),
+        ProductSearchResults,
+        { results, totalProducts },
       );
 
       return {
@@ -223,10 +223,9 @@ export function registerProductTools(ctx: ToolContext) {
       }
 
       const product = result.value;
-      const ui = await renderReactUI(
-        "ui://product-details",
-        createElement(ProductDetail, { product }),
-      );
+      const ui = await renderReactUI("ui://product-details", ProductDetail, {
+        product,
+      });
 
       return {
         content: [

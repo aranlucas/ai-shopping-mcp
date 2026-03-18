@@ -1,5 +1,4 @@
 import { fromThrowable, okAsync, ResultAsync } from "neverthrow";
-import { createElement } from "react";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
 import { networkError, storageError } from "../errors.js";
@@ -321,21 +320,18 @@ export async function formatWeeklyDealsToolResponse(
       ? `${headerLines.join("\n")}\n\n${formattedDeals}`
       : formattedDeals;
 
-  const ui = await renderReactUI(
-    "ui://weekly-deals",
-    createElement(WeeklyDeals, {
-      deals: result.deals.map((deal) => ({
-        title: deal.title,
-        details: deal.details,
-        price: deal.price,
-        savings: deal.savings,
-        validFrom: deal.validFrom,
-        validTill: deal.validTill,
-      })),
-      validFrom,
-      validTill,
-    }),
-  );
+  const ui = await renderReactUI("ui://weekly-deals", WeeklyDeals, {
+    deals: result.deals.map((deal) => ({
+      title: deal.title,
+      details: deal.details,
+      price: deal.price,
+      savings: deal.savings,
+      validFrom: deal.validFrom,
+      validTill: deal.validTill,
+    })),
+    validFrom,
+    validTill,
+  });
 
   return {
     content: [

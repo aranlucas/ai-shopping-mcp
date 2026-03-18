@@ -1,5 +1,4 @@
 import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
-import { createElement } from "react";
 import { z } from "zod";
 import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
@@ -201,10 +200,10 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const { text, list, actionDetail } = res.value;
-      const ui = await renderReactUI(
-        "ui://shopping-list",
-        createElement(ShoppingList, { items: list, actionDetail }),
-      );
+      const ui = await renderReactUI("ui://shopping-list", ShoppingList, {
+        items: list,
+        actionDetail,
+      });
 
       return {
         content: [{ type: "text" as const, text }, ui],
@@ -356,13 +355,10 @@ export function registerShoppingListTools(ctx: ToolContext) {
         );
 
         const text = resultParts.join("\n\n");
-        const ui = await renderReactUI(
-          "ui://shopping-list",
-          createElement(ShoppingList, {
-            items: updatedList,
-            actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
-          }),
-        );
+        const ui = await renderReactUI("ui://shopping-list", ShoppingList, {
+          items: updatedList,
+          actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
+        });
 
         return ok({ content: [{ type: "text" as const, text }, ui] });
       });
