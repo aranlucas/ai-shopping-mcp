@@ -23,7 +23,7 @@
   "description": "",
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.3.0",
-    "@modelcontextprotocol/ext-apps": "^1.2.2",
+    "@mcp-ui/server": "^6.1.0",
     "@modelcontextprotocol/sdk": "1.27.1",
     "agents": "^0.7.6",
     "hono": "^4.12.8",

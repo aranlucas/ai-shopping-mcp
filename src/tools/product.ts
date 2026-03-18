@@ -9,19 +9,14 @@ import {
 import { fromApiResponse, toMcpResponse } from "../utils/result.js";
 import { ProductDetail } from "../utils/ui/product-detail.js";
 import { ProductSearchResults } from "../utils/ui/product-search.js";
-import { registerAppToolWithUI, storeReactHtml } from "../utils/ui-resource.js";
+import { renderReactUI } from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
 
-  const SEARCH_PRODUCTS_URI = "ui://search-products/app.html";
-
-  registerAppToolWithUI(
-    ctx,
+  ctx.server.registerTool(
     "search_products",
-    SEARCH_PRODUCTS_URI,
-    "Product Search Results",
     {
       title: "Search Products",
       description:
@@ -157,9 +152,8 @@ export function registerProductTools(ctx: ToolContext) {
         return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
       });
 
-      storeReactHtml(
-        ctx,
-        SEARCH_PRODUCTS_URI,
+      const ui = await renderReactUI(
+        "ui://search-products",
         createElement(ProductSearchResults, { results, totalProducts }),
       );
 
@@ -169,18 +163,14 @@ export function registerProductTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
           },
+          ui,
         ],
       };
     },
   );
 
-  const PRODUCT_DETAILS_URI = "ui://product-details/app.html";
-
-  registerAppToolWithUI(
-    ctx,
+  ctx.server.registerTool(
     "get_product_details",
-    PRODUCT_DETAILS_URI,
-    "Product Details",
     {
       title: "Get Product Details",
       description:
@@ -233,9 +223,8 @@ export function registerProductTools(ctx: ToolContext) {
       }
 
       const product = result.value;
-      storeReactHtml(
-        ctx,
-        PRODUCT_DETAILS_URI,
+      const ui = await renderReactUI(
+        "ui://product-details",
         createElement(ProductDetail, { product }),
       );
 
@@ -245,6 +234,7 @@ export function registerProductTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Product Details:\n\n${formatProductList([product])}`,
           },
+          ui,
         ],
       };
     },

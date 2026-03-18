@@ -1,4 +1,4 @@
-import { err, fromThrowable, ok, okAsync, ResultAsync } from "neverthrow";
+import { fromThrowable, okAsync, ResultAsync } from "neverthrow";
 import { createElement } from "react";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
@@ -7,7 +7,7 @@ import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
 import { WeeklyDeals } from "../utils/ui/weekly-deals.js";
-import { registerAppToolWithUI, storeReactHtml } from "../utils/ui-resource.js";
+import { renderReactUI } from "../utils/ui-resource.js";
 import { errorResult, type ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -169,14 +169,9 @@ export function addCacheWarning(
   };
 }
 
-const WEEKLY_DEALS_URI = "ui://weekly-deals/app.html";
-
 export function registerWeeklyDealsTools(ctx: ToolContext) {
-  registerAppToolWithUI(
-    ctx,
+  ctx.server.registerTool(
     "get_weekly_deals",
-    WEEKLY_DEALS_URI,
-    "Weekly Deals",
     {
       title: "Get Weekly Deals",
       description:
@@ -233,7 +228,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
             cached.entry.data,
             "Served from KV cache.",
           );
-          return formatWeeklyDealsToolResponse(ctx, result, "fresh");
+          return formatWeeklyDealsToolResponse(result, "fresh");
         }
         if (cached.kind === "stale") {
           staleEntry = cached.entry;
@@ -274,29 +269,26 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           ),
       );
 
-      return liveResult
-        .map((data) => formatWeeklyDealsToolResponse(ctx, data, "miss"))
-        .orElse((liveError) => {
-          if (staleEntry) {
-            const staleData = addCacheWarning(
-              staleEntry.data,
-              `Live refresh failed; served stale KV cache. (${liveError.message})`,
-            );
-            return ok(formatWeeklyDealsToolResponse(ctx, staleData, "stale"));
-          }
-          return err(liveError);
-        })
-        .match(
-          (response) => response,
-          (error) =>
-            errorResult(`Failed to fetch weekly deals: ${error.message}`),
+      if (liveResult.isOk()) {
+        return formatWeeklyDealsToolResponse(liveResult.value, "miss");
+      }
+
+      if (staleEntry) {
+        const staleData = addCacheWarning(
+          staleEntry.data,
+          `Live refresh failed; served stale KV cache. (${liveResult.error.message})`,
         );
+        return formatWeeklyDealsToolResponse(staleData, "stale");
+      }
+
+      return errorResult(
+        `Failed to fetch weekly deals: ${liveResult.error.message}`,
+      );
     },
   );
 }
 
-export function formatWeeklyDealsToolResponse(
-  ctx: ToolContext,
+export async function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,
   cacheState: "miss" | "fresh" | "stale",
 ) {
@@ -329,9 +321,8 @@ export function formatWeeklyDealsToolResponse(
       ? `${headerLines.join("\n")}\n\n${formattedDeals}`
       : formattedDeals;
 
-  storeReactHtml(
-    ctx,
-    WEEKLY_DEALS_URI,
+  const ui = await renderReactUI(
+    "ui://weekly-deals",
     createElement(WeeklyDeals, {
       deals: result.deals.map((deal) => ({
         title: deal.title,
@@ -352,6 +343,7 @@ export function formatWeeklyDealsToolResponse(
         type: "text" as const,
         text,
       },
+      ui,
     ],
     structuredContent: {
       ...(result as unknown as Record<string, unknown>),

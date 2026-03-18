@@ -40,8 +40,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     const clients = createKrogerClients(() => this.props ?? null);
     const storage = createUserStorage(this.env.USER_DATA_KV);
 
-    const htmlStore = new Map<string, string>();
-
     const ctx: ToolContext = {
       server: this.server,
       clients,
@@ -50,7 +48,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       getEnv: () => this.env,
       getSessionId: () => this.getSessionId(),
       keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
-      htmlStore,
     };
 
     // Register all MCP features
@@ -68,8 +65,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
 export default new OAuthProvider({
   apiHandlers: {
-    "/sse": MyMCP.serveSSE("/sse"), // deprecated SSE protocol - use /mcp instead
-    "/mcp": MyMCP.serve("/mcp"), // Streamable-HTTP protocol
+    "/mcp": MyMCP.serve("/mcp"),
   },
   // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
   defaultHandler: KrogerHandler as any,
