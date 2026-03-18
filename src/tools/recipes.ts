@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
@@ -10,11 +11,12 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { RecipeResults } from "../utils/ui/recipes.js";
-import { renderReactUI } from "../utils/ui-resource.js";
+import { renderAndStoreUI } from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "search_recipes_from_web",
     {
       title: "Search Recipes",
@@ -26,6 +28,7 @@ export function registerRecipeTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
+      _meta: { ui: { resourceUri: "ui://recipe-results" } },
       inputSchema: z.object({
         searchQuery: z
           .string()
@@ -167,13 +170,13 @@ export function registerRecipeTools(ctx: ToolContext) {
         return textResult(text);
       }
 
-      const ui = await renderReactUI("ui://recipe-results", RecipeResults, {
+      renderAndStoreUI(ctx.htmlStore, "ui://recipe-results", RecipeResults, {
         recipes: recipeData.map((r) => r.recipe),
         searchQuery,
       });
 
       return {
-        content: [{ type: "text" as const, text }, ui],
+        content: [{ type: "text" as const, text }],
       };
     },
   );

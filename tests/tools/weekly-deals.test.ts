@@ -8,16 +8,19 @@ import {
   getLatestCircularEndTime,
   parseCacheEntry,
 } from "../../src/tools/weekly-deals.js";
+import type { HtmlStore } from "../../src/utils/ui-resource.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Shared htmlStore for tests */
+const testHtmlStore: HtmlStore = new Map();
+
 /** Extract the text content from the first text item in a tool response */
-async function getTextContent(
-  responsePromise: ReturnType<typeof formatWeeklyDealsToolResponse>,
-): Promise<string> {
-  const response = await responsePromise;
+function getTextContent(
+  response: ReturnType<typeof formatWeeklyDealsToolResponse>,
+): string {
   const textItem = response.content.find(
     (c): c is { type: "text"; text: string } =>
       "type" in c && c.type === "text",
@@ -225,8 +228,8 @@ describe("formatWeeklyDealsToolResponse", () => {
         { id: "1", title: "Bananas", price: "$0.59/lb", source: "print" },
       ],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).toBe("1. Bananas | $0.59/lb");
   });
@@ -239,8 +242,8 @@ describe("formatWeeklyDealsToolResponse", () => {
       ),
       deals: [{ id: "1", title: "Apples", price: "$1.99/lb", source: "print" }],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).toContain(
       "Valid: 2025-01-01T00:00:00Z – 2025-01-07T00:00:00Z",
@@ -256,8 +259,8 @@ describe("formatWeeklyDealsToolResponse", () => {
       ),
       deals: [{ id: "1", title: "Milk", price: "$3.49", source: "search_api" }],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).toContain(
       "Valid: 2025-01-02T00:00:00Z – 2025-01-08T00:00:00Z",
@@ -277,8 +280,8 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).toContain("Valid: 2025-01-01 – 2025-01-07");
   });
@@ -295,8 +298,8 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).not.toContain("Valid:");
   });
@@ -308,8 +311,8 @@ describe("formatWeeklyDealsToolResponse", () => {
         { id: "1", title: "Chicken", price: "$4.99", source: "search_api" },
       ],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).toContain(
       "Warnings: Print-ad parsing failed | Using fallback",
@@ -325,8 +328,8 @@ describe("formatWeeklyDealsToolResponse", () => {
       warnings: ["Some warning"],
       deals: [{ id: "1", title: "Beef", price: "$5.99", source: "print" }],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     const lines = text.split("\n");
     expect(lines[0]).toContain("Valid:");
@@ -339,8 +342,8 @@ describe("formatWeeklyDealsToolResponse", () => {
       sourceMode: "print_fallback",
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).not.toContain("Weekly deals source:");
     expect(text).not.toContain("print_fallback");
@@ -352,8 +355,8 @@ describe("formatWeeklyDealsToolResponse", () => {
       divisionCode: "705",
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).not.toContain("Location:");
     expect(text).not.toContain("division");
@@ -366,8 +369,8 @@ describe("formatWeeklyDealsToolResponse", () => {
         { id: "2", title: "B", price: "$2.00", source: "print" },
       ],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).not.toContain("Deals returned:");
   });
@@ -376,19 +379,23 @@ describe("formatWeeklyDealsToolResponse", () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
-    const freshText = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "fresh"),
+    const freshText = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "fresh"),
     );
     expect(freshText).not.toContain("Cache:");
-    const staleText = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "stale"),
+    const staleText = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "stale"),
     );
     expect(staleText).not.toContain("Cache:");
   });
 
   it("includes structuredContent with cache state", async () => {
     const result = makeMinimalResult({ deals: [] });
-    const response = await formatWeeklyDealsToolResponse(result, "fresh");
+    const response = formatWeeklyDealsToolResponse(
+      testHtmlStore,
+      result,
+      "fresh",
+    );
     expect(response.structuredContent).toBeDefined();
     expect(
       (response.structuredContent as { cache: { state: string } }).cache.state,
@@ -408,8 +415,8 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).toBe("1. Ground Beef | 80% Lean | $3.99/lb (Save $2.00)");
   });
@@ -418,16 +425,16 @@ describe("formatWeeklyDealsToolResponse", () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Special Item", source: "print" }],
     });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).toContain("See weekly ad");
   });
 
   it("returns empty deals message when no deals", async () => {
     const result = makeMinimalResult({ deals: [] });
-    const text = await getTextContent(
-      formatWeeklyDealsToolResponse(result, "miss"),
+    const text = getTextContent(
+      formatWeeklyDealsToolResponse(testHtmlStore, result, "miss"),
     );
     expect(text).toBe("No weekly deals found.");
   });

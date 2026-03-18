@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 import { z } from "zod";
 import { validationError } from "../errors.js";
@@ -12,7 +13,7 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { ShoppingList } from "../utils/ui/shopping-list.js";
-import { renderReactUI } from "../utils/ui-resource.js";
+import { renderAndStoreUI } from "../utils/ui-resource.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import {
   getSessionScopedUserId,
@@ -26,7 +27,8 @@ type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 export function registerShoppingListTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "manage_shopping_list",
     {
       title: "Manage Shopping List",
@@ -38,6 +40,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: false,
       },
+      _meta: { ui: { resourceUri: "ui://shopping-list" } },
       inputSchema: z.object({
         action: z
           .enum(["add", "remove", "update", "clear"])
@@ -200,13 +203,13 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const { text, list, actionDetail } = res.value;
-      const ui = await renderReactUI("ui://shopping-list", ShoppingList, {
+      renderAndStoreUI(ctx.htmlStore, "ui://shopping-list", ShoppingList, {
         items: list,
         actionDetail,
       });
 
       return {
-        content: [{ type: "text" as const, text }, ui],
+        content: [{ type: "text" as const, text }],
       };
     },
   );
@@ -355,12 +358,12 @@ export function registerShoppingListTools(ctx: ToolContext) {
         );
 
         const text = resultParts.join("\n\n");
-        const ui = await renderReactUI("ui://shopping-list", ShoppingList, {
+        renderAndStoreUI(ctx.htmlStore, "ui://shopping-list", ShoppingList, {
           items: updatedList,
           actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
         });
 
-        return ok({ content: [{ type: "text" as const, text }, ui] });
+        return ok({ content: [{ type: "text" as const, text }] });
       });
 
       // safeTry returns Result — if Err, convert to MCP error; if Ok, return the MCP response directly

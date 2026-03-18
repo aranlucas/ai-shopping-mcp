@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { fromThrowable, okAsync, ResultAsync } from "neverthrow";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
@@ -6,7 +7,8 @@ import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
 import { WeeklyDeals } from "../utils/ui/weekly-deals.js";
-import { renderReactUI } from "../utils/ui-resource.js";
+import type { HtmlStore } from "../utils/ui-resource.js";
+import { renderAndStoreUI } from "../utils/ui-resource.js";
 import { errorResult, type ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -169,7 +171,8 @@ export function addCacheWarning(
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "get_weekly_deals",
     {
       title: "Get Weekly Deals",
@@ -181,6 +184,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
+      _meta: { ui: { resourceUri: "ui://weekly-deals" } },
       inputSchema: z.object({
         locationId: z
           .string()
@@ -227,7 +231,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
             cached.entry.data,
             "Served from KV cache.",
           );
-          return formatWeeklyDealsToolResponse(result, "fresh");
+          return formatWeeklyDealsToolResponse(ctx.htmlStore, result, "fresh");
         }
         if (cached.kind === "stale") {
           staleEntry = cached.entry;
@@ -269,7 +273,11 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
       );
 
       if (liveResult.isOk()) {
-        return formatWeeklyDealsToolResponse(liveResult.value, "miss");
+        return formatWeeklyDealsToolResponse(
+          ctx.htmlStore,
+          liveResult.value,
+          "miss",
+        );
       }
 
       if (staleEntry) {
@@ -277,7 +285,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           staleEntry.data,
           `Live refresh failed; served stale KV cache. (${liveResult.error.message})`,
         );
-        return formatWeeklyDealsToolResponse(staleData, "stale");
+        return formatWeeklyDealsToolResponse(ctx.htmlStore, staleData, "stale");
       }
 
       return errorResult(
@@ -287,7 +295,8 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
   );
 }
 
-export async function formatWeeklyDealsToolResponse(
+export function formatWeeklyDealsToolResponse(
+  htmlStore: HtmlStore,
   result: QfcDealsApiResponse,
   cacheState: "miss" | "fresh" | "stale",
 ) {
@@ -320,7 +329,7 @@ export async function formatWeeklyDealsToolResponse(
       ? `${headerLines.join("\n")}\n\n${formattedDeals}`
       : formattedDeals;
 
-  const ui = await renderReactUI("ui://weekly-deals", WeeklyDeals, {
+  renderAndStoreUI(htmlStore, "ui://weekly-deals", WeeklyDeals, {
     deals: result.deals.map((deal) => ({
       title: deal.title,
       details: deal.details,
@@ -339,7 +348,6 @@ export async function formatWeeklyDealsToolResponse(
         type: "text" as const,
         text,
       },
-      ui,
     ],
     structuredContent: {
       ...(result as unknown as Record<string, unknown>),

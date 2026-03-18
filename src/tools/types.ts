@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { KrogerClients } from "../services/kroger/client.js";
+import type { HtmlStore } from "../utils/ui-resource.js";
 import type { createUserStorage } from "../utils/user-storage.js";
 
 // Props stored in the access token and provided to McpAgent as this.props.
@@ -27,6 +28,8 @@ export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;
   storage: UserStorage;
+  /** Shared store for SSR HTML, keyed by ui:// URI. Resource handlers read from this. */
+  htmlStore: HtmlStore;
   getUser: () => Props | null;
   getEnv: () => Env;
   getSessionId: () => string;

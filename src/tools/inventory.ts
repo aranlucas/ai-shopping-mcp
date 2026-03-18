@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { errAsync } from "neverthrow";
 import { z } from "zod";
 import { validationError } from "../errors.js";
@@ -8,7 +9,7 @@ import {
 } from "../utils/format-response.js";
 import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 import { PantryList } from "../utils/ui/pantry.js";
-import { renderReactUI } from "../utils/ui-resource.js";
+import { renderAndStoreUI } from "../utils/ui-resource.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -17,7 +18,8 @@ import type {
 import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "manage_pantry",
     {
       title: "Manage Pantry Inventory",
@@ -29,6 +31,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: false,
       },
+      _meta: { ui: { resourceUri: "ui://pantry" } },
       inputSchema: z.object({
         action: z
           .enum(["add", "remove", "clear"])
@@ -127,13 +130,13 @@ export function registerInventoryTools(ctx: ToolContext) {
       }
 
       const { text, pantry, actionDetail } = res.value;
-      const ui = await renderReactUI("ui://pantry", PantryList, {
+      renderAndStoreUI(ctx.htmlStore, "ui://pantry", PantryList, {
         items: pantry,
         actionDetail,
       });
 
       return {
-        content: [{ type: "text" as const, text }, ui],
+        content: [{ type: "text" as const, text }],
       };
     },
   );

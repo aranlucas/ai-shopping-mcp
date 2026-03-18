@@ -1,26 +1,64 @@
 /**
- * MCP UI resource helper.
- * Uses @mcp-ui/server's createUIResource to produce inline UI content items
- * that can be included directly in tool response content arrays.
+ * MCP UI resource helpers for the MCP Apps extension.
+ *
+ * Uses registerAppTool/registerAppResource from @modelcontextprotocol/ext-apps
+ * so that hosts (Claude, VS Code, etc.) render HTML in sandboxed iframes
+ * instead of showing raw HTML text.
+ *
+ * Flow:
+ *  1. At init: registerAppUIResource registers a resource handler per URI
+ *  2. At tool call: renderAndStoreUI renders React SSR HTML into htmlStore
+ *  3. Host fetches the resource → handler reads from htmlStore → returns HTML
  */
 
-import { createUIResource, type UIResource } from "@mcp-ui/server";
+import {
+  RESOURCE_MIME_TYPE,
+  registerAppResource,
+} from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { renderToStaticMarkup } from "react-dom/server";
 
-export type { UIResource };
+export type HtmlStore = Map<string, string>;
 
 /**
- * Render a React element to a UIResource for inclusion in tool content arrays.
+ * Render a React component to HTML and store it for the resource handler.
+ * Call this in the tool handler before returning the text-only result.
  */
-export async function renderReactUI<P extends Record<string, unknown>>(
+export function renderAndStoreUI<P extends Record<string, unknown>>(
+  htmlStore: HtmlStore,
   uri: `ui://${string}`,
   Component: React.ComponentType<P>,
   props: P,
-): Promise<UIResource> {
+): void {
   const html = `<!DOCTYPE html>${renderToStaticMarkup(<Component {...props} />)}`;
-  return createUIResource({
+  htmlStore.set(uri, html);
+}
+
+/**
+ * Register an MCP Apps resource that serves SSR HTML from the shared store.
+ * Call once per URI at init time.
+ */
+export function registerAppUIResource(
+  server: McpServer,
+  name: string,
+  uri: `ui://${string}`,
+  htmlStore: HtmlStore,
+): void {
+  registerAppResource(
+    server,
+    name,
     uri,
-    content: { type: "rawHtml", htmlString: html },
-    encoding: "text",
-  });
+    { mimeType: RESOURCE_MIME_TYPE },
+    async () => ({
+      contents: [
+        {
+          uri,
+          mimeType: RESOURCE_MIME_TYPE,
+          text:
+            htmlStore.get(uri) ||
+            "<!DOCTYPE html><html><body>No content available yet.</body></html>",
+        },
+      ],
+    }),
+  );
 }
