@@ -1,5 +1,4 @@
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
-import { createElement } from "react";
 import { z } from "zod";
 import type { AppError } from "../errors.js";
 import { networkError } from "../errors.js";
@@ -168,13 +167,10 @@ export function registerRecipeTools(ctx: ToolContext) {
         return textResult(text);
       }
 
-      const ui = await renderReactUI(
-        "ui://recipe-results",
-        createElement(RecipeResults, {
-          recipes: recipeData.map((r) => r.recipe),
-          searchQuery,
-        }),
-      );
+      const ui = await renderReactUI("ui://recipe-results", RecipeResults, {
+        recipes: recipeData.map((r) => r.recipe),
+        searchQuery,
+      });
 
       return {
         content: [{ type: "text" as const, text }, ui],

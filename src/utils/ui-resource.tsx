@@ -5,7 +5,6 @@
  */
 
 import { createUIResource, type UIResource } from "@mcp-ui/server";
-import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 export type { UIResource };
@@ -13,25 +12,12 @@ export type { UIResource };
 /**
  * Render a React element to a UIResource for inclusion in tool content arrays.
  */
-export async function renderReactUI(
+export async function renderReactUI<P extends Record<string, unknown>>(
   uri: `ui://${string}`,
-  element: ReactElement,
+  Component: React.ComponentType<P>,
+  props: P,
 ): Promise<UIResource> {
-  const html = `<!DOCTYPE html>${renderToStaticMarkup(element)}`;
-  return createUIResource({
-    uri,
-    content: { type: "rawHtml", htmlString: html },
-    encoding: "text",
-  });
-}
-
-/**
- * Create a UIResource from raw HTML string.
- */
-export async function htmlResource(
-  uri: `ui://${string}`,
-  html: string,
-): Promise<UIResource> {
+  const html = `<!DOCTYPE html>${renderToStaticMarkup(<Component {...props} />)}`;
   return createUIResource({
     uri,
     content: { type: "rawHtml", htmlString: html },
