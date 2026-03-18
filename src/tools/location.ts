@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import { z } from "zod";
 import { notFoundError } from "../errors.js";
@@ -13,14 +14,15 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { LocationDetail, LocationResults } from "../utils/ui/locations.js";
-import { renderReactUI } from "../utils/ui-resource.js";
+import { renderAndStoreUI } from "../utils/ui-resource.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "search_locations",
     {
       title: "Search Store Locations",
@@ -32,6 +34,7 @@ export function registerLocationTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
+      _meta: { ui: { resourceUri: "ui://location-results" } },
       inputSchema: z.object({
         zipCodeNear: z
           .string()
@@ -72,17 +75,23 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const { locations, text } = result.value;
-      const ui = await renderReactUI("ui://location-results", LocationResults, {
-        locations,
-      });
+      renderAndStoreUI(
+        ctx.htmlStore,
+        "ui://location-results",
+        LocationResults,
+        {
+          locations,
+        },
+      );
 
       return {
-        content: [{ type: "text" as const, text }, ui],
+        content: [{ type: "text" as const, text }],
       };
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "get_location_details",
     {
       title: "Get Store Details",
@@ -94,6 +103,7 @@ export function registerLocationTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
+      _meta: { ui: { resourceUri: "ui://location-details" } },
       inputSchema: z.object({
         locationId: z.string().length(8, {
           message: "Location ID must be exactly 8 characters long",
@@ -123,7 +133,7 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const location = result.value;
-      const ui = await renderReactUI("ui://location-details", LocationDetail, {
+      renderAndStoreUI(ctx.htmlStore, "ui://location-details", LocationDetail, {
         location,
       });
 
@@ -133,7 +143,6 @@ export function registerLocationTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Location Details:\n\n${formatLocation(location)}`,
           },
-          ui,
         ],
       };
     },

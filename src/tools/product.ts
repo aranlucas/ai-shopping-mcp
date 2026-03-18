@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok, ResultAsync } from "neverthrow";
 import { z } from "zod";
 import { notFoundError } from "../errors.js";
@@ -8,13 +9,14 @@ import {
 import { fromApiResponse, toMcpResponse } from "../utils/result.js";
 import { ProductDetail } from "../utils/ui/product-detail.js";
 import { ProductSearchResults } from "../utils/ui/product-search.js";
-import { renderReactUI } from "../utils/ui-resource.js";
+import { renderAndStoreUI } from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "search_products",
     {
       title: "Search Products",
@@ -26,6 +28,7 @@ export function registerProductTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
+      _meta: { ui: { resourceUri: "ui://search-products" } },
       inputSchema: z.object({
         terms: z
           .array(z.string().max(100))
@@ -151,7 +154,8 @@ export function registerProductTools(ctx: ToolContext) {
         return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
       });
 
-      const ui = await renderReactUI(
+      renderAndStoreUI(
+        ctx.htmlStore,
         "ui://search-products",
         ProductSearchResults,
         { results, totalProducts },
@@ -163,13 +167,13 @@ export function registerProductTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
           },
-          ui,
         ],
       };
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "get_product_details",
     {
       title: "Get Product Details",
@@ -181,6 +185,7 @@ export function registerProductTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
+      _meta: { ui: { resourceUri: "ui://product-details" } },
       inputSchema: z.object({
         productId: z.string().length(13, {
           message: "Product ID must be a 13-digit UPC number",
@@ -223,7 +228,7 @@ export function registerProductTools(ctx: ToolContext) {
       }
 
       const product = result.value;
-      const ui = await renderReactUI("ui://product-details", ProductDetail, {
+      renderAndStoreUI(ctx.htmlStore, "ui://product-details", ProductDetail, {
         product,
       });
 
@@ -233,7 +238,6 @@ export function registerProductTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Product Details:\n\n${formatProductList([product])}`,
           },
-          ui,
         ],
       };
     },
