@@ -23,6 +23,61 @@ import {
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
+export const manageShoppingListInputSchema = z.object({
+  action: z
+    .enum(["add", "remove", "update", "clear"])
+    .describe("Action to perform on the shopping list"),
+  items: z
+    .array(
+      z.object({
+        productName: z
+          .string()
+          .min(1)
+          .max(200)
+          .describe("Product name (e.g., 'Whole Milk', 'Sourdough Bread')"),
+        upc: z
+          .string()
+          .length(13, { message: "UPC must be exactly 13 characters" })
+          .optional()
+          .describe(
+            "13-digit UPC from product search, needed for cart checkout",
+          ),
+        quantity: z.number().min(1).max(999).default(1),
+        notes: z
+          .string()
+          .max(500)
+          .optional()
+          .describe("Optional notes (e.g., 'get organic if available')"),
+      }),
+    )
+    .optional()
+    .describe("Items to add (required for 'add' action)"),
+  productName: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      "Name of product to remove or update (required for 'remove' and 'update' actions)",
+    ),
+  quantity: z
+    .number()
+    .min(1)
+    .max(999)
+    .optional()
+    .describe("New quantity (for 'update' action)"),
+  upc: z
+    .string()
+    .length(13, { message: "UPC must be exactly 13 characters" })
+    .optional()
+    .describe("13-digit UPC to associate with item (for 'update' action)"),
+  notes: z
+    .string()
+    .max(500)
+    .optional()
+    .describe("Updated notes (for 'update' action)"),
+});
+
 export function registerShoppingListTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
@@ -45,64 +100,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         openWorldHint: false,
       },
       _meta: { ui: { resourceUri: shoppingListUri } },
-      inputSchema: z.object({
-        action: z
-          .enum(["add", "remove", "update", "clear"])
-          .describe("Action to perform on the shopping list"),
-        items: z
-          .array(
-            z.object({
-              productName: z
-                .string()
-                .min(1)
-                .max(200)
-                .describe(
-                  "Product name (e.g., 'Whole Milk', 'Sourdough Bread')",
-                ),
-              upc: z
-                .string()
-                .length(13, { message: "UPC must be exactly 13 characters" })
-                .optional()
-                .describe(
-                  "13-digit UPC from product search, needed for cart checkout",
-                ),
-              quantity: z.number().min(1).max(999).default(1),
-              notes: z
-                .string()
-                .max(500)
-                .optional()
-                .describe("Optional notes (e.g., 'get organic if available')"),
-            }),
-          )
-          .optional()
-          .describe("Items to add (required for 'add' action)"),
-        productName: z
-          .string()
-          .min(1)
-          .max(200)
-          .optional()
-          .describe(
-            "Name of product to remove or update (required for 'remove' and 'update' actions)",
-          ),
-        quantity: z
-          .number()
-          .min(1)
-          .max(999)
-          .optional()
-          .describe("New quantity (for 'update' action)"),
-        upc: z
-          .string()
-          .length(13, { message: "UPC must be exactly 13 characters" })
-          .optional()
-          .describe(
-            "13-digit UPC to associate with item (for 'update' action)",
-          ),
-        notes: z
-          .string()
-          .max(500)
-          .optional()
-          .describe("Updated notes (for 'update' action)"),
-      }),
+      inputSchema: manageShoppingListInputSchema,
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
       const result = requireAuth(ctx.getUser).asyncAndThen((props) => {

@@ -1,4 +1,27 @@
 import { z } from "zod";
+
+export const addToCartInputSchema = z.object({
+  items: z.array(
+    z.object({
+      upc: z.string().length(13, {
+        message: "UPC must be exactly 13 characters long",
+      }),
+      quantity: z
+        .number()
+        .min(1, { message: "Quantity must be at least 1" })
+        .max(99, { message: "Quantity must be at most 99" }),
+      modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
+    }),
+  ),
+  locationId: z
+    .string()
+    .length(8, { message: "Location ID must be exactly 8 characters" })
+    .optional()
+    .describe(
+      "Store location ID for the cart. If not provided, uses your preferred location.",
+    ),
+});
+
 import type { components } from "../services/kroger/cart.js";
 import {
   fromApiResponse,
@@ -26,27 +49,7 @@ export function registerCartTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: true,
       },
-      inputSchema: z.object({
-        items: z.array(
-          z.object({
-            upc: z.string().length(13, {
-              message: "UPC must be exactly 13 characters long",
-            }),
-            quantity: z
-              .number()
-              .min(1, { message: "Quantity must be at least 1" })
-              .max(99, { message: "Quantity must be at most 99" }),
-            modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
-          }),
-        ),
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" })
-          .optional()
-          .describe(
-            "Store location ID for the cart. If not provided, uses your preferred location.",
-          ),
-      }),
+      inputSchema: addToCartInputSchema,
     },
     async ({ items, locationId }) => {
       const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
