@@ -1,4 +1,4 @@
-import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge } from "../shared/components.js";
@@ -16,7 +16,7 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (daysUntil <= 3)
     return <Badge variant="yellow">Expires in {daysUntil}d</Badge>;
   return (
-    <span className="text-xs text-gray-400">
+    <span className="text-xs text-gray-400 dark:text-gray-500">
       Exp: {expiryDate.toLocaleDateString()}
     </span>
   );
@@ -30,20 +30,22 @@ function PantryItemCard({
   onRemove: (name: string) => void;
 }) {
   return (
-    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
+    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 dark:hover:border-gray-600/80">
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm text-gray-900">
+          <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">
             {item.productName}
           </div>
           <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Qty: {item.quantity}
+            </span>
             <ExpiryBadge expiresAt={item.expiresAt} />
           </div>
         </div>
         <button
           type="button"
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors dark:hover:bg-red-950"
           onClick={() => onRemove(item.productName)}
         >
           <svg
@@ -85,16 +87,18 @@ function PantryView() {
     },
   });
 
+  useHostStyles(app, app?.getHostContext());
+
   if (error) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         Error: {error.message}
       </div>
     );
   }
   if (!isConnected || !data) {
     return (
-      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+      <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 gap-2">
         <svg
           aria-hidden="true"
           className="animate-spin h-4 w-4"
@@ -125,11 +129,13 @@ function PantryView() {
   if (items.length === 0) {
     return (
       <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">Pantry</h1>
-        <div className="text-center py-16 text-gray-400">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+          Pantry
+        </h1>
+        <div className="text-center py-16 text-gray-400 dark:text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-12 h-12 mx-auto mb-3 text-gray-300"
+            className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -166,15 +172,19 @@ function PantryView() {
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <div className="flex items-center gap-3 mb-1">
-        <h1 className="text-xl font-bold text-gray-900">Pantry</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+          Pantry
+        </h1>
         <Badge variant="blue">{items.length} items</Badge>
       </div>
       {actionDetail && (
-        <p className="text-sm text-gray-500 mt-1">{actionDetail}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          {actionDetail}
+        </p>
       )}
 
       {expiring.length > 0 && (
-        <div className="mt-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
+        <div className="mt-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2 dark:bg-amber-950 dark:border-amber-800">
           <svg
             aria-hidden="true"
             className="w-4 h-4 text-amber-500 flex-shrink-0"
@@ -189,7 +199,7 @@ function PantryView() {
               d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
             />
           </svg>
-          <span className="text-sm font-medium text-amber-700">
+          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
             {expiring.length} item(s) expiring soon
           </span>
         </div>

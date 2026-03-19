@@ -1,4 +1,4 @@
-import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge } from "../shared/components.js";
@@ -15,10 +15,10 @@ function LocationCard({
 }) {
   const id = location.locationId || "";
   return (
-    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
+    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 dark:hover:border-gray-600/80">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="font-semibold text-sm text-gray-900">
+          <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">
             {location.name || "Unknown Store"}
           </div>
           {location.chain && (
@@ -29,10 +29,10 @@ function LocationCard({
         </div>
       </div>
       {location.address && (
-        <div className="text-xs text-gray-500 mt-2 flex items-start gap-1.5">
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-start gap-1.5">
           <svg
             aria-hidden="true"
-            className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0"
+            className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -58,10 +58,10 @@ function LocationCard({
         </div>
       )}
       {location.phone && (
-        <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5">
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 flex items-center gap-1.5">
           <svg
             aria-hidden="true"
-            className="w-3.5 h-3.5 text-gray-400"
+            className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -76,8 +76,10 @@ function LocationCard({
           {location.phone}
         </div>
       )}
-      <div className="text-[10px] text-gray-400 mt-1 font-mono">ID: {id}</div>
-      <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+      <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 font-mono">
+        ID: {id}
+      </div>
+      <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
         <button
           type="button"
           className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 active:bg-blue-800 transition-colors"
@@ -101,7 +103,7 @@ function LocationCard({
         </button>
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
           onClick={() => onViewDetails(id)}
         >
           Details
@@ -130,16 +132,18 @@ function LocationResultsView() {
     },
   });
 
+  useHostStyles(app, app?.getHostContext());
+
   if (error) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         Error: {error.message}
       </div>
     );
   }
   if (!isConnected || !data) {
     return (
-      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+      <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 gap-2">
         <svg
           aria-hidden="true"
           className="animate-spin h-4 w-4"
@@ -170,13 +174,13 @@ function LocationResultsView() {
   if (locations.length === 0) {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
           Store Locations
         </h1>
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-gray-400 dark:text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-12 h-12 mx-auto mb-3 text-gray-300"
+            className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -216,7 +220,9 @@ function LocationResultsView() {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-5">
-        <h1 className="text-xl font-bold text-gray-900">Store Locations</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+          Store Locations
+        </h1>
         <Badge variant="blue">{locations.length} found</Badge>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

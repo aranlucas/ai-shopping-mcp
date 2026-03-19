@@ -1,4 +1,4 @@
-import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge, FulfillmentTags, PriceDisplay } from "../shared/components.js";
@@ -31,16 +31,18 @@ function ProductDetailView() {
     },
   });
 
+  useHostStyles(app, app?.getHostContext());
+
   if (error) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         Error: {error.message}
       </div>
     );
   }
   if (!isConnected || !data) {
     return (
-      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+      <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 gap-2">
         <svg
           aria-hidden="true"
           className="animate-spin h-4 w-4"
@@ -90,10 +92,16 @@ function ProductDetailView() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/80">
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/80 dark:bg-gray-800 dark:border-gray-700/80">
         <div className="mb-4">
-          <h1 className="text-xl font-bold text-gray-900">{name}</h1>
-          {brand && <p className="text-sm text-gray-500 mt-1">{brand}</p>}
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            {name}
+          </h1>
+          {brand && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {brand}
+            </p>
+          )}
         </div>
 
         <div className="mb-3">
@@ -127,7 +135,7 @@ function ProductDetailView() {
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-4 py-2.5 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-4 py-2.5 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
               onClick={() => handleAddToList(name, upc)}
             >
               <svg
@@ -150,19 +158,19 @@ function ProductDetailView() {
         )}
 
         {product.items && product.items.length > 0 && (
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Options
             </h3>
             <div className="space-y-2">
               {product.items.map((item) => (
                 <div
                   key={item.size ?? item.itemId}
-                  className="flex items-center gap-2 text-sm text-gray-700"
+                  className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                 >
                   {item.size && <span>{item.size}</span>}
                   {item.price?.regular && (
-                    <span className="text-gray-400">
+                    <span className="text-gray-400 dark:text-gray-500">
                       &middot; ${item.price.regular}
                     </span>
                   )}
@@ -174,8 +182,8 @@ function ProductDetailView() {
         )}
 
         {product.categories && product.categories.length > 0 && (
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Category
             </h3>
             <div className="flex flex-wrap gap-1.5">
@@ -189,14 +197,14 @@ function ProductDetailView() {
         )}
 
         {product.aisleLocations && product.aisleLocations.length > 0 && (
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Aisle Location
             </h3>
             {product.aisleLocations.map((loc) => (
               <div
                 key={loc.description ?? loc.number}
-                className="text-sm text-gray-600"
+                className="text-sm text-gray-600 dark:text-gray-300"
               >
                 {loc.description} {loc.number ? `(${loc.number})` : ""}
               </div>
@@ -205,11 +213,13 @@ function ProductDetailView() {
         )}
 
         {upc && (
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+          <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
               UPC
             </h3>
-            <div className="text-sm text-gray-500 font-mono">{upc}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+              {upc}
+            </div>
           </div>
         )}
       </div>

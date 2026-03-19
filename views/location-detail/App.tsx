@@ -1,4 +1,4 @@
-import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge } from "../shared/components.js";
@@ -23,16 +23,18 @@ function LocationDetailView() {
     },
   });
 
+  useHostStyles(app, app?.getHostContext());
+
   if (error) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         Error: {error.message}
       </div>
     );
   }
   if (!isConnected || !data) {
     return (
-      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+      <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 gap-2">
         <svg
           aria-hidden="true"
           className="animate-spin h-4 w-4"
@@ -70,9 +72,9 @@ function LocationDetailView() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/80">
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/80 dark:bg-gray-800 dark:border-gray-700/80">
         <div className="mb-4">
-          <h1 className="text-xl font-bold text-gray-900">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {location.name || "Unknown Store"}
           </h1>
           {location.chain && (
@@ -83,14 +85,14 @@ function LocationDetailView() {
         </div>
 
         {location.address && (
-          <div className="mt-5 pt-5 border-t border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-700">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
               Address
             </h3>
-            <div className="text-sm text-gray-600 flex items-start gap-2">
+            <div className="text-sm text-gray-600 dark:text-gray-300 flex items-start gap-2">
               <svg
                 aria-hidden="true"
-                className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                className="w-4 h-4 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -118,14 +120,14 @@ function LocationDetailView() {
         )}
 
         {location.phone && (
-          <div className="mt-5 pt-5 border-t border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-700">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
               Phone
             </h3>
-            <div className="text-sm text-gray-600 flex items-center gap-2">
+            <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
               <svg
                 aria-hidden="true"
-                className="w-4 h-4 text-gray-400"
+                className="w-4 h-4 text-gray-400 dark:text-gray-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -142,16 +144,18 @@ function LocationDetailView() {
           </div>
         )}
 
-        <div className="mt-5 pt-5 border-t border-gray-100">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+        <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-700">
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
             Location ID
           </h3>
-          <div className="text-sm text-gray-500 font-mono">{id}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+            {id}
+          </div>
         </div>
 
         {location.departments && location.departments.length > 0 && (
-          <div className="mt-5 pt-5 border-t border-gray-100">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-700">
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Departments
             </h3>
             <div className="flex flex-wrap gap-1.5">
