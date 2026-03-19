@@ -16,7 +16,9 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (daysUntil <= 3)
     return <Badge variant="yellow">Expires in {daysUntil}d</Badge>;
   return (
-    <span className="meta-item">Exp: {expiryDate.toLocaleDateString()}</span>
+    <span className="text-xs text-gray-400">
+      Exp: {expiryDate.toLocaleDateString()}
+    </span>
   );
 }
 
@@ -28,27 +30,36 @@ function PantryItemCard({
   onRemove: (name: string) => void;
 }) {
   return (
-    <div className="card">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
-        <div>
-          <div className="product-name">{item.productName}</div>
-          <div className="meta-row">
-            <span className="meta-item">Qty: {item.quantity}</span>
+    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm text-gray-900">
+            {item.productName}
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
             <ExpiryBadge expiresAt={item.expiresAt} />
           </div>
         </div>
         <button
           type="button"
-          className="btn btn-secondary"
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
           onClick={() => onRemove(item.productName)}
         >
-          &#10005;
+          <svg
+            aria-hidden="true"
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18 18 6M6 6l12 12"
+            />
+          </svg>
         </button>
       </div>
     </div>
@@ -75,20 +86,64 @@ function PantryView() {
   });
 
   if (error) {
-    return <div className="empty-state">Error: {error.message}</div>;
+    return (
+      <div className="text-center py-12 text-gray-400">
+        Error: {error.message}
+      </div>
+    );
   }
   if (!isConnected || !data) {
-    return <div id="loading">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+        <svg
+          aria-hidden="true"
+          className="animate-spin h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        Loading...
+      </div>
+    );
   }
 
   const { items, actionDetail } = data;
 
   if (items.length === 0) {
     return (
-      <>
-        <div className="header">Pantry</div>
-        <div className="empty-state">Your pantry is empty.</div>
-      </>
+      <div className="p-4 max-w-2xl mx-auto">
+        <h1 className="text-xl font-bold text-gray-900 mb-6">Pantry</h1>
+        <div className="text-center py-16 text-gray-400">
+          <svg
+            aria-hidden="true"
+            className="w-12 h-12 mx-auto mb-3 text-gray-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
+            />
+          </svg>
+          <p className="text-sm">Your pantry is empty.</p>
+        </div>
+      </div>
     );
   }
 
@@ -109,27 +164,50 @@ function PantryView() {
   };
 
   return (
-    <>
-      <div className="header">
-        Pantry <Badge variant="blue">{items.length} items</Badge>
+    <div className="p-4 max-w-2xl mx-auto">
+      <div className="flex items-center gap-3 mb-1">
+        <h1 className="text-xl font-bold text-gray-900">Pantry</h1>
+        <Badge variant="blue">{items.length} items</Badge>
       </div>
-      {actionDetail && <div className="subheader">{actionDetail}</div>}
+      {actionDetail && (
+        <p className="text-sm text-gray-500 mt-1">{actionDetail}</p>
+      )}
+
       {expiring.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <Badge variant="yellow">
+        <div className="mt-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2">
+          <svg
+            aria-hidden="true"
+            className="w-4 h-4 text-amber-500 flex-shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+            />
+          </svg>
+          <span className="text-sm font-medium text-amber-700">
             {expiring.length} item(s) expiring soon
-          </Badge>
+          </span>
         </div>
       )}
-      {items.map((item) => (
-        <PantryItemCard
-          key={item.productName}
-          item={item}
-          onRemove={handleRemove}
-        />
-      ))}
-    </>
+
+      <div className="space-y-2 mt-4">
+        {items.map((item) => (
+          <PantryItemCard
+            key={item.productName}
+            item={item}
+            onRemove={handleRemove}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
-createRoot(document.getElementById("root")!).render(<PantryView />);
+createRoot(document.getElementById("root") as HTMLElement).render(
+  <PantryView />,
+);

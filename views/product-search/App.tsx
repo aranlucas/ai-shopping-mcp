@@ -32,21 +32,42 @@ function ProductCard({
       : undefined);
 
   return (
-    <div className="card">
-      <div className="product-name">{name}</div>
-      {brand && <div className="product-brand">{brand}</div>}
-      {size && <div className="product-size">{size}</div>}
-      <div style={{ marginTop: 8 }}>
+    <div className="group bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
+      <div className="font-semibold text-sm text-gray-900 leading-snug">
+        {name}
+      </div>
+      {brand && <div className="text-xs text-gray-500 mt-0.5">{brand}</div>}
+      {size && <div className="text-xs text-gray-400 mt-0.5">{size}</div>}
+      <div className="mt-2">
         <PriceDisplay product={product} />
       </div>
       <FulfillmentTags product={product} />
       {aisle && (
-        <div className="meta-item" style={{ marginTop: 4 }}>
+        <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+          <svg
+            aria-hidden="true"
+            className="w-3 h-3 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+            />
+          </svg>
           {aisle}
         </div>
       )}
       {upc && (
-        <div className="meta-item" style={{ marginTop: 2 }}>
+        <div className="text-[10px] text-gray-400 mt-0.5 font-mono">
           UPC: {upc}
         </div>
       )}
@@ -80,10 +101,38 @@ function ProductSearchView() {
   });
 
   if (error) {
-    return <div className="empty-state">Error: {error.message}</div>;
+    return (
+      <div className="text-center py-12 text-gray-400">
+        Error: {error.message}
+      </div>
+    );
   }
   if (!isConnected || !data) {
-    return <div id="loading">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+        <svg
+          aria-hidden="true"
+          className="animate-spin h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        Loading...
+      </div>
+    );
   }
 
   const { results, totalProducts } = data;
@@ -106,38 +155,45 @@ function ProductSearchView() {
   };
 
   return (
-    <>
-      <div className="header">Product Search Results</div>
-      <div className="subheader">
-        {results.length} search term(s), {totalProducts} total products
+    <div className="p-4 max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-gray-900">
+          Product Search Results
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {results.length} search term(s) &middot; {totalProducts} total
+          products
+        </p>
       </div>
       {results.map((result) => {
         if (result.failed) {
           return (
-            <div key={result.term} className="card">
-              <div className="meta-item">
-                Search failed for &ldquo;{result.term}&rdquo;
-              </div>
+            <div
+              key={result.term}
+              className="bg-red-50 rounded-xl p-4 mb-4 border border-red-100 text-sm text-red-600"
+            >
+              Search failed for &ldquo;{result.term}&rdquo;
             </div>
           );
         }
         if (result.products.length === 0) {
           return (
-            <div key={result.term} style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>
-                {result.term} <Badge variant="gray">0 items</Badge>
+            <div key={result.term} className="mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <h2 className="font-semibold text-gray-900">{result.term}</h2>
+                <Badge variant="gray">0 items</Badge>
               </div>
-              <div className="meta-item">No products found.</div>
+              <p className="text-sm text-gray-400">No products found.</p>
             </div>
           );
         }
         return (
-          <div key={result.term} style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>
-              {result.term}{" "}
+          <div key={result.term} className="mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="font-semibold text-gray-900">{result.term}</h2>
               <Badge variant="blue">{result.products.length} items</Badge>
             </div>
-            <div className="grid grid-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {result.products.map((product) => (
                 <ProductCard
                   key={product.upc ?? product.description}
@@ -150,8 +206,10 @@ function ProductSearchView() {
           </div>
         );
       })}
-    </>
+    </div>
   );
 }
 
-createRoot(document.getElementById("root")!).render(<ProductSearchView />);
+createRoot(document.getElementById("root") as HTMLElement).render(
+  <ProductSearchView />,
+);
