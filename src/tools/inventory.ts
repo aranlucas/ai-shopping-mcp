@@ -9,7 +9,10 @@ import {
 } from "../utils/format-response.js";
 import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 import { PantryList } from "../utils/ui/pantry.js";
-import { renderAndStoreUI } from "../utils/ui-resource.js";
+import {
+  registerHtmlResource,
+  renderAndStoreUI,
+} from "../utils/ui-resource.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -18,6 +21,9 @@ import type {
 import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
+  const pantryUri = "ui://pantry";
+  registerHtmlResource(ctx.server, pantryUri, ctx.htmlStore);
+
   registerAppTool(
     ctx.server,
     "manage_pantry",
@@ -31,7 +37,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: false,
       },
-      _meta: { ui: { resourceUri: "ui://pantry" } },
+      _meta: { ui: { resourceUri: pantryUri } },
       inputSchema: z.object({
         action: z
           .enum(["add", "remove", "clear"])
