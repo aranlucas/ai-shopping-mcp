@@ -1,9 +1,21 @@
-import type { ShoppingListItem } from "../user-storage.js";
-import { Badge, esc } from "./shared.js";
+import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { Badge } from "../shared/components.js";
+import type {
+  ShoppingListContent,
+  ShoppingListItemData,
+} from "../shared/types.js";
 
-function ShoppingItem({ item }: { item: ShoppingListItem }) {
+function ShoppingItem({
+  item,
+  onRemove,
+}: {
+  item: ShoppingListItemData;
+  onRemove: (name: string) => void;
+}) {
   const checkedStyle = item.checked
-    ? { opacity: 0.5, textDecoration: "line-through" as const }
+    ? ({ opacity: 0.5, textDecoration: "line-through" } as const)
     : undefined;
 
   return (
@@ -41,9 +53,7 @@ function ShoppingItem({ item }: { item: ShoppingListItem }) {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={
-              `toolCall('manage_shopping_list',{action:'remove',productName:'${esc(item.productName)}'})` as never
-            }
+            onClick={() => onRemove(item.productName)}
           >
             &#10005;
           </button>
@@ -53,13 +63,41 @@ function ShoppingItem({ item }: { item: ShoppingListItem }) {
   );
 }
 
-export function ShoppingList({
-  items,
-  actionDetail,
-}: {
-  items: ShoppingListItem[];
-  actionDetail?: string;
-}) {
+function ShoppingListView() {
+  const [data, setData] = useState<ShoppingListContent | null>(null);
+
+  const { app, isConnected, error } = useApp({
+    appInfo: { name: "shopping-list", version: "1.0.0" },
+    capabilities: {},
+    onAppCreated: (appInstance) => {
+      appInstance.ontoolresult = (result) => {
+        const content = result.structuredContent as
+          | ShoppingListContent
+          | undefined;
+        if (content?.items) {
+          setData(content);
+        }
+      };
+      appInstance.onerror = console.error;
+    },
+  });
+
+  if (error) {
+    return <div className="empty-state">Error: {error.message}</div>;
+  }
+  if (!isConnected || !data) {
+    return <div id="loading">Loading...</div>;
+  }
+
+  const { items, actionDetail } = data;
+
+  const handleRemove = (name: string) => {
+    app?.callServerTool({
+      name: "manage_shopping_list",
+      arguments: { action: "remove", productName: name },
+    });
+  };
+
   if (items.length === 0) {
     return (
       <>
@@ -95,7 +133,11 @@ export function ShoppingList({
       </div>
 
       {unchecked.map((item) => (
-        <ShoppingItem key={item.productName} item={item} />
+        <ShoppingItem
+          key={item.productName}
+          item={item}
+          onRemove={handleRemove}
+        />
       ))}
 
       {checked.length > 0 && (
@@ -104,10 +146,16 @@ export function ShoppingList({
             In Cart ({checked.length})
           </div>
           {checked.map((item) => (
-            <ShoppingItem key={item.productName} item={item} />
+            <ShoppingItem
+              key={item.productName}
+              item={item}
+              onRemove={handleRemove}
+            />
           ))}
         </div>
       )}
     </>
   );
 }
+
+createRoot(document.getElementById("root")!).render(<ShoppingListView />);

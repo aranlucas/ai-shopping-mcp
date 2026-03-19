@@ -1,25 +1,8 @@
-import { Badge } from "./shared.js";
-
-export interface RecipeData {
-  title: string;
-  description?: string;
-  cuisine?: string;
-  difficulty?: string;
-  totalTime?: number;
-  cookTime?: number;
-  servings?: string;
-  slug: string;
-  ingredients?: Array<{
-    quantity?: string;
-    unit?: string;
-    name: string;
-    notes?: string;
-  }>;
-  instructions?: Array<{
-    stepNumber: number;
-    instruction: string;
-  }>;
-}
+import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { Badge } from "../shared/components.js";
+import type { RecipeData, RecipeResultsContent } from "../shared/types.js";
 
 function RecipeCard({ recipe }: { recipe: RecipeData }) {
   return (
@@ -109,13 +92,34 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
   );
 }
 
-export function RecipeResults({
-  recipes,
-  searchQuery,
-}: {
-  recipes: RecipeData[];
-  searchQuery: string;
-}) {
+function RecipeResultsView() {
+  const [data, setData] = useState<RecipeResultsContent | null>(null);
+
+  const { isConnected, error } = useApp({
+    appInfo: { name: "recipe-results", version: "1.0.0" },
+    capabilities: {},
+    onAppCreated: (appInstance) => {
+      appInstance.ontoolresult = (result) => {
+        const content = result.structuredContent as
+          | RecipeResultsContent
+          | undefined;
+        if (content?.recipes) {
+          setData(content);
+        }
+      };
+      appInstance.onerror = console.error;
+    },
+  });
+
+  if (error) {
+    return <div className="empty-state">Error: {error.message}</div>;
+  }
+  if (!isConnected || !data) {
+    return <div id="loading">Loading...</div>;
+  }
+
+  const { recipes, searchQuery } = data;
+
   if (recipes.length === 0) {
     return (
       <>
@@ -141,3 +145,5 @@ export function RecipeResults({
     </>
   );
 }
+
+createRoot(document.getElementById("root")!).render(<RecipeResultsView />);

@@ -12,9 +12,8 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
-import { ShoppingList } from "../utils/ui/shopping-list.js";
-import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
+import { registerViewResource } from "../utils/view-resource.js";
 import {
   getSessionScopedUserId,
   type ToolContext,
@@ -30,7 +29,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
   // Two-part registration: tool + resource, tied together by the resource URI.
   // Shopping list UI is shared by both manage_shopping_list and checkout_shopping_list.
   const shoppingListUri = "ui://shopping-list";
-  registerHtmlResource(ctx.server, shoppingListUri);
+  registerViewResource(ctx, shoppingListUri, "shopping-list/index.html");
 
   registerAppTool(
     ctx.server,
@@ -208,16 +207,10 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const { text, list, actionDetail } = res.value;
-      const bodyHtml = renderReactUI(ShoppingList, {
-        items: list,
-        actionDetail,
-      });
 
       return {
-        content: [
-          { type: "text" as const, text },
-          { type: "text" as const, text: bodyHtml },
-        ],
+        content: [{ type: "text" as const, text }],
+        structuredContent: { items: list, actionDetail },
       };
     },
   );
@@ -366,16 +359,13 @@ export function registerShoppingListTools(ctx: ToolContext) {
         );
 
         const text = resultParts.join("\n\n");
-        const bodyHtml = renderReactUI(ShoppingList, {
-          items: updatedList,
-          actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
-        });
 
         return ok({
-          content: [
-            { type: "text" as const, text },
-            { type: "text" as const, text: bodyHtml },
-          ],
+          content: [{ type: "text" as const, text }],
+          structuredContent: {
+            items: updatedList,
+            actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
+          },
         });
       });
 

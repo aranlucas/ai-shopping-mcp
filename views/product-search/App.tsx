@@ -1,14 +1,26 @@
-import type { components as ProductComponents } from "../../services/kroger/product.js";
+import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useState } from "react";
+import { createRoot } from "react-dom/client";
 import {
   Badge,
   FulfillmentTags,
   PriceDisplay,
   ProductActions,
-} from "./shared.js";
+} from "../shared/components.js";
+import type {
+  ProductData,
+  ProductSearchResultsContent,
+} from "../shared/types.js";
 
-type Product = ProductComponents["schemas"]["products.productModel"];
-
-function ProductCard({ product }: { product: Product }) {
+function ProductCard({
+  product,
+  onAddToCart,
+  onAddToList,
+}: {
+  product: ProductData;
+  onAddToCart: (upc: string, qty: number) => void;
+  onAddToList: (name: string, upc: string) => void;
+}) {
   const name = product.description || "Unknown Product";
   const brand = product.brand;
   const upc = product.upc;
@@ -38,18 +50,61 @@ function ProductCard({ product }: { product: Product }) {
           UPC: {upc}
         </div>
       )}
-      <ProductActions upc={upc} name={name} />
+      <ProductActions
+        upc={upc}
+        name={name}
+        onAddToCart={onAddToCart}
+        onAddToList={onAddToList}
+      />
     </div>
   );
 }
 
-export function ProductSearchResults({
-  results,
-  totalProducts,
-}: {
-  results: Array<{ term: string; products: Product[]; failed: boolean }>;
-  totalProducts: number;
-}) {
+function ProductSearchView() {
+  const [data, setData] = useState<ProductSearchResultsContent | null>(null);
+
+  const { app, isConnected, error } = useApp({
+    appInfo: { name: "product-search", version: "1.0.0" },
+    capabilities: {},
+    onAppCreated: (appInstance) => {
+      appInstance.ontoolresult = (result) => {
+        const content = result.structuredContent as
+          | ProductSearchResultsContent
+          | undefined;
+        if (content?.results) {
+          setData(content);
+        }
+      };
+      appInstance.onerror = console.error;
+    },
+  });
+
+  if (error) {
+    return <div className="empty-state">Error: {error.message}</div>;
+  }
+  if (!isConnected || !data) {
+    return <div id="loading">Loading...</div>;
+  }
+
+  const { results, totalProducts } = data;
+
+  const handleAddToCart = (upc: string, qty: number) => {
+    app?.callServerTool({
+      name: "add_to_cart",
+      arguments: { upc, quantity: qty },
+    });
+  };
+
+  const handleAddToList = (name: string, upc: string) => {
+    app?.callServerTool({
+      name: "manage_shopping_list",
+      arguments: {
+        action: "add",
+        items: [{ productName: name, upc, quantity: 1 }],
+      },
+    });
+  };
+
   return (
     <>
       <div className="header">Product Search Results</div>
@@ -87,6 +142,8 @@ export function ProductSearchResults({
                 <ProductCard
                   key={product.upc ?? product.description}
                   product={product}
+                  onAddToCart={handleAddToCart}
+                  onAddToList={handleAddToList}
                 />
               ))}
             </div>
@@ -96,3 +153,5 @@ export function ProductSearchResults({
     </>
   );
 }
+
+createRoot(document.getElementById("root")!).render(<ProductSearchView />);

@@ -1,8 +1,8 @@
-import type { components as ProductComponents } from "../../services/kroger/product.js";
-import { Badge, esc, FulfillmentTags, PriceDisplay } from "./shared.js";
-
-type Product = ProductComponents["schemas"]["products.productModel"];
-type ProductItem = ProductComponents["schemas"]["products.productItemModel"];
+import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { Badge, FulfillmentTags, PriceDisplay } from "../shared/components.js";
+import type { ProductDetailContent } from "../shared/types.js";
 
 function StockBadge({ level }: { level: string | undefined }) {
   if (!level) return null;
@@ -12,10 +12,53 @@ function StockBadge({ level }: { level: string | undefined }) {
   return <Badge variant="green">In Stock</Badge>;
 }
 
-export function ProductDetail({ product }: { product: Product }) {
+function ProductDetailView() {
+  const [data, setData] = useState<ProductDetailContent | null>(null);
+
+  const { app, isConnected, error } = useApp({
+    appInfo: { name: "product-detail", version: "1.0.0" },
+    capabilities: {},
+    onAppCreated: (appInstance) => {
+      appInstance.ontoolresult = (result) => {
+        const content = result.structuredContent as
+          | ProductDetailContent
+          | undefined;
+        if (content?.product) {
+          setData(content);
+        }
+      };
+      appInstance.onerror = console.error;
+    },
+  });
+
+  if (error) {
+    return <div className="empty-state">Error: {error.message}</div>;
+  }
+  if (!isConnected || !data) {
+    return <div id="loading">Loading...</div>;
+  }
+
+  const { product } = data;
   const name = product.description || "Unknown Product";
   const brand = product.brand;
   const upc = product.upc;
+
+  const handleAddToCart = (productUpc: string, qty: number) => {
+    app?.callServerTool({
+      name: "add_to_cart",
+      arguments: { upc: productUpc, quantity: qty },
+    });
+  };
+
+  const handleAddToList = (productName: string, productUpc: string) => {
+    app?.callServerTool({
+      name: "manage_shopping_list",
+      arguments: {
+        action: "add",
+        items: [{ productName, upc: productUpc, quantity: 1 }],
+      },
+    });
+  };
 
   return (
     <div
@@ -42,16 +85,14 @@ export function ProductDetail({ product }: { product: Product }) {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={`addToCart('${esc(upc)}', 1)` as never}
+            onClick={() => handleAddToCart(upc, 1)}
           >
             Add to Cart
           </button>
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={
-              `addToShoppingList('${esc(name)}', '${esc(upc)}')` as never
-            }
+            onClick={() => handleAddToList(name, upc)}
           >
             + Shopping List
           </button>
@@ -61,7 +102,7 @@ export function ProductDetail({ product }: { product: Product }) {
       {product.items && product.items.length > 0 && (
         <div className="detail-section">
           <div className="detail-label">Options</div>
-          {product.items.map((item: ProductItem) => (
+          {product.items.map((item) => (
             <div key={item.size ?? item.itemId} className="meta-row">
               {item.size && <span>{item.size}</span>}
               {item.price?.regular && (
@@ -106,3 +147,5 @@ export function ProductDetail({ product }: { product: Product }) {
     </div>
   );
 }
+
+createRoot(document.getElementById("root")!).render(<ProductDetailView />);
