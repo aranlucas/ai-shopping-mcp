@@ -76,7 +76,9 @@ function ProductDetailView() {
   const handleAddToCart = (productUpc: string, qty: number) => {
     app?.callServerTool({
       name: "add_to_cart",
-      arguments: { upc: productUpc, quantity: qty },
+      arguments: {
+        items: [{ upc: productUpc, quantity: qty, modality: "PICKUP" }],
+      },
     });
   };
 
