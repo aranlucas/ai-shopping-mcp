@@ -1,11 +1,3 @@
-/**
- * Shared structuredContent types used by both server tool handlers
- * and client-side Views. Keep these in sync.
- */
-
-// --- Tool argument types (inferred from server-side Zod schemas) ---
-// `import type` ensures no server code is bundled into client views.
-
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 export type {
