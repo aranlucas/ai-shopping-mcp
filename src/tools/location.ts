@@ -14,10 +14,7 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { LocationDetail, LocationResults } from "../utils/ui/locations.js";
-import {
-  registerHtmlResource,
-  renderAndStoreUI,
-} from "../utils/ui-resource.js";
+import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
@@ -26,7 +23,7 @@ export function registerLocationTools(ctx: ToolContext) {
 
   // Two-part registration: tool + resource, tied together by the resource URI.
   const locationResultsUri = "ui://location-results";
-  registerHtmlResource(ctx.server, locationResultsUri, ctx.htmlStore);
+  registerHtmlResource(ctx.server, locationResultsUri);
 
   registerAppTool(
     ctx.server,
@@ -82,23 +79,19 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const { locations, text } = result.value;
-      renderAndStoreUI(
-        ctx.htmlStore,
-        "ui://location-results",
-        LocationResults,
-        {
-          locations,
-        },
-      );
+      const bodyHtml = renderReactUI(LocationResults, { locations });
 
       return {
-        content: [{ type: "text" as const, text }],
+        content: [
+          { type: "text" as const, text },
+          { type: "text" as const, text: bodyHtml },
+        ],
       };
     },
   );
 
   const locationDetailsUri = "ui://location-details";
-  registerHtmlResource(ctx.server, locationDetailsUri, ctx.htmlStore);
+  registerHtmlResource(ctx.server, locationDetailsUri);
 
   registerAppTool(
     ctx.server,
@@ -143,9 +136,7 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const location = result.value;
-      renderAndStoreUI(ctx.htmlStore, "ui://location-details", LocationDetail, {
-        location,
-      });
+      const bodyHtml = renderReactUI(LocationDetail, { location });
 
       return {
         content: [
@@ -153,6 +144,7 @@ export function registerLocationTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Location Details:\n\n${formatLocation(location)}`,
           },
+          { type: "text" as const, text: bodyHtml },
         ],
       };
     },

@@ -13,10 +13,7 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { ShoppingList } from "../utils/ui/shopping-list.js";
-import {
-  registerHtmlResource,
-  renderAndStoreUI,
-} from "../utils/ui-resource.js";
+import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import {
   getSessionScopedUserId,
@@ -33,7 +30,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
   // Two-part registration: tool + resource, tied together by the resource URI.
   // Shopping list UI is shared by both manage_shopping_list and checkout_shopping_list.
   const shoppingListUri = "ui://shopping-list";
-  registerHtmlResource(ctx.server, shoppingListUri, ctx.htmlStore);
+  registerHtmlResource(ctx.server, shoppingListUri);
 
   registerAppTool(
     ctx.server,
@@ -211,13 +208,16 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const { text, list, actionDetail } = res.value;
-      renderAndStoreUI(ctx.htmlStore, "ui://shopping-list", ShoppingList, {
+      const bodyHtml = renderReactUI(ShoppingList, {
         items: list,
         actionDetail,
       });
 
       return {
-        content: [{ type: "text" as const, text }],
+        content: [
+          { type: "text" as const, text },
+          { type: "text" as const, text: bodyHtml },
+        ],
       };
     },
   );
@@ -366,12 +366,17 @@ export function registerShoppingListTools(ctx: ToolContext) {
         );
 
         const text = resultParts.join("\n\n");
-        renderAndStoreUI(ctx.htmlStore, "ui://shopping-list", ShoppingList, {
+        const bodyHtml = renderReactUI(ShoppingList, {
           items: updatedList,
           actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
         });
 
-        return ok({ content: [{ type: "text" as const, text }] });
+        return ok({
+          content: [
+            { type: "text" as const, text },
+            { type: "text" as const, text: bodyHtml },
+          ],
+        });
       });
 
       // safeTry returns Result — if Err, convert to MCP error; if Ok, return the MCP response directly

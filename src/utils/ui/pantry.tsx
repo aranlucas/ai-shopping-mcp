@@ -1,6 +1,5 @@
 import type { PantryItem } from "../user-storage.js";
 import { Badge, esc } from "./shared.js";
-import { Shell } from "./shell.js";
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (!expiresAt) return null;
@@ -58,10 +57,10 @@ export function PantryList({
 }) {
   if (items.length === 0) {
     return (
-      <Shell>
+      <>
         <div className="header">Pantry</div>
         <div className="empty-state">Your pantry is empty.</div>
-      </Shell>
+      </>
     );
   }
 
@@ -75,7 +74,7 @@ export function PantryList({
   });
 
   return (
-    <Shell>
+    <>
       <div className="header">
         Pantry <Badge variant="blue">{items.length} items</Badge>
       </div>
@@ -90,6 +89,6 @@ export function PantryList({
       {items.map((item) => (
         <PantryItemCard key={item.productName} item={item} />
       ))}
-    </Shell>
+    </>
   );
 }

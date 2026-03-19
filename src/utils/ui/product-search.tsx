@@ -5,7 +5,6 @@ import {
   PriceDisplay,
   ProductActions,
 } from "./shared.js";
-import { Shell } from "./shell.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -52,7 +51,7 @@ export function ProductSearchResults({
   totalProducts: number;
 }) {
   return (
-    <Shell>
+    <>
       <div className="header">Product Search Results</div>
       <div className="subheader">
         {results.length} search term(s), {totalProducts} total products
@@ -94,6 +93,6 @@ export function ProductSearchResults({
           </div>
         );
       })}
-    </Shell>
+    </>
   );
 }

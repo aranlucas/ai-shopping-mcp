@@ -1,5 +1,4 @@
 import { Badge, esc } from "./shared.js";
-import { Shell } from "./shell.js";
 
 export interface DealData {
   title: string;
@@ -43,15 +42,15 @@ export function WeeklyDeals({
 }) {
   if (deals.length === 0) {
     return (
-      <Shell>
+      <>
         <div className="header">Weekly Deals</div>
         <div className="empty-state">No deals available this week.</div>
-      </Shell>
+      </>
     );
   }
 
   return (
-    <Shell>
+    <>
       <div className="header">
         Weekly Deals <Badge variant="green">{deals.length} deals</Badge>
       </div>
@@ -65,6 +64,6 @@ export function WeeklyDeals({
           <DealCard key={deal.title} deal={deal} />
         ))}
       </div>
-    </Shell>
+    </>
   );
 }
