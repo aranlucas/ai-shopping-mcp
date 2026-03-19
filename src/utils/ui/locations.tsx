@@ -1,6 +1,5 @@
 import type { components as LocationComponents } from "../../services/kroger/location.js";
 import { Badge, esc } from "./shared.js";
-import { Shell } from "./shell.js";
 
 type Location = LocationComponents["schemas"]["locations.location"];
 
@@ -54,15 +53,15 @@ function LocationCard({ location }: { location: Location }) {
 export function LocationResults({ locations }: { locations: Location[] }) {
   if (locations.length === 0) {
     return (
-      <Shell>
+      <>
         <div className="header">Store Locations</div>
         <div className="empty-state">No locations found.</div>
-      </Shell>
+      </>
     );
   }
 
   return (
-    <Shell>
+    <>
       <div className="header">
         Store Locations <Badge variant="blue">{locations.length} found</Badge>
       </div>
@@ -71,75 +70,73 @@ export function LocationResults({ locations }: { locations: Location[] }) {
           <LocationCard key={loc.locationId} location={loc} />
         ))}
       </div>
-    </Shell>
+    </>
   );
 }
 
 export function LocationDetail({ location }: { location: Location }) {
   const id = location.locationId || "";
   return (
-    <Shell>
-      <div
-        className="card"
-        style={{ border: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-      >
-        <div style={{ fontSize: 20, fontWeight: 700 }}>
-          {location.name || "Unknown Store"}
-        </div>
-        {location.chain && <Badge variant="blue">{location.chain}</Badge>}
-
-        {location.address && (
-          <div className="detail-section">
-            <div className="detail-label">Address</div>
-            <div className="meta-item">
-              {location.address.addressLine1}
-              <br />
-              {location.address.city}, {location.address.state}{" "}
-              {location.address.zipCode}
-            </div>
-          </div>
-        )}
-
-        {location.phone && (
-          <div className="detail-section">
-            <div className="detail-label">Phone</div>
-            <div className="meta-item">{location.phone}</div>
-          </div>
-        )}
-
-        <div className="detail-section">
-          <div className="detail-label">Location ID</div>
-          <div className="meta-item">{id}</div>
-        </div>
-
-        {location.departments && location.departments.length > 0 && (
-          <div className="detail-section">
-            <div className="detail-label">Departments</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {location.departments
-                .filter((d) => d.name)
-                .map((d) => (
-                  <Badge key={d.name} variant="gray">
-                    {d.name}
-                    {d.phone ? ` (${d.phone})` : ""}
-                  </Badge>
-                ))}
-            </div>
-          </div>
-        )}
-
-        <div style={{ marginTop: 16 }}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={
-              `toolCall('set_preferred_location',{locationId:'${esc(id)}'})` as never
-            }
-          >
-            Set as Preferred Store
-          </button>
-        </div>
+    <div
+      className="card"
+      style={{ border: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+    >
+      <div style={{ fontSize: 20, fontWeight: 700 }}>
+        {location.name || "Unknown Store"}
       </div>
-    </Shell>
+      {location.chain && <Badge variant="blue">{location.chain}</Badge>}
+
+      {location.address && (
+        <div className="detail-section">
+          <div className="detail-label">Address</div>
+          <div className="meta-item">
+            {location.address.addressLine1}
+            <br />
+            {location.address.city}, {location.address.state}{" "}
+            {location.address.zipCode}
+          </div>
+        </div>
+      )}
+
+      {location.phone && (
+        <div className="detail-section">
+          <div className="detail-label">Phone</div>
+          <div className="meta-item">{location.phone}</div>
+        </div>
+      )}
+
+      <div className="detail-section">
+        <div className="detail-label">Location ID</div>
+        <div className="meta-item">{id}</div>
+      </div>
+
+      {location.departments && location.departments.length > 0 && (
+        <div className="detail-section">
+          <div className="detail-label">Departments</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {location.departments
+              .filter((d) => d.name)
+              .map((d) => (
+                <Badge key={d.name} variant="gray">
+                  {d.name}
+                  {d.phone ? ` (${d.phone})` : ""}
+                </Badge>
+              ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={
+            `toolCall('set_preferred_location',{locationId:'${esc(id)}'})` as never
+          }
+        >
+          Set as Preferred Store
+        </button>
+      </div>
+    </div>
   );
 }

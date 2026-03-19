@@ -39,13 +39,11 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     this.initialized = true;
     const clients = createKrogerClients(() => this.props ?? null);
     const storage = createUserStorage(this.env.USER_DATA_KV);
-    const htmlStore = new Map<string, string>();
 
     const ctx: ToolContext = {
       server: this.server,
       clients,
       storage,
-      htmlStore,
       getUser: () => this.props ?? null,
       getEnv: () => this.env,
       getSessionId: () => this.getSessionId(),

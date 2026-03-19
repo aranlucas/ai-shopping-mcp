@@ -1,5 +1,4 @@
 import { Badge } from "./shared.js";
-import { Shell } from "./shell.js";
 
 export interface RecipeData {
   title: string;
@@ -119,17 +118,17 @@ export function RecipeResults({
 }) {
   if (recipes.length === 0) {
     return (
-      <Shell>
+      <>
         <div className="header">Recipe Search</div>
         <div className="empty-state">
           No recipes found for &ldquo;{searchQuery}&rdquo;
         </div>
-      </Shell>
+      </>
     );
   }
 
   return (
-    <Shell>
+    <>
       <div className="header">
         Recipes for &ldquo;{searchQuery}&rdquo;{" "}
         <Badge variant="blue">{recipes.length} found</Badge>
@@ -139,6 +138,6 @@ export function RecipeResults({
           <RecipeCard key={recipe.slug} recipe={recipe} />
         ))}
       </div>
-    </Shell>
+    </>
   );
 }

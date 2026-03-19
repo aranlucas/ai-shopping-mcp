@@ -11,15 +11,12 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { RecipeResults } from "../utils/ui/recipes.js";
-import {
-  registerHtmlResource,
-  renderAndStoreUI,
-} from "../utils/ui-resource.js";
+import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
   const recipeResultsUri = "ui://recipe-results";
-  registerHtmlResource(ctx.server, recipeResultsUri, ctx.htmlStore);
+  registerHtmlResource(ctx.server, recipeResultsUri);
 
   registerAppTool(
     ctx.server,
@@ -176,13 +173,16 @@ export function registerRecipeTools(ctx: ToolContext) {
         return textResult(text);
       }
 
-      renderAndStoreUI(ctx.htmlStore, "ui://recipe-results", RecipeResults, {
+      const bodyHtml = renderReactUI(RecipeResults, {
         recipes: recipeData.map((r) => r.recipe),
         searchQuery,
       });
 
       return {
-        content: [{ type: "text" as const, text }],
+        content: [
+          { type: "text" as const, text },
+          { type: "text" as const, text: bodyHtml },
+        ],
       };
     },
   );

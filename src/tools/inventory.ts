@@ -9,10 +9,7 @@ import {
 } from "../utils/format-response.js";
 import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 import { PantryList } from "../utils/ui/pantry.js";
-import {
-  registerHtmlResource,
-  renderAndStoreUI,
-} from "../utils/ui-resource.js";
+import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -22,7 +19,7 @@ import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
   const pantryUri = "ui://pantry";
-  registerHtmlResource(ctx.server, pantryUri, ctx.htmlStore);
+  registerHtmlResource(ctx.server, pantryUri);
 
   registerAppTool(
     ctx.server,
@@ -136,13 +133,16 @@ export function registerInventoryTools(ctx: ToolContext) {
       }
 
       const { text, pantry, actionDetail } = res.value;
-      renderAndStoreUI(ctx.htmlStore, "ui://pantry", PantryList, {
+      const bodyHtml = renderReactUI(PantryList, {
         items: pantry,
         actionDetail,
       });
 
       return {
-        content: [{ type: "text" as const, text }],
+        content: [
+          { type: "text" as const, text },
+          { type: "text" as const, text: bodyHtml },
+        ],
       };
     },
   );

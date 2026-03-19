@@ -1,6 +1,5 @@
 import type { ShoppingListItem } from "../user-storage.js";
 import { Badge, esc } from "./shared.js";
-import { Shell } from "./shell.js";
 
 function ShoppingItem({ item }: { item: ShoppingListItem }) {
   const checkedStyle = item.checked
@@ -63,13 +62,13 @@ export function ShoppingList({
 }) {
   if (items.length === 0) {
     return (
-      <Shell>
+      <>
         <div className="header">Shopping List</div>
         <div className="empty-state">
           <div style={{ fontSize: 32, marginBottom: 8 }}>&#128722;</div>
           <div>Your shopping list is empty</div>
         </div>
-      </Shell>
+      </>
     );
   }
 
@@ -79,7 +78,7 @@ export function ShoppingList({
   const withoutUpc = unchecked.filter((i) => !i.upc);
 
   return (
-    <Shell>
+    <>
       <div className="header">Shopping List</div>
       {actionDetail && <div className="subheader">{actionDetail}</div>}
       <div
@@ -109,6 +108,6 @@ export function ShoppingList({
           ))}
         </div>
       )}
-    </Shell>
+    </>
   );
 }

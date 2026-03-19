@@ -9,17 +9,14 @@ import {
 import { fromApiResponse, toMcpResponse } from "../utils/result.js";
 import { ProductDetail } from "../utils/ui/product-detail.js";
 import { ProductSearchResults } from "../utils/ui/product-search.js";
-import {
-  registerHtmlResource,
-  renderAndStoreUI,
-} from "../utils/ui-resource.js";
+import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
 
   const searchProductsUri = "ui://search-products";
-  registerHtmlResource(ctx.server, searchProductsUri, ctx.htmlStore);
+  registerHtmlResource(ctx.server, searchProductsUri);
 
   registerAppTool(
     ctx.server,
@@ -160,12 +157,10 @@ export function registerProductTools(ctx: ToolContext) {
         return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
       });
 
-      renderAndStoreUI(
-        ctx.htmlStore,
-        "ui://search-products",
-        ProductSearchResults,
-        { results, totalProducts },
-      );
+      const bodyHtml = renderReactUI(ProductSearchResults, {
+        results,
+        totalProducts,
+      });
 
       return {
         content: [
@@ -173,13 +168,14 @@ export function registerProductTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
           },
+          { type: "text" as const, text: bodyHtml },
         ],
       };
     },
   );
 
   const productDetailsUri = "ui://product-details";
-  registerHtmlResource(ctx.server, productDetailsUri, ctx.htmlStore);
+  registerHtmlResource(ctx.server, productDetailsUri);
 
   registerAppTool(
     ctx.server,
@@ -237,9 +233,7 @@ export function registerProductTools(ctx: ToolContext) {
       }
 
       const product = result.value;
-      renderAndStoreUI(ctx.htmlStore, "ui://product-details", ProductDetail, {
-        product,
-      });
+      const bodyHtml = renderReactUI(ProductDetail, { product });
 
       return {
         content: [
@@ -247,6 +241,7 @@ export function registerProductTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Product Details:\n\n${formatProductList([product])}`,
           },
+          { type: "text" as const, text: bodyHtml },
         ],
       };
     },
