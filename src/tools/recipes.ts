@@ -11,10 +11,16 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { RecipeResults } from "../utils/ui/recipes.js";
-import { renderAndStoreUI } from "../utils/ui-resource.js";
+import {
+  registerHtmlResource,
+  renderAndStoreUI,
+} from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
+  const recipeResultsUri = "ui://recipe-results";
+  registerHtmlResource(ctx.server, recipeResultsUri, ctx.htmlStore);
+
   registerAppTool(
     ctx.server,
     "search_recipes_from_web",
@@ -28,7 +34,7 @@ export function registerRecipeTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: "ui://recipe-results" } },
+      _meta: { ui: { resourceUri: recipeResultsUri } },
       inputSchema: z.object({
         searchQuery: z
           .string()

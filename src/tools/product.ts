@@ -9,11 +9,17 @@ import {
 import { fromApiResponse, toMcpResponse } from "../utils/result.js";
 import { ProductDetail } from "../utils/ui/product-detail.js";
 import { ProductSearchResults } from "../utils/ui/product-search.js";
-import { renderAndStoreUI } from "../utils/ui-resource.js";
+import {
+  registerHtmlResource,
+  renderAndStoreUI,
+} from "../utils/ui-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
+
+  const searchProductsUri = "ui://search-products";
+  registerHtmlResource(ctx.server, searchProductsUri, ctx.htmlStore);
 
   registerAppTool(
     ctx.server,
@@ -28,7 +34,7 @@ export function registerProductTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: "ui://search-products" } },
+      _meta: { ui: { resourceUri: searchProductsUri } },
       inputSchema: z.object({
         terms: z
           .array(z.string().max(100))
@@ -172,6 +178,9 @@ export function registerProductTools(ctx: ToolContext) {
     },
   );
 
+  const productDetailsUri = "ui://product-details";
+  registerHtmlResource(ctx.server, productDetailsUri, ctx.htmlStore);
+
   registerAppTool(
     ctx.server,
     "get_product_details",
@@ -185,7 +194,7 @@ export function registerProductTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: "ui://product-details" } },
+      _meta: { ui: { resourceUri: productDetailsUri } },
       inputSchema: z.object({
         productId: z.string().length(13, {
           message: "Product ID must be a 13-digit UPC number",

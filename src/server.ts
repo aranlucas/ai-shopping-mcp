@@ -17,7 +17,6 @@ import { registerResources } from "./tools/resources.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
-import { registerAppUIResource } from "./utils/ui-resource.js";
 import { createUserStorage } from "./utils/user-storage.js";
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
@@ -53,52 +52,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
     };
 
-    // Register MCP Apps UI resources (host fetches these to render HTML)
-    registerAppUIResource(
-      this.server,
-      "Location Results",
-      "ui://location-results",
-      htmlStore,
-    );
-    registerAppUIResource(
-      this.server,
-      "Location Details",
-      "ui://location-details",
-      htmlStore,
-    );
-    registerAppUIResource(
-      this.server,
-      "Product Search Results",
-      "ui://search-products",
-      htmlStore,
-    );
-    registerAppUIResource(
-      this.server,
-      "Product Details",
-      "ui://product-details",
-      htmlStore,
-    );
-    registerAppUIResource(this.server, "Pantry List", "ui://pantry", htmlStore);
-    registerAppUIResource(
-      this.server,
-      "Recipe Results",
-      "ui://recipe-results",
-      htmlStore,
-    );
-    registerAppUIResource(
-      this.server,
-      "Shopping List",
-      "ui://shopping-list",
-      htmlStore,
-    );
-    registerAppUIResource(
-      this.server,
-      "Weekly Deals",
-      "ui://weekly-deals",
-      htmlStore,
-    );
-
-    // Register all MCP features
+    // Register all MCP features (each tool file co-locates registerAppTool + registerAppResource)
     registerPrompts(this.server);
     registerCartTools(ctx);
     registerLocationTools(ctx);

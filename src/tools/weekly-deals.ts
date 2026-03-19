@@ -8,7 +8,10 @@ import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
 import { WeeklyDeals } from "../utils/ui/weekly-deals.js";
 import type { HtmlStore } from "../utils/ui-resource.js";
-import { renderAndStoreUI } from "../utils/ui-resource.js";
+import {
+  registerHtmlResource,
+  renderAndStoreUI,
+} from "../utils/ui-resource.js";
 import { errorResult, type ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -171,6 +174,9 @@ export function addCacheWarning(
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
+  const weeklyDealsUri = "ui://weekly-deals";
+  registerHtmlResource(ctx.server, weeklyDealsUri, ctx.htmlStore);
+
   registerAppTool(
     ctx.server,
     "get_weekly_deals",
@@ -184,7 +190,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: "ui://weekly-deals" } },
+      _meta: { ui: { resourceUri: weeklyDealsUri } },
       inputSchema: z.object({
         locationId: z
           .string()

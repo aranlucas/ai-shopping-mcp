@@ -1,12 +1,11 @@
 /**
  * MCP UI resource helpers for the MCP Apps extension.
  *
- * Uses registerAppTool/registerAppResource from @modelcontextprotocol/ext-apps
- * so that hosts (Claude, VS Code, etc.) render HTML in sandboxed iframes
- * instead of showing raw HTML text.
+ * Uses @modelcontextprotocol/ext-apps so that hosts (Claude, VS Code, etc.)
+ * render HTML in sandboxed iframes instead of showing raw HTML text.
  *
  * Flow:
- *  1. At init: registerAppUIResource registers a resource handler per URI
+ *  1. At init: registerAppResource is called per URI (co-located with tool)
  *  2. At tool call: renderAndStoreUI renders React SSR HTML into htmlStore
  *  3. Host fetches the resource → handler reads from htmlStore → returns HTML
  */
@@ -17,6 +16,8 @@ import {
 } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { renderToStaticMarkup } from "react-dom/server";
+
+export { RESOURCE_MIME_TYPE };
 
 export type HtmlStore = Map<string, string>;
 
@@ -36,26 +37,25 @@ export function renderAndStoreUI<P extends Record<string, unknown>>(
 
 /**
  * Register an MCP Apps resource that serves SSR HTML from the shared store.
- * Call once per URI at init time.
+ * Following the ext-apps pattern: co-locate with registerAppTool in each tool file.
  */
-export function registerAppUIResource(
+export function registerHtmlResource(
   server: McpServer,
-  name: string,
-  uri: `ui://${string}`,
+  resourceUri: string,
   htmlStore: HtmlStore,
 ): void {
   registerAppResource(
     server,
-    name,
-    uri,
+    resourceUri,
+    resourceUri,
     { mimeType: RESOURCE_MIME_TYPE },
     async () => ({
       contents: [
         {
-          uri,
+          uri: resourceUri,
           mimeType: RESOURCE_MIME_TYPE,
           text:
-            htmlStore.get(uri) ||
+            htmlStore.get(resourceUri) ||
             "<!DOCTYPE html><html><body>No content available yet.</body></html>",
         },
       ],

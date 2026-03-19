@@ -13,7 +13,10 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { ShoppingList } from "../utils/ui/shopping-list.js";
-import { renderAndStoreUI } from "../utils/ui-resource.js";
+import {
+  registerHtmlResource,
+  renderAndStoreUI,
+} from "../utils/ui-resource.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import {
   getSessionScopedUserId,
@@ -26,6 +29,11 @@ type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
 export function registerShoppingListTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
+
+  // Two-part registration: tool + resource, tied together by the resource URI.
+  // Shopping list UI is shared by both manage_shopping_list and checkout_shopping_list.
+  const shoppingListUri = "ui://shopping-list";
+  registerHtmlResource(ctx.server, shoppingListUri, ctx.htmlStore);
 
   registerAppTool(
     ctx.server,
@@ -40,7 +48,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: false,
       },
-      _meta: { ui: { resourceUri: "ui://shopping-list" } },
+      _meta: { ui: { resourceUri: shoppingListUri } },
       inputSchema: z.object({
         action: z
           .enum(["add", "remove", "update", "clear"])
