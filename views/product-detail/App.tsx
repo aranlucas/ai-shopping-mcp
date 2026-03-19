@@ -2,7 +2,7 @@ import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge, FulfillmentTags, PriceDisplay } from "../shared/components.js";
-import type { ProductDetailContent } from "../shared/types.js";
+import { callTool, type ProductDetailContent } from "../shared/types.js";
 
 function StockBadge({ level }: { level: string | undefined }) {
   if (!level) return null;
@@ -74,7 +74,7 @@ function ProductDetailView() {
   const upc = product.upc;
 
   const handleAddToCart = (productUpc: string, qty: number) => {
-    app?.callServerTool({
+    callTool(app, {
       name: "add_to_cart",
       arguments: {
         items: [{ upc: productUpc, quantity: qty, modality: "PICKUP" }],
@@ -83,7 +83,7 @@ function ProductDetailView() {
   };
 
   const handleAddToList = (productName: string, productUpc: string) => {
-    app?.callServerTool({
+    callTool(app, {
       name: "manage_shopping_list",
       arguments: {
         action: "add",

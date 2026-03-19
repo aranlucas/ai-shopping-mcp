@@ -2,9 +2,10 @@ import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge } from "../shared/components.js";
-import type {
-  ShoppingListContent,
-  ShoppingListItemData,
+import {
+  callTool,
+  type ShoppingListContent,
+  type ShoppingListItemData,
 } from "../shared/types.js";
 
 function ShoppingItem({
@@ -143,7 +144,7 @@ function ShoppingListView() {
   const { items, actionDetail } = data;
 
   const handleRemove = (name: string) => {
-    app?.callServerTool({
+    callTool(app, {
       name: "manage_shopping_list",
       arguments: { action: "remove", productName: name },
     });

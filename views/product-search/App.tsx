@@ -7,9 +7,10 @@ import {
   PriceDisplay,
   ProductActions,
 } from "../shared/components.js";
-import type {
-  ProductData,
-  ProductSearchResultsContent,
+import {
+  callTool,
+  type ProductData,
+  type ProductSearchResultsContent,
 } from "../shared/types.js";
 
 function ProductCard({
@@ -148,14 +149,14 @@ function ProductSearchView() {
   const { results, totalProducts } = data;
 
   const handleAddToCart = (upc: string, qty: number) => {
-    app?.callServerTool({
+    callTool(app, {
       name: "add_to_cart",
       arguments: { items: [{ upc, quantity: qty, modality: "PICKUP" }] },
     });
   };
 
   const handleAddToList = (name: string, upc: string) => {
-    app?.callServerTool({
+    callTool(app, {
       name: "manage_shopping_list",
       arguments: {
         action: "add",
