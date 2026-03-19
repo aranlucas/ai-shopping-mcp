@@ -14,37 +14,41 @@ function ShoppingItem({
   item: ShoppingListItemData;
   onRemove: (name: string) => void;
 }) {
-  const checkedStyle = item.checked
-    ? ({ opacity: 0.5, textDecoration: "line-through" } as const)
-    : undefined;
-
   return (
-    <div className="card" style={checkedStyle}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
-        <div>
-          <div className="product-name">
-            {item.checked ? "\u2611" : "\u2610"} {item.productName}
+    <div
+      className={`bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm transition-all duration-200 ${
+        item.checked ? "opacity-50" : "hover:shadow-md hover:border-gray-300/80"
+      }`}
+    >
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-base ${item.checked ? "text-emerald-500" : "text-gray-300"}`}
+            >
+              {item.checked ? "\u2611" : "\u2610"}
+            </span>
+            <span
+              className={`font-semibold text-sm ${item.checked ? "line-through text-gray-400" : "text-gray-900"}`}
+            >
+              {item.productName}
+            </span>
           </div>
-          <div className="meta-row">
-            <span className="meta-item">Qty: {item.quantity}</span>
+          <div className="flex items-center gap-2 mt-1.5 ml-6">
+            <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
             {item.upc ? (
               <Badge variant="green">UPC</Badge>
             ) : (
               <Badge variant="yellow">Needs UPC</Badge>
             )}
-            {item.upc && <span className="meta-item">UPC: {item.upc}</span>}
+            {item.upc && (
+              <span className="text-[10px] text-gray-400 font-mono">
+                {item.upc}
+              </span>
+            )}
           </div>
           {item.notes && (
-            <div
-              className="meta-item"
-              style={{ marginTop: 4, fontStyle: "italic" }}
-            >
+            <div className="text-xs text-gray-400 italic mt-1 ml-6">
               {item.notes}
             </div>
           )}
@@ -52,10 +56,23 @@ function ShoppingItem({
         {!item.checked && (
           <button
             type="button"
-            className="btn btn-secondary"
+            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
             onClick={() => onRemove(item.productName)}
           >
-            &#10005;
+            <svg
+              aria-hidden="true"
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18 18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         )}
       </div>
@@ -83,10 +100,38 @@ function ShoppingListView() {
   });
 
   if (error) {
-    return <div className="empty-state">Error: {error.message}</div>;
+    return (
+      <div className="text-center py-12 text-gray-400">
+        Error: {error.message}
+      </div>
+    );
   }
   if (!isConnected || !data) {
-    return <div id="loading">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+        <svg
+          aria-hidden="true"
+          className="animate-spin h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        Loading...
+      </div>
+    );
   }
 
   const { items, actionDetail } = data;
@@ -100,13 +145,26 @@ function ShoppingListView() {
 
   if (items.length === 0) {
     return (
-      <>
-        <div className="header">Shopping List</div>
-        <div className="empty-state">
-          <div style={{ fontSize: 32, marginBottom: 8 }}>&#128722;</div>
-          <div>Your shopping list is empty</div>
+      <div className="p-4 max-w-2xl mx-auto">
+        <h1 className="text-xl font-bold text-gray-900 mb-6">Shopping List</h1>
+        <div className="text-center py-16 text-gray-400">
+          <svg
+            aria-hidden="true"
+            className="w-12 h-12 mx-auto mb-3 text-gray-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+            />
+          </svg>
+          <p className="text-sm">Your shopping list is empty</p>
         </div>
-      </>
+      </div>
     );
   }
 
@@ -116,14 +174,15 @@ function ShoppingListView() {
   const withoutUpc = unchecked.filter((i) => !i.upc);
 
   return (
-    <>
-      <div className="header">Shopping List</div>
-      {actionDetail && <div className="subheader">{actionDetail}</div>}
-      <div
-        style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}
-      >
+    <div className="p-4 max-w-2xl mx-auto">
+      <h1 className="text-xl font-bold text-gray-900">Shopping List</h1>
+      {actionDetail && (
+        <p className="text-sm text-gray-500 mt-1">{actionDetail}</p>
+      )}
+
+      <div className="flex gap-2 mt-3 mb-5 flex-wrap">
         <Badge variant="blue">{unchecked.length} to buy</Badge>
-        <Badge variant="green">{withUpc.length} ready for checkout</Badge>
+        <Badge variant="green">{withUpc.length} ready</Badge>
         {withoutUpc.length > 0 && (
           <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>
         )}
@@ -132,30 +191,36 @@ function ShoppingListView() {
         )}
       </div>
 
-      {unchecked.map((item) => (
-        <ShoppingItem
-          key={item.productName}
-          item={item}
-          onRemove={handleRemove}
-        />
-      ))}
+      <div className="space-y-2">
+        {unchecked.map((item) => (
+          <ShoppingItem
+            key={item.productName}
+            item={item}
+            onRemove={handleRemove}
+          />
+        ))}
+      </div>
 
       {checked.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>
+        <div className="mt-6">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
             In Cart ({checked.length})
+          </h2>
+          <div className="space-y-2">
+            {checked.map((item) => (
+              <ShoppingItem
+                key={item.productName}
+                item={item}
+                onRemove={handleRemove}
+              />
+            ))}
           </div>
-          {checked.map((item) => (
-            <ShoppingItem
-              key={item.productName}
-              item={item}
-              onRemove={handleRemove}
-            />
-          ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
-createRoot(document.getElementById("root")!).render(<ShoppingListView />);
+createRoot(document.getElementById("root") as HTMLElement).render(
+  <ShoppingListView />,
+);

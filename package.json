@@ -27,12 +27,14 @@
     "@mcp-ui/server": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.2.2",
     "@modelcontextprotocol/sdk": "1.27.1",
+    "@tailwindcss/vite": "^4.2.2",
     "agents": "^0.7.6",
     "hono": "^4.12.8",
     "neverthrow": "^8.2.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.7",

@@ -12,19 +12,41 @@ function DealCard({
   onSearch: (title: string) => void;
 }) {
   return (
-    <div className="card">
-      <div className="product-name">{deal.title}</div>
-      {deal.details && <div className="product-size">{deal.details}</div>}
-      <div style={{ marginTop: 6 }}>
-        <span className="price">{deal.price || "See ad"}</span>
-        {deal.savings && <span className="sale-badge">{deal.savings}</span>}
+    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
+      <div className="font-semibold text-sm text-gray-900">{deal.title}</div>
+      {deal.details && (
+        <div className="text-xs text-gray-500 mt-0.5">{deal.details}</div>
+      )}
+      <div className="mt-2 flex items-center gap-2">
+        <span className="text-lg font-bold text-emerald-600">
+          {deal.price || "See ad"}
+        </span>
+        {deal.savings && (
+          <span className="inline-flex items-center rounded-md bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+            {deal.savings}
+          </span>
+        )}
       </div>
-      <div style={{ marginTop: 8 }}>
+      <div className="mt-3 pt-3 border-t border-gray-100">
         <button
           type="button"
-          className="btn btn-secondary"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
           onClick={() => onSearch(deal.title)}
         >
+          <svg
+            aria-hidden="true"
+            className="w-3.5 h-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+            />
+          </svg>
           Search Product
         </button>
       </div>
@@ -52,20 +74,69 @@ function WeeklyDealsView() {
   });
 
   if (error) {
-    return <div className="empty-state">Error: {error.message}</div>;
+    return (
+      <div className="text-center py-12 text-gray-400">
+        Error: {error.message}
+      </div>
+    );
   }
   if (!isConnected || !data) {
-    return <div id="loading">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+        <svg
+          aria-hidden="true"
+          className="animate-spin h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        Loading...
+      </div>
+    );
   }
 
   const { deals, validFrom, validTill } = data;
 
   if (deals.length === 0) {
     return (
-      <>
-        <div className="header">Weekly Deals</div>
-        <div className="empty-state">No deals available this week.</div>
-      </>
+      <div className="p-4 max-w-4xl mx-auto">
+        <h1 className="text-xl font-bold text-gray-900 mb-6">Weekly Deals</h1>
+        <div className="text-center py-16 text-gray-400">
+          <svg
+            aria-hidden="true"
+            className="w-12 h-12 mx-auto mb-3 text-gray-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 6h.008v.008H6V6Z"
+            />
+          </svg>
+          <p className="text-sm">No deals available this week.</p>
+        </div>
+      </div>
     );
   }
 
@@ -77,22 +148,25 @@ function WeeklyDealsView() {
   };
 
   return (
-    <>
-      <div className="header">
-        Weekly Deals <Badge variant="green">{deals.length} deals</Badge>
+    <div className="p-4 max-w-4xl mx-auto">
+      <div className="flex items-center gap-3 mb-1">
+        <h1 className="text-xl font-bold text-gray-900">Weekly Deals</h1>
+        <Badge variant="green">{deals.length} deals</Badge>
       </div>
       {validFrom && validTill && (
-        <div className="subheader">
-          Valid: {validFrom} - {validTill}
-        </div>
+        <p className="text-sm text-gray-500 mb-5">
+          Valid: {validFrom} &ndash; {validTill}
+        </p>
       )}
-      <div className="grid grid-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {deals.map((deal) => (
           <DealCard key={deal.title} deal={deal} onSearch={handleSearch} />
         ))}
       </div>
-    </>
+    </div>
   );
 }
 
-createRoot(document.getElementById("root")!).render(<WeeklyDealsView />);
+createRoot(document.getElementById("root") as HTMLElement).render(
+  <WeeklyDealsView />,
+);
