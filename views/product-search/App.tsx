@@ -150,7 +150,7 @@ function ProductSearchView() {
   const handleAddToCart = (upc: string, qty: number) => {
     app?.callServerTool({
       name: "add_to_cart",
-      arguments: { upc, quantity: qty },
+      arguments: { items: [{ upc, quantity: qty, modality: "PICKUP" }] },
     });
   };
 
