@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 /* Activate dark: variants when host sets data-theme="dark" on <html>,
-   which is what useHostStyleVariables does via applyDocumentTheme(). */
-@custom-variant dark (&:is([data-theme="dark"] *));
+   which is what useHostStyleVariables does via applyDocumentTheme().
+   Uses :where() for zero specificity (matches Tailwind v4 convention). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
   --color-brand-50: #eff6ff;
