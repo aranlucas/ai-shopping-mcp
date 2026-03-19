@@ -1,4 +1,4 @@
-import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge } from "../shared/components.js";
@@ -6,13 +6,13 @@ import type { RecipeData, RecipeResultsContent } from "../shared/types.js";
 
 function RecipeCard({ recipe }: { recipe: RecipeData }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 overflow-hidden dark:bg-gray-800 dark:border-gray-700/80 dark:hover:border-gray-600/80">
       <div className="p-4">
-        <h3 className="font-bold text-base text-gray-900 leading-snug">
+        <h3 className="font-bold text-base text-gray-900 dark:text-gray-100 leading-snug">
           {recipe.title}
         </h3>
         {recipe.description && (
-          <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
             {recipe.description}
           </p>
         )}
@@ -23,7 +23,7 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
             <Badge variant="gray">{recipe.difficulty}</Badge>
           )}
           {recipe.totalTime ? (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
               <svg
                 aria-hidden="true"
                 className="w-3 h-3"
@@ -41,7 +41,7 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
               {recipe.totalTime}min
             </span>
           ) : recipe.cookTime ? (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
               <svg
                 aria-hidden="true"
                 className="w-3 h-3"
@@ -60,7 +60,7 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
             </span>
           ) : null}
           {recipe.servings && (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
               <svg
                 aria-hidden="true"
                 className="w-3 h-3"
@@ -83,11 +83,11 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
 
       {recipe.ingredients && recipe.ingredients.length > 0 && (
         <div className="px-4 pb-3">
-          <div className="border-t border-gray-100 pt-3">
-            <h4 className="text-xs font-semibold text-gray-500 mb-2">
+          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+            <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
               Ingredients ({recipe.ingredients.length})
             </h4>
-            <div className="text-xs text-gray-600 space-y-0.5">
+            <div className="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
               {recipe.ingredients.map((ing) => {
                 const amount = [ing.quantity, ing.unit]
                   .filter(Boolean)
@@ -95,10 +95,16 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
                 const notes = ing.notes ? ` (${ing.notes})` : "";
                 return (
                   <div key={`${ing.name}-${ing.quantity}`}>
-                    <span className="text-gray-400 mr-1">&bull;</span>
+                    <span className="text-gray-400 dark:text-gray-500 mr-1">
+                      &bull;
+                    </span>
                     {amount ? `${amount} ` : ""}
                     <span className="font-medium">{ing.name}</span>
-                    {notes && <span className="text-gray-400">{notes}</span>}
+                    {notes && (
+                      <span className="text-gray-400 dark:text-gray-500">
+                        {notes}
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -109,15 +115,15 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
 
       {recipe.instructions && recipe.instructions.length > 0 && (
         <div className="px-4 pb-3">
-          <div className="border-t border-gray-100 pt-3">
+          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
             <details>
-              <summary className="text-xs font-semibold text-gray-500 cursor-pointer hover:text-gray-700 transition-colors select-none">
+              <summary className="text-xs font-semibold text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 transition-colors select-none">
                 Instructions ({recipe.instructions.length} steps)
               </summary>
-              <div className="text-xs text-gray-600 mt-2 space-y-2">
+              <div className="text-xs text-gray-600 dark:text-gray-300 mt-2 space-y-2">
                 {recipe.instructions.map((step) => (
                   <div key={step.stepNumber} className="flex gap-2">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold flex items-center justify-center">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-[10px] font-bold flex items-center justify-center">
                       {step.stepNumber}
                     </span>
                     <span className="pt-0.5 leading-relaxed">
@@ -136,7 +142,7 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
           href={`https://janella-cookbook.vercel.app/recipe/${recipe.slug}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors no-underline"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors no-underline dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
         >
           <svg
             aria-hidden="true"
@@ -162,7 +168,7 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
 function RecipeResultsView() {
   const [data, setData] = useState<RecipeResultsContent | null>(null);
 
-  const { isConnected, error } = useApp({
+  const { app, isConnected, error } = useApp({
     appInfo: { name: "recipe-results", version: "1.0.0" },
     capabilities: {},
     onAppCreated: (appInstance) => {
@@ -178,16 +184,18 @@ function RecipeResultsView() {
     },
   });
 
+  useHostStyles(app, app?.getHostContext());
+
   if (error) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         Error: {error.message}
       </div>
     );
   }
   if (!isConnected || !data) {
     return (
-      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+      <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 gap-2">
         <svg
           aria-hidden="true"
           className="animate-spin h-4 w-4"
@@ -218,11 +226,13 @@ function RecipeResultsView() {
   if (recipes.length === 0) {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">Recipe Search</h1>
-        <div className="text-center py-16 text-gray-400">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+          Recipe Search
+        </h1>
+        <div className="text-center py-16 text-gray-400 dark:text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-12 h-12 mx-auto mb-3 text-gray-300"
+            className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -245,7 +255,7 @@ function RecipeResultsView() {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-5">
-        <h1 className="text-xl font-bold text-gray-900">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
           Recipes for &ldquo;{searchQuery}&rdquo;
         </h1>
         <Badge variant="blue">{recipes.length} found</Badge>

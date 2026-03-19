@@ -1,4 +1,4 @@
-import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge } from "../shared/components.js";
@@ -16,39 +16,43 @@ function ShoppingItem({
 }) {
   return (
     <div
-      className={`bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm transition-all duration-200 ${
-        item.checked ? "opacity-50" : "hover:shadow-md hover:border-gray-300/80"
+      className={`bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 ${
+        item.checked
+          ? "opacity-50"
+          : "hover:shadow-md hover:border-gray-300/80 dark:hover:border-gray-600/80"
       }`}
     >
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span
-              className={`text-base ${item.checked ? "text-emerald-500" : "text-gray-300"}`}
+              className={`text-base ${item.checked ? "text-emerald-500" : "text-gray-300 dark:text-gray-600"}`}
             >
               {item.checked ? "\u2611" : "\u2610"}
             </span>
             <span
-              className={`font-semibold text-sm ${item.checked ? "line-through text-gray-400" : "text-gray-900"}`}
+              className={`font-semibold text-sm ${item.checked ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
             >
               {item.productName}
             </span>
           </div>
           <div className="flex items-center gap-2 mt-1.5 ml-6">
-            <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Qty: {item.quantity}
+            </span>
             {item.upc ? (
               <Badge variant="green">UPC</Badge>
             ) : (
               <Badge variant="yellow">Needs UPC</Badge>
             )}
             {item.upc && (
-              <span className="text-[10px] text-gray-400 font-mono">
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">
                 {item.upc}
               </span>
             )}
           </div>
           {item.notes && (
-            <div className="text-xs text-gray-400 italic mt-1 ml-6">
+            <div className="text-xs text-gray-400 dark:text-gray-500 italic mt-1 ml-6">
               {item.notes}
             </div>
           )}
@@ -56,7 +60,7 @@ function ShoppingItem({
         {!item.checked && (
           <button
             type="button"
-            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors dark:hover:bg-red-950"
             onClick={() => onRemove(item.productName)}
           >
             <svg
@@ -99,16 +103,18 @@ function ShoppingListView() {
     },
   });
 
+  useHostStyles(app, app?.getHostContext());
+
   if (error) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         Error: {error.message}
       </div>
     );
   }
   if (!isConnected || !data) {
     return (
-      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+      <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 gap-2">
         <svg
           aria-hidden="true"
           className="animate-spin h-4 w-4"
@@ -146,11 +152,13 @@ function ShoppingListView() {
   if (items.length === 0) {
     return (
       <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">Shopping List</h1>
-        <div className="text-center py-16 text-gray-400">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+          Shopping List
+        </h1>
+        <div className="text-center py-16 text-gray-400 dark:text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-12 h-12 mx-auto mb-3 text-gray-300"
+            className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -175,9 +183,13 @@ function ShoppingListView() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-xl font-bold text-gray-900">Shopping List</h1>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        Shopping List
+      </h1>
       {actionDetail && (
-        <p className="text-sm text-gray-500 mt-1">{actionDetail}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          {actionDetail}
+        </p>
       )}
 
       <div className="flex gap-2 mt-3 mb-5 flex-wrap">
@@ -203,7 +215,7 @@ function ShoppingListView() {
 
       {checked.length > 0 && (
         <div className="mt-6">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+          <h2 className="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
             In Cart ({checked.length})
           </h2>
           <div className="space-y-2">

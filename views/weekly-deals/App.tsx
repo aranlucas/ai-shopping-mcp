@@ -1,4 +1,4 @@
-import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Badge } from "../shared/components.js";
@@ -12,13 +12,17 @@ function DealCard({
   onSearch: (title: string) => void;
 }) {
   return (
-    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
-      <div className="font-semibold text-sm text-gray-900">{deal.title}</div>
+    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 dark:hover:border-gray-600/80">
+      <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+        {deal.title}
+      </div>
       {deal.details && (
-        <div className="text-xs text-gray-500 mt-0.5">{deal.details}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          {deal.details}
+        </div>
       )}
       <div className="mt-2 flex items-center gap-2">
-        <span className="text-lg font-bold text-emerald-600">
+        <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
           {deal.price || "See ad"}
         </span>
         {deal.savings && (
@@ -27,10 +31,10 @@ function DealCard({
           </span>
         )}
       </div>
-      <div className="mt-3 pt-3 border-t border-gray-100">
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
           onClick={() => onSearch(deal.title)}
         >
           <svg
@@ -73,16 +77,18 @@ function WeeklyDealsView() {
     },
   });
 
+  useHostStyles(app, app?.getHostContext());
+
   if (error) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         Error: {error.message}
       </div>
     );
   }
   if (!isConnected || !data) {
     return (
-      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+      <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 gap-2">
         <svg
           aria-hidden="true"
           className="animate-spin h-4 w-4"
@@ -113,11 +119,13 @@ function WeeklyDealsView() {
   if (deals.length === 0) {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 mb-6">Weekly Deals</h1>
-        <div className="text-center py-16 text-gray-400">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+          Weekly Deals
+        </h1>
+        <div className="text-center py-16 text-gray-400 dark:text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-12 h-12 mx-auto mb-3 text-gray-300"
+            className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -150,11 +158,13 @@ function WeeklyDealsView() {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-1">
-        <h1 className="text-xl font-bold text-gray-900">Weekly Deals</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+          Weekly Deals
+        </h1>
         <Badge variant="green">{deals.length} deals</Badge>
       </div>
       {validFrom && validTill && (
-        <p className="text-sm text-gray-500 mb-5">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
           Valid: {validFrom} &ndash; {validTill}
         </p>
       )}

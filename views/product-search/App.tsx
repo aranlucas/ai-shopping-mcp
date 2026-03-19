@@ -1,4 +1,4 @@
-import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -32,21 +32,29 @@ function ProductCard({
       : undefined);
 
   return (
-    <div className="group bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
-      <div className="font-semibold text-sm text-gray-900 leading-snug">
+    <div className="group bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 dark:hover:border-gray-600/80">
+      <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 leading-snug">
         {name}
       </div>
-      {brand && <div className="text-xs text-gray-500 mt-0.5">{brand}</div>}
-      {size && <div className="text-xs text-gray-400 mt-0.5">{size}</div>}
+      {brand && (
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          {brand}
+        </div>
+      )}
+      {size && (
+        <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+          {size}
+        </div>
+      )}
       <div className="mt-2">
         <PriceDisplay product={product} />
       </div>
       <FulfillmentTags product={product} />
       {aisle && (
-        <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 flex items-center gap-1">
           <svg
             aria-hidden="true"
-            className="w-3 h-3 text-gray-400"
+            className="w-3 h-3 text-gray-400 dark:text-gray-500"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -67,7 +75,7 @@ function ProductCard({
         </div>
       )}
       {upc && (
-        <div className="text-[10px] text-gray-400 mt-0.5 font-mono">
+        <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 font-mono">
           UPC: {upc}
         </div>
       )}
@@ -100,16 +108,18 @@ function ProductSearchView() {
     },
   });
 
+  useHostStyles(app, app?.getHostContext());
+
   if (error) {
     return (
-      <div className="text-center py-12 text-gray-400">
+      <div className="text-center py-12 text-gray-400 dark:text-gray-500">
         Error: {error.message}
       </div>
     );
   }
   if (!isConnected || !data) {
     return (
-      <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+      <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 gap-2">
         <svg
           aria-hidden="true"
           className="animate-spin h-4 w-4"
@@ -157,10 +167,10 @@ function ProductSearchView() {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
           Product Search Results
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           {results.length} search term(s) &middot; {totalProducts} total
           products
         </p>
@@ -170,7 +180,7 @@ function ProductSearchView() {
           return (
             <div
               key={result.term}
-              className="bg-red-50 rounded-xl p-4 mb-4 border border-red-100 text-sm text-red-600"
+              className="bg-red-50 rounded-xl p-4 mb-4 border border-red-100 text-sm text-red-600 dark:bg-red-950 dark:border-red-900 dark:text-red-400"
             >
               Search failed for &ldquo;{result.term}&rdquo;
             </div>
@@ -180,17 +190,23 @@ function ProductSearchView() {
           return (
             <div key={result.term} className="mb-6">
               <div className="flex items-center gap-2 mb-3">
-                <h2 className="font-semibold text-gray-900">{result.term}</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+                  {result.term}
+                </h2>
                 <Badge variant="gray">0 items</Badge>
               </div>
-              <p className="text-sm text-gray-400">No products found.</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">
+                No products found.
+              </p>
             </div>
           );
         }
         return (
           <div key={result.term} className="mb-8">
             <div className="flex items-center gap-2 mb-3">
-              <h2 className="font-semibold text-gray-900">{result.term}</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+                {result.term}
+              </h2>
               <Badge variant="blue">{result.products.length} items</Badge>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -3,11 +3,13 @@
 import type { ProductData } from "./types.js";
 
 const badgeVariants = {
-  green: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
-  red: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
-  yellow: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
-  blue: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
-  gray: "bg-gray-100 text-gray-600 ring-1 ring-gray-500/20",
+  green:
+    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-400/20",
+  red: "bg-red-50 text-red-700 ring-1 ring-red-600/20 dark:bg-red-950 dark:text-red-300 dark:ring-red-400/20",
+  yellow:
+    "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-400/20",
+  blue: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-400/20",
+  gray: "bg-gray-100 text-gray-600 ring-1 ring-gray-500/20 dark:bg-gray-700 dark:text-gray-300 dark:ring-gray-400/20",
 } as const;
 
 export function Badge({
@@ -34,23 +36,23 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   if (item.fulfillment.curbside)
     tags.push({
       label: "Pickup",
-      cls: "bg-blue-100 text-blue-700",
+      cls: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
     });
   if (item.fulfillment.delivery)
     tags.push({
       label: "Delivery",
-      cls: "bg-pink-100 text-pink-700",
+      cls: "bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300",
     });
   if (item.fulfillment.instore)
     tags.push({
       label: "In-Store",
-      cls: "bg-emerald-100 text-emerald-700",
+      cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
     });
 
   if (tags.length === 0) {
     return (
       <div className="flex flex-wrap gap-1.5 mt-2">
-        <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold bg-red-50 text-red-700">
+        <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
           Out of Stock
         </span>
       </div>
@@ -74,18 +76,24 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
 export function PriceDisplay({ product }: { product: ProductData }) {
   const item = product.items?.[0];
   if (!item?.price?.regular) {
-    return <span className="text-xs text-gray-400">Price unavailable</span>;
+    return (
+      <span className="text-xs text-gray-400 dark:text-gray-500">
+        Price unavailable
+      </span>
+    );
   }
   const { regular, promo } = item.price;
   const hasPromo = promo != null && promo !== regular;
 
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="text-lg font-bold text-emerald-600">
+      <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
         ${hasPromo ? promo : regular}
       </span>
       {hasPromo && (
-        <span className="text-sm text-gray-400 line-through">${regular}</span>
+        <span className="text-sm text-gray-400 dark:text-gray-500 line-through">
+          ${regular}
+        </span>
       )}
       {hasPromo && (
         <span className="inline-flex items-center rounded-md bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
@@ -109,7 +117,7 @@ export function ProductActions({
 }) {
   if (!upc) return null;
   return (
-    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
       <button
         type="button"
         className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 active:bg-blue-800 transition-colors"
@@ -133,7 +141,7 @@ export function ProductActions({
       </button>
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
         onClick={() => onAddToList(name, upc)}
       >
         <svg
