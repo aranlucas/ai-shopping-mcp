@@ -1,5 +1,8 @@
-import type { PantryItem } from "../user-storage.js";
-import { Badge, esc } from "./shared.js";
+import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { Badge } from "../shared/components.js";
+import type { PantryItemData, PantryListContent } from "../shared/types.js";
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (!expiresAt) return null;
@@ -17,7 +20,13 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   );
 }
 
-function PantryItemCard({ item }: { item: PantryItem }) {
+function PantryItemCard({
+  item,
+  onRemove,
+}: {
+  item: PantryItemData;
+  onRemove: (name: string) => void;
+}) {
   return (
     <div className="card">
       <div
@@ -37,9 +46,7 @@ function PantryItemCard({ item }: { item: PantryItem }) {
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={
-            `toolCall('manage_pantry',{action:'remove',productName:'${esc(item.productName)}'})` as never
-          }
+          onClick={() => onRemove(item.productName)}
         >
           &#10005;
         </button>
@@ -48,13 +55,34 @@ function PantryItemCard({ item }: { item: PantryItem }) {
   );
 }
 
-export function PantryList({
-  items,
-  actionDetail,
-}: {
-  items: PantryItem[];
-  actionDetail?: string;
-}) {
+function PantryView() {
+  const [data, setData] = useState<PantryListContent | null>(null);
+
+  const { app, isConnected, error } = useApp({
+    appInfo: { name: "pantry", version: "1.0.0" },
+    capabilities: {},
+    onAppCreated: (appInstance) => {
+      appInstance.ontoolresult = (result) => {
+        const content = result.structuredContent as
+          | PantryListContent
+          | undefined;
+        if (content?.items) {
+          setData(content);
+        }
+      };
+      appInstance.onerror = console.error;
+    },
+  });
+
+  if (error) {
+    return <div className="empty-state">Error: {error.message}</div>;
+  }
+  if (!isConnected || !data) {
+    return <div id="loading">Loading...</div>;
+  }
+
+  const { items, actionDetail } = data;
+
   if (items.length === 0) {
     return (
       <>
@@ -73,6 +101,13 @@ export function PantryList({
     return d >= 0 && d <= 3;
   });
 
+  const handleRemove = (name: string) => {
+    app?.callServerTool({
+      name: "manage_pantry",
+      arguments: { action: "remove", productName: name },
+    });
+  };
+
   return (
     <>
       <div className="header">
@@ -87,8 +122,14 @@ export function PantryList({
         </div>
       )}
       {items.map((item) => (
-        <PantryItemCard key={item.productName} item={item} />
+        <PantryItemCard
+          key={item.productName}
+          item={item}
+          onRemove={handleRemove}
+        />
       ))}
     </>
   );
 }
+
+createRoot(document.getElementById("root")!).render(<PantryView />);

@@ -6,8 +6,7 @@ import { networkError, storageError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
-import { WeeklyDeals } from "../utils/ui/weekly-deals.js";
-import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
+import { registerViewResource } from "../utils/view-resource.js";
 import { errorResult, type ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -171,7 +170,7 @@ export function addCacheWarning(
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
   const weeklyDealsUri = "ui://weekly-deals";
-  registerHtmlResource(ctx.server, weeklyDealsUri);
+  registerViewResource(ctx, weeklyDealsUri, "weekly-deals/index.html");
 
   registerAppTool(
     ctx.server,
@@ -326,32 +325,24 @@ export function formatWeeklyDealsToolResponse(
       ? `${headerLines.join("\n")}\n\n${formattedDeals}`
       : formattedDeals;
 
-  const bodyHtml = renderReactUI(WeeklyDeals, {
-    deals: result.deals.map((deal) => ({
-      title: deal.title,
-      details: deal.details,
-      price: deal.price,
-      savings: deal.savings,
-      validFrom: deal.validFrom,
-      validTill: deal.validTill,
-    })),
-    validFrom,
-    validTill,
-  });
-
   return {
     content: [
       {
         type: "text" as const,
         text,
       },
-      {
-        type: "text" as const,
-        text: bodyHtml,
-      },
     ],
     structuredContent: {
-      ...(result as unknown as Record<string, unknown>),
+      deals: result.deals.map((deal) => ({
+        title: deal.title,
+        details: deal.details,
+        price: deal.price,
+        savings: deal.savings,
+        validFrom: deal.validFrom,
+        validTill: deal.validTill,
+      })),
+      validFrom,
+      validTill,
       cache: { state: cacheState },
     },
   };

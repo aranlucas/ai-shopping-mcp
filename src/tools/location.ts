@@ -13,9 +13,8 @@ import {
   safeStorage,
   toMcpResponse,
 } from "../utils/result.js";
-import { LocationDetail, LocationResults } from "../utils/ui/locations.js";
-import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
+import { registerViewResource } from "../utils/view-resource.js";
 import type { ToolContext } from "./types.js";
 
 export function registerLocationTools(ctx: ToolContext) {
@@ -23,7 +22,7 @@ export function registerLocationTools(ctx: ToolContext) {
 
   // Two-part registration: tool + resource, tied together by the resource URI.
   const locationResultsUri = "ui://location-results";
-  registerHtmlResource(ctx.server, locationResultsUri);
+  registerViewResource(ctx, locationResultsUri, "location-results/index.html");
 
   registerAppTool(
     ctx.server,
@@ -79,19 +78,16 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const { locations, text } = result.value;
-      const bodyHtml = renderReactUI(LocationResults, { locations });
 
       return {
-        content: [
-          { type: "text" as const, text },
-          { type: "text" as const, text: bodyHtml },
-        ],
+        content: [{ type: "text" as const, text }],
+        structuredContent: { locations },
       };
     },
   );
 
   const locationDetailsUri = "ui://location-details";
-  registerHtmlResource(ctx.server, locationDetailsUri);
+  registerViewResource(ctx, locationDetailsUri, "location-detail/index.html");
 
   registerAppTool(
     ctx.server,
@@ -136,7 +132,6 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const location = result.value;
-      const bodyHtml = renderReactUI(LocationDetail, { location });
 
       return {
         content: [
@@ -144,8 +139,8 @@ export function registerLocationTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Location Details:\n\n${formatLocation(location)}`,
           },
-          { type: "text" as const, text: bodyHtml },
         ],
+        structuredContent: { location },
       };
     },
   );

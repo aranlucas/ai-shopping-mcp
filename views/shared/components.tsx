@@ -1,8 +1,6 @@
-/** Reusable sub-components used across multiple UI templates. */
+/** Reusable sub-components for client-side Views. */
 
-import type { components as ProductComponents } from "../../services/kroger/product.js";
-
-type Product = ProductComponents["schemas"]["products.productModel"];
+import type { ProductData } from "./types.js";
 
 export function Badge({
   variant,
@@ -14,7 +12,7 @@ export function Badge({
   return <span className={`badge badge-${variant}`}>{children}</span>;
 }
 
-export function FulfillmentTags({ product }: { product: Product }) {
+export function FulfillmentTags({ product }: { product: ProductData }) {
   const item = product.items?.[0];
   if (!item?.fulfillment) return null;
 
@@ -45,7 +43,7 @@ export function FulfillmentTags({ product }: { product: Product }) {
   );
 }
 
-export function PriceDisplay({ product }: { product: Product }) {
+export function PriceDisplay({ product }: { product: ProductData }) {
   const item = product.items?.[0];
   if (!item?.price?.regular) {
     return <span className="meta-item">Price unavailable</span>;
@@ -65,9 +63,13 @@ export function PriceDisplay({ product }: { product: Product }) {
 export function ProductActions({
   upc,
   name,
+  onAddToCart,
+  onAddToList,
 }: {
   upc: string | undefined;
   name: string;
+  onAddToCart: (upc: string, qty: number) => void;
+  onAddToList: (name: string, upc: string) => void;
 }) {
   if (!upc) return null;
   return (
@@ -75,22 +77,17 @@ export function ProductActions({
       <button
         type="button"
         className="btn btn-primary"
-        onClick={`addToCart('${esc(upc)}', 1)` as never}
+        onClick={() => onAddToCart(upc, 1)}
       >
         Add to Cart
       </button>
       <button
         type="button"
         className="btn btn-secondary"
-        onClick={`addToShoppingList('${esc(name)}', '${esc(upc)}')` as never}
+        onClick={() => onAddToList(name, upc)}
       >
         + List
       </button>
     </div>
   );
-}
-
-/** Escape for safe embedding inside JS string literals (single-quoted). */
-export function esc(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }

@@ -7,16 +7,14 @@ import {
   formatProductList,
 } from "../utils/format-response.js";
 import { fromApiResponse, toMcpResponse } from "../utils/result.js";
-import { ProductDetail } from "../utils/ui/product-detail.js";
-import { ProductSearchResults } from "../utils/ui/product-search.js";
-import { registerHtmlResource, renderReactUI } from "../utils/ui-resource.js";
+import { registerViewResource } from "../utils/view-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
 
   const searchProductsUri = "ui://search-products";
-  registerHtmlResource(ctx.server, searchProductsUri);
+  registerViewResource(ctx, searchProductsUri, "product-search/index.html");
 
   registerAppTool(
     ctx.server,
@@ -157,25 +155,20 @@ export function registerProductTools(ctx: ToolContext) {
         return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
       });
 
-      const bodyHtml = renderReactUI(ProductSearchResults, {
-        results,
-        totalProducts,
-      });
-
       return {
         content: [
           {
             type: "text" as const,
             text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
           },
-          { type: "text" as const, text: bodyHtml },
         ],
+        structuredContent: { results, totalProducts },
       };
     },
   );
 
   const productDetailsUri = "ui://product-details";
-  registerHtmlResource(ctx.server, productDetailsUri);
+  registerViewResource(ctx, productDetailsUri, "product-detail/index.html");
 
   registerAppTool(
     ctx.server,
@@ -233,7 +226,6 @@ export function registerProductTools(ctx: ToolContext) {
       }
 
       const product = result.value;
-      const bodyHtml = renderReactUI(ProductDetail, { product });
 
       return {
         content: [
@@ -241,8 +233,8 @@ export function registerProductTools(ctx: ToolContext) {
             type: "text" as const,
             text: `Product Details:\n\n${formatProductList([product])}`,
           },
-          { type: "text" as const, text: bodyHtml },
         ],
+        structuredContent: { product },
       };
     },
   );

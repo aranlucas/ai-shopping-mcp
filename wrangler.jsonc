@@ -8,6 +8,13 @@
   "main": "src/server.ts",
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat"],
+  "build": {
+    "command": "npm run build:views"
+  },
+  "assets": {
+    "directory": "./dist/views",
+    "binding": "ASSETS"
+  },
   "migrations": [
     {
       "new_sqlite_classes": ["MyMCP"],
