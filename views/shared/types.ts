@@ -3,6 +3,48 @@
  * and client-side Views. Keep these in sync.
  */
 
+// --- Tool argument types (must match server-side Zod schemas) ---
+
+export interface AddToCartArgs {
+  items: Array<{
+    upc: string;
+    quantity: number;
+    modality?: "DELIVERY" | "PICKUP";
+  }>;
+  locationId?: string;
+}
+
+export interface ManageShoppingListArgs {
+  action: "add" | "remove" | "update" | "clear";
+  items?: Array<{
+    productName: string;
+    upc?: string;
+    quantity?: number;
+    notes?: string;
+  }>;
+  productName?: string;
+  quantity?: number;
+  upc?: string;
+  notes?: string;
+}
+
+/** Discriminated union of all callable tools — enables type-safe callTool(). */
+export type ToolCall =
+  | { name: "add_to_cart"; arguments: AddToCartArgs }
+  | { name: "manage_shopping_list"; arguments: ManageShoppingListArgs };
+
+// --- App helper ---
+
+import type { App } from "@modelcontextprotocol/ext-apps/react";
+
+/**
+ * Type-safe wrapper around app.callServerTool().
+ * TypeScript infers argument types from the tool name.
+ */
+export function callTool(app: App | undefined, call: ToolCall): void {
+  app?.callServerTool(call as Parameters<App["callServerTool"]>[0]);
+}
+
 export interface DealData {
   title: string;
   details?: string;
