@@ -1,7 +1,12 @@
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Badge, FulfillmentTags, PriceDisplay } from "../shared/components.js";
+import {
+  Badge,
+  FulfillmentTags,
+  PriceDisplay,
+  ProductActions,
+} from "../shared/components.js";
 import { callTool, type ProductDetailContent } from "../shared/types.js";
 
 function StockBadge({ level }: { level: string | undefined }) {
@@ -73,23 +78,29 @@ function ProductDetailView() {
   const brand = product.brand;
   const upc = product.upc;
 
-  const handleAddToCart = (productUpc: string, qty: number) => {
-    callTool(app, {
+  const handleAddToCart = async (productUpc: string, qty: number) => {
+    const result = await callTool(app, {
       name: "add_to_cart",
       arguments: {
         items: [{ upc: productUpc, quantity: qty, modality: "PICKUP" }],
       },
     });
+    if (result?.isError) {
+      throw new Error("Failed to add to cart");
+    }
   };
 
-  const handleAddToList = (productName: string, productUpc: string) => {
-    callTool(app, {
+  const handleAddToList = async (productName: string, productUpc: string) => {
+    const result = await callTool(app, {
       name: "manage_shopping_list",
       arguments: {
         action: "add",
         items: [{ productName, upc: productUpc, quantity: 1 }],
       },
     });
+    if (result?.isError) {
+      throw new Error("Failed to add to list");
+    }
   };
 
   return (
@@ -112,52 +123,12 @@ function ProductDetailView() {
 
         <FulfillmentTags product={product} />
 
-        {upc && (
-          <div className="flex gap-2 mt-5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:bg-blue-800 transition-colors"
-              onClick={() => handleAddToCart(upc, 1)}
-            >
-              <svg
-                aria-hidden="true"
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-                />
-              </svg>
-              Add to Cart
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-4 py-2.5 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
-              onClick={() => handleAddToList(name, upc)}
-            >
-              <svg
-                aria-hidden="true"
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.5v15m7.5-7.5h-15"
-                />
-              </svg>
-              + Shopping List
-            </button>
-          </div>
-        )}
+        <ProductActions
+          upc={upc}
+          name={name}
+          onAddToCart={handleAddToCart}
+          onAddToList={handleAddToList}
+        />
 
         {product.items && product.items.length > 0 && (
           <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700">

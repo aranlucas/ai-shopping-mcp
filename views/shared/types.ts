@@ -1,4 +1,5 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 export type {
   AddToCartArgs,
@@ -17,10 +18,13 @@ export type ToolCall =
 
 /**
  * Type-safe wrapper around app.callServerTool().
- * TypeScript infers argument types from the tool name.
+ * Returns the Promise so callers can await results and handle errors.
  */
-export function callTool(app: App | undefined, call: ToolCall): void {
-  app?.callServerTool(call as Parameters<App["callServerTool"]>[0]);
+export function callTool(
+  app: App | undefined,
+  call: ToolCall,
+): Promise<CallToolResult> | undefined {
+  return app?.callServerTool(call as Parameters<App["callServerTool"]>[0]);
 }
 
 export interface DealData {

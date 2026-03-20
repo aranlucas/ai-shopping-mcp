@@ -27,14 +27,30 @@ function PantryItemCard({
   onRemove,
 }: {
   item: PantryItemData;
-  onRemove: (name: string) => void;
+  onRemove: (name: string) => Promise<void>;
 }) {
+  const [removing, setRemoving] = useState(false);
+
+  const handleRemove = async () => {
+    setRemoving(true);
+    try {
+      await onRemove(item.productName);
+    } catch {
+      setRemoving(false);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 dark:hover:border-gray-600/80">
+    <div
+      className={`bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 dark:hover:border-gray-600/80 ${removing ? "opacity-50" : "hover:shadow-md hover:border-gray-300/80"}`}
+    >
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">
             {item.productName}
+            {removing && (
+              <span className="text-xs text-gray-400 ml-2">Removing...</span>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-1.5">
             <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -45,8 +61,9 @@ function PantryItemCard({
         </div>
         <button
           type="button"
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors dark:hover:bg-red-950"
-          onClick={() => onRemove(item.productName)}
+          disabled={removing}
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors dark:hover:bg-red-950 disabled:opacity-40"
+          onClick={handleRemove}
         >
           <svg
             aria-hidden="true"
@@ -162,11 +179,18 @@ function PantryView() {
     return d >= 0 && d <= 3;
   });
 
-  const handleRemove = (name: string) => {
-    app?.callServerTool({
+  const handleRemove = async (name: string) => {
+    const result = await app?.callServerTool({
       name: "manage_pantry",
       arguments: { action: "remove", productName: name },
     });
+    if (result?.isError) {
+      throw new Error("Failed to remove item");
+    }
+    const updated = result?.structuredContent as PantryListContent | undefined;
+    if (updated?.items) {
+      setData(updated);
+    }
   };
 
   return (
