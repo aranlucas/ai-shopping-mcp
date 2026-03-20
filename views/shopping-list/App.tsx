@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Badge } from "../shared/components.js";
-import { ErrorDisplay, Loading } from "../shared/status.js";
+import { ActionButton, Badge } from "../shared/components.js";
+import { EmptyState, ErrorDisplay, Loading } from "../shared/status.js";
 import {
   callTool,
   type ShoppingListContent,
@@ -16,76 +16,102 @@ function ShoppingItem({
   item: ShoppingListItemData;
   onRemove: (name: string) => Promise<void>;
 }) {
-  const [removing, setRemoving] = useState(false);
+  const [removeState, setRemoveState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
 
   const handleRemove = async () => {
-    setRemoving(true);
+    setRemoveState("loading");
     try {
       await onRemove(item.productName);
+      setRemoveState("done");
     } catch {
-      setRemoving(false);
+      setRemoveState("error");
+      setTimeout(() => setRemoveState("idle"), 2000);
     }
   };
 
+  const isDimmed = item.checked || removeState !== "idle";
+
   return (
     <div
-      className={`bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 ${
-        item.checked || removing
-          ? "opacity-50"
-          : "hover:shadow-md hover:border-gray-300/80 dark:hover:border-gray-600/80"
-      }`}
+      className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border transition-all duration-150 ${
+        item.checked
+          ? "bg-gray-50/50 border-gray-100 dark:bg-gray-800/30 dark:border-gray-700/30"
+          : "bg-white border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60"
+      } ${isDimmed ? "opacity-50" : ""}`}
     >
-      <div className="flex justify-between items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-base ${item.checked ? "text-emerald-500" : "text-gray-300 dark:text-gray-600"}`}
-            >
-              {item.checked ? "\u2611" : "\u2610"}
-            </span>
-            <span
-              className={`font-semibold text-sm ${item.checked ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
-            >
-              {item.productName}
-              {removing && (
-                <span className="text-xs text-gray-400 ml-2">Removing...</span>
-              )}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mt-1.5 ml-6">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              Qty: {item.quantity}
-            </span>
-            {item.upc ? (
-              <Badge variant="green">UPC</Badge>
-            ) : (
-              <Badge variant="yellow">Needs UPC</Badge>
-            )}
-            {item.upc && (
-              <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">
-                {item.upc}
-              </span>
-            )}
-          </div>
+      {/* Checkbox visual */}
+      <div
+        className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+          item.checked
+            ? "bg-emerald-500 border-emerald-500 dark:bg-emerald-600 dark:border-emerald-600"
+            : "border-gray-300 dark:border-gray-600"
+        }`}
+      >
+        {item.checked && (
+          <svg
+            aria-hidden="true"
+            className="w-2.5 h-2.5 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={3}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m4.5 12.75 6 6 9-13.5"
+            />
+          </svg>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div
+          className={`text-sm font-medium leading-snug ${
+            item.checked
+              ? "line-through text-gray-400 dark:text-gray-500"
+              : "text-gray-900 dark:text-gray-100"
+          }`}
+        >
+          {item.productName}
+        </div>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            ×{item.quantity}
+          </span>
+          {item.upc ? (
+            <Badge variant="green">UPC</Badge>
+          ) : (
+            <Badge variant="yellow">No UPC</Badge>
+          )}
           {item.notes && (
-            <div className="text-xs text-gray-400 dark:text-gray-500 italic mt-1 ml-6">
+            <span className="text-xs text-gray-400 dark:text-gray-500 italic truncate max-w-32">
               {item.notes}
-            </div>
+            </span>
           )}
         </div>
-        {!item.checked && (
-          <button
-            type="button"
-            disabled={removing}
-            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors dark:hover:bg-red-950 disabled:opacity-40"
-            onClick={handleRemove}
-          >
+      </div>
+
+      {/* Remove button */}
+      {!item.checked && (
+        <ActionButton
+          state={removeState}
+          onClick={handleRemove}
+          idleLabel=""
+          loadingLabel=""
+          doneLabel=""
+          failLabel=""
+          variant="secondary"
+          icon={
             <svg
-              aria-hidden="true"
-              className="w-4 h-4"
+              aria-label="Remove"
+              className="w-3.5 h-3.5"
               fill="none"
               viewBox="0 0 24 24"
-              strokeWidth={2}
+              strokeWidth={2.5}
               stroke="currentColor"
             >
               <path
@@ -94,9 +120,9 @@ function ShoppingItem({
                 d="M6 18 18 6M6 6l12 12"
               />
             </svg>
-          </button>
-        )}
-      </div>
+          }
+        />
+      )}
     </div>
   );
 }
@@ -129,26 +155,29 @@ function ShoppingListView() {
   if (items.length === 0) {
     return (
       <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+        <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight mb-1">
           Shopping List
         </h1>
-        <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-          <svg
-            aria-hidden="true"
-            className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-            />
-          </svg>
-          <p className="text-sm">Your shopping list is empty</p>
-        </div>
+        <EmptyState
+          icon={
+            <svg
+              aria-hidden="true"
+              className="w-6 h-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+              />
+            </svg>
+          }
+          message="Your shopping list is empty"
+          description="Add items from product search results."
+        />
       </div>
     );
   }
@@ -160,17 +189,22 @@ function ShoppingListView() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-        Shopping List
-      </h1>
-      {actionDetail && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {actionDetail}
-        </p>
-      )}
+      <div className="mb-4">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+            Shopping List
+          </h1>
+          <Badge variant="blue">{unchecked.length} to buy</Badge>
+        </div>
+        {actionDetail && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {actionDetail}
+          </p>
+        )}
+      </div>
 
-      <div className="flex gap-2 mt-3 mb-5 flex-wrap">
-        <Badge variant="blue">{unchecked.length} to buy</Badge>
+      {/* Summary row */}
+      <div className="flex gap-1.5 mb-4 flex-wrap">
         <Badge variant="green">{withUpc.length} ready</Badge>
         {withoutUpc.length > 0 && (
           <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>
@@ -180,7 +214,7 @@ function ShoppingListView() {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {unchecked.map((item) => (
           <ShoppingItem
             key={item.productName}
@@ -192,10 +226,10 @@ function ShoppingListView() {
 
       {checked.length > 0 && (
         <div className="mt-6">
-          <h2 className="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
+          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
             In Cart ({checked.length})
-          </h2>
-          <div className="space-y-2">
+          </p>
+          <div className="space-y-1.5">
             {checked.map((item) => (
               <ShoppingItem
                 key={item.productName}

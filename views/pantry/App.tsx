@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Badge } from "../shared/components.js";
-import { ErrorDisplay, Loading } from "../shared/status.js";
+import { ActionButton, Badge } from "../shared/components.js";
+import { EmptyState, ErrorDisplay, Loading } from "../shared/status.js";
 import type { PantryItemData, PantryListContent } from "../shared/types.js";
 import { useMcpView } from "../shared/use-mcp-view.js";
 
@@ -13,65 +13,105 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   );
 
   if (daysUntil < 0) return <Badge variant="red">Expired</Badge>;
-  if (daysUntil === 0) return <Badge variant="red">Expires Today</Badge>;
-  if (daysUntil <= 3)
-    return <Badge variant="yellow">Expires in {daysUntil}d</Badge>;
+  if (daysUntil === 0) return <Badge variant="red">Today</Badge>;
+  if (daysUntil <= 3) return <Badge variant="yellow">{daysUntil}d left</Badge>;
   return (
     <span className="text-xs text-gray-400 dark:text-gray-500">
-      Exp: {expiryDate.toLocaleDateString()}
+      Exp{" "}
+      {expiryDate.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      })}
     </span>
   );
 }
 
-function PantryItemCard({
+function PantryItemRow({
   item,
   onRemove,
 }: {
   item: PantryItemData;
   onRemove: (name: string) => Promise<void>;
 }) {
-  const [removing, setRemoving] = useState(false);
+  const [removeState, setRemoveState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
 
   const handleRemove = async () => {
-    setRemoving(true);
+    setRemoveState("loading");
     try {
       await onRemove(item.productName);
+      setRemoveState("done");
     } catch {
-      setRemoving(false);
+      setRemoveState("error");
+      setTimeout(() => setRemoveState("idle"), 2000);
     }
   };
 
+  const isExpiring = (() => {
+    if (!item.expiresAt) return false;
+    const d = Math.floor(
+      (new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    );
+    return d >= 0 && d <= 3;
+  })();
+
   return (
     <div
-      className={`bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 dark:hover:border-gray-600/80 ${removing ? "opacity-50" : "hover:shadow-md hover:border-gray-300/80"}`}
+      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all duration-150 ${
+        removeState !== "idle" ? "opacity-40" : ""
+      } ${
+        isExpiring
+          ? "bg-amber-50/50 border-amber-200/60 dark:bg-amber-950/20 dark:border-amber-800/30"
+          : "bg-white border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60"
+      }`}
     >
-      <div className="flex justify-between items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-            {item.productName}
-            {removing && (
-              <span className="text-xs text-gray-400 ml-2">Removing...</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              Qty: {item.quantity}
-            </span>
-            <ExpiryBadge expiresAt={item.expiresAt} />
-          </div>
-        </div>
-        <button
-          type="button"
-          disabled={removing}
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors dark:hover:bg-red-950 disabled:opacity-40"
-          onClick={handleRemove}
+      {/* Pantry icon */}
+      <div className="shrink-0 w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-700/80 flex items-center justify-center">
+        <svg
+          aria-hidden="true"
+          className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="currentColor"
         >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
+          />
+        </svg>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+          {item.productName}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            ×{item.quantity}
+          </span>
+          <ExpiryBadge expiresAt={item.expiresAt} />
+        </div>
+      </div>
+
+      <ActionButton
+        state={removeState}
+        onClick={handleRemove}
+        idleLabel=""
+        loadingLabel=""
+        doneLabel=""
+        failLabel=""
+        variant="secondary"
+        icon={
           <svg
-            aria-hidden="true"
-            className="w-4 h-4"
+            aria-label="Remove"
+            className="w-3.5 h-3.5"
             fill="none"
             viewBox="0 0 24 24"
-            strokeWidth={2}
+            strokeWidth={2.5}
             stroke="currentColor"
           >
             <path
@@ -80,8 +120,8 @@ function PantryItemCard({
               d="M6 18 18 6M6 6l12 12"
             />
           </svg>
-        </button>
-      </div>
+        }
+      />
     </div>
   );
 }
@@ -98,26 +138,29 @@ function PantryView() {
   if (items.length === 0) {
     return (
       <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+        <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight mb-1">
           Pantry
         </h1>
-        <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-          <svg
-            aria-hidden="true"
-            className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
-            />
-          </svg>
-          <p className="text-sm">Your pantry is empty.</p>
-        </div>
+        <EmptyState
+          icon={
+            <svg
+              aria-hidden="true"
+              className="w-6 h-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"
+              />
+            </svg>
+          }
+          message="Your pantry is empty"
+          description="Add items to track what you have at home."
+        />
       </div>
     );
   }
@@ -147,23 +190,25 @@ function PantryView() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <div className="flex items-center gap-3 mb-1">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          Pantry
-        </h1>
-        <Badge variant="blue">{items.length} items</Badge>
+      <div className="mb-4">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+            Pantry
+          </h1>
+          <Badge variant="blue">{items.length} items</Badge>
+        </div>
+        {actionDetail && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {actionDetail}
+          </p>
+        )}
       </div>
-      {actionDetail && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {actionDetail}
-        </p>
-      )}
 
       {expiring.length > 0 && (
-        <div className="mt-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-2 dark:bg-amber-950 dark:border-amber-800">
+        <div className="mb-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5">
           <svg
             aria-hidden="true"
-            className="w-4 h-4 text-amber-500 flex-shrink-0"
+            className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -176,14 +221,15 @@ function PantryView() {
             />
           </svg>
           <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-            {expiring.length} item(s) expiring soon
+            {expiring.length} item{expiring.length !== 1 ? "s" : ""} expiring
+            soon
           </span>
         </div>
       )}
 
-      <div className="space-y-2 mt-4">
+      <div className="space-y-1.5">
         {items.map((item) => (
-          <PantryItemCard
+          <PantryItemRow
             key={item.productName}
             item={item}
             onRemove={handleRemove}
