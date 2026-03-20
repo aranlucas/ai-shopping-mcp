@@ -13,12 +13,23 @@ function ShoppingItem({
   onRemove,
 }: {
   item: ShoppingListItemData;
-  onRemove: (name: string) => void;
+  onRemove: (name: string) => Promise<void>;
 }) {
+  const [removing, setRemoving] = useState(false);
+
+  const handleRemove = async () => {
+    setRemoving(true);
+    try {
+      await onRemove(item.productName);
+    } catch {
+      setRemoving(false);
+    }
+  };
+
   return (
     <div
       className={`bg-white rounded-xl p-4 border border-gray-200/80 shadow-sm transition-all duration-200 dark:bg-gray-800 dark:border-gray-700/80 ${
-        item.checked
+        item.checked || removing
           ? "opacity-50"
           : "hover:shadow-md hover:border-gray-300/80 dark:hover:border-gray-600/80"
       }`}
@@ -35,6 +46,9 @@ function ShoppingItem({
               className={`font-semibold text-sm ${item.checked ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
             >
               {item.productName}
+              {removing && (
+                <span className="text-xs text-gray-400 ml-2">Removing...</span>
+              )}
             </span>
           </div>
           <div className="flex items-center gap-2 mt-1.5 ml-6">
@@ -61,8 +75,9 @@ function ShoppingItem({
         {!item.checked && (
           <button
             type="button"
-            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors dark:hover:bg-red-950"
-            onClick={() => onRemove(item.productName)}
+            disabled={removing}
+            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors dark:hover:bg-red-950 disabled:opacity-40"
+            onClick={handleRemove}
           >
             <svg
               aria-hidden="true"
@@ -143,11 +158,20 @@ function ShoppingListView() {
 
   const { items, actionDetail } = data;
 
-  const handleRemove = (name: string) => {
-    callTool(app, {
+  const handleRemove = async (name: string) => {
+    const result = await callTool(app, {
       name: "manage_shopping_list",
       arguments: { action: "remove", productName: name },
     });
+    if (result?.isError) {
+      throw new Error("Failed to remove item");
+    }
+    const updated = result?.structuredContent as
+      | ShoppingListContent
+      | undefined;
+    if (updated?.items) {
+      setData(updated);
+    }
   };
 
   if (items.length === 0) {

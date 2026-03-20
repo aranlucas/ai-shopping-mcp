@@ -1,5 +1,6 @@
 /** Reusable sub-components for client-side Views. */
 
+import React from "react";
 import type { ProductData } from "./types.js";
 
 const badgeVariants = {
@@ -112,16 +113,73 @@ export function ProductActions({
 }: {
   upc: string | undefined;
   name: string;
-  onAddToCart: (upc: string, qty: number) => void;
-  onAddToList: (name: string, upc: string) => void;
+  onAddToCart: (upc: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
+  const [cartState, setCartState] = React.useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
+  const [listState, setListState] = React.useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
+
   if (!upc) return null;
+
+  const handleCart = async () => {
+    setCartState("loading");
+    try {
+      await onAddToCart(upc, 1);
+      setCartState("done");
+      setTimeout(() => setCartState("idle"), 1500);
+    } catch {
+      setCartState("error");
+      setTimeout(() => setCartState("idle"), 2000);
+    }
+  };
+
+  const handleList = async () => {
+    setListState("loading");
+    try {
+      await onAddToList(name, upc);
+      setListState("done");
+      setTimeout(() => setListState("idle"), 1500);
+    } catch {
+      setListState("error");
+      setTimeout(() => setListState("idle"), 2000);
+    }
+  };
+
+  const cartLabel =
+    cartState === "loading"
+      ? "Adding..."
+      : cartState === "done"
+        ? "Added!"
+        : cartState === "error"
+          ? "Failed"
+          : "Add to Cart";
+
+  const listLabel =
+    listState === "loading"
+      ? "Adding..."
+      : listState === "done"
+        ? "Added!"
+        : listState === "error"
+          ? "Failed"
+          : "List";
+
   return (
     <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 active:bg-blue-800 transition-colors"
-        onClick={() => onAddToCart(upc, 1)}
+        disabled={cartState === "loading"}
+        className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-colors ${
+          cartState === "done"
+            ? "bg-emerald-600"
+            : cartState === "error"
+              ? "bg-red-600"
+              : "bg-blue-600 hover:bg-blue-700 active:bg-blue-800"
+        } disabled:opacity-60`}
+        onClick={handleCart}
       >
         <svg
           aria-hidden="true"
@@ -137,12 +195,19 @@ export function ProductActions({
             d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
           />
         </svg>
-        Add to Cart
+        {cartLabel}
       </button>
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 rounded-lg bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
-        onClick={() => onAddToList(name, upc)}
+        disabled={listState === "loading"}
+        className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold ring-1 transition-colors ${
+          listState === "done"
+            ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800"
+            : listState === "error"
+              ? "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-800"
+              : "bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
+        } disabled:opacity-60`}
+        onClick={handleList}
       >
         <svg
           aria-hidden="true"
@@ -158,7 +223,7 @@ export function ProductActions({
             d="M12 4.5v15m7.5-7.5h-15"
           />
         </svg>
-        List
+        {listLabel}
       </button>
     </div>
   );

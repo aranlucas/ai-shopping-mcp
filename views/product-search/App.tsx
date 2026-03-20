@@ -148,21 +148,27 @@ function ProductSearchView() {
 
   const { results, totalProducts } = data;
 
-  const handleAddToCart = (upc: string, qty: number) => {
-    callTool(app, {
+  const handleAddToCart = async (upc: string, qty: number) => {
+    const result = await callTool(app, {
       name: "add_to_cart",
       arguments: { items: [{ upc, quantity: qty, modality: "PICKUP" }] },
     });
+    if (result?.isError) {
+      throw new Error("Failed to add to cart");
+    }
   };
 
-  const handleAddToList = (name: string, upc: string) => {
-    callTool(app, {
+  const handleAddToList = async (name: string, upc: string) => {
+    const result = await callTool(app, {
       name: "manage_shopping_list",
       arguments: {
         action: "add",
         items: [{ productName: name, upc, quantity: 1 }],
       },
     });
+    if (result?.isError) {
+      throw new Error("Failed to add to list");
+    }
   };
 
   return (
