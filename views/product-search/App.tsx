@@ -15,10 +15,12 @@ import { useMcpView } from "../shared/use-mcp-view.js";
 
 function ProductCard({
   product,
+  canCallTools,
   onAddToCart,
   onAddToList,
 }: {
   product: ProductData;
+  canCallTools: boolean;
   onAddToCart: (upc: string, qty: number) => Promise<void>;
   onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
@@ -85,6 +87,7 @@ function ProductCard({
       <ProductActions
         upc={upc}
         name={name}
+        disabled={!canCallTools}
         onAddToCart={onAddToCart}
         onAddToList={onAddToList}
       />
@@ -93,7 +96,7 @@ function ProductCard({
 }
 
 function ProductSearchView() {
-  const { data, app, isConnected, error } =
+  const { data, app, isConnected, canCallTools, error } =
     useMcpView<ProductSearchResultsContent>(
       "product-search",
       (sc) => !!sc?.results,
@@ -221,6 +224,7 @@ function ProductSearchView() {
                   product={product}
                   onAddToCart={handleAddToCart}
                   onAddToList={handleAddToList}
+                  canCallTools={canCallTools}
                 />
               ))}
             </div>

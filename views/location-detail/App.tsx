@@ -6,10 +6,11 @@ import type { LocationDetailContent } from "../shared/types.js";
 import { useMcpView } from "../shared/use-mcp-view.js";
 
 function LocationDetailView() {
-  const { data, app, isConnected, error } = useMcpView<LocationDetailContent>(
-    "location-detail",
-    (sc) => !!sc?.location,
-  );
+  const { data, app, isConnected, canCallTools, error } =
+    useMcpView<LocationDetailContent>(
+      "location-detail",
+      (sc) => !!sc?.location,
+    );
 
   const [prefState, setPrefState] = useState<
     "idle" | "loading" | "done" | "error"
@@ -24,10 +25,10 @@ function LocationDetailView() {
   const handleSetPreferred = async () => {
     setPrefState("loading");
     try {
-      await app?.callServerTool({
-        name: "set_preferred_location",
-        arguments: { locationId: id },
-      });
+      await app?.callServerTool(
+        { name: "set_preferred_location", arguments: { locationId: id } },
+        { timeout: 15_000 },
+      );
       setPrefState("done");
     } catch {
       setPrefState("error");
@@ -164,7 +165,7 @@ function LocationDetailView() {
           <ActionButton
             state={prefState}
             onClick={handleSetPreferred}
-            disabled={prefState === "done"}
+            disabled={!canCallTools || prefState === "done"}
             idleLabel="Set as Preferred Store"
             loadingLabel="Saving..."
             doneLabel="Set as Preferred!"

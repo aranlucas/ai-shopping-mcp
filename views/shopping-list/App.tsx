@@ -11,9 +11,11 @@ import { useMcpView } from "../shared/use-mcp-view.js";
 
 function ShoppingItem({
   item,
+  canCallTools,
   onRemove,
 }: {
   item: ShoppingListItemData;
+  canCallTools: boolean;
   onRemove: (name: string) => Promise<void>;
 }) {
   const [removeState, setRemoveState] = useState<
@@ -100,6 +102,7 @@ function ShoppingItem({
         <ActionButton
           state={removeState}
           onClick={handleRemove}
+          disabled={!canCallTools}
           idleLabel=""
           loadingLabel=""
           doneLabel=""
@@ -128,7 +131,7 @@ function ShoppingItem({
 }
 
 function ShoppingListView() {
-  const { data, setData, app, isConnected, error } =
+  const { data, setData, app, isConnected, canCallTools, error } =
     useMcpView<ShoppingListContent>("shopping-list", (sc) => !!sc?.items);
 
   if (error) return <ErrorDisplay message={error.message} />;
@@ -219,6 +222,7 @@ function ShoppingListView() {
           <ShoppingItem
             key={item.productName}
             item={item}
+            canCallTools={canCallTools}
             onRemove={handleRemove}
           />
         ))}
