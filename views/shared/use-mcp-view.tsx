@@ -8,11 +8,11 @@ export interface McpViewResult<T> {
   /** Update data directly (e.g. after a mutation response). */
   setData: (data: T | null) => void;
   /** The MCP app instance for calling server tools. */
-  app: App | undefined;
+  app: App | null;
   /** Whether the app is connected to the host. */
   isConnected: boolean;
   /** Connection error, if any. */
-  error: Error | undefined;
+  error: Error | null;
 }
 
 /**

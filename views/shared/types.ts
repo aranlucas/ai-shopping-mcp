@@ -21,7 +21,7 @@ export type ToolCall =
  * Returns the Promise so callers can await results and handle errors.
  */
 export function callTool(
-  app: App | undefined,
+  app: App | null | undefined,
   call: ToolCall,
 ): Promise<CallToolResult> | undefined {
   return app?.callServerTool(call as Parameters<App["callServerTool"]>[0]);
