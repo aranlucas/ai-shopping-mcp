@@ -16,15 +16,21 @@ export type ToolCall =
   | { name: "add_to_cart"; arguments: AddToCartArgs }
   | { name: "manage_shopping_list"; arguments: ManageShoppingListArgs };
 
+/** Timeout for app-initiated callServerTool() calls (ms).
+ *  Without this, calls hang indefinitely when the host doesn't respond. */
+const TOOL_CALL_TIMEOUT_MS = 15_000;
+
 /**
- * Type-safe wrapper around app.callServerTool().
+ * Type-safe wrapper around app.callServerTool() with a timeout.
  * Returns the Promise so callers can await results and handle errors.
  */
 export function callTool(
   app: App | null | undefined,
   call: ToolCall,
 ): Promise<CallToolResult> | undefined {
-  return app?.callServerTool(call as Parameters<App["callServerTool"]>[0]);
+  return app?.callServerTool(call as Parameters<App["callServerTool"]>[0], {
+    timeout: TOOL_CALL_TIMEOUT_MS,
+  });
 }
 
 export interface DealData {

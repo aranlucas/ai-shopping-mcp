@@ -19,10 +19,8 @@ function StockBadge({ level }: { level: string | undefined }) {
 }
 
 function ProductDetailView() {
-  const { data, app, isConnected, error } = useMcpView<ProductDetailContent>(
-    "product-detail",
-    (sc) => !!sc?.product,
-  );
+  const { data, app, isConnected, canCallTools, error } =
+    useMcpView<ProductDetailContent>("product-detail", (sc) => !!sc?.product);
 
   const [cartState, setCartState] = useState<
     "idle" | "loading" | "done" | "error"
@@ -43,12 +41,13 @@ function ProductDetailView() {
     if (!upc) return;
     setCartState("loading");
     try {
-      const result = await app?.callServerTool({
-        name: "add_to_cart",
-        arguments: {
-          items: [{ upc, quantity: 1, modality: "PICKUP" }],
+      const result = await app?.callServerTool(
+        {
+          name: "add_to_cart",
+          arguments: { items: [{ upc, quantity: 1, modality: "PICKUP" }] },
         },
-      });
+        { timeout: 15_000 },
+      );
       if (result?.isError) throw new Error("Failed");
       setCartState("done");
       setTimeout(() => setCartState("idle"), 2000);
@@ -62,13 +61,16 @@ function ProductDetailView() {
     if (!upc) return;
     setListState("loading");
     try {
-      const result = await app?.callServerTool({
-        name: "manage_shopping_list",
-        arguments: {
-          action: "add",
-          items: [{ productName: name, upc, quantity: 1 }],
+      const result = await app?.callServerTool(
+        {
+          name: "manage_shopping_list",
+          arguments: {
+            action: "add",
+            items: [{ productName: name, upc, quantity: 1 }],
+          },
         },
-      });
+        { timeout: 15_000 },
+      );
       if (result?.isError) throw new Error("Failed");
       setListState("done");
       setTimeout(() => setListState("idle"), 2000);
@@ -103,6 +105,7 @@ function ProductDetailView() {
             <ActionButton
               state={cartState}
               onClick={handleAddToCart}
+              disabled={!canCallTools}
               idleLabel="Add to Cart"
               loadingLabel="Adding..."
               doneLabel="Added!"
@@ -127,6 +130,7 @@ function ProductDetailView() {
             <ActionButton
               state={listState}
               onClick={handleAddToList}
+              disabled={!canCallTools}
               idleLabel="Save to List"
               loadingLabel="Saving..."
               doneLabel="Saved!"

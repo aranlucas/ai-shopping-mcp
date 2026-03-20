@@ -219,11 +219,13 @@ export function ActionButton({
 export function ProductActions({
   upc,
   name,
+  disabled,
   onAddToCart,
   onAddToList,
 }: {
   upc: string | undefined;
   name: string;
+  disabled?: boolean;
   onAddToCart: (upc: string, qty: number) => Promise<void>;
   onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
@@ -265,6 +267,7 @@ export function ProductActions({
       <ActionButton
         state={cartState}
         onClick={handleCart}
+        disabled={disabled}
         idleLabel="Add to Cart"
         loadingLabel="Adding..."
         doneLabel="Added!"
@@ -289,6 +292,7 @@ export function ProductActions({
       <ActionButton
         state={listState}
         onClick={handleList}
+        disabled={disabled}
         idleLabel="Save"
         loadingLabel="Saving..."
         doneLabel="Saved!"

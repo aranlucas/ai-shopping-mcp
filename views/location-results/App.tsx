@@ -7,10 +7,12 @@ import { useMcpView } from "../shared/use-mcp-view.js";
 
 function LocationCard({
   location,
+  canCallTools,
   onSetPreferred,
   onViewDetails,
 }: {
   location: LocationData;
+  canCallTools: boolean;
   onSetPreferred: (id: string) => Promise<void>;
   onViewDetails: (id: string) => Promise<void>;
 }) {
@@ -134,7 +136,7 @@ function LocationCard({
         <ActionButton
           state={prefState}
           onClick={handleSetPreferred}
-          disabled={prefState === "done"}
+          disabled={!canCallTools || prefState === "done"}
           idleLabel="Set Preferred"
           loadingLabel="Saving..."
           doneLabel="Preferred!"
@@ -159,6 +161,7 @@ function LocationCard({
         <ActionButton
           state={detailState}
           onClick={handleViewDetails}
+          disabled={!canCallTools}
           idleLabel="Details"
           loadingLabel="Loading..."
           doneLabel="Done"
@@ -171,10 +174,11 @@ function LocationCard({
 }
 
 function LocationResultsView() {
-  const { data, app, isConnected, error } = useMcpView<LocationResultsContent>(
-    "location-results",
-    (sc) => !!sc?.locations,
-  );
+  const { data, app, isConnected, canCallTools, error } =
+    useMcpView<LocationResultsContent>(
+      "location-results",
+      (sc) => !!sc?.locations,
+    );
 
   if (error) return <ErrorDisplay message={error.message} />;
   if (!isConnected || !data) return <Loading />;
@@ -217,20 +221,20 @@ function LocationResultsView() {
   }
 
   const handleSetPreferred = async (id: string) => {
-    const result = await app?.callServerTool({
-      name: "set_preferred_location",
-      arguments: { locationId: id },
-    });
+    const result = await app?.callServerTool(
+      { name: "set_preferred_location", arguments: { locationId: id } },
+      { timeout: 15_000 },
+    );
     if (result?.isError) {
       throw new Error("Failed to set preferred location");
     }
   };
 
   const handleViewDetails = async (id: string) => {
-    const result = await app?.callServerTool({
-      name: "get_location_details",
-      arguments: { locationId: id },
-    });
+    const result = await app?.callServerTool(
+      { name: "get_location_details", arguments: { locationId: id } },
+      { timeout: 15_000 },
+    );
     if (result?.isError) {
       throw new Error("Failed to load details");
     }
@@ -251,6 +255,7 @@ function LocationResultsView() {
           <LocationCard
             key={loc.locationId}
             location={loc}
+            canCallTools={canCallTools}
             onSetPreferred={handleSetPreferred}
             onViewDetails={handleViewDetails}
           />

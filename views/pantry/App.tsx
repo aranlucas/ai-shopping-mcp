@@ -28,9 +28,11 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
 
 function PantryItemRow({
   item,
+  canCallTools,
   onRemove,
 }: {
   item: PantryItemData;
+  canCallTools: boolean;
   onRemove: (name: string) => Promise<void>;
 }) {
   const [removeState, setRemoveState] = useState<
@@ -100,6 +102,7 @@ function PantryItemRow({
       <ActionButton
         state={removeState}
         onClick={handleRemove}
+        disabled={!canCallTools}
         idleLabel=""
         loadingLabel=""
         doneLabel=""
@@ -127,7 +130,7 @@ function PantryItemRow({
 }
 
 function PantryView() {
-  const { data, setData, app, isConnected, error } =
+  const { data, setData, app, isConnected, canCallTools, error } =
     useMcpView<PantryListContent>("pantry", (sc) => !!sc?.items);
 
   if (error) return <ErrorDisplay message={error.message} />;
@@ -175,10 +178,13 @@ function PantryView() {
   });
 
   const handleRemove = async (name: string) => {
-    const result = await app?.callServerTool({
-      name: "manage_pantry",
-      arguments: { action: "remove", productName: name },
-    });
+    const result = await app?.callServerTool(
+      {
+        name: "manage_pantry",
+        arguments: { action: "remove", productName: name },
+      },
+      { timeout: 15_000 },
+    );
     if (result?.isError) {
       throw new Error("Failed to remove item");
     }
@@ -232,6 +238,7 @@ function PantryView() {
           <PantryItemRow
             key={item.productName}
             item={item}
+            canCallTools={canCallTools}
             onRemove={handleRemove}
           />
         ))}

@@ -2,6 +2,10 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 
+/** Timeout for app-initiated tool calls (ms). Prevents indefinite hangs when
+ *  the host supports serverTools but is slow or unresponsive. */
+export const TOOL_CALL_TIMEOUT_MS = 15_000;
+
 export interface McpViewResult<T> {
   /** The structured content data, null until received from host. */
   data: T | null;
@@ -11,6 +15,9 @@ export interface McpViewResult<T> {
   app: App | null;
   /** Whether the app is connected to the host. */
   isConnected: boolean;
+  /** Whether the host supports app-initiated server tool calls.
+   *  Buttons that use callServerTool should be disabled when false. */
+  canCallTools: boolean;
   /** Connection error, if any. */
   error: Error | null;
 }
@@ -45,5 +52,9 @@ export function useMcpView<T>(
 
   useHostStyles(app, app?.getHostContext());
 
-  return { data, setData, app, isConnected, error };
+  // serverTools capability is required for app-initiated callServerTool() calls.
+  // If the host doesn't advertise it, tool calls will hang until timeout.
+  const canCallTools = isConnected && !!app?.getHostCapabilities()?.serverTools;
+
+  return { data, setData, app, isConnected, canCallTools, error };
 }

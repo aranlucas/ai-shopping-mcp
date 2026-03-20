@@ -7,9 +7,11 @@ import { useMcpView } from "../shared/use-mcp-view.js";
 
 function DealCard({
   deal,
+  canCallTools,
   onSearch,
 }: {
   deal: DealData;
+  canCallTools: boolean;
   onSearch: (title: string) => Promise<void>;
 }) {
   const [searchState, setSearchState] = useState<
@@ -55,6 +57,7 @@ function DealCard({
         <ActionButton
           state={searchState}
           onClick={handleSearch}
+          disabled={!canCallTools}
           idleLabel="Search Product"
           loadingLabel="Searching..."
           doneLabel="Done!"
@@ -82,10 +85,8 @@ function DealCard({
 }
 
 function WeeklyDealsView() {
-  const { data, app, isConnected, error } = useMcpView<WeeklyDealsContent>(
-    "weekly-deals",
-    (sc) => !!sc?.deals,
-  );
+  const { data, app, isConnected, canCallTools, error } =
+    useMcpView<WeeklyDealsContent>("weekly-deals", (sc) => !!sc?.deals);
 
   if (error) return <ErrorDisplay message={error.message} />;
   if (!isConnected || !data) return <Loading />;
@@ -128,10 +129,10 @@ function WeeklyDealsView() {
   }
 
   const handleSearch = async (title: string) => {
-    const result = await app?.callServerTool({
-      name: "search_products",
-      arguments: { terms: [title] },
-    });
+    const result = await app?.callServerTool(
+      { name: "search_products", arguments: { terms: [title] } },
+      { timeout: 15_000 },
+    );
     if (result?.isError) {
       throw new Error("Failed to search product");
     }
@@ -154,7 +155,12 @@ function WeeklyDealsView() {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {deals.map((deal) => (
-          <DealCard key={deal.title} deal={deal} onSearch={handleSearch} />
+          <DealCard
+            key={deal.title}
+            deal={deal}
+            canCallTools={canCallTools}
+            onSearch={handleSearch}
+          />
         ))}
       </div>
     </div>
