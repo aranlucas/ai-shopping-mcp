@@ -47,11 +47,14 @@ export function toMcpError(error: AppError): McpToolResult {
 // --- API Call Wrappers ---
 
 /**
- * Wraps an openapi-fetch response { data, error } into a ResultAsync.
- * Handles the common pattern of checking error, then checking data existence.
+ * Wraps an openapi-fetch response into a ResultAsync.
+ *
+ * Uses `response.ok` to determine success, so 204 No Content responses are
+ * handled correctly without any extra flags — `T` is inferred as `undefined`
+ * for endpoints that return no body.
  */
 export function fromApiResponse<T>(
-  promise: Promise<{ data?: T; error?: unknown }>,
+  promise: Promise<{ data?: T; error?: unknown; response: Response }>,
   context: string,
 ): ResultAsync<T, AppError> {
   return ResultAsync.fromPromise(promise, (e) =>
@@ -59,35 +62,11 @@ export function fromApiResponse<T>(
       `${context}: ${e instanceof Error ? e.message : String(e)}`,
       e,
     ),
-  ).andThen(({ data, error }) => {
-    if (error) {
+  ).andThen(({ data, error, response }) => {
+    if (error || !response.ok) {
       return err(apiError(`Failed to ${context}`, error));
     }
-    if (data === undefined || data === null) {
-      return err(notFoundError(`No data returned from ${context}`));
-    }
-    return ok(data);
-  });
-}
-
-/**
- * Wraps an openapi-fetch response for endpoints that return 204 No Content.
- * Unlike fromApiResponse, this does NOT treat missing data as an error.
- */
-export function fromApiResponseNoContent(
-  promise: Promise<{ data?: unknown; error?: unknown }>,
-  context: string,
-): ResultAsync<undefined, AppError> {
-  return ResultAsync.fromPromise(promise, (e) =>
-    networkError(
-      `${context}: ${e instanceof Error ? e.message : String(e)}`,
-      e,
-    ),
-  ).andThen(({ error }) => {
-    if (error) {
-      return err(apiError(`Failed to ${context}`, error));
-    }
-    return ok(undefined as undefined);
+    return ok(data as T);
   });
 }
 
