@@ -34,18 +34,18 @@ function DealCard({
   };
 
   return (
-    <div className="bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 dark:bg-gray-800/80 dark:border-gray-700/60 dark:hover:border-gray-600/80 flex flex-col">
+    <div className="bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 flex flex-col">
       <div className="flex-1">
-        <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 leading-snug">
+        <div className="font-semibold text-sm text-gray-900 leading-snug">
           {deal.title}
         </div>
         {deal.details && (
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
+          <div className="text-xs text-gray-500 mt-0.5 leading-relaxed">
             {deal.details}
           </div>
         )}
         <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+          <span className="text-base font-bold text-emerald-600">
             {deal.price || "See ad"}
           </span>
           {deal.savings && (
@@ -55,7 +55,7 @@ function DealCard({
           )}
         </div>
       </div>
-      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+      <div className="mt-3 pt-3 border-t border-gray-100">
         <ActionButton
           state={searchState}
           onClick={handleSearch}
@@ -108,7 +108,7 @@ export function WeeklyDealsView({
   if (deals.length === 0) {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight mb-1">
+        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">
           Weekly Deals
         </h1>
         <EmptyState

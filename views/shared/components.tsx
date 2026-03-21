@@ -4,15 +4,12 @@ import React from "react";
 import type { ProductData } from "./types.js";
 
 const badgeVariants = {
-  green:
-    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-400/20",
-  red: "bg-red-50 text-red-700 ring-1 ring-red-600/20 dark:bg-red-950 dark:text-red-300 dark:ring-red-400/20",
-  yellow:
-    "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-400/20",
-  blue: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-400/20",
-  gray: "bg-gray-100 text-gray-600 ring-1 ring-gray-500/20 dark:bg-gray-700 dark:text-gray-300 dark:ring-gray-400/20",
-  purple:
-    "bg-purple-50 text-purple-700 ring-1 ring-purple-600/20 dark:bg-purple-950 dark:text-purple-300 dark:ring-purple-400/20",
+  green: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
+  red: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
+  yellow: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
+  blue: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
+  gray: "bg-gray-100 text-gray-600 ring-1 ring-gray-500/20",
+  purple: "bg-purple-50 text-purple-700 ring-1 ring-purple-600/20",
 } as const;
 
 export function Badge({
@@ -43,16 +40,12 @@ export function SectionHeader({
   return (
     <div className="mb-5">
       <div className="flex items-center gap-2.5">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+        <h1 className="text-lg font-bold text-gray-900 tracking-tight">
           {title}
         </h1>
         {badge}
       </div>
-      {subtitle && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          {subtitle}
-        </p>
-      )}
+      {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
     </div>
   );
 }
@@ -65,23 +58,23 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   if (item.fulfillment.curbside)
     tags.push({
       label: "Pickup",
-      cls: "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
+      cls: "bg-blue-50 text-blue-700",
     });
   if (item.fulfillment.delivery)
     tags.push({
       label: "Delivery",
-      cls: "bg-pink-50 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300",
+      cls: "bg-pink-50 text-pink-700",
     });
   if (item.fulfillment.instore)
     tags.push({
       label: "In-Store",
-      cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+      cls: "bg-emerald-50 text-emerald-700",
     });
 
   if (tags.length === 0) {
     return (
       <div className="flex flex-wrap gap-1 mt-2">
-        <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400 ring-1 ring-red-600/10">
+        <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold bg-red-50 text-red-600 ring-1 ring-red-600/10">
           Out of Stock
         </span>
       </div>
@@ -105,23 +98,19 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
 export function PriceDisplay({ product }: { product: ProductData }) {
   const item = product.items?.[0];
   if (!item?.price?.regular) {
-    return (
-      <span className="text-xs text-gray-400 dark:text-gray-500">
-        Price unavailable
-      </span>
-    );
+    return <span className="text-xs text-gray-400">Price unavailable</span>;
   }
   const { regular, promo } = item.price;
   const hasPromo = promo != null && promo !== regular;
 
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+      <span className="text-base font-bold text-emerald-600">
         ${hasPromo ? promo?.toFixed(2) : regular?.toFixed(2)}
       </span>
       {hasPromo && (
         <>
-          <span className="text-xs text-gray-400 dark:text-gray-500 line-through">
+          <span className="text-xs text-gray-400 line-through">
             ${regular?.toFixed(2)}
           </span>
           <span className="inline-flex items-center rounded bg-red-500 px-1 py-px text-[10px] font-bold text-white leading-tight">
@@ -172,10 +161,10 @@ export function ActionButton({
 
   const secondaryCls =
     state === "done"
-      ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800"
+      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
       : state === "error"
-        ? "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/50 dark:text-red-300 dark:ring-red-800"
-        : "bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 active:bg-gray-200 dark:bg-gray-700/50 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-700";
+        ? "bg-red-50 text-red-700 ring-red-200"
+        : "bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 active:bg-gray-200";
 
   return (
     <button
@@ -276,7 +265,7 @@ export function ProductActions({
   };
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+    <div className="mt-3 pt-3 border-t border-gray-100">
       <div className="flex gap-2">
         <ActionButton
           state={cartState}
@@ -330,7 +319,7 @@ export function ProductActions({
         />
       </div>
       {errorMsg && (
-        <div className="mt-1.5 text-[11px] text-red-600 dark:text-red-400 leading-tight">
+        <div className="mt-1.5 text-[11px] text-red-600 leading-tight">
           {errorMsg}
         </div>
       )}

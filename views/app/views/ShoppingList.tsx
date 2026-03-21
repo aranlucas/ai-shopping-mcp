@@ -36,10 +36,10 @@ function ShoppingItem({
 
   return (
     <div
-      className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border transition-all duration-150 ${item.checked ? "bg-gray-50/50 border-gray-100 dark:bg-gray-800/30 dark:border-gray-700/30" : "bg-white border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60"} ${isDimmed ? "opacity-50" : ""}`}
+      className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border transition-all duration-150 ${item.checked ? "bg-gray-50/50 border-gray-100" : "bg-white border-gray-200/60 shadow-sm"} ${isDimmed ? "opacity-50" : ""}`}
     >
       <div
-        className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${item.checked ? "bg-emerald-500 border-emerald-500 dark:bg-emerald-600 dark:border-emerald-600" : "border-gray-300 dark:border-gray-600"}`}
+        className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${item.checked ? "bg-emerald-500 border-emerald-500" : "border-gray-300"}`}
       >
         {item.checked && (
           <svg
@@ -60,21 +60,19 @@ function ShoppingItem({
       </div>
       <div className="flex-1 min-w-0">
         <div
-          className={`text-sm font-medium leading-snug ${item.checked ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
+          className={`text-sm font-medium leading-snug ${item.checked ? "line-through text-gray-400" : "text-gray-900"}`}
         >
           {item.productName}
         </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <span className="text-xs text-gray-400 dark:text-gray-500">
-            &times;{item.quantity}
-          </span>
+          <span className="text-xs text-gray-400">&times;{item.quantity}</span>
           {item.upc ? (
             <Badge variant="green">UPC</Badge>
           ) : (
             <Badge variant="yellow">No UPC</Badge>
           )}
           {item.notes && (
-            <span className="text-xs text-gray-400 dark:text-gray-500 italic truncate max-w-32">
+            <span className="text-xs text-gray-400 italic truncate max-w-32">
               {item.notes}
             </span>
           )}
@@ -140,7 +138,7 @@ export function ShoppingListView({
   if (items.length === 0) {
     return (
       <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight mb-1">
+        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">
           Shopping List
         </h1>
         <EmptyState
@@ -200,7 +198,7 @@ export function ShoppingListView({
       </div>
       {checked.length > 0 && (
         <div className="mt-6">
-          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
             In Cart ({checked.length})
           </p>
           <div className="space-y-1.5">
