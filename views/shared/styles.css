@@ -5,13 +5,11 @@
    2. Fall back to prefers-color-scheme: dark when the host hasn't sent a theme yet
       (covers the initial render before onhostcontextchanged fires) */
 @variant dark {
-  &:where([data-theme="dark"], .dark, [data-theme="dark"] *, .dark *) {
+  &:where([data-theme="dark"] *, .dark *) {
     @slot;
   }
   @media (prefers-color-scheme: dark) {
-    &:not(
-        :where([data-theme="light"], .light, [data-theme="light"] *, .light *)
-      ) {
+    &:not(:where([data-theme="light"] *, .light *)) {
       @slot;
     }
   }
@@ -29,75 +27,52 @@
   --color-success: #059669;
 }
 
-@layer base {
-  /* Remap Tailwind's surface color tokens to host CSS variables.
-     Defined in @layer base so they override @layer theme defaults.
-     Host sets --color-background-* / --color-text-* as inline styles on
-     document.documentElement via useHostStyleVariables(), which takes the
-     highest cascade priority and automatically overrides these. */
-  :root {
-    /* Card/surface backgrounds */
-    --color-white: var(--color-background-secondary, #ffffff);
-    --color-gray-800: var(
-      --color-background-secondary,
-      oklch(0.278 0.033 256.848)
-    );
+/* Remap Tailwind's surface color tokens to host CSS variables.
+   Host sets --color-background-* / --color-text-* as inline styles on
+   document.documentElement via useHostStyleVariables(), which takes the
+   highest cascade priority and automatically overrides these.
+   Using plain rules (no @layer) for broadest Android compatibility. */
+:root {
+  /* Card/surface backgrounds */
+  --color-white: var(--color-background-secondary, #ffffff);
+  --color-gray-800: var(--color-background-secondary, #374151);
 
-    /* Page/app backgrounds */
-    --color-gray-50: var(
-      --color-background-primary,
-      oklch(0.985 0.002 247.839)
-    );
-    --color-gray-950: var(
-      --color-background-primary,
-      oklch(0.145 0.028 261.326)
-    );
+  /* Page/app backgrounds */
+  --color-gray-50: var(--color-background-primary, #f9fafb);
+  --color-gray-950: var(--color-background-primary, #030712);
 
-    /* Subtle element backgrounds (icon containers, badges) */
-    --color-gray-100: var(
-      --color-background-tertiary,
-      oklch(0.967 0.001 286.375)
-    );
+  /* Subtle element backgrounds (icon containers, badges) */
+  --color-gray-100: var(--color-background-tertiary, #f3f4f6);
 
-    /* Border radius from host */
-    --radius-card: var(--border-radius-lg, 0.75rem);
-    --radius-btn: var(--border-radius-md, 0.5rem);
-    --radius-badge: var(--border-radius-full, 9999px);
-  }
+  /* Border radius from host */
+  --radius-card: var(--border-radius-lg, 0.75rem);
+  --radius-btn: var(--border-radius-md, 0.5rem);
+  --radius-badge: var(--border-radius-full, 9999px);
+}
 
-  body {
-    /* Directly reference host background var.
-       light-dark() fallback works because useHostStyleVariables sets color-scheme on :root. */
-    background-color: var(
-      --color-background-primary,
-      light-dark(oklch(0.985 0.002 247.839), oklch(0.145 0.028 261.326))
-    );
-    /* Directly reference host text color var */
-    color: var(
-      --color-text-primary,
-      light-dark(oklch(0.21 0.034 264.665), oklch(0.985 0.002 247.839))
-    );
-    /* Host font stack */
-    font-family: var(
-      --font-sans,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      Roboto,
-      sans-serif
-    );
-    font-weight: var(--font-weight-normal, 400);
-    @apply leading-relaxed antialiased;
-  }
+body {
+  /* Directly reference host background var with simple hex fallback */
+  background-color: var(--color-background-primary, #f9fafb);
+  /* Directly reference host text color var */
+  color: var(--color-text-primary, #1e293b);
+  /* Host font stack */
+  font-family: var(
+    --font-sans,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif
+  );
+  font-weight: var(--font-weight-normal, 400);
+  @apply leading-relaxed antialiased;
 }
 
 /* Subtle scrollbar */
-@layer base {
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: #d1d5db transparent;
-  }
-  :where([data-theme="dark"], .dark) * {
-    scrollbar-color: #374151 transparent;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+:where([data-theme="dark"], .dark) * {
+  scrollbar-color: #374151 transparent;
 }
