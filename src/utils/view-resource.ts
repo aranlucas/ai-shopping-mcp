@@ -1,16 +1,17 @@
 /**
  * MCP Apps resource helper for serving Vite-built Views from the ASSETS binding.
  *
- * Each View is a self-contained HTML file (built by Vite + vite-plugin-singlefile)
- * that uses @modelcontextprotocol/ext-apps/react to receive tool results
- * via ontoolresult and render them client-side.
+ * A single unified View HTML file (built by Vite + vite-plugin-singlefile)
+ * uses @modelcontextprotocol/ext-apps/react to receive tool results
+ * via ontoolresult and render them client-side.  The view routes internally
+ * based on hostContext.toolInfo.tool.name.
  *
  * Flow:
- *  1. At init: registerViewResource registers a resource backed by ASSETS
+ *  1. At init: registerViewResource registers a single resource backed by ASSETS
  *  2. At tool call: tool returns structuredContent (JSON data)
  *  3. Host fetches the resource → ASSETS.fetch() returns the built HTML
  *  4. Host renders iframe with the HTML, passes tool result via ontoolresult
- *  5. Client-side React in the iframe renders the structuredContent
+ *  5. Client-side React in the iframe routes to the correct view component
  */
 
 import {
@@ -20,6 +21,9 @@ import {
 import type { ToolContext } from "../tools/types.js";
 
 export { RESOURCE_MIME_TYPE };
+
+/** Single resource URI shared by all app tools. */
+export const APP_VIEW_URI = "ui://shopping-app";
 
 const ERROR_HTML = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/></head>

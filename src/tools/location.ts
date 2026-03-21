@@ -14,15 +14,11 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
-import { registerViewResource } from "../utils/view-resource.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import type { ToolContext } from "./types.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
-
-  // Two-part registration: tool + resource, tied together by the resource URI.
-  const locationResultsUri = "ui://location-results";
-  registerViewResource(ctx, locationResultsUri, "location-results/index.html");
 
   registerAppTool(
     ctx.server,
@@ -37,7 +33,7 @@ export function registerLocationTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: locationResultsUri } },
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         zipCodeNear: z
           .string()
@@ -86,9 +82,6 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  const locationDetailsUri = "ui://location-details";
-  registerViewResource(ctx, locationDetailsUri, "location-detail/index.html");
-
   registerAppTool(
     ctx.server,
     "get_location_details",
@@ -102,7 +95,7 @@ export function registerLocationTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: locationDetailsUri } },
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         locationId: z.string().length(8, {
           message: "Location ID must be exactly 8 characters long",

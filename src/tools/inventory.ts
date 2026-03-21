@@ -13,13 +13,10 @@ import type {
   OrderRecord,
   PantryItem,
 } from "../utils/user-storage.js";
-import { registerViewResource } from "../utils/view-resource.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
-  const pantryUri = "ui://pantry";
-  registerViewResource(ctx, pantryUri, "pantry/index.html");
-
   registerAppTool(
     ctx.server,
     "manage_pantry",
@@ -33,7 +30,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: false,
       },
-      _meta: { ui: { resourceUri: pantryUri } },
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         action: z
           .enum(["add", "remove", "clear"])

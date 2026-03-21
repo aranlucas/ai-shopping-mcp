@@ -14,11 +14,15 @@ import type {
 /** Discriminated union of all callable tools — enables type-safe callTool(). */
 export type ToolCall =
   | { name: "add_to_cart"; arguments: AddToCartArgs }
-  | { name: "manage_shopping_list"; arguments: ManageShoppingListArgs };
+  | { name: "manage_shopping_list"; arguments: ManageShoppingListArgs }
+  | { name: "manage_pantry"; arguments: Record<string, unknown> }
+  | { name: "set_preferred_location"; arguments: { locationId: string } }
+  | { name: "get_location_details"; arguments: { locationId: string } }
+  | { name: "search_products"; arguments: { terms: string[] } };
 
 /** Timeout for app-initiated callServerTool() calls (ms).
  *  Without this, calls hang indefinitely when the host doesn't respond. */
-const TOOL_CALL_TIMEOUT_MS = 15_000;
+export const TOOL_CALL_TIMEOUT_MS = 15_000;
 
 /**
  * Type-safe wrapper around app.callServerTool() with a timeout.

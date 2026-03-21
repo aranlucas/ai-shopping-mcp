@@ -18,6 +18,7 @@ import { registerShoppingListTools } from "./tools/shopping-list.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { createUserStorage } from "./utils/user-storage.js";
+import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
   server = new McpServer(
@@ -50,7 +51,10 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
     };
 
-    // Register all MCP features (each tool file co-locates registerAppTool + registerAppResource)
+    // Register the single unified View resource (all app tools share this one UI)
+    registerViewResource(ctx, APP_VIEW_URI, "app/index.html");
+
+    // Register all MCP features
     registerPrompts(this.server);
     registerCartTools(ctx);
     registerLocationTools(ctx);

@@ -1,13 +1,12 @@
+import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
-import { createRoot } from "react-dom/client";
-import { ActionButton, Badge } from "../shared/components.js";
-import { EmptyState, ErrorDisplay, Loading } from "../shared/status.js";
+import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
+import { EmptyState } from "../../shared/status.js";
 import {
   callTool,
   type ShoppingListContent,
   type ShoppingListItemData,
-} from "../shared/types.js";
-import { useMcpView } from "../shared/use-mcp-view.js";
+} from "../../shared/types.js";
 
 function ShoppingItem({
   item,
@@ -37,19 +36,10 @@ function ShoppingItem({
 
   return (
     <div
-      className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border transition-all duration-150 ${
-        item.checked
-          ? "bg-gray-50/50 border-gray-100 dark:bg-gray-800/30 dark:border-gray-700/30"
-          : "bg-white border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60"
-      } ${isDimmed ? "opacity-50" : ""}`}
+      className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border transition-all duration-150 ${item.checked ? "bg-gray-50/50 border-gray-100 dark:bg-gray-800/30 dark:border-gray-700/30" : "bg-white border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60"} ${isDimmed ? "opacity-50" : ""}`}
     >
-      {/* Checkbox visual */}
       <div
-        className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-          item.checked
-            ? "bg-emerald-500 border-emerald-500 dark:bg-emerald-600 dark:border-emerald-600"
-            : "border-gray-300 dark:border-gray-600"
-        }`}
+        className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${item.checked ? "bg-emerald-500 border-emerald-500 dark:bg-emerald-600 dark:border-emerald-600" : "border-gray-300 dark:border-gray-600"}`}
       >
         {item.checked && (
           <svg
@@ -68,21 +58,15 @@ function ShoppingItem({
           </svg>
         )}
       </div>
-
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <div
-          className={`text-sm font-medium leading-snug ${
-            item.checked
-              ? "line-through text-gray-400 dark:text-gray-500"
-              : "text-gray-900 dark:text-gray-100"
-          }`}
+          className={`text-sm font-medium leading-snug ${item.checked ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
         >
           {item.productName}
         </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <span className="text-xs text-gray-400 dark:text-gray-500">
-            ×{item.quantity}
+            &times;{item.quantity}
           </span>
           {item.upc ? (
             <Badge variant="green">UPC</Badge>
@@ -96,8 +80,6 @@ function ShoppingItem({
           )}
         </div>
       </div>
-
-      {/* Remove button */}
       {!item.checked && (
         <ActionButton
           state={removeState}
@@ -130,13 +112,17 @@ function ShoppingItem({
   );
 }
 
-function ShoppingListView() {
-  const { data, setData, app, isConnected, canCallTools, error } =
-    useMcpView<ShoppingListContent>("shopping-list", (sc) => !!sc?.items);
-
-  if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
-
+export function ShoppingListView({
+  data,
+  setData,
+  app,
+  canCallTools,
+}: {
+  data: ShoppingListContent;
+  setData: (data: unknown) => void;
+  app: App | null;
+  canCallTools: boolean;
+}) {
   const { items, actionDetail } = data;
 
   const handleRemove = async (name: string) => {
@@ -144,15 +130,11 @@ function ShoppingListView() {
       name: "manage_shopping_list",
       arguments: { action: "remove", productName: name },
     });
-    if (result?.isError) {
-      throw new Error("Failed to remove item");
-    }
+    if (result?.isError) throw new Error("Failed to remove item");
     const updated = result?.structuredContent as
       | ShoppingListContent
       | undefined;
-    if (updated?.items) {
-      setData(updated);
-    }
+    if (updated?.items) setData(updated);
   };
 
   if (items.length === 0) {
@@ -192,21 +174,11 @@ function ShoppingListView() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <div className="mb-4">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-            Shopping List
-          </h1>
-          <Badge variant="blue">{unchecked.length} to buy</Badge>
-        </div>
-        {actionDetail && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {actionDetail}
-          </p>
-        )}
-      </div>
-
-      {/* Summary row */}
+      <SectionHeader
+        title="Shopping List"
+        badge={<Badge variant="blue">{unchecked.length} to buy</Badge>}
+        subtitle={actionDetail}
+      />
       <div className="flex gap-1.5 mb-4 flex-wrap">
         <Badge variant="green">{withUpc.length} ready</Badge>
         {withoutUpc.length > 0 && (
@@ -216,7 +188,6 @@ function ShoppingListView() {
           <Badge variant="gray">{checked.length} in cart</Badge>
         )}
       </div>
-
       <div className="space-y-1.5">
         {unchecked.map((item) => (
           <ShoppingItem
@@ -227,7 +198,6 @@ function ShoppingListView() {
           />
         ))}
       </div>
-
       {checked.length > 0 && (
         <div className="mt-6">
           <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
@@ -238,6 +208,7 @@ function ShoppingListView() {
               <ShoppingItem
                 key={item.productName}
                 item={item}
+                canCallTools={canCallTools}
                 onRemove={handleRemove}
               />
             ))}
@@ -247,7 +218,3 @@ function ShoppingListView() {
     </div>
   );
 }
-
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <ShoppingListView />,
-);

@@ -1,9 +1,12 @@
+import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
-import { createRoot } from "react-dom/client";
-import { ActionButton, Badge } from "../shared/components.js";
-import { EmptyState, ErrorDisplay, Loading } from "../shared/status.js";
-import type { LocationData, LocationResultsContent } from "../shared/types.js";
-import { useMcpView } from "../shared/use-mcp-view.js";
+import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
+import { EmptyState } from "../../shared/status.js";
+import {
+  callTool,
+  type LocationData,
+  type LocationResultsContent,
+} from "../../shared/types.js";
 
 function LocationCard({
   location,
@@ -48,7 +51,6 @@ function LocationCard({
 
   return (
     <div className="bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 dark:bg-gray-800/80 dark:border-gray-700/60 dark:hover:border-gray-600/80">
-      {/* Store header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
           <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 leading-snug">
@@ -77,8 +79,6 @@ function LocationCard({
           </svg>
         </div>
       </div>
-
-      {/* Address */}
       {location.address && (
         <div className="text-xs text-gray-500 dark:text-gray-400 flex items-start gap-1.5 mb-1.5">
           <svg
@@ -106,8 +106,6 @@ function LocationCard({
           </span>
         </div>
       )}
-
-      {/* Phone */}
       {location.phone && (
         <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-2">
           <svg
@@ -127,11 +125,9 @@ function LocationCard({
           {location.phone}
         </div>
       )}
-
       <div className="text-[10px] text-gray-300 dark:text-gray-600 font-mono mb-3">
         ID: {id}
       </div>
-
       <div className="flex gap-2 pt-3 border-t border-gray-100 dark:border-gray-700/50">
         <ActionButton
           state={prefState}
@@ -173,17 +169,32 @@ function LocationCard({
   );
 }
 
-function LocationResultsView() {
-  const { data, app, isConnected, canCallTools, error } =
-    useMcpView<LocationResultsContent>(
-      "location-results",
-      (sc) => !!sc?.locations,
-    );
-
-  if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
-
+export function LocationResultsView({
+  data,
+  app,
+  canCallTools,
+}: {
+  data: LocationResultsContent;
+  app: App | null;
+  canCallTools: boolean;
+}) {
   const { locations } = data;
+
+  const handleSetPreferred = async (id: string) => {
+    const result = await callTool(app, {
+      name: "set_preferred_location",
+      arguments: { locationId: id },
+    });
+    if (result?.isError) throw new Error("Failed to set preferred location");
+  };
+
+  const handleViewDetails = async (id: string) => {
+    const result = await callTool(app, {
+      name: "get_location_details",
+      arguments: { locationId: id },
+    });
+    if (result?.isError) throw new Error("Failed to load details");
+  };
 
   if (locations.length === 0) {
     return (
@@ -220,36 +231,12 @@ function LocationResultsView() {
     );
   }
 
-  const handleSetPreferred = async (id: string) => {
-    const result = await app?.callServerTool(
-      { name: "set_preferred_location", arguments: { locationId: id } },
-      { timeout: 15_000 },
-    );
-    if (result?.isError) {
-      throw new Error("Failed to set preferred location");
-    }
-  };
-
-  const handleViewDetails = async (id: string) => {
-    const result = await app?.callServerTool(
-      { name: "get_location_details", arguments: { locationId: id } },
-      { timeout: 15_000 },
-    );
-    if (result?.isError) {
-      throw new Error("Failed to load details");
-    }
-  };
-
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <div className="mb-5">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-            Store Locations
-          </h1>
-          <Badge variant="blue">{locations.length} found</Badge>
-        </div>
-      </div>
+      <SectionHeader
+        title="Store Locations"
+        badge={<Badge variant="blue">{locations.length} found</Badge>}
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {locations.map((loc) => (
           <LocationCard
@@ -264,7 +251,3 @@ function LocationResultsView() {
     </div>
   );
 }
-
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <LocationResultsView />,
-);

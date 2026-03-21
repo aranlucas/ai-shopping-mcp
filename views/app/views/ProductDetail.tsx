@@ -1,14 +1,12 @@
+import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
-import { createRoot } from "react-dom/client";
 import {
   ActionButton,
   Badge,
   FulfillmentTags,
   PriceDisplay,
-} from "../shared/components.js";
-import { ErrorDisplay, Loading } from "../shared/status.js";
-import type { ProductDetailContent } from "../shared/types.js";
-import { useMcpView } from "../shared/use-mcp-view.js";
+} from "../../shared/components.js";
+import { callTool, type ProductDetailContent } from "../../shared/types.js";
 
 function StockBadge({ level }: { level: string | undefined }) {
   if (!level) return null;
@@ -18,19 +16,21 @@ function StockBadge({ level }: { level: string | undefined }) {
   return <Badge variant="green">In Stock</Badge>;
 }
 
-function ProductDetailView() {
-  const { data, app, isConnected, canCallTools, error } =
-    useMcpView<ProductDetailContent>("product-detail", (sc) => !!sc?.product);
-
+export function ProductDetailView({
+  data,
+  app,
+  canCallTools,
+}: {
+  data: ProductDetailContent;
+  app: App | null;
+  canCallTools: boolean;
+}) {
   const [cartState, setCartState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
   const [listState, setListState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
-
-  if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
 
   const { product } = data;
   const name = product.description || "Unknown Product";
@@ -41,13 +41,10 @@ function ProductDetailView() {
     if (!upc) return;
     setCartState("loading");
     try {
-      const result = await app?.callServerTool(
-        {
-          name: "add_to_cart",
-          arguments: { items: [{ upc, quantity: 1, modality: "PICKUP" }] },
-        },
-        { timeout: 15_000 },
-      );
+      const result = await callTool(app, {
+        name: "add_to_cart",
+        arguments: { items: [{ upc, quantity: 1, modality: "PICKUP" }] },
+      });
       if (result?.isError) throw new Error("Failed");
       setCartState("done");
       setTimeout(() => setCartState("idle"), 2000);
@@ -61,16 +58,13 @@ function ProductDetailView() {
     if (!upc) return;
     setListState("loading");
     try {
-      const result = await app?.callServerTool(
-        {
-          name: "manage_shopping_list",
-          arguments: {
-            action: "add",
-            items: [{ productName: name, upc, quantity: 1 }],
-          },
+      const result = await callTool(app, {
+        name: "manage_shopping_list",
+        arguments: {
+          action: "add",
+          items: [{ productName: name, upc, quantity: 1 }],
         },
-        { timeout: 15_000 },
-      );
+      });
       if (result?.isError) throw new Error("Failed");
       setListState("done");
       setTimeout(() => setListState("idle"), 2000);
@@ -83,7 +77,6 @@ function ProductDetailView() {
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60 overflow-hidden">
-        {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700/50">
           <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-snug">
             {name}
@@ -99,7 +92,6 @@ function ProductDetailView() {
           </div>
         </div>
 
-        {/* Actions */}
         {upc && (
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex gap-2">
             <ActionButton
@@ -155,7 +147,6 @@ function ProductDetailView() {
           </div>
         )}
 
-        {/* Details */}
         <div className="px-5 py-4 space-y-4">
           {product.items && product.items.length > 0 && (
             <div>
@@ -227,7 +218,3 @@ function ProductDetailView() {
     </div>
   );
 }
-
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <ProductDetailView />,
-);

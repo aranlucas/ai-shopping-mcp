@@ -10,13 +10,10 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
-import { registerViewResource } from "../utils/view-resource.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
-  const recipeResultsUri = "ui://recipe-results";
-  registerViewResource(ctx, recipeResultsUri, "recipe-results/index.html");
-
   registerAppTool(
     ctx.server,
     "search_recipes_from_web",
@@ -30,7 +27,7 @@ export function registerRecipeTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: recipeResultsUri } },
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         searchQuery: z
           .string()

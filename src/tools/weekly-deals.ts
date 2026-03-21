@@ -6,7 +6,7 @@ import { networkError, storageError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
-import { registerViewResource } from "../utils/view-resource.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { errorResult, type ToolContext } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -169,9 +169,6 @@ export function addCacheWarning(
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
-  const weeklyDealsUri = "ui://weekly-deals";
-  registerViewResource(ctx, weeklyDealsUri, "weekly-deals/index.html");
-
   registerAppTool(
     ctx.server,
     "get_weekly_deals",
@@ -185,7 +182,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: weeklyDealsUri } },
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         locationId: z
           .string()

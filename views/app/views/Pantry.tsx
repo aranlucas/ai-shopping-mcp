@@ -1,9 +1,12 @@
+import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
-import { createRoot } from "react-dom/client";
-import { ActionButton, Badge } from "../shared/components.js";
-import { EmptyState, ErrorDisplay, Loading } from "../shared/status.js";
-import type { PantryItemData, PantryListContent } from "../shared/types.js";
-import { useMcpView } from "../shared/use-mcp-view.js";
+import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
+import { EmptyState } from "../../shared/status.js";
+import {
+  callTool,
+  type PantryItemData,
+  type PantryListContent,
+} from "../../shared/types.js";
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (!expiresAt) return null;
@@ -11,7 +14,6 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   const daysUntil = Math.floor(
     (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
   );
-
   if (daysUntil < 0) return <Badge variant="red">Expired</Badge>;
   if (daysUntil === 0) return <Badge variant="red">Today</Badge>;
   if (daysUntil <= 3) return <Badge variant="yellow">{daysUntil}d left</Badge>;
@@ -60,15 +62,8 @@ function PantryItemRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all duration-150 ${
-        removeState !== "idle" ? "opacity-40" : ""
-      } ${
-        isExpiring
-          ? "bg-amber-50/50 border-amber-200/60 dark:bg-amber-950/20 dark:border-amber-800/30"
-          : "bg-white border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60"
-      }`}
+      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all duration-150 ${removeState !== "idle" ? "opacity-40" : ""} ${isExpiring ? "bg-amber-50/50 border-amber-200/60 dark:bg-amber-950/20 dark:border-amber-800/30" : "bg-white border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60"}`}
     >
-      {/* Pantry icon */}
       <div className="shrink-0 w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-700/80 flex items-center justify-center">
         <svg
           aria-hidden="true"
@@ -85,20 +80,17 @@ function PantryItemRow({
           />
         </svg>
       </div>
-
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
           {item.productName}
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <span className="text-xs text-gray-400 dark:text-gray-500">
-            ×{item.quantity}
+            &times;{item.quantity}
           </span>
           <ExpiryBadge expiresAt={item.expiresAt} />
         </div>
       </div>
-
       <ActionButton
         state={removeState}
         onClick={handleRemove}
@@ -129,14 +121,28 @@ function PantryItemRow({
   );
 }
 
-function PantryView() {
-  const { data, setData, app, isConnected, canCallTools, error } =
-    useMcpView<PantryListContent>("pantry", (sc) => !!sc?.items);
-
-  if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
-
+export function PantryView({
+  data,
+  setData,
+  app,
+  canCallTools,
+}: {
+  data: PantryListContent;
+  setData: (data: unknown) => void;
+  app: App | null;
+  canCallTools: boolean;
+}) {
   const { items, actionDetail } = data;
+
+  const handleRemove = async (name: string) => {
+    const result = await callTool(app, {
+      name: "manage_pantry",
+      arguments: { action: "remove", productName: name },
+    });
+    if (result?.isError) throw new Error("Failed to remove item");
+    const updated = result?.structuredContent as PantryListContent | undefined;
+    if (updated?.items) setData(updated);
+  };
 
   if (items.length === 0) {
     return (
@@ -177,39 +183,13 @@ function PantryView() {
     return d >= 0 && d <= 3;
   });
 
-  const handleRemove = async (name: string) => {
-    const result = await app?.callServerTool(
-      {
-        name: "manage_pantry",
-        arguments: { action: "remove", productName: name },
-      },
-      { timeout: 15_000 },
-    );
-    if (result?.isError) {
-      throw new Error("Failed to remove item");
-    }
-    const updated = result?.structuredContent as PantryListContent | undefined;
-    if (updated?.items) {
-      setData(updated);
-    }
-  };
-
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <div className="mb-4">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-            Pantry
-          </h1>
-          <Badge variant="blue">{items.length} items</Badge>
-        </div>
-        {actionDetail && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {actionDetail}
-          </p>
-        )}
-      </div>
-
+      <SectionHeader
+        title="Pantry"
+        badge={<Badge variant="blue">{items.length} items</Badge>}
+        subtitle={actionDetail}
+      />
       {expiring.length > 0 && (
         <div className="mb-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5">
           <svg
@@ -232,7 +212,6 @@ function PantryView() {
           </span>
         </div>
       )}
-
       <div className="space-y-1.5">
         {items.map((item) => (
           <PantryItemRow
@@ -246,7 +225,3 @@ function PantryView() {
     </div>
   );
 }
-
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <PantryView />,
-);

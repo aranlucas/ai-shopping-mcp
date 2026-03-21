@@ -1,5 +1,8 @@
 {
   "permissions": {
     "allow": ["Bash(npm run build:*)", "Bash(curl:*)"]
+  },
+  "enabledPlugins": {
+    "mcp-apps@mcp-apps": true
   }
 }

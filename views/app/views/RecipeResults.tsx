@@ -1,13 +1,10 @@
-import { createRoot } from "react-dom/client";
-import { Badge } from "../shared/components.js";
-import { EmptyState, ErrorDisplay, Loading } from "../shared/status.js";
-import type { RecipeData, RecipeResultsContent } from "../shared/types.js";
-import { useMcpView } from "../shared/use-mcp-view.js";
+import { Badge, SectionHeader } from "../../shared/components.js";
+import { EmptyState } from "../../shared/status.js";
+import type { RecipeData, RecipeResultsContent } from "../../shared/types.js";
 
 function RecipeCard({ recipe }: { recipe: RecipeData }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 overflow-hidden dark:bg-gray-800/80 dark:border-gray-700/60 dark:hover:border-gray-600/80 flex flex-col">
-      {/* Header */}
       <div className="p-3.5">
         <h3 className="font-bold text-sm text-gray-900 dark:text-gray-100 leading-snug">
           {recipe.title}
@@ -17,8 +14,6 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
             {recipe.description}
           </p>
         )}
-
-        {/* Meta badges */}
         <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
           {recipe.cuisine && <Badge variant="blue">{recipe.cuisine}</Badge>}
           {recipe.difficulty && (
@@ -74,8 +69,6 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
           )}
         </div>
       </div>
-
-      {/* Ingredients */}
       {recipe.ingredients && recipe.ingredients.length > 0 && (
         <div className="px-3.5 pb-3 border-t border-gray-100 dark:border-gray-700/50">
           <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-2.5 mb-2">
@@ -116,8 +109,6 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
           </div>
         </div>
       )}
-
-      {/* Instructions */}
       {recipe.instructions && recipe.instructions.length > 0 && (
         <div className="px-3.5 pb-3 border-t border-gray-100 dark:border-gray-700/50">
           <details>
@@ -139,8 +130,6 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
           </details>
         </div>
       )}
-
-      {/* Footer link */}
       <div className="px-3.5 py-3 mt-auto border-t border-gray-100 dark:border-gray-700/50">
         <a
           href={`https://janella-cookbook.vercel.app/recipe/${recipe.slug}`}
@@ -169,15 +158,7 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
   );
 }
 
-function RecipeResultsView() {
-  const { data, isConnected, error } = useMcpView<RecipeResultsContent>(
-    "recipe-results",
-    (sc) => !!sc?.recipes,
-  );
-
-  if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
-
+export function RecipeResultsView({ data }: { data: RecipeResultsContent }) {
   const { recipes, searchQuery } = data;
 
   if (recipes.length === 0) {
@@ -212,17 +193,11 @@ function RecipeResultsView() {
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <div className="mb-5">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-            Recipes
-          </h1>
-          <Badge variant="blue">{recipes.length} found</Badge>
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          Results for &ldquo;{searchQuery}&rdquo;
-        </p>
-      </div>
+      <SectionHeader
+        title="Recipes"
+        badge={<Badge variant="blue">{recipes.length} found</Badge>}
+        subtitle={`Results for \u201c${searchQuery}\u201d`}
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {recipes.map((recipe) => (
           <RecipeCard key={recipe.slug} recipe={recipe} />
@@ -231,7 +206,3 @@ function RecipeResultsView() {
     </div>
   );
 }
-
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <RecipeResultsView />,
-);
