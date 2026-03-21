@@ -37,21 +37,15 @@ export function registerInventoryTools(ctx: ToolContext) {
                 .min(1)
                 .max(200)
                 .describe("Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')"),
-              quantity: z.number().min(1).max(999),
+              quantity: z.number().min(1).max(999).optional(),
               expiresAt: z.string().optional(),
             }),
           )
           .optional()
-          .describe("Items to add (required for 'add' action)"),
-        productName: z
-          .string()
-          .min(1)
-          .max(200)
-          .optional()
-          .describe("Name of product to remove (required for 'remove' action)"),
+          .describe("Items to add or remove (required for 'add' and 'remove' actions)"),
       }),
     },
-    async ({ action, items, productName }) => {
+    async ({ action, items }) => {
       const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
         const { storage } = ctx;
 
@@ -68,7 +62,7 @@ export function registerInventoryTools(ctx: ToolContext) {
               for (const item of items) {
                 const pantryItem: PantryItem = {
                   productName: item.productName,
-                  quantity: item.quantity,
+                  quantity: item.quantity ?? 1,
                   addedAt: now,
                   expiresAt: item.expiresAt,
                 };
@@ -83,19 +77,21 @@ export function registerInventoryTools(ctx: ToolContext) {
           }
 
           case "remove": {
-            if (!productName) {
+            if (!items || items.length === 0) {
               return errAsync(
-                validationError("Error: 'productName' is required for the 'remove' action."),
+                validationError("Error: 'items' array is required for the 'remove' action."),
               );
             }
 
             return safeStorage(async () => {
-              await storage.pantry.remove(props.id, productName);
+              for (const item of items) {
+                await storage.pantry.remove(props.id, item.productName);
+              }
               return storage.pantry.getAll(props.id);
-            }, "remove pantry item").map((pantry) => ({
-              text: `Item removed from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
+            }, "remove pantry items").map((pantry) => ({
+              text: `Removed ${items.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
               pantry,
-              actionDetail: `Removed "${productName}"`,
+              actionDetail: `Removed ${items.length} item(s)`,
             }));
           }
 
@@ -118,7 +114,6 @@ export function registerInventoryTools(ctx: ToolContext) {
       return {
         content: [{ type: "text" as const, text }],
         structuredContent: {
-          _view: "manage_pantry",
           items: pantry,
           actionDetail,
         },

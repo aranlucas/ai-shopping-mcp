@@ -140,7 +140,7 @@ export function registerProductTools(ctx: ToolContext) {
             text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
           },
         ],
-        structuredContent: { _view: "search_products", results, totalProducts },
+        structuredContent: { results, totalProducts },
       };
     },
   );
@@ -205,7 +205,7 @@ export function registerProductTools(ctx: ToolContext) {
             text: `Product Details:\n\n${formatProductList([product])}`,
           },
         ],
-        structuredContent: { _view: "get_product_details", product },
+        structuredContent: { product },
       };
     },
   );

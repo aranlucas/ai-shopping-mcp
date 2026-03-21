@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import type { RecipeData, RecipeResultsContent } from "../../shared/types.js";
 
 function RecipeCard({ recipe }: { recipe: RecipeData }) {
+  const [showInstructions, setShowInstructions] = useState(false);
+
   return (
     <div className="bg-white rounded-xl border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 overflow-hidden flex flex-col">
       <div className="p-3.5">
@@ -94,10 +97,24 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
       )}
       {recipe.instructions && recipe.instructions.length > 0 && (
         <div className="px-3.5 pb-3 border-t border-gray-100">
-          <details>
-            <summary className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-600 transition-colors select-none mt-2.5 mb-0">
-              Instructions ({recipe.instructions.length} steps)
-            </summary>
+          <button
+            type="button"
+            onClick={() => setShowInstructions((v) => !v)}
+            className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-600 transition-colors select-none mt-2.5 mb-0 flex items-center gap-1 w-full text-left bg-transparent border-0 p-0"
+          >
+            <svg
+              aria-hidden="true"
+              className={`w-3 h-3 transition-transform ${showInstructions ? "rotate-90" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2.5}
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+            Instructions ({recipe.instructions.length} steps)
+          </button>
+          {showInstructions && (
             <div className="text-xs text-gray-600 mt-2 space-y-2">
               {recipe.instructions.map((step) => (
                 <div key={step.stepNumber} className="flex gap-2">
@@ -108,7 +125,7 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
                 </div>
               ))}
             </div>
-          </details>
+          )}
         </div>
       )}
       <div className="px-3.5 py-3 mt-auto border-t border-gray-100">

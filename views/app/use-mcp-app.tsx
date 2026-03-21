@@ -64,23 +64,16 @@ export function useMcpApp(): McpAppState {
           // onhostcontextchanged updates into _hostContext before this fires)
           const ctxName = appInstance.getHostContext()?.toolInfo?.tool?.name;
           if (ctxName) {
-            setToolName((prev) => prev ?? ctxName);
-            return;
+            setToolName(ctxName);
           }
-          // Fallback: _view discriminator in structured content
-          const view = (result.structuredContent as Record<string, unknown>)._view as
-            | string
-            | undefined;
-          if (view) setToolName((prev) => prev ?? view);
         }
       };
 
       // Unified host context handler — handles theme, variables, fonts,
       // AND toolInfo updates sent after initial connection.
       appInstance.onhostcontextchanged = (params) => {
-        applyStyles(params);
         const name = params.toolInfo?.tool?.name;
-        if (name) setToolName((prev) => prev ?? name);
+        if (name) setToolName(name);
       };
 
       appInstance.onerror = console.error;

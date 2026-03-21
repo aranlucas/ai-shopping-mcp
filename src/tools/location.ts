@@ -71,7 +71,7 @@ export function registerLocationTools(ctx: ToolContext) {
 
       return {
         content: [{ type: "text" as const, text }],
-        structuredContent: { _view: "search_locations", locations },
+        structuredContent: { locations },
       };
     },
   );
@@ -123,7 +123,7 @@ export function registerLocationTools(ctx: ToolContext) {
             text: `Location Details:\n\n${formatLocation(location)}`,
           },
         ],
-        structuredContent: { _view: "get_location_details", location },
+        structuredContent: { location },
       };
     },
   );

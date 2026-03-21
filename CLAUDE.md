@@ -195,7 +195,7 @@ The server exposes 14 MCP tools, organized into modular files under `src/tools/`
 
 **AI-Powered Tools** (`tools/recipes.ts`): 12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API 13. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
 
-**Weekly Deals** (`tools/weekly-deals.ts`): 14. **get_weekly_deals**: Fetches current QFC/Kroger weekly deals from the print ad (DACS API), augmented with real pricing from Kroger Product Search API. Results are KV-cached (6h fresh / 48h stale-while-revalidate). Returns `structuredContent` with `_view: "get_weekly_deals"` for the MCP Apps React view.
+**Weekly Deals** (`tools/weekly-deals.ts`): 14. **get_weekly_deals**: Fetches current QFC/Kroger weekly deals from the print ad (DACS API), augmented with real pricing from Kroger Product Search API. Results are KV-cached (6h fresh / 48h stale-while-revalidate).
 
 **Note:** User data reads (pantry, equipment, location, order history, shopping list) are provided via **MCP Resources** (see below), not tools. This allows the AI to automatically access context without explicit tool calls.
 
@@ -423,7 +423,7 @@ Tools can return rich UI by registering a view resource and including `structure
 **How it works:**
 
 1. At startup: `registerViewResource(ctx, APP_VIEW_URI, "app.html")` registers a single `ui://shopping-app` resource
-2. Tool response includes `structuredContent: { _view: "tool_name", ...data }` and `_meta: { ui: { resourceUri: APP_VIEW_URI } }`
+2. Tool response includes `structuredContent: { ...data }` and `_meta: { ui: { resourceUri: APP_VIEW_URI } }`
 3. MCP host fetches the resource HTML, renders it in an iframe, passes tool result via `ontoolresult`
 4. React app routes to the correct view component based on `_view` discriminator
 
