@@ -330,6 +330,7 @@ export function formatWeeklyDealsToolResponse(
       },
     ],
     structuredContent: {
+      _view: "get_weekly_deals",
       deals: result.deals.map((deal) => ({
         title: deal.title,
         details: deal.details,

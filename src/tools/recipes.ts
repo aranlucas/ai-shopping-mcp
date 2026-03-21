@@ -172,6 +172,7 @@ export function registerRecipeTools(ctx: ToolContext) {
       return {
         content: [{ type: "text" as const, text }],
         structuredContent: {
+          _view: "search_recipes_from_web",
           recipes: recipeData.map((r) => r.recipe),
           searchQuery,
         },
