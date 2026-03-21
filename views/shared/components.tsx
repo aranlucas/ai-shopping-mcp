@@ -49,7 +49,7 @@ export function SectionHeader({
         {badge}
       </div>
       {subtitle && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
           {subtitle}
         </p>
       )}

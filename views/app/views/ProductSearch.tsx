@@ -1,17 +1,17 @@
-import { createRoot } from "react-dom/client";
+import type { App } from "@modelcontextprotocol/ext-apps/react";
 import {
   Badge,
   FulfillmentTags,
   PriceDisplay,
   ProductActions,
-} from "../shared/components.js";
-import { EmptyState, ErrorDisplay, Loading } from "../shared/status.js";
+  SectionHeader,
+} from "../../shared/components.js";
+import { EmptyState } from "../../shared/status.js";
 import {
   callTool,
   type ProductData,
   type ProductSearchResultsContent,
-} from "../shared/types.js";
-import { useMcpView } from "../shared/use-mcp-view.js";
+} from "../../shared/types.js";
 
 function ProductCard({
   product,
@@ -95,16 +95,15 @@ function ProductCard({
   );
 }
 
-function ProductSearchView() {
-  const { data, app, isConnected, canCallTools, error } =
-    useMcpView<ProductSearchResultsContent>(
-      "product-search",
-      (sc) => !!sc?.results,
-    );
-
-  if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
-
+export function ProductSearchView({
+  data,
+  app,
+  canCallTools,
+}: {
+  data: ProductSearchResultsContent;
+  app: App | null;
+  canCallTools: boolean;
+}) {
   const { results, totalProducts } = data;
 
   const handleAddToCart = async (upc: string, qty: number) => {
@@ -112,9 +111,7 @@ function ProductSearchView() {
       name: "add_to_cart",
       arguments: { items: [{ upc, quantity: qty, modality: "PICKUP" }] },
     });
-    if (result?.isError) {
-      throw new Error("Failed to add to cart");
-    }
+    if (result?.isError) throw new Error("Failed to add to cart");
   };
 
   const handleAddToList = async (name: string, upc: string) => {
@@ -125,26 +122,18 @@ function ProductSearchView() {
         items: [{ productName: name, upc, quantity: 1 }],
       },
     });
-    if (result?.isError) {
-      throw new Error("Failed to add to list");
-    }
+    if (result?.isError) throw new Error("Failed to add to list");
   };
 
   const hasResults = results.some((r) => !r.failed && r.products.length > 0);
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <div className="mb-5">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-            Product Search
-          </h1>
-          <Badge variant="blue">{totalProducts} products</Badge>
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          {results.length} search term{results.length !== 1 ? "s" : ""}
-        </p>
-      </div>
+      <SectionHeader
+        title="Product Search"
+        badge={<Badge variant="blue">{totalProducts} products</Badge>}
+        subtitle={`${results.length} search term${results.length !== 1 ? "s" : ""}`}
+      />
 
       {!hasResults && (
         <EmptyState
@@ -234,7 +223,3 @@ function ProductSearchView() {
     </div>
   );
 }
-
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <ProductSearchView />,
-);

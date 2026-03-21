@@ -1,9 +1,12 @@
+import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
-import { createRoot } from "react-dom/client";
-import { ActionButton, Badge } from "../shared/components.js";
-import { EmptyState, ErrorDisplay, Loading } from "../shared/status.js";
-import type { DealData, WeeklyDealsContent } from "../shared/types.js";
-import { useMcpView } from "../shared/use-mcp-view.js";
+import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
+import { EmptyState } from "../../shared/status.js";
+import {
+  callTool,
+  type DealData,
+  type WeeklyDealsContent,
+} from "../../shared/types.js";
 
 function DealCard({
   deal,
@@ -52,7 +55,6 @@ function DealCard({
           )}
         </div>
       </div>
-
       <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
         <ActionButton
           state={searchState}
@@ -84,14 +86,24 @@ function DealCard({
   );
 }
 
-function WeeklyDealsView() {
-  const { data, app, isConnected, canCallTools, error } =
-    useMcpView<WeeklyDealsContent>("weekly-deals", (sc) => !!sc?.deals);
-
-  if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
-
+export function WeeklyDealsView({
+  data,
+  app,
+  canCallTools,
+}: {
+  data: WeeklyDealsContent;
+  app: App | null;
+  canCallTools: boolean;
+}) {
   const { deals, validFrom, validTill } = data;
+
+  const handleSearch = async (title: string) => {
+    const result = await callTool(app, {
+      name: "search_products",
+      arguments: { terms: [title] },
+    });
+    if (result?.isError) throw new Error("Failed to search product");
+  };
 
   if (deals.length === 0) {
     return (
@@ -128,31 +140,17 @@ function WeeklyDealsView() {
     );
   }
 
-  const handleSearch = async (title: string) => {
-    const result = await app?.callServerTool(
-      { name: "search_products", arguments: { terms: [title] } },
-      { timeout: 15_000 },
-    );
-    if (result?.isError) {
-      throw new Error("Failed to search product");
-    }
-  };
-
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <div className="mb-5">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-            Weekly Deals
-          </h1>
-          <Badge variant="green">{deals.length} deals</Badge>
-        </div>
-        {validFrom && validTill && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            Valid {validFrom} &ndash; {validTill}
-          </p>
-        )}
-      </div>
+      <SectionHeader
+        title="Weekly Deals"
+        badge={<Badge variant="green">{deals.length} deals</Badge>}
+        subtitle={
+          validFrom && validTill
+            ? `Valid ${validFrom} \u2013 ${validTill}`
+            : undefined
+        }
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {deals.map((deal) => (
           <DealCard
@@ -166,7 +164,3 @@ function WeeklyDealsView() {
     </div>
   );
 }
-
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <WeeklyDealsView />,
-);

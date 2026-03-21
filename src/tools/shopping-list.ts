@@ -13,7 +13,7 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
-import { registerViewResource } from "../utils/view-resource.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import {
   getSessionScopedUserId,
   type ToolContext,
@@ -81,11 +81,6 @@ export const manageShoppingListInputSchema = z.object({
 export function registerShoppingListTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
-  // Two-part registration: tool + resource, tied together by the resource URI.
-  // Shopping list UI is shared by both manage_shopping_list and checkout_shopping_list.
-  const shoppingListUri = "ui://shopping-list";
-  registerViewResource(ctx, shoppingListUri, "shopping-list/index.html");
-
   registerAppTool(
     ctx.server,
     "manage_shopping_list",
@@ -99,7 +94,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: false,
       },
-      _meta: { ui: { resourceUri: shoppingListUri } },
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: manageShoppingListInputSchema,
     },
     async ({ action, items, productName, quantity, upc, notes }) => {

@@ -1,34 +1,31 @@
+import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
-import { createRoot } from "react-dom/client";
-import { ActionButton, Badge } from "../shared/components.js";
-import { ErrorDisplay, Loading } from "../shared/status.js";
-import type { LocationDetailContent } from "../shared/types.js";
-import { useMcpView } from "../shared/use-mcp-view.js";
+import { ActionButton, Badge } from "../../shared/components.js";
+import { callTool, type LocationDetailContent } from "../../shared/types.js";
 
-function LocationDetailView() {
-  const { data, app, isConnected, canCallTools, error } =
-    useMcpView<LocationDetailContent>(
-      "location-detail",
-      (sc) => !!sc?.location,
-    );
-
+export function LocationDetailView({
+  data,
+  app,
+  canCallTools,
+}: {
+  data: LocationDetailContent;
+  app: App | null;
+  canCallTools: boolean;
+}) {
   const [prefState, setPrefState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
-
-  if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
-
   const { location } = data;
   const id = location.locationId || "";
 
   const handleSetPreferred = async () => {
     setPrefState("loading");
     try {
-      await app?.callServerTool(
-        { name: "set_preferred_location", arguments: { locationId: id } },
-        { timeout: 15_000 },
-      );
+      const result = await callTool(app, {
+        name: "set_preferred_location",
+        arguments: { locationId: id },
+      });
+      if (result?.isError) throw new Error("Failed");
       setPrefState("done");
     } catch {
       setPrefState("error");
@@ -39,7 +36,6 @@ function LocationDetailView() {
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60 overflow-hidden">
-        {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700/50">
           <div className="flex items-start gap-3">
             <div className="shrink-0 w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
@@ -70,8 +66,6 @@ function LocationDetailView() {
             </div>
           </div>
         </div>
-
-        {/* Details */}
         <div className="px-5 py-4 space-y-4">
           {location.address && (
             <div>
@@ -107,7 +101,6 @@ function LocationDetailView() {
               </div>
             </div>
           )}
-
           {location.phone && (
             <div>
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">
@@ -132,7 +125,6 @@ function LocationDetailView() {
               </div>
             </div>
           )}
-
           {location.departments && location.departments.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
@@ -149,7 +141,6 @@ function LocationDetailView() {
               </div>
             </div>
           )}
-
           <div>
             <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
               Location ID
@@ -159,8 +150,6 @@ function LocationDetailView() {
             </p>
           </div>
         </div>
-
-        {/* Action */}
         <div className="px-5 pb-5 pt-1">
           <ActionButton
             state={prefState}
@@ -192,7 +181,3 @@ function LocationDetailView() {
     </div>
   );
 }
-
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <LocationDetailView />,
-);
