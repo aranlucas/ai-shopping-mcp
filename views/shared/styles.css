@@ -1,14 +1,12 @@
 @import "tailwindcss";
 
-/* Activate dark: variants when host sets either data-theme="dark" attribute
-   or a .dark class on <html>. The ext-apps SDK's getDocumentTheme() checks
-   both, so we must handle both here too. */
-@custom-variant dark (&:where(
-    [data-theme="dark"],
-    [data-theme="dark"] *,
-    .dark,
-    .dark *
-  ));
+/* Override Tailwind's built-in dark variant (which defaults to prefers-color-scheme)
+   to match whichever mechanism the ext-apps host uses: data-theme attribute or .dark class. */
+@variant dark {
+  &:where([data-theme="dark"], .dark, [data-theme="dark"] *, .dark *) {
+    @slot;
+  }
+}
 
 @theme {
   /* Brand palette (static values — these don't need host overrides) */
