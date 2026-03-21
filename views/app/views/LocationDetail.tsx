@@ -35,13 +35,13 @@ export function LocationDetailView({
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60 overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700/50">
+      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100">
           <div className="flex items-start gap-3">
-            <div className="shrink-0 w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
+            <div className="shrink-0 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
               <svg
                 aria-hidden="true"
-                className="w-5 h-5 text-blue-500 dark:text-blue-400"
+                className="w-5 h-5 text-blue-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={1.5}
@@ -55,7 +55,7 @@ export function LocationDetailView({
               </svg>
             </div>
             <div>
-              <h1 className="text-base font-bold text-gray-900 dark:text-gray-100">
+              <h1 className="text-base font-bold text-gray-900">
                 {location.name || "Unknown Store"}
               </h1>
               {location.chain && (
@@ -69,13 +69,13 @@ export function LocationDetailView({
         <div className="px-5 py-4 space-y-4">
           {location.address && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                 Address
               </p>
-              <div className="text-sm text-gray-700 dark:text-gray-300 flex items-start gap-2">
+              <div className="text-sm text-gray-700 flex items-start gap-2">
                 <svg
                   aria-hidden="true"
-                  className="w-4 h-4 text-gray-400 dark:text-gray-500 mt-0.5 shrink-0"
+                  className="w-4 h-4 text-gray-400 mt-0.5 shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={2}
@@ -103,13 +103,13 @@ export function LocationDetailView({
           )}
           {location.phone && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                 Phone
               </p>
-              <div className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <div className="text-sm text-gray-700 flex items-center gap-2">
                 <svg
                   aria-hidden="true"
-                  className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0"
+                  className="w-4 h-4 text-gray-400 shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={2}
@@ -127,7 +127,7 @@ export function LocationDetailView({
           )}
           {location.departments && location.departments.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Departments ({location.departments.length})
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -142,12 +142,10 @@ export function LocationDetailView({
             </div>
           )}
           <div>
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
               Location ID
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-              {id}
-            </p>
+            <p className="text-xs text-gray-400 font-mono">{id}</p>
           </div>
         </div>
         <div className="px-5 pb-5 pt-1">

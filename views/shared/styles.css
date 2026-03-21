@@ -1,10 +1,5 @@
 @import "tailwindcss";
 
-/* Dark mode: responds to data-theme="dark" set by applyDocumentTheme() from ext-apps.
-   Single-pattern variant avoids CSS duplication and color-mix() in media queries.
-   Initial dark mode before host fires is handled by the inline script in index.html. */
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-
 @theme {
   /* Brand palette (static values — these don't need host overrides) */
   --color-brand-50: #eff6ff;
@@ -62,7 +57,4 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: #d1d5db transparent;
-}
-:where([data-theme="dark"]) * {
-  scrollbar-color: #374151 transparent;
 }

@@ -76,16 +76,12 @@ export function ProductDetailView({
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm dark:bg-gray-800/80 dark:border-gray-700/60 overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100 dark:border-gray-700/50">
-          <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 leading-snug">
+      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+          <h1 className="text-base font-bold text-gray-900 leading-snug">
             {name}
           </h1>
-          {brand && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {brand}
-            </p>
-          )}
+          {brand && <p className="text-xs text-gray-500 mt-0.5">{brand}</p>}
           <div className="mt-2.5 flex items-center gap-3 flex-wrap">
             <PriceDisplay product={product} />
             <FulfillmentTags product={product} />
@@ -93,7 +89,7 @@ export function ProductDetailView({
         </div>
 
         {upc && (
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex gap-2">
+          <div className="px-5 py-4 border-b border-gray-100 flex gap-2">
             <ActionButton
               state={cartState}
               onClick={handleAddToCart}
@@ -150,18 +146,18 @@ export function ProductDetailView({
         <div className="px-5 py-4 space-y-4">
           {product.items && product.items.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Options
               </p>
               <div className="space-y-1.5">
                 {product.items.map((item) => (
                   <div
                     key={item.size ?? item.itemId}
-                    className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
+                    className="flex items-center gap-2 text-sm text-gray-700"
                   >
                     {item.size && <span>{item.size}</span>}
                     {item.price?.regular && (
-                      <span className="text-gray-400 dark:text-gray-500">
+                      <span className="text-gray-400">
                         &middot; ${item.price.regular.toFixed(2)}
                       </span>
                     )}
@@ -174,7 +170,7 @@ export function ProductDetailView({
 
           {product.categories && product.categories.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Category
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -189,13 +185,13 @@ export function ProductDetailView({
 
           {product.aisleLocations && product.aisleLocations.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 Aisle Location
               </p>
               {product.aisleLocations.map((loc) => (
                 <div
                   key={loc.description ?? loc.number}
-                  className="text-sm text-gray-600 dark:text-gray-300"
+                  className="text-sm text-gray-600"
                 >
                   {loc.description} {loc.number ? `(${loc.number})` : ""}
                 </div>
@@ -205,12 +201,10 @@ export function ProductDetailView({
 
           {upc && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
                 UPC
               </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-                {upc}
-              </p>
+              <p className="text-xs text-gray-400 font-mono">{upc}</p>
             </div>
           )}
         </div>

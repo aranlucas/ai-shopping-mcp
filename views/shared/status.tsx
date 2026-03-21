@@ -2,10 +2,10 @@
 
 export function Loading({ message }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500 gap-3">
+    <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-3">
       <svg
         aria-hidden="true"
-        className="animate-spin h-6 w-6 text-blue-500 dark:text-blue-400"
+        className="animate-spin h-6 w-6 text-blue-500"
         viewBox="0 0 24 24"
         fill="none"
       >
@@ -30,10 +30,10 @@ export function Loading({ message }: { message?: string }) {
 
 export function ErrorDisplay({ message }: { message: string }) {
   return (
-    <div className="m-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 p-4 flex items-start gap-3">
+    <div className="m-4 rounded-xl bg-red-50 border border-red-200 p-4 flex items-start gap-3">
       <svg
         aria-hidden="true"
-        className="w-4 h-4 text-red-500 dark:text-red-400 mt-0.5 shrink-0"
+        className="w-4 h-4 text-red-500 mt-0.5 shrink-0"
         fill="none"
         viewBox="0 0 24 24"
         strokeWidth={2}
@@ -46,12 +46,8 @@ export function ErrorDisplay({ message }: { message: string }) {
         />
       </svg>
       <div>
-        <p className="text-sm font-medium text-red-700 dark:text-red-300">
-          Something went wrong
-        </p>
-        <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">
-          {message}
-        </p>
+        <p className="text-sm font-medium text-red-700">Something went wrong</p>
+        <p className="text-xs text-red-600/80 mt-0.5">{message}</p>
       </div>
     </div>
   );
@@ -68,16 +64,12 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-      <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-3 text-gray-400 dark:text-gray-500">
+      <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3 text-gray-400">
         {icon}
       </div>
-      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-        {message}
-      </p>
+      <p className="text-sm font-medium text-gray-600">{message}</p>
       {description && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-xs">
-          {description}
-        </p>
+        <p className="text-xs text-gray-400 mt-1 max-w-xs">{description}</p>
       )}
     </div>
   );

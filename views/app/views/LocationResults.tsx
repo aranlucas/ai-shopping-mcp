@@ -50,10 +50,10 @@ function LocationCard({
   };
 
   return (
-    <div className="bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 dark:bg-gray-800/80 dark:border-gray-700/60 dark:hover:border-gray-600/80">
+    <div className="bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
-          <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 leading-snug">
+          <div className="font-semibold text-sm text-gray-900 leading-snug">
             {location.name || "Unknown Store"}
           </div>
           {location.chain && (
@@ -62,10 +62,10 @@ function LocationCard({
             </div>
           )}
         </div>
-        <div className="shrink-0 w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
+        <div className="shrink-0 w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
           <svg
             aria-hidden="true"
-            className="w-4 h-4 text-blue-500 dark:text-blue-400"
+            className="w-4 h-4 text-blue-500"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -80,10 +80,10 @@ function LocationCard({
         </div>
       </div>
       {location.address && (
-        <div className="text-xs text-gray-500 dark:text-gray-400 flex items-start gap-1.5 mb-1.5">
+        <div className="text-xs text-gray-500 flex items-start gap-1.5 mb-1.5">
           <svg
             aria-hidden="true"
-            className="w-3 h-3 text-gray-400 dark:text-gray-500 mt-0.5 shrink-0"
+            className="w-3 h-3 text-gray-400 mt-0.5 shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -107,10 +107,10 @@ function LocationCard({
         </div>
       )}
       {location.phone && (
-        <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-2">
+        <div className="text-xs text-gray-500 flex items-center gap-1.5 mb-2">
           <svg
             aria-hidden="true"
-            className="w-3 h-3 text-gray-400 dark:text-gray-500 shrink-0"
+            className="w-3 h-3 text-gray-400 shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -125,10 +125,8 @@ function LocationCard({
           {location.phone}
         </div>
       )}
-      <div className="text-[10px] text-gray-300 dark:text-gray-600 font-mono mb-3">
-        ID: {id}
-      </div>
-      <div className="flex gap-2 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+      <div className="text-[10px] text-gray-300 font-mono mb-3">ID: {id}</div>
+      <div className="flex gap-2 pt-3 border-t border-gray-100">
         <ActionButton
           state={prefState}
           onClick={handleSetPreferred}
@@ -199,7 +197,7 @@ export function LocationResultsView({
   if (locations.length === 0) {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight mb-1">
+        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">
           Store Locations
         </h1>
         <EmptyState
