@@ -49,11 +49,7 @@ async function importKey(secret: string): Promise<CryptoKey> {
  */
 async function signData(key: CryptoKey, data: string): Promise<string> {
   const enc = new TextEncoder();
-  const signatureBuffer = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    enc.encode(data),
-  );
+  const signatureBuffer = await crypto.subtle.sign("HMAC", key, enc.encode(data));
   // Convert ArrayBuffer to hex string
   return Array.from(new Uint8Array(signatureBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -80,15 +76,8 @@ async function verifySignature(
       console.error("Invalid hex signature format");
       return false;
     }
-    const signatureBytes = new Uint8Array(
-      matchResult.map((byte) => Number.parseInt(byte, 16)),
-    );
-    return await crypto.subtle.verify(
-      "HMAC",
-      key,
-      signatureBytes.buffer,
-      enc.encode(data),
-    );
+    const signatureBytes = new Uint8Array(matchResult.map((byte) => Number.parseInt(byte, 16)));
+    return await crypto.subtle.verify("HMAC", key, signatureBytes.buffer, enc.encode(data));
   } catch (e) {
     // Handle errors during hex parsing or verification
     console.error("Error verifying signature:", e);
@@ -168,10 +157,7 @@ export async function clientIdAlreadyApproved(
 ): Promise<boolean> {
   if (!clientId) return false;
   const cookieHeader = request.headers.get("Cookie");
-  const approvedClients = await getApprovedClientsFromCookie(
-    cookieHeader,
-    cookieSecret,
-  );
+  const approvedClients = await getApprovedClientsFromCookie(cookieHeader, cookieSecret);
 
   return approvedClients?.includes(clientId) ?? false;
 }
@@ -195,10 +181,7 @@ export interface ApprovalDialogOptions {
  * @param options - Configuration for the approval dialog
  * @returns A Response containing the HTML approval dialog
  */
-export function renderApprovalDialog(
-  request: Request,
-  options: ApprovalDialogOptions,
-): Response {
+export function renderApprovalDialog(request: Request, options: ApprovalDialogOptions): Response {
   const { client, server, state } = options;
 
   // Encode state for form submission
@@ -206,12 +189,8 @@ export function renderApprovalDialog(
 
   // Sanitize any untrusted content
   const serverName = sanitizeHtml(server.name);
-  const clientName = client?.clientName
-    ? sanitizeHtml(client.clientName)
-    : "Unknown MCP Client";
-  const serverDescription = server.description
-    ? sanitizeHtml(server.description)
-    : "";
+  const clientName = client?.clientName ? sanitizeHtml(client.clientName) : "Unknown MCP Client";
+  const serverDescription = server.description ? sanitizeHtml(server.description) : "";
 
   // Safe URLs
   const logoUrl = server.logo ? sanitizeHtml(server.logo) : "";
@@ -221,9 +200,7 @@ export function renderApprovalDialog(
 
   // Client contacts
   const contacts =
-    client?.contacts && client.contacts.length > 0
-      ? sanitizeHtml(client.contacts.join(", "))
-      : "";
+    client?.contacts && client.contacts.length > 0 ? sanitizeHtml(client.contacts.join(", ")) : "";
 
   // Get redirect URIs
   const redirectUris =
@@ -580,9 +557,7 @@ export async function parseRedirectApproval(
   } catch (e) {
     console.error("Error processing form submission:", e);
     // Rethrow or handle as appropriate, maybe return a specific error response
-    throw new Error(
-      `Failed to parse approval form: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    throw new Error(`Failed to parse approval form: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   // Get existing approved clients
@@ -591,9 +566,7 @@ export async function parseRedirectApproval(
     (await getApprovedClientsFromCookie(cookieHeader, cookieSecret)) || [];
 
   // Add the newly approved client ID (avoid duplicates)
-  const updatedApprovedClients = Array.from(
-    new Set([...existingApprovedClients, clientId]),
-  );
+  const updatedApprovedClients = Array.from(new Set([...existingApprovedClients, clientId]));
 
   // Sign the updated list
   const payload = JSON.stringify(updatedApprovedClients);

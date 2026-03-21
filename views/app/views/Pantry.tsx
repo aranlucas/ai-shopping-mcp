@@ -2,18 +2,12 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import {
-  callTool,
-  type PantryItemData,
-  type PantryListContent,
-} from "../../shared/types.js";
+import { callTool, type PantryItemData, type PantryListContent } from "../../shared/types.js";
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (!expiresAt) return null;
   const expiryDate = new Date(expiresAt);
-  const daysUntil = Math.floor(
-    (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-  );
+  const daysUntil = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   if (daysUntil < 0) return <Badge variant="red">Expired</Badge>;
   if (daysUntil === 0) return <Badge variant="red">Today</Badge>;
   if (daysUntil <= 3) return <Badge variant="yellow">{daysUntil}d left</Badge>;
@@ -37,9 +31,7 @@ function PantryItemRow({
   canCallTools: boolean;
   onRemove: (name: string) => Promise<void>;
 }) {
-  const [removeState, setRemoveState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleRemove = async () => {
     setRemoveState("loading");
@@ -54,9 +46,7 @@ function PantryItemRow({
 
   const isExpiring = (() => {
     if (!item.expiresAt) return false;
-    const d = Math.floor(
-      (new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-    );
+    const d = Math.floor((new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     return d >= 0 && d <= 3;
   })();
 
@@ -81,9 +71,7 @@ function PantryItemRow({
         </svg>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-900 truncate">
-          {item.productName}
-        </div>
+        <div className="text-sm font-medium text-gray-900 truncate">{item.productName}</div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <span className="text-xs text-gray-400">&times;{item.quantity}</span>
           <ExpiryBadge expiresAt={item.expiresAt} />
@@ -107,11 +95,7 @@ function PantryItemRow({
             strokeWidth={2.5}
             stroke="currentColor"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M6 18 18 6M6 6l12 12"
-            />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
         }
       />
@@ -145,9 +129,7 @@ export function PantryView({
   if (items.length === 0) {
     return (
       <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">
-          Pantry
-        </h1>
+        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">Pantry</h1>
         <EmptyState
           icon={
             <svg
@@ -175,9 +157,7 @@ export function PantryView({
   const now = Date.now();
   const expiring = items.filter((i) => {
     if (!i.expiresAt) return false;
-    const d = Math.floor(
-      (new Date(i.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
-    );
+    const d = Math.floor((new Date(i.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24));
     return d >= 0 && d <= 3;
   });
 
@@ -205,8 +185,7 @@ export function PantryView({
             />
           </svg>
           <span className="text-sm font-medium text-amber-700">
-            {expiring.length} item{expiring.length !== 1 ? "s" : ""} expiring
-            soon
+            {expiring.length} item{expiring.length !== 1 ? "s" : ""} expiring soon
           </span>
         </div>
       )}

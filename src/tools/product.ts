@@ -1,11 +1,8 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok, ResultAsync } from "neverthrow";
-import { z } from "zod";
+import * as z from "zod/v4";
 import { notFoundError } from "../errors.js";
-import {
-  formatProductCompact,
-  formatProductList,
-} from "../utils/format-response.js";
+import { formatProductCompact, formatProductList } from "../utils/format-response.js";
 import { fromApiResponse, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type ToolContext, textResult } from "./types.js";
@@ -32,15 +29,11 @@ export function registerProductTools(ctx: ToolContext) {
           .array(z.string().max(100))
           .min(1, { message: "At least one search term is required" })
           .max(10, { message: "Maximum 10 search terms allowed" })
-          .describe(
-            "Array of search terms for products (e.g., ['milk', 'bread', 'eggs'])",
-          ),
+          .describe("Array of search terms for products (e.g., ['milk', 'bread', 'eggs'])"),
         locationId: z
           .string()
           .length(8, { message: "Location ID must be exactly 8 characters" })
-          .describe(
-            "Location ID to check product availability at a specific store",
-          ),
+          .describe("Location ID to check product availability at a specific store"),
       }),
     },
     async ({ terms, locationId }, extra) => {
@@ -77,9 +70,7 @@ export function registerProductTools(ctx: ToolContext) {
               },
             }),
             (e) => e,
-          ).orTee((e) =>
-            console.error("Failed to send progress notification:", e),
-          );
+          ).orTee((e) => console.error("Failed to send progress notification:", e));
         }
 
         // Preserve Result type — map Ok to success shape, log and convert Err
@@ -93,12 +84,7 @@ export function registerProductTools(ctx: ToolContext) {
               failed: false as const,
             };
           })
-          .orTee((error) =>
-            console.error(
-              `Error searching products for "${term}":`,
-              error.message,
-            ),
-          )
+          .orTee((error) => console.error(`Error searching products for "${term}":`, error.message))
           .unwrapOr({
             term,
             products: [] as never[],
@@ -132,10 +118,8 @@ export function registerProductTools(ctx: ToolContext) {
         result.products.sort((a, b) => {
           const aItem = a.items?.[0];
           const bItem = b.items?.[0];
-          const aPickup =
-            aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
-          const bPickup =
-            bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
+          const aPickup = aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
+          const bPickup = bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
 
           if (aPickup && !bPickup) return -1;
           if (!aPickup && bPickup) return 1;
@@ -143,10 +127,7 @@ export function registerProductTools(ctx: ToolContext) {
         });
 
         const productsFormatted = result.products
-          .map(
-            (product, index) =>
-              `  ${index + 1}. ${formatProductCompact(product)}`,
-          )
+          .map((product, index) => `  ${index + 1}. ${formatProductCompact(product)}`)
           .join("\n");
 
         return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
@@ -186,9 +167,7 @@ export function registerProductTools(ctx: ToolContext) {
           .string()
           .length(8, { message: "Location ID must be exactly 8 characters" })
           .optional()
-          .describe(
-            "Location ID to check product availability and pricing at a specific store",
-          ),
+          .describe("Location ID to check product availability and pricing at a specific store"),
       }),
     },
     async ({ productId, locationId }) => {
@@ -208,9 +187,7 @@ export function registerProductTools(ctx: ToolContext) {
       ).andThen((data) => {
         const product = data.data;
         if (!product) {
-          return err(
-            notFoundError(`No information found for product ID: ${productId}`),
-          );
+          return err(notFoundError(`No information found for product ID: ${productId}`));
         }
         return ok(product);
       });

@@ -15,10 +15,8 @@ import type {
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 type Location = LocationComponents["schemas"]["locations.location"];
-type AisleLocation =
-  ProductComponents["schemas"]["products.productAisleLocationModel"];
-type Department =
-  LocationComponents["schemas"]["locations.departmentAtLocation"];
+type AisleLocation = ProductComponents["schemas"]["products.productAisleLocationModel"];
+type Department = LocationComponents["schemas"]["locations.departmentAtLocation"];
 
 /**
  * Format a product for display with pricing and availability
@@ -291,9 +289,7 @@ export function formatLocation(location: Location): string {
   // Address
   if (location.address) {
     const addr = location.address;
-    const addressLines = [addr.addressLine1, addr.addressLine2]
-      .filter(Boolean)
-      .join(", ");
+    const addressLines = [addr.addressLine1, addr.addressLine2].filter(Boolean).join(", ");
     lines.push(`Address: ${addressLines}`);
     lines.push(`${addr.city}, ${addr.state} ${addr.zipCode}`);
   }
@@ -357,20 +353,13 @@ export function formatLocationCompact(location: Location): string {
   const parts: string[] = [];
 
   // Name and chain
-  const name = location.chain
-    ? `${location.name} (${location.chain})`
-    : location.name || "Unknown";
+  const name = location.chain ? `${location.name} (${location.chain})` : location.name || "Unknown";
   parts.push(name);
 
   // Address
   if (location.address) {
     const addr = location.address;
-    const addressParts = [
-      addr.addressLine1,
-      addr.city,
-      addr.state,
-      addr.zipCode,
-    ]
+    const addressParts = [addr.addressLine1, addr.city, addr.state, addr.zipCode]
       .filter(Boolean)
       .join(" ");
     if (addressParts) parts.push(addressParts);
@@ -392,9 +381,7 @@ export function formatLocationListCompact(locations: Location[]): string {
   if (locations.length === 0) return "No locations found.";
 
   return locations
-    .map(
-      (location, index) => `${index + 1}. ${formatLocationCompact(location)}`,
-    )
+    .map((location, index) => `${index + 1}. ${formatLocationCompact(location)}`)
     .join("\n");
 }
 
@@ -479,9 +466,7 @@ export function formatWeeklyDealCompact(deal: WeeklyDeal): string {
  */
 export function formatWeeklyDealsListCompact(deals: WeeklyDeal[]): string {
   if (deals.length === 0) return "No weekly deals found.";
-  return deals
-    .map((deal, index) => `${index + 1}. ${formatWeeklyDealCompact(deal)}`)
-    .join("\n");
+  return deals.map((deal, index) => `${index + 1}. ${formatWeeklyDealCompact(deal)}`).join("\n");
 }
 
 /**
@@ -496,18 +481,14 @@ export function formatPantryItem(item: PantryItem): string {
 
   if (item.expiresAt) {
     const expiryDate = new Date(item.expiresAt);
-    const daysUntilExpiry = Math.floor(
-      (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-    );
+    const daysUntilExpiry = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
     if (daysUntilExpiry < 0) {
       lines.push(`Expires: ${expiryDate.toLocaleDateString()} (Expired)`);
     } else if (daysUntilExpiry === 0) {
       lines.push(`Expires: Today`);
     } else if (daysUntilExpiry <= 3) {
-      lines.push(
-        `Expires: ${expiryDate.toLocaleDateString()} (${daysUntilExpiry} days)`,
-      );
+      lines.push(`Expires: ${expiryDate.toLocaleDateString()} (${daysUntilExpiry} days)`);
     } else {
       lines.push(`Expires: ${expiryDate.toLocaleDateString()}`);
     }
@@ -542,9 +523,7 @@ export function formatPantryItemCompact(item: PantryItem): string {
   // Expiry with urgency indicator
   if (item.expiresAt) {
     const expiryDate = new Date(item.expiresAt);
-    const daysUntil = Math.floor(
-      (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-    );
+    const daysUntil = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
     if (daysUntil < 0) {
       parts.push("❌EXPIRED");
@@ -566,9 +545,7 @@ export function formatPantryItemCompact(item: PantryItem): string {
 export function formatPantryListCompact(items: PantryItem[]): string {
   if (items.length === 0) return "Pantry empty.";
 
-  return items
-    .map((item, index) => `${index + 1}. ${formatPantryItemCompact(item)}`)
-    .join("\n");
+  return items.map((item, index) => `${index + 1}. ${formatPantryItemCompact(item)}`).join("\n");
 }
 
 /**
@@ -706,9 +683,7 @@ export function formatEquipmentItemCompact(item: EquipmentItem): string {
 export function formatEquipmentListCompact(items: EquipmentItem[]): string {
   if (items.length === 0) return "Equipment list empty.";
 
-  return items
-    .map((item, index) => `${index + 1}. ${formatEquipmentItemCompact(item)}`)
-    .join("\n");
+  return items.map((item, index) => `${index + 1}. ${formatEquipmentItemCompact(item)}`).join("\n");
 }
 
 /**
@@ -729,9 +704,7 @@ export function formatPreferredLocation(location: PreferredLocation): string {
 /**
  * COMPACT: Token-efficient preferred location formatting
  */
-export function formatPreferredLocationCompact(
-  location: PreferredLocation,
-): string {
+export function formatPreferredLocationCompact(location: PreferredLocation): string {
   return `${location.locationName} (${location.chain}) | ${location.address} | ${location.locationId}`;
 }
 
@@ -815,8 +788,6 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
   if (items.length === 0) return "Shopping list empty.";
 
   return items
-    .map(
-      (item, index) => `${index + 1}. ${formatShoppingListItemCompact(item)}`,
-    )
+    .map((item, index) => `${index + 1}. ${formatShoppingListItemCompact(item)}`)
     .join("\n");
 }

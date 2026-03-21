@@ -17,9 +17,7 @@ function ShoppingItem({
   canCallTools: boolean;
   onRemove: (name: string) => Promise<void>;
 }) {
-  const [removeState, setRemoveState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleRemove = async () => {
     setRemoveState("loading");
@@ -50,11 +48,7 @@ function ShoppingItem({
             strokeWidth={3}
             stroke="currentColor"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="m4.5 12.75 6 6 9-13.5"
-            />
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
         )}
       </div>
@@ -66,15 +60,9 @@ function ShoppingItem({
         </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <span className="text-xs text-gray-400">&times;{item.quantity}</span>
-          {item.upc ? (
-            <Badge variant="green">UPC</Badge>
-          ) : (
-            <Badge variant="yellow">No UPC</Badge>
-          )}
+          {item.upc ? <Badge variant="green">UPC</Badge> : <Badge variant="yellow">No UPC</Badge>}
           {item.notes && (
-            <span className="text-xs text-gray-400 italic truncate max-w-32">
-              {item.notes}
-            </span>
+            <span className="text-xs text-gray-400 italic truncate max-w-32">{item.notes}</span>
           )}
         </div>
       </div>
@@ -97,11 +85,7 @@ function ShoppingItem({
               strokeWidth={2.5}
               stroke="currentColor"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18 18 6M6 6l12 12"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           }
         />
@@ -129,18 +113,14 @@ export function ShoppingListView({
       arguments: { action: "remove", productName: name },
     });
     if (result?.isError) throw new Error("Failed to remove item");
-    const updated = result?.structuredContent as
-      | ShoppingListContent
-      | undefined;
+    const updated = result?.structuredContent as ShoppingListContent | undefined;
     if (updated?.items) setData(updated);
   };
 
   if (items.length === 0) {
     return (
       <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">
-          Shopping List
-        </h1>
+        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">Shopping List</h1>
         <EmptyState
           icon={
             <svg
@@ -179,12 +159,8 @@ export function ShoppingListView({
       />
       <div className="flex gap-1.5 mb-4 flex-wrap">
         <Badge variant="green">{withUpc.length} ready</Badge>
-        {withoutUpc.length > 0 && (
-          <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>
-        )}
-        {checked.length > 0 && (
-          <Badge variant="gray">{checked.length} in cart</Badge>
-        )}
+        {withoutUpc.length > 0 && <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>}
+        {checked.length > 0 && <Badge variant="gray">{checked.length} in cart</Badge>}
       </div>
       <div className="space-y-1.5">
         {unchecked.map((item) => (

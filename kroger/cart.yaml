@@ -12,18 +12,18 @@ info:
     url: https://developer.kroger.com
   version: 1.2.3
 servers:
-- url: https://api.kroger.com
-  description: Production Environment
-- url: https://api-ce.kroger.com
-  description: Certification Environment
+  - url: https://api.kroger.com
+    description: Production Environment
+  - url: https://api-ce.kroger.com
+    description: Certification Environment
 security:
-- CustomerContext:
-  - cart.basic:write
+  - CustomerContext:
+      - cart.basic:write
 paths:
   "/v1/cart/add":
     put:
       tags:
-      - Carts
+        - Carts
       summary: Add to cart
       description: "Provides access to add items to an authenticated customer's cart.
         \n<br><br> **Note**: the customer must be authenticated using the\nOAuth2
@@ -37,119 +37,119 @@ paths:
               "$ref": "#/components/schemas/cart.cartItemRequestModel"
         required: false
       responses:
-        '204':
+        "204":
           description: OK
-        '400':
+        "400":
           description: Bad Request
           content:
             application/json:
               schema:
                 oneOf:
-                - "$ref": "#/components/schemas/APIError"
-                - "$ref": "#/components/schemas/Invalid.UPC"
-                - "$ref": "#/components/schemas/Invalid.modality"
-                - "$ref": "#/components/schemas/Invalid.parameters"
-        '401':
+                  - "$ref": "#/components/schemas/APIError"
+                  - "$ref": "#/components/schemas/Invalid.UPC"
+                  - "$ref": "#/components/schemas/Invalid.modality"
+                  - "$ref": "#/components/schemas/Invalid.parameters"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.unauthorized"
-        '403':
+        "403":
           description: Forbidden
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.forbidden"
-        '500':
+        "500":
           description: Internal Server Error
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.cart.serverError"
       security:
-      - CustomerContext:
-        - cart.basic:write
+        - CustomerContext:
+            - cart.basic:write
       x-code-samples:
-      - lang: Shell
-        source: |
-          curl -X PUT \
-            'https://api.kroger.com/v1/cart/add' \
-            -H 'Accept: application/json' \
-            -H 'Authorization: Bearer {{TOKEN}}' \
-            -d '
-          {
-            "items": [
-              {
-                "upc": "0001200016268",
-                "quantity": 2,
-                "modality": "PICKUP"
-              }
-            ]
-          }'
-      - lang: Go
-        source: |
-          package main
+        - lang: Shell
+          source: |
+            curl -X PUT \
+              'https://api.kroger.com/v1/cart/add' \
+              -H 'Accept: application/json' \
+              -H 'Authorization: Bearer {{TOKEN}}' \
+              -d '
+            {
+              "items": [
+                {
+                  "upc": "0001200016268",
+                  "quantity": 2,
+                  "modality": "PICKUP"
+                }
+              ]
+            }'
+        - lang: Go
+          source: |
+            package main
 
-          import (
-            "fmt"
-            "strings"
-            "net/http"
-            "io/ioutil"
-          )
+            import (
+              "fmt"
+              "strings"
+              "net/http"
+              "io/ioutil"
+            )
 
-          func main() {
+            func main() {
 
-            url := "https://api.kroger.com/v1/cart/add"
+              url := "https://api.kroger.com/v1/cart/add"
 
-            payload := strings.NewReader("{\n  \"items\": [\n     {\n       \"upc\": \"0001200016268\",\n       \"quantity\": \2,\n       \"modality\": \"PICKUP\"\\n      }\n    ]\n }")
+              payload := strings.NewReader("{\n  \"items\": [\n     {\n       \"upc\": \"0001200016268\",\n       \"quantity\": \2,\n       \"modality\": \"PICKUP\"\\n      }\n    ]\n }")
 
-            req, _ := http.NewRequest("PUT", url, payload)
+              req, _ := http.NewRequest("PUT", url, payload)
 
-            req.Header.Add("Accept", "application/json")
-            req.Header.Add("Authorization", "Bearer {{TOKEN}}")
+              req.Header.Add("Accept", "application/json")
+              req.Header.Add("Authorization", "Bearer {{TOKEN}}")
 
-            res, _ := http.DefaultClient.Do(req)
+              res, _ := http.DefaultClient.Do(req)
 
-            defer res.Body.Close()
-            body, _ := ioutil.ReadAll(res.Body)
+              defer res.Body.Close()
+              body, _ := ioutil.ReadAll(res.Body)
 
-            fmt.Println(res)
-            fmt.Println(string(body))
+              fmt.Println(res)
+              fmt.Println(string(body))
 
-          }
-      - lang: JavaScript
-        source: |
-          var settings = {
-            "async": true,
-            "crossDomain": true,
-            "url": "https://api.kroger.com/v1/cart/add",
-            "method": "PUT",
-            "headers": {
-              "Accept": "application/json",
-              "Authorization": "Bearer {{TOKEN}}",
-            },
-            "processData": false,
-            "data": "{\n  \"items\": [\n     {\n       \"upc\": \"0001200016268\",\n       \"quantity\": \2,\n       \"modality\": \"PICKUP\"\\n      }\n    ]\n }"
-          }
+            }
+        - lang: JavaScript
+          source: |
+            var settings = {
+              "async": true,
+              "crossDomain": true,
+              "url": "https://api.kroger.com/v1/cart/add",
+              "method": "PUT",
+              "headers": {
+                "Accept": "application/json",
+                "Authorization": "Bearer {{TOKEN}}",
+              },
+              "processData": false,
+              "data": "{\n  \"items\": [\n     {\n       \"upc\": \"0001200016268\",\n       \"quantity\": \2,\n       \"modality\": \"PICKUP\"\\n      }\n    ]\n }"
+            }
 
-          $.ajax(settings).done(function (response) {
-            console.log(response);
-          });
-      - lang: Java
-        source: |
-          OkHttpClient client = new OkHttpClient();
+            $.ajax(settings).done(function (response) {
+              console.log(response);
+            });
+        - lang: Java
+          source: |
+            OkHttpClient client = new OkHttpClient();
 
-          MediaType mediaType = MediaType.parse("application/json");
-          RequestBody body = RequestBody.create(mediaType, "{\n  \"items\": [\n     {\n       \"upc\": \"0001200016268\",\n       \"quantity\": \2,\n       \"modality\": \"PICKUP\"\\n      }\n    ]\n }");
-          Request request = new Request.Builder()
-            .url("https://api.kroger.com/v1/cart/add")
-            .put(body)
-            .addHeader("Accept", "application/json")
-            .addHeader("Authorization", "Bearer {{TOKEN}}")
-            .build();
+            MediaType mediaType = MediaType.parse("application/json");
+            RequestBody body = RequestBody.create(mediaType, "{\n  \"items\": [\n     {\n       \"upc\": \"0001200016268\",\n       \"quantity\": \2,\n       \"modality\": \"PICKUP\"\\n      }\n    ]\n }");
+            Request request = new Request.Builder()
+              .url("https://api.kroger.com/v1/cart/add")
+              .put(body)
+              .addHeader("Accept", "application/json")
+              .addHeader("Authorization", "Bearer {{TOKEN}}")
+              .build();
 
-          Response response = client.newCall(request).execute();
+            Response response = client.newCall(request).execute();
 components:
   schemas:
     APIError:
@@ -205,8 +205,8 @@ components:
               example: invalid_token
     cart.cartItemModel:
       required:
-      - quantity
-      - upc
+        - quantity
+        - upc
       type: object
       properties:
         quantity:
@@ -216,14 +216,14 @@ components:
         upc:
           type: string
           description: The `UPC` of the item.
-          example: '0001111060903'
+          example: "0001111060903"
         modality:
           type: string
-          description: 'An optional value representing a modality including: DELIVERY,
-            PICKUP.'
+          description: "An optional value representing a modality including: DELIVERY,
+            PICKUP."
           enum:
-          - DELIVERY
-          - PICKUP
+            - DELIVERY
+            - PICKUP
           default: PICKUP
     cart.cartItemRequestModel:
       type: object
@@ -244,8 +244,8 @@ components:
           example: API-4101-400
         reason:
           type: string
-          example: 'Modality must be omitted or equal one of the following codes:
-            DELIVERY, PICKUP'
+          example: "Modality must be omitted or equal one of the following codes:
+            DELIVERY, PICKUP"
     Invalid.parameters:
       type: object
       properties:
@@ -273,11 +273,11 @@ components:
   securitySchemes:
     CustomerContext:
       type: oauth2
-      description: 'To make an API request that returns either personalized customer
-        data or acts on behalf of a customer, the customer''s consent is required
+      description: "To make an API request that returns either personalized customer
+        data or acts on behalf of a customer, the customer's consent is required
         using the [Authorization Code Grant Type](https://developer.kroger.com/reference/api/authorization-endpoints-public#tag/OAuth2/operation/authorizationCode).
 
-        '
+        "
       flows:
         authorizationCode:
           authorizationUrl: https://api.kroger.com/v1/connect/oauth2/authorize
@@ -285,6 +285,6 @@ components:
           scopes:
             cart.basic:write: Grants write access to a customer's cart.
 x-tagGroups:
-- name: API Reference
-  tags:
-  - Carts
+  - name: API Reference
+    tags:
+      - Carts

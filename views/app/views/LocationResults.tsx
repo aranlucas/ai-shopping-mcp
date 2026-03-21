@@ -2,11 +2,7 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import {
-  callTool,
-  type LocationData,
-  type LocationResultsContent,
-} from "../../shared/types.js";
+import { callTool, type LocationData, type LocationResultsContent } from "../../shared/types.js";
 
 function LocationCard({
   location,
@@ -20,12 +16,8 @@ function LocationCard({
   onViewDetails: (id: string) => Promise<void>;
 }) {
   const id = location.locationId || "";
-  const [prefState, setPrefState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
-  const [detailState, setDetailState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [detailState, setDetailState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleSetPreferred = async () => {
     setPrefState("loading");
@@ -101,8 +93,8 @@ function LocationCard({
             />
           </svg>
           <span>
-            {location.address.addressLine1}, {location.address.city},{" "}
-            {location.address.state} {location.address.zipCode}
+            {location.address.addressLine1}, {location.address.city}, {location.address.state}{" "}
+            {location.address.zipCode}
           </span>
         </div>
       )}
@@ -197,9 +189,7 @@ export function LocationResultsView({
   if (locations.length === 0) {
     return (
       <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">
-          Store Locations
-        </h1>
+        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">Store Locations</h1>
         <EmptyState
           icon={
             <svg

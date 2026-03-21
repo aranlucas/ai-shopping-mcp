@@ -14,19 +14,14 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Extract the text content from the first text item in a tool response */
-function getTextContent(
-  response: ReturnType<typeof formatWeeklyDealsToolResponse>,
-): string {
+function getTextContent(response: ReturnType<typeof formatWeeklyDealsToolResponse>): string {
   const textItem = response.content.find(
-    (c): c is { type: "text"; text: string } =>
-      "type" in c && c.type === "text",
+    (c): c is { type: "text"; text: string } => "type" in c && c.type === "text",
   );
   return textItem?.text ?? "";
 }
 
-function makeMinimalResult(
-  overrides: Partial<QfcDealsApiResponse> = {},
-): QfcDealsApiResponse {
+function makeMinimalResult(overrides: Partial<QfcDealsApiResponse> = {}): QfcDealsApiResponse {
   return {
     sourceMode: "print_fallback",
     locationId: "70500847",
@@ -56,9 +51,7 @@ function makeCircular(eventEndDate: string, eventStartDate = "2025-01-01") {
   };
 }
 
-function makeCacheEntry(
-  overrides: Partial<WeeklyDealsCacheEntry> = {},
-): WeeklyDealsCacheEntry {
+function makeCacheEntry(overrides: Partial<WeeklyDealsCacheEntry> = {}): WeeklyDealsCacheEntry {
   const now = Date.now();
   return {
     version: 1,
@@ -220,9 +213,7 @@ describe("addCacheWarning", () => {
 describe("formatWeeklyDealsToolResponse", () => {
   it("returns plain deals list when no dates and no warnings", async () => {
     const result = makeMinimalResult({
-      deals: [
-        { id: "1", title: "Bananas", price: "$0.59/lb", source: "print" },
-      ],
+      deals: [{ id: "1", title: "Bananas", price: "$0.59/lb", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toBe("1. Bananas | $0.59/lb");
@@ -230,31 +221,21 @@ describe("formatWeeklyDealsToolResponse", () => {
 
   it("prepends valid date range when both printCircular dates are present", async () => {
     const result = makeMinimalResult({
-      printCircular: makeCircular(
-        "2025-01-07T00:00:00Z",
-        "2025-01-01T00:00:00Z",
-      ),
+      printCircular: makeCircular("2025-01-07T00:00:00Z", "2025-01-01T00:00:00Z"),
       deals: [{ id: "1", title: "Apples", price: "$1.99/lb", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain(
-      "Valid: 2025-01-01T00:00:00Z – 2025-01-07T00:00:00Z",
-    );
+    expect(text).toContain("Valid: 2025-01-01T00:00:00Z – 2025-01-07T00:00:00Z");
     expect(text).toContain("1. Apples | $1.99/lb");
   });
 
   it("prepends valid date range from shoppableCircular when no printCircular", async () => {
     const result = makeMinimalResult({
-      shoppableCircular: makeCircular(
-        "2025-01-08T00:00:00Z",
-        "2025-01-02T00:00:00Z",
-      ),
+      shoppableCircular: makeCircular("2025-01-08T00:00:00Z", "2025-01-02T00:00:00Z"),
       deals: [{ id: "1", title: "Milk", price: "$3.49", source: "search_api" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain(
-      "Valid: 2025-01-02T00:00:00Z – 2025-01-08T00:00:00Z",
-    );
+    expect(text).toContain("Valid: 2025-01-02T00:00:00Z – 2025-01-08T00:00:00Z");
   });
 
   it("falls back to deal-level dates when no circular dates present", async () => {
@@ -293,22 +274,15 @@ describe("formatWeeklyDealsToolResponse", () => {
   it("includes warnings in header when present", async () => {
     const result = makeMinimalResult({
       warnings: ["Print-ad parsing failed", "Using fallback"],
-      deals: [
-        { id: "1", title: "Chicken", price: "$4.99", source: "search_api" },
-      ],
+      deals: [{ id: "1", title: "Chicken", price: "$4.99", source: "search_api" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain(
-      "Warnings: Print-ad parsing failed | Using fallback",
-    );
+    expect(text).toContain("Warnings: Print-ad parsing failed | Using fallback");
   });
 
   it("includes both dates and warnings separated by newline", async () => {
     const result = makeMinimalResult({
-      printCircular: makeCircular(
-        "2025-01-07T00:00:00Z",
-        "2025-01-01T00:00:00Z",
-      ),
+      printCircular: makeCircular("2025-01-07T00:00:00Z", "2025-01-01T00:00:00Z"),
       warnings: ["Some warning"],
       deals: [{ id: "1", title: "Beef", price: "$5.99", source: "print" }],
     });
@@ -355,13 +329,9 @@ describe("formatWeeklyDealsToolResponse", () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
-    const freshText = getTextContent(
-      formatWeeklyDealsToolResponse(result, "fresh"),
-    );
+    const freshText = getTextContent(formatWeeklyDealsToolResponse(result, "fresh"));
     expect(freshText).not.toContain("Cache:");
-    const staleText = getTextContent(
-      formatWeeklyDealsToolResponse(result, "stale"),
-    );
+    const staleText = getTextContent(formatWeeklyDealsToolResponse(result, "stale"));
     expect(staleText).not.toContain("Cache:");
   });
 
@@ -369,9 +339,7 @@ describe("formatWeeklyDealsToolResponse", () => {
     const result = makeMinimalResult({ deals: [] });
     const response = formatWeeklyDealsToolResponse(result, "fresh");
     expect(response.structuredContent).toBeDefined();
-    expect(
-      (response.structuredContent as { cache: { state: string } }).cache.state,
-    ).toBe("fresh");
+    expect((response.structuredContent as { cache: { state: string } }).cache.state).toBe("fresh");
   });
 
   it("includes deal details and savings in compact format", async () => {

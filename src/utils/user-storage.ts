@@ -98,8 +98,7 @@ export class PantryStorage {
 
     // Check if item already exists by name (case-insensitive) and update quantity
     const existingIndex = pantry.findIndex(
-      (p: PantryItem) =>
-        p.productName.toLowerCase() === item.productName.toLowerCase(),
+      (p: PantryItem) => p.productName.toLowerCase() === item.productName.toLowerCase(),
     );
 
     if (existingIndex >= 0) {
@@ -117,8 +116,7 @@ export class PantryStorage {
   async remove(userId: string, productName: string): Promise<PantryItem[]> {
     const pantry = await this.getAll(userId);
     const filtered = pantry.filter(
-      (item: PantryItem) =>
-        item.productName.toLowerCase() !== productName.toLowerCase(),
+      (item: PantryItem) => item.productName.toLowerCase() !== productName.toLowerCase(),
     );
 
     const key = getKey(userId, "pantry");
@@ -133,8 +131,7 @@ export class PantryStorage {
   ): Promise<PantryItem[]> {
     const pantry = await this.getAll(userId);
     const item = pantry.find(
-      (p: PantryItem) =>
-        p.productName.toLowerCase() === productName.toLowerCase(),
+      (p: PantryItem) => p.productName.toLowerCase() === productName.toLowerCase(),
     );
 
     if (item) {
@@ -170,14 +167,12 @@ export class EquipmentStorage {
 
     // Check if item already exists by name (case-insensitive)
     const existingIndex = equipment.findIndex(
-      (e: EquipmentItem) =>
-        e.equipmentName.toLowerCase() === item.equipmentName.toLowerCase(),
+      (e: EquipmentItem) => e.equipmentName.toLowerCase() === item.equipmentName.toLowerCase(),
     );
 
     if (existingIndex >= 0) {
       // Update existing equipment item
-      equipment[existingIndex].category =
-        item.category || equipment[existingIndex].category;
+      equipment[existingIndex].category = item.category || equipment[existingIndex].category;
       equipment[existingIndex].addedAt = item.addedAt;
     } else {
       equipment.push(item);
@@ -188,14 +183,10 @@ export class EquipmentStorage {
     return equipment;
   }
 
-  async remove(
-    userId: string,
-    equipmentName: string,
-  ): Promise<EquipmentItem[]> {
+  async remove(userId: string, equipmentName: string): Promise<EquipmentItem[]> {
     const equipment = await this.getAll(userId);
     const filtered = equipment.filter(
-      (item: EquipmentItem) =>
-        item.equipmentName.toLowerCase() !== equipmentName.toLowerCase(),
+      (item: EquipmentItem) => item.equipmentName.toLowerCase() !== equipmentName.toLowerCase(),
     );
 
     const key = getKey(userId, "equipment");
@@ -222,16 +213,12 @@ export class ShoppingListStorage {
     return JSON.parse(value) as ShoppingListItem[];
   }
 
-  async add(
-    userId: string,
-    item: ShoppingListItem,
-  ): Promise<ShoppingListItem[]> {
+  async add(userId: string, item: ShoppingListItem): Promise<ShoppingListItem[]> {
     const list = await this.getAll(userId);
 
     // Check if item already exists by name (case-insensitive) and update quantity
     const existingIndex = list.findIndex(
-      (i: ShoppingListItem) =>
-        i.productName.toLowerCase() === item.productName.toLowerCase(),
+      (i: ShoppingListItem) => i.productName.toLowerCase() === item.productName.toLowerCase(),
     );
 
     if (existingIndex >= 0) {
@@ -254,14 +241,10 @@ export class ShoppingListStorage {
     return list;
   }
 
-  async remove(
-    userId: string,
-    productName: string,
-  ): Promise<ShoppingListItem[]> {
+  async remove(userId: string, productName: string): Promise<ShoppingListItem[]> {
     const list = await this.getAll(userId);
     const filtered = list.filter(
-      (item: ShoppingListItem) =>
-        item.productName.toLowerCase() !== productName.toLowerCase(),
+      (item: ShoppingListItem) => item.productName.toLowerCase() !== productName.toLowerCase(),
     );
 
     const key = getKey(userId, "shopping_list");
@@ -272,14 +255,11 @@ export class ShoppingListStorage {
   async updateItem(
     userId: string,
     productName: string,
-    updates: Partial<
-      Pick<ShoppingListItem, "quantity" | "upc" | "notes" | "checked">
-    >,
+    updates: Partial<Pick<ShoppingListItem, "quantity" | "upc" | "notes" | "checked">>,
   ): Promise<ShoppingListItem[]> {
     const list = await this.getAll(userId);
     const item = list.find(
-      (i: ShoppingListItem) =>
-        i.productName.toLowerCase() === productName.toLowerCase(),
+      (i: ShoppingListItem) => i.productName.toLowerCase() === productName.toLowerCase(),
     );
 
     if (item) {

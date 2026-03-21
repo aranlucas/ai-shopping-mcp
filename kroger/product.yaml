@@ -45,18 +45,18 @@ info:
     url: https://developer.kroger.com
   version: 1.2.4
 servers:
-- url: https://api.kroger.com
-  description: Production Environment
-- url: https://api-ce.kroger.com
-  description: Certification Environment
+  - url: https://api.kroger.com
+    description: Production Environment
+  - url: https://api-ce.kroger.com
+    description: Certification Environment
 security:
-- ClientContext:
-  - product.compact
+  - ClientContext:
+      - product.compact
 paths:
   "/v1/products":
     get:
       tags:
-      - Products
+        - Products
       summary: Product search
       description: "Allows you to find products by passing in either a search term
         or product Id.\n\n### Initial Search Value Required\n\nAn initial search value
@@ -72,178 +72,178 @@ paths:
         digit.\n"
       operationId: productGet
       parameters:
-      - name: filter.term
-        in: query
-        description: A search term to filter product results. As an example, you could
-          input _milk_, _bread_, or _salt_. <br><br><b>Note</b> - Search terms are
-          limited to a maximum of 8 words. Each new space in the search term denotes
-          a new word.
-        example: milk
-        schema:
-          minLength: 3
-          type: string
-      - name: filter.locationId
-        in: query
-        description: The locationId of the location. When using this filter, only
-          products available at that location are returned.
-        example: '01400943'
-        schema:
-          maxLength: 8
-          minLength: 8
-          type: string
-      - name: filter.productId
-        in: query
-        description: The productId of the products(s) to return. For more than one
-          item, the list must be comma-separated. When used, all other query parameters
-          are ignored.
-        example: '0001111060903'
-        schema:
-          maxLength: 13
-          minLength: 13
-          type: string
-          maximum: 50
-      - name: filter.brand
-        in: query
-        description: The brand name of the products to return. When using this filter,
-          only products by that brand are returned. Brand names are case-sensitive,
-          and lists must be pipe-separated.
-        example: Kroger
-        schema:
-          type: string
-      - name: filter.fulfillment
-        in: query
-        description: |
-          'The available fulfillment types of the product(s) to return.
-          Fulfillment types are case-sensitive, and lists must be comma-separated.
-          Must be one or more of the follow types: <ul> <li> `ais` - Available In
-          Store</li> <li> `csp` - Curbside Pickup</li> <li> `dth` - Delivery To Home</li>
-          <li> `sth` - Ship To Home</li> </ui>'
-        schema:
-          type: string
-          enum:
-          - ais
-          - csp
-          - dth
-          - sth
-      - name: filter.start
-        in: query
-        description: The number of products to skip.
-        schema:
-          maximum: 250
-          minimum: 1
-          type: integer
-      - name: filter.limit
-        in: query
-        description: The number of products to return.
-        schema:
-          maximum: 50
-          minimum: 1
-          type: integer
+        - name: filter.term
+          in: query
+          description: A search term to filter product results. As an example, you could
+            input _milk_, _bread_, or _salt_. <br><br><b>Note</b> - Search terms are
+            limited to a maximum of 8 words. Each new space in the search term denotes
+            a new word.
+          example: milk
+          schema:
+            minLength: 3
+            type: string
+        - name: filter.locationId
+          in: query
+          description: The locationId of the location. When using this filter, only
+            products available at that location are returned.
+          example: "01400943"
+          schema:
+            maxLength: 8
+            minLength: 8
+            type: string
+        - name: filter.productId
+          in: query
+          description: The productId of the products(s) to return. For more than one
+            item, the list must be comma-separated. When used, all other query parameters
+            are ignored.
+          example: "0001111060903"
+          schema:
+            maxLength: 13
+            minLength: 13
+            type: string
+            maximum: 50
+        - name: filter.brand
+          in: query
+          description: The brand name of the products to return. When using this filter,
+            only products by that brand are returned. Brand names are case-sensitive,
+            and lists must be pipe-separated.
+          example: Kroger
+          schema:
+            type: string
+        - name: filter.fulfillment
+          in: query
+          description: |
+            'The available fulfillment types of the product(s) to return.
+            Fulfillment types are case-sensitive, and lists must be comma-separated.
+            Must be one or more of the follow types: <ul> <li> `ais` - Available In
+            Store</li> <li> `csp` - Curbside Pickup</li> <li> `dth` - Delivery To Home</li>
+            <li> `sth` - Ship To Home</li> </ui>'
+          schema:
+            type: string
+            enum:
+              - ais
+              - csp
+              - dth
+              - sth
+        - name: filter.start
+          in: query
+          description: The number of products to skip.
+          schema:
+            maximum: 250
+            minimum: 1
+            type: integer
+        - name: filter.limit
+          in: query
+          description: The number of products to return.
+          schema:
+            maximum: 50
+            minimum: 1
+            type: integer
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/products.productsPayloadModel"
-        '400':
+        "400":
           description: Bad Request
           content:
             application/json:
               schema:
                 oneOf:
-                - "$ref": "#/components/schemas/APIError"
-                - "$ref": "#/components/schemas/Invalid_locationId"
-                - "$ref": "#/components/schemas/Invalid_parameter"
-                - "$ref": "#/components/schemas/Invalid_limit"
-        '401':
+                  - "$ref": "#/components/schemas/APIError"
+                  - "$ref": "#/components/schemas/Invalid_locationId"
+                  - "$ref": "#/components/schemas/Invalid_parameter"
+                  - "$ref": "#/components/schemas/Invalid_limit"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.unauthorized"
-        '403':
+        "403":
           description: Forbidden
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.forbidden"
-        '500':
+        "500":
           description: Internal Server Error
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.products.serverError"
       security:
-      - ClientContext:
-        - product.compact
+        - ClientContext:
+            - product.compact
       x-code-samples:
-      - lang: Shell
-        source: |
-          curl -X GET \
-            'https://api.kroger.com/v1/products?filter.brand={{BRAND}}&filter.term={{TERM}}&filter.locationId={{LOCATION_ID}}' \
-            -H 'Accept: application/json' \
-            -H 'Authorization: Bearer {{TOKEN}}'
-      - lang: Go
-        source: |
-          package main
+        - lang: Shell
+          source: |
+            curl -X GET \
+              'https://api.kroger.com/v1/products?filter.brand={{BRAND}}&filter.term={{TERM}}&filter.locationId={{LOCATION_ID}}' \
+              -H 'Accept: application/json' \
+              -H 'Authorization: Bearer {{TOKEN}}'
+        - lang: Go
+          source: |
+            package main
 
-          import (
-            "fmt"
-            "net/http"
-            "io/ioutil"
-          )
+            import (
+              "fmt"
+              "net/http"
+              "io/ioutil"
+            )
 
-          func main() {
+            func main() {
 
-            url := "https://api.kroger.com/v1/products?filter.brand={{BRAND}}&filter.term={{TERM}}&filter.locationId={{LOCATION_ID}}"
+              url := "https://api.kroger.com/v1/products?filter.brand={{BRAND}}&filter.term={{TERM}}&filter.locationId={{LOCATION_ID}}"
 
-            req, _ := http.NewRequest("GET", url, nil)
+              req, _ := http.NewRequest("GET", url, nil)
 
-            req.Header.Add("Accept", "application/json")
-            req.Header.Add("Authorization", "Bearer {{TOKEN}}")
+              req.Header.Add("Accept", "application/json")
+              req.Header.Add("Authorization", "Bearer {{TOKEN}}")
 
-            res, _ := http.DefaultClient.Do(req)
+              res, _ := http.DefaultClient.Do(req)
 
-            defer res.Body.Close()
-            body, _ := ioutil.ReadAll(res.Body)
+              defer res.Body.Close()
+              body, _ := ioutil.ReadAll(res.Body)
 
-            fmt.Println(res)
-            fmt.Println(string(body))
+              fmt.Println(res)
+              fmt.Println(string(body))
 
-          }
-      - lang: JavaScript
-        source: |
-          var settings = {
-            "async": true,
-            "crossDomain": true,
-            "url": "https://api.kroger.com/v1/products?filter.brand={{BRAND}}&filter.term={{TERM}}&filter.locationId={{LOCATION_ID}}",
-            "method": "GET",
-            "headers": {
-              "Accept": "application/json",
-              "Authorization": "Bearer {{TOKEN}}"
             }
-          }
+        - lang: JavaScript
+          source: |
+            var settings = {
+              "async": true,
+              "crossDomain": true,
+              "url": "https://api.kroger.com/v1/products?filter.brand={{BRAND}}&filter.term={{TERM}}&filter.locationId={{LOCATION_ID}}",
+              "method": "GET",
+              "headers": {
+                "Accept": "application/json",
+                "Authorization": "Bearer {{TOKEN}}"
+              }
+            }
 
-          $.ajax(settings).done(function (response) {
-            console.log(response);
-          });
-      - lang: Java
-        source: |
-          OkHttpClient client = new OkHttpClient();
+            $.ajax(settings).done(function (response) {
+              console.log(response);
+            });
+        - lang: Java
+          source: |
+            OkHttpClient client = new OkHttpClient();
 
-          Request request = new Request.Builder()
-            .url("https://api.kroger.com/v1/products?filter.brand={{BRAND}}&filter.term={{TERM}}&filter.locationId={{LOCATION_ID}}")
-            .get()
-            .addHeader("Accept", "application/json")
-            .addHeader("Authorization", "Bearer {{TOKEN}}")
-            .build();
+            Request request = new Request.Builder()
+              .url("https://api.kroger.com/v1/products?filter.brand={{BRAND}}&filter.term={{TERM}}&filter.locationId={{LOCATION_ID}}")
+              .get()
+              .addHeader("Accept", "application/json")
+              .addHeader("Authorization", "Bearer {{TOKEN}}")
+              .build();
 
-          Response response = client.newCall(request).execute();
+            Response response = client.newCall(request).execute();
   "/v1/products/{id}":
     get:
       tags:
-      - Products
+        - Products
       summary: Product details
       description: "Provides access to the details of a specific product by using
         the 13 digit `productId`. If converting from a barcode omit the check digit.
@@ -251,123 +251,123 @@ paths:
         include the `filter.locationId` query parameter."
       operationId: productGetID
       parameters:
-      - name: id
-        description: The id of the product
-        in: path
-        required: true
-        schema:
-          oneOf:
-          - "$ref": "#/components/schemas/productId"
-          - "$ref": "#/components/schemas/UPC"
-      - name: filter.locationId
-        in: query
-        description: The locationId of the location. When using this filter, only
-          products available at that location are returned.
-        example: '01400943'
-        schema:
-          maxLength: 8
-          minLength: 8
-          type: string
+        - name: id
+          description: The id of the product
+          in: path
+          required: true
+          schema:
+            oneOf:
+              - "$ref": "#/components/schemas/productId"
+              - "$ref": "#/components/schemas/UPC"
+        - name: filter.locationId
+          in: query
+          description: The locationId of the location. When using this filter, only
+            products available at that location are returned.
+          example: "01400943"
+          schema:
+            maxLength: 8
+            minLength: 8
+            type: string
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/products.productPayloadModel"
-        '400':
+        "400":
           description: Bad Request
           content:
             application/json:
               schema:
                 oneOf:
-                - "$ref": "#/components/schemas/APIError"
-                - "$ref": "#/components/schemas/Invalid_locationId"
-                - "$ref": "#/components/schemas/Invalid_UPC"
-        '401':
+                  - "$ref": "#/components/schemas/APIError"
+                  - "$ref": "#/components/schemas/Invalid_locationId"
+                  - "$ref": "#/components/schemas/Invalid_UPC"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.unauthorized"
-        '403':
+        "403":
           description: Forbidden
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.forbidden"
-        '500':
+        "500":
           description: Internal Server Error
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/APIError.products.serverError"
       security:
-      - ClientContext:
-        - product.compact
+        - ClientContext:
+            - product.compact
       x-code-samples:
-      - lang: Shell
-        source: |
-          curl -X GET \
-            'https://api.kroger.com/v1/products/{{ID}}?filter.locationId={{LOCATION_ID}}' \
-            -H 'Accept: application/json' \
-            -H 'Authorization: Bearer {{TOKEN}}'
-      - lang: Go
-        source: |
-          package main
+        - lang: Shell
+          source: |
+            curl -X GET \
+              'https://api.kroger.com/v1/products/{{ID}}?filter.locationId={{LOCATION_ID}}' \
+              -H 'Accept: application/json' \
+              -H 'Authorization: Bearer {{TOKEN}}'
+        - lang: Go
+          source: |
+            package main
 
-          import (
-            "fmt"
-            "net/http"
-            "io/ioutil"
-          )
+            import (
+              "fmt"
+              "net/http"
+              "io/ioutil"
+            )
 
-          func main() {
+            func main() {
 
-            url := "https://api.kroger.com/v1/products/{{ID}}?filter.locationId={{LOCATION_ID}}"
+              url := "https://api.kroger.com/v1/products/{{ID}}?filter.locationId={{LOCATION_ID}}"
 
-            req, _ := http.NewRequest("GET", url, nil)
+              req, _ := http.NewRequest("GET", url, nil)
 
-            req.Header.Add("Accept", "application/json")
-            req.Header.Add("Authorization", "Bearer {{TOKEN}}")
+              req.Header.Add("Accept", "application/json")
+              req.Header.Add("Authorization", "Bearer {{TOKEN}}")
 
-            res, _ := http.DefaultClient.Do(req)
+              res, _ := http.DefaultClient.Do(req)
 
-            defer res.Body.Close()
-            body, _ := ioutil.ReadAll(res.Body)
+              defer res.Body.Close()
+              body, _ := ioutil.ReadAll(res.Body)
 
-            fmt.Println(res)
-            fmt.Println(string(body))
+              fmt.Println(res)
+              fmt.Println(string(body))
 
-          }
-      - lang: JavaScript
-        source: |
-          var settings = {
-            "async": true,
-            "crossDomain": true,
-            "url": "https://api.kroger.com/v1/products/{{ID}}?filter.locationId={{LOCATION_ID}}",
-            "method": "GET",
-            "headers": {
-              "Accept": "application/json",
-              "Authorization": "Bearer {{TOKEN}}"
             }
-          }
+        - lang: JavaScript
+          source: |
+            var settings = {
+              "async": true,
+              "crossDomain": true,
+              "url": "https://api.kroger.com/v1/products/{{ID}}?filter.locationId={{LOCATION_ID}}",
+              "method": "GET",
+              "headers": {
+                "Accept": "application/json",
+                "Authorization": "Bearer {{TOKEN}}"
+              }
+            }
 
-          $.ajax(settings).done(function (response) {
-            console.log(response);
-          });
-      - lang: Java
-        source: |
-          OkHttpClient client = new OkHttpClient();
+            $.ajax(settings).done(function (response) {
+              console.log(response);
+            });
+        - lang: Java
+          source: |
+            OkHttpClient client = new OkHttpClient();
 
-          Request request = new Request.Builder()
-            .url("https://api.kroger.com/v1/products/{{ID}}?filter.locationId={{LOCATION_ID}}")
-            .get()
-            .addHeader("Accept", "application/json")
-            .addHeader("Authorization", "Bearer {{TOKEN}}")
-            .build();
+            Request request = new Request.Builder()
+              .url("https://api.kroger.com/v1/products/{{ID}}?filter.locationId={{LOCATION_ID}}")
+              .get()
+              .addHeader("Accept", "application/json")
+              .addHeader("Authorization", "Bearer {{TOKEN}}")
+              .build();
 
-          Response response = client.newCall(request).execute();
+            Response response = client.newCall(request).execute();
 components:
   schemas:
     Invalid_locationId:
@@ -472,7 +472,7 @@ components:
     productId:
       type: string
       description: The productId of the product to return.
-      example: '0001111060903'
+      example: "0001111060903"
       maxLength: 13
       minLength: 13
       maximum: 200
@@ -482,7 +482,7 @@ components:
         productId:
           type: string
           description: The UPC of the product.
-          example: '0001111041700'
+          example: "0001111041700"
         productPageURI:
           type: string
           description: The URI of the product page.
@@ -524,7 +524,7 @@ components:
         upc:
           type: string
           description: The UPC of the product.
-          example: '0001111041700'
+          example: "0001111041700"
     products.productPayloadModel:
       type: object
       properties:
@@ -549,7 +549,7 @@ components:
         bayNumber:
           type: string
           description: The bay number of the aisle.
-          example: '13'
+          example: "13"
         description:
           type: string
           description: The location in the store.
@@ -557,15 +557,15 @@ components:
         number:
           type: string
           description: The aisle number in the store.
-          example: '35'
+          example: "35"
         numberOfFacings:
           type: string
           description: The number of facings.
-          example: '5'
+          example: "5"
         sequenceNumber:
           type: string
           description: The sequence of the aisle in the store.
-          example: '3'
+          example: "3"
         side:
           type: string
           description: The side of the aisle where the product is located.
@@ -573,11 +573,11 @@ components:
         shelfNumber:
           type: string
           description: The shelf number in the aisle.
-          example: '2'
+          example: "2"
         shelfPositionInBay:
           type: string
           description: The position of the shelf in the bay.
-          example: '1'
+          example: "1"
     products.productBoxedDimensionsModel:
       type: object
       description: Information about the product's size.
@@ -585,22 +585,22 @@ components:
         depth:
           type: string
           description: The depth of the product.
-          example: '3.5'
+          example: "3.5"
         height:
           type: string
           description: The height of the product.
-          example: '2.0'
+          example: "2.0"
         width:
           type: string
           description: The length of the product.
-          example: '4.75'
+          example: "4.75"
     products.productItemModel:
       type: object
       properties:
         itemId:
           type: string
           description: The UPC of the item.
-          example: '0001111041700'
+          example: "0001111041700"
         inventory:
           "$ref": "#/components/schemas/products.productItemInventoryModel"
         favorite:
@@ -626,9 +626,9 @@ components:
         stockLevel:
           type: string
           enum:
-          - HIGH
-          - LOW
-          - TEMPORARILY_OUT_OF_STOCK
+            - HIGH
+            - LOW
+            - TEMPORARILY_OUT_OF_STOCK
           description: Indicates the level of stock.
           example: HIGH
     products.productItemFulfillmentModel:
@@ -715,24 +715,24 @@ components:
     UPC:
       type: string
       description: The UPC of the product to return.
-      example: '0001111060903'
+      example: "0001111060903"
       maxLength: 13
       minLength: 13
       maximum: 200
   securitySchemes:
     ClientContext:
       type: oauth2
-      description: 'To make an API request that interacts with generalized information
+      description: "To make an API request that interacts with generalized information
         and does not require customer consent, use the [Client Credentials Grant Type](https://developer.kroger.com/reference/api/authorization-endpoints-public#tag/OAuth2/operation/accessToken)
         to authenticate your OAuth2 application.
 
-        '
+        "
       flows:
         clientCredentials:
           tokenUrl: https://api.kroger.com/v1/connect/oauth2/token
           scopes:
             product.compact: Grants read access to general product information.
 x-tagGroups:
-- name: API Reference
-  tags:
-  - Products
+  - name: API Reference
+    tags:
+      - Products

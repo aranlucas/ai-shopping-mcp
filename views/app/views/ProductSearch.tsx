@@ -30,21 +30,13 @@ function ProductCard({
   const size = product.items?.[0]?.size;
   const aisle =
     product.aisleLocations?.[0]?.description ||
-    (product.aisleLocations?.[0]?.number
-      ? `Aisle ${product.aisleLocations[0].number}`
-      : undefined);
+    (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
 
   return (
     <div className="group bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 flex flex-col">
       <div className="flex-1">
-        <div className="font-semibold text-sm text-gray-900 leading-snug">
-          {name}
-        </div>
-        {brand && (
-          <div className="text-xs text-gray-500 mt-0.5 font-medium">
-            {brand}
-          </div>
-        )}
+        <div className="font-semibold text-sm text-gray-900 leading-snug">{name}</div>
+        {brand && <div className="text-xs text-gray-500 mt-0.5 font-medium">{brand}</div>}
         {size && <div className="text-xs text-gray-400 mt-0.5">{size}</div>}
         <div className="mt-2">
           <PriceDisplay product={product} />
@@ -74,11 +66,7 @@ function ProductCard({
             {aisle}
           </div>
         )}
-        {upc && (
-          <div className="text-[10px] text-gray-300 mt-0.5 font-mono">
-            {upc}
-          </div>
-        )}
+        {upc && <div className="text-[10px] text-gray-300 mt-0.5 font-mono">{upc}</div>}
       </div>
       <ProductActions
         upc={upc}
@@ -197,9 +185,7 @@ export function ProductSearchView({
           return (
             <div key={result.term} className="mb-6">
               <div className="flex items-center gap-2 mb-2">
-                <h2 className="font-semibold text-sm text-gray-700">
-                  {result.term}
-                </h2>
+                <h2 className="font-semibold text-sm text-gray-700">{result.term}</h2>
                 <Badge variant="gray">0 items</Badge>
               </div>
               <p className="text-sm text-gray-400 pl-0.5">No products found.</p>
@@ -209,9 +195,7 @@ export function ProductSearchView({
         return (
           <div key={result.term} className="mb-8">
             <div className="flex items-center gap-2 mb-3">
-              <h2 className="font-semibold text-sm text-gray-800 capitalize">
-                {result.term}
-              </h2>
+              <h2 className="font-semibold text-sm text-gray-800 capitalize">{result.term}</h2>
               <Badge variant="blue">{result.products.length} items</Badge>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

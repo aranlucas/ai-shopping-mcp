@@ -4,25 +4,24 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import * as z from "zod/v4";
 
 export function registerPrompts(server: McpServer) {
   /**
    * Prompt 1: Grocery List Store Path
    * Helps users find the optimal path through a store based on their grocery list
    */
-  server.prompt(
-    "grocery_list_store_path",
-    "Generate a prompt to find the optimal path through a store based on a grocery list",
+  server.registerPrompt(
+    "grocery-list-store_path",
     {
-      grocery_list: z
-        .string()
-        .optional()
-        .describe(
-          "Optional grocery list items to organize into a store path. If not provided, the LLM will help determine what items are needed.",
-        ),
+      title: "grocery_list_store_path",
+      description:
+        "Generate a prompt to find the optimal path through a store based on a grocery list",
+      argsSchema: {
+        grocery_list: z.string().optional().describe("Optional grocery list items to organize"),
+      },
     },
-    ({ grocery_list }: { grocery_list?: string }) => ({
+    async ({ grocery_list }) => ({
       messages: [
         {
           role: "user",
@@ -57,17 +56,19 @@ IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.
    * Prompt 2: Set Preferred Store
    * Guides users through selecting and saving their preferred Kroger store
    */
-  server.prompt(
+  server.registerPrompt(
     "set_preferred_store",
-    "Generate a prompt to help the user set their preferred Kroger store",
     {
-      zip_code: z
-        .string()
-        .length(5)
-        .optional()
-        .describe("Optional zip code to search for nearby stores"),
+      description: "Generate a prompt to help the user set their preferred Kroger store",
+      argsSchema: {
+        zip_code: z
+          .string()
+          .length(5)
+          .optional()
+          .describe("Optional zip code to search for nearby stores"),
+      },
     },
-    ({ zip_code }: { zip_code?: string }) => ({
+    ({ zip_code }) => ({
       messages: [
         {
           role: "user",
@@ -93,16 +94,18 @@ This will make future shopping and product searches more convenient.`,
    * Prompt 3: Add Recipe to Cart
    * Finds a recipe and automatically adds ingredients to the shopping cart
    */
-  server.prompt(
+  server.registerPrompt(
     "add_recipe_to_cart",
-    "Generate a prompt to find a specific recipe and add its ingredients to cart",
     {
-      recipe_type: z
-        .string()
-        .default("classic apple pie")
-        .describe("The type of recipe to search for"),
+      description: "Generate a prompt to find a specific recipe and add its ingredients to cart",
+      argsSchema: {
+        recipe_type: z
+          .string()
+          .default("classic apple pie")
+          .describe("The type of recipe to search for"),
+      },
     },
-    ({ recipe_type }: { recipe_type: string }) => ({
+    ({ recipe_type }) => ({
       messages: [
         {
           role: "user",

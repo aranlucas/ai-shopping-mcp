@@ -105,13 +105,9 @@ function safeErrorMessage(error: unknown): string {
   return String(error);
 }
 
-function formatPrice(
-  value: number | null | undefined,
-  uom?: string | null,
-): string {
+function formatPrice(value: number | null | undefined, uom?: string | null): string {
   if (typeof value !== "number" || Number.isNaN(value)) return "";
-  const price =
-    value >= 1 ? `$${value.toFixed(2)}` : `${Math.round(value * 100)}¢`;
+  const price = value >= 1 ? `$${value.toFixed(2)}` : `${Math.round(value * 100)}¢`;
   return uom ? `${price}/${uom}` : price;
 }
 
@@ -125,9 +121,7 @@ async function fetchJson<T>(
   try {
     parsed = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error(
-      `Invalid JSON from ${url} (status ${response.status}): ${text.slice(0, 200)}`,
-    );
+    throw new Error(`Invalid JSON from ${url} (status ${response.status}): ${text.slice(0, 200)}`);
   }
 
   if (!response.ok) {
@@ -163,24 +157,15 @@ function selectCurrentCirculars(circulars: Circular[]) {
   const active = circulars.filter((c) => {
     const start = Date.parse(c.eventStartDate);
     const end = Date.parse(c.eventEndDate);
-    return (
-      Number.isFinite(start) &&
-      Number.isFinite(end) &&
-      start <= now &&
-      now <= end
-    );
+    return Number.isFinite(start) && Number.isFinite(end) && start <= now && now <= end;
   });
 
   const shoppable =
-    active.find(
-      (c) => c.circularType === "weeklyAd" && c.tags.includes("SHOPPABLE"),
-    ) ||
+    active.find((c) => c.circularType === "weeklyAd" && c.tags.includes("SHOPPABLE")) ||
     circulars.find((c) => c.circularType === "weeklyAd" && !c.previewCircular);
 
   const print =
-    active.find(
-      (c) => c.circularType === "print" && c.tags.includes("CLASSIC_VIEW"),
-    ) ||
+    active.find((c) => c.circularType === "print" && c.tags.includes("CLASSIC_VIEW")) ||
     circulars.find((c) => c.circularType === "print" && !c.previewCircular);
 
   return { shoppable, print };
@@ -230,11 +215,9 @@ function normalizeProductAsDeal(product: KrogerProduct): NormalizedWeeklyDeal {
   const department = product.categories?.[0];
   const title = product.description || "Unknown Product";
 
-  const defaultImage =
-    product.images?.find((img) => img.default) || product.images?.[0];
+  const defaultImage = product.images?.find((img) => img.default) || product.images?.[0];
   const imageUrl =
-    defaultImage?.sizes?.find((s) => s.size === "medium")?.url ||
-    defaultImage?.sizes?.[0]?.url;
+    defaultImage?.sizes?.find((s) => s.size === "medium")?.url || defaultImage?.sizes?.[0]?.url;
 
   return {
     id: product.productId || product.upc || Math.random().toString(36).slice(2),
@@ -269,11 +252,7 @@ async function fetchDealsBySearchApi(params: {
     const item = product.items?.[0];
     const promo = item?.price?.promo;
     const regular = item?.price?.regular;
-    return (
-      typeof promo === "number" &&
-      typeof regular === "number" &&
-      promo < regular
-    );
+    return typeof promo === "number" && typeof regular === "number" && promo < regular;
   });
 
   // Deduplicate by productId / upc
@@ -322,10 +301,7 @@ async function fetchPrintAdPage(params: {
   locationId: string;
   signal?: AbortSignal;
 }): Promise<DacsPageResponse> {
-  const url = new URL(
-    `/api/dacs/${params.eventId}/pages/${params.eventPageId}`,
-    DACS_BASE,
-  );
+  const url = new URL(`/api/dacs/${params.eventId}/pages/${params.eventPageId}`, DACS_BASE);
   url.searchParams.set("location", params.locationId);
 
   const { data } = await fetchJson<DacsPageResponse>(url.toString(), {
@@ -343,9 +319,7 @@ async function fetchPrintAdPage(params: {
   return data;
 }
 
-function parseDacsOfferFromMapConfig(
-  mapConfig: string,
-): ParsedDacsOffer | null {
+function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null {
   try {
     const parsed = JSON.parse(mapConfig) as JsonRecord;
     const content = parsed.content as JsonRecord | undefined;
@@ -491,9 +465,7 @@ async function augmentPrintDealsWithSearchApi(
   });
 
   const augmented = await Promise.all(augmentPromises);
-  const augmentedCount = augmented.filter(
-    (d, i) => d.price !== deals[i].price,
-  ).length;
+  const augmentedCount = augmented.filter((d, i) => d.price !== deals[i].price).length;
 
   return { augmented, augmentedCount };
 }
@@ -521,9 +493,7 @@ export async function getQfcWeeklyDeals(
     shoppableCircular = selected.shoppable;
     printCircular = selected.print;
   } catch (error) {
-    warnings.push(
-      `Unable to fetch weekly circulars for date context: ${safeErrorMessage(error)}`,
-    );
+    warnings.push(`Unable to fetch weekly circulars for date context: ${safeErrorMessage(error)}`);
   }
 
   // Primary: print-ad parsing via DACS (no auth required)
@@ -550,9 +520,7 @@ export async function getQfcWeeklyDeals(
           finalDeals = result.augmented;
           augmentedCount = result.augmentedCount;
         } catch (error) {
-          warnings.push(
-            `Search API pricing augmentation failed: ${safeErrorMessage(error)}`,
-          );
+          warnings.push(`Search API pricing augmentation failed: ${safeErrorMessage(error)}`);
         }
       }
 
@@ -593,9 +561,7 @@ export async function getQfcWeeklyDeals(
         meta: { termCount },
       };
     } catch (error) {
-      warnings.push(
-        `Search API deal fetch also failed. (${safeErrorMessage(error)})`,
-      );
+      warnings.push(`Search API deal fetch also failed. (${safeErrorMessage(error)})`);
     }
   }
 

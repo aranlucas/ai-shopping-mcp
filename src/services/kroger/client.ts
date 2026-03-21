@@ -53,18 +53,13 @@ export function refreshKrogerToken(
       signal: AbortSignal.timeout(30_000),
     }),
     (e) =>
+      networkError(`Token refresh network error: ${e instanceof Error ? e.message : String(e)}`, e),
+  ).andThen((refreshResponse) =>
+    ResultAsync.fromPromise(refreshResponse.json() as Promise<KrogerTokenResponse>, (e) =>
       networkError(
-        `Token refresh network error: ${e instanceof Error ? e.message : String(e)}`,
+        `Failed to parse token refresh response: ${e instanceof Error ? e.message : String(e)}`,
         e,
       ),
-  ).andThen((refreshResponse) =>
-    ResultAsync.fromPromise(
-      refreshResponse.json() as Promise<KrogerTokenResponse>,
-      (e) =>
-        networkError(
-          `Failed to parse token refresh response: ${e instanceof Error ? e.message : String(e)}`,
-          e,
-        ),
     ).andThen((responseData) => {
       if (!refreshResponse.ok) {
         console.error("Failed to refresh Kroger access token:", {
@@ -83,9 +78,7 @@ export function refreshKrogerToken(
       }
 
       if (!responseData.access_token) {
-        return err(
-          apiError("Invalid response from Kroger token refresh endpoint"),
-        );
+        return err(apiError("Invalid response from Kroger token refresh endpoint"));
       }
 
       const expiresIn = responseData.expires_in || 1800;
@@ -125,23 +118,17 @@ const REAUTH_MSG = "Please reconnect to the MCP server to re-authenticate.";
  * Does NOT refresh tokens — that's handled exclusively by tokenExchangeCallback
  * to avoid conflicts with Kroger's single-use refresh tokens.
  */
-export function createKrogerAuthMiddleware(
-  getTokenInfo: () => KrogerTokenInfo | null,
-): Middleware {
+export function createKrogerAuthMiddleware(getTokenInfo: () => KrogerTokenInfo | null): Middleware {
   return {
     async onRequest({ request }) {
       const tokenInfo = getTokenInfo();
       if (!tokenInfo) {
-        throw new KrogerTokenExpiredError(
-          `No Kroger token available. ${REAUTH_MSG}`,
-        );
+        throw new KrogerTokenExpiredError(`No Kroger token available. ${REAUTH_MSG}`);
       }
 
       // 1-minute clock skew buffer (vs 5-minute proactive refresh in tokenExchangeCallback)
       if (Date.now() - 60_000 >= tokenInfo.tokenExpiresAt) {
-        throw new KrogerTokenExpiredError(
-          `Kroger access token has expired. ${REAUTH_MSG}`,
-        );
+        throw new KrogerTokenExpiredError(`Kroger access token has expired. ${REAUTH_MSG}`);
       }
 
       request.headers.set("Authorization", `Bearer ${tokenInfo.accessToken}`);
@@ -150,9 +137,7 @@ export function createKrogerAuthMiddleware(
 
     async onResponse({ response }) {
       if (response.status === 401) {
-        throw new KrogerTokenExpiredError(
-          `Kroger rejected the access token. ${REAUTH_MSG}`,
-        );
+        throw new KrogerTokenExpiredError(`Kroger rejected the access token. ${REAUTH_MSG}`);
       }
       return response;
     },
@@ -163,9 +148,7 @@ export function createKrogerAuthMiddleware(
  * Creates all Kroger API clients with authentication middleware applied.
  * Returns fresh client instances — no global mutable state.
  */
-export function createKrogerClients(
-  getTokenInfo: () => KrogerTokenInfo | null,
-) {
+export function createKrogerClients(getTokenInfo: () => KrogerTokenInfo | null) {
   const middleware = createKrogerAuthMiddleware(getTokenInfo);
   const base = { baseUrl: "https://api.kroger.com" };
 

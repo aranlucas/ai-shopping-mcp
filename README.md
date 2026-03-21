@@ -16,6 +16,7 @@ The goal is to allow AI models (like those in editors such as Cursor) to help ma
 4. Save the configuration
 
 ⚠️ **Common Issues**:
+
 - The redirect URI must match **exactly** (including trailing slashes, protocol, etc.)
 - Make sure your `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` environment variables are correctly set
 - Verify that your application has the correct scopes enabled: `profile.compact`, `cart.basic:write`, `product.compact`
@@ -31,10 +32,7 @@ Now that your MCP server is running, you can use the [mcp-remote local proxy](ht
   "mcpServers": {
     "ai-shopping-list": {
       "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://ai-meal-planner-mcp.aranlucas.workers.dev/sse"
-      ]
+      "args": ["mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/sse"]
     }
   }
 }
@@ -47,31 +45,37 @@ Restart Claude Desktop after updating your config file to load the MCP Server. O
 The Kroger MCP server provides the following tools:
 
 ### Shopping Cart Management
+
 - **add_to_cart** - Adds products to your Kroger shopping cart
   - Parameters: items (array of products with UPC, quantity, and modality)
 
 ### Store Locations
+
 - **search_locations** - Searches for Kroger store locations
   - Parameters: zipCode, limit, chain (e.g., "QFC")
 - **get_location_details** - Gets detailed information about a specific store
   - Parameters: locationId
 
 ### Product Search
+
 - **search_products** - Bulk search for products using multiple terms (parallel execution)
   - Parameters: terms (array of 1-10 search strings), locationId
 - **get_product_details** - Gets detailed information about a specific product
   - Parameters: productId, locationId
 
 ### User Data Management
+
 - **manage_pantry** - Add, remove, or clear pantry items (action discriminator)
 - **manage_equipment** - Add, remove, or clear kitchen equipment (action discriminator)
 - **mark_order_placed** - Record a completed order in history
 
 ### Shopping List
+
 - **manage_shopping_list** - Add, remove, update, or clear shopping list items (action discriminator)
 - **checkout_shopping_list** - Add unchecked items with UPCs to Kroger cart
 
 ### AI-Powered Tools
+
 - **search_recipes_from_web** - Search and extract recipes via web API
 - **plan_meals** - AI-powered meal suggestions from pantry, equipment, and dietary preferences
 
@@ -80,6 +84,7 @@ The Kroger MCP server provides the following tools:
 The server provides guided workflow prompts for common shopping scenarios:
 
 ### Shopping Assistant Prompts
+
 - **grocery_list_store_path** - Helps organize your grocery list into an optimal shopping route through the store
   - Parameters: grocery_list (string)
   - Creates efficient aisle-by-aisle shopping paths
@@ -95,12 +100,15 @@ The server provides guided workflow prompts for common shopping scenarios:
 ## Features
 
 ### Human-Readable Responses
+
 All tools return formatted, easy-to-read responses instead of raw JSON:
+
 - **Products**: Markdown-formatted with pricing, availability, and aisle locations
 - **Locations**: Clean display of addresses, hours, and departments
 - **Weekly Deals**: Clear pricing with savings amounts and valid dates
 
 ### Type Safety
+
 - Fully typed with TypeScript
 - Uses OpenAPI-generated type definitions
 - Zero `any` types throughout the codebase
@@ -108,13 +116,14 @@ All tools return formatted, easy-to-read responses instead of raw JSON:
 ## References
 
 ### Related Projects
+
 - **[CupOfOwls/kroger-mcp](https://github.com/CupOfOwls/kroger-mcp)** - Python-based Kroger MCP implementation
   - Reference implementation for feature ideas and UX patterns
   - Includes local cart tracking workaround for API limitations
   - Built with FastMCP
 
 ### Documentation
+
 - [Kroger Developer Portal](https://developer.kroger.com/) - Official API documentation
 - [Model Context Protocol](https://modelcontextprotocol.io/) - MCP specification
 - [MCP Remote Proxy](https://github.com/anthropics/mcp-remote) - Connect Claude Desktop to remote MCP servers
-

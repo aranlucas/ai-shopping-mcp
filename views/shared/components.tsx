@@ -1,6 +1,3 @@
-/** Reusable sub-components for client-side Views. */
-
-import React from "react";
 import type { ProductData } from "./types.js";
 
 const badgeVariants = {
@@ -40,9 +37,7 @@ export function SectionHeader({
   return (
     <div className="mb-5">
       <div className="flex items-center gap-2.5">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight">
-          {title}
-        </h1>
+        <h1 className="text-lg font-bold text-gray-900 tracking-tight">{title}</h1>
         {badge}
       </div>
       {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
@@ -110,9 +105,7 @@ export function PriceDisplay({ product }: { product: ProductData }) {
       </span>
       {hasPromo && (
         <>
-          <span className="text-xs text-gray-400 line-through">
-            ${regular?.toFixed(2)}
-          </span>
+          <span className="text-xs text-gray-400 line-through">${regular?.toFixed(2)}</span>
           <span className="inline-flex items-center rounded bg-red-500 px-1 py-px text-[10px] font-bold text-white leading-tight">
             SALE
           </span>
@@ -175,9 +168,7 @@ export function ActionButton({
       } disabled:opacity-50 disabled:cursor-not-allowed`}
       onClick={onClick}
     >
-      {icon && state === "idle" && (
-        <span className="shrink-0 w-3.5 h-3.5">{icon}</span>
-      )}
+      {icon && state === "idle" && <span className="shrink-0 w-3.5 h-3.5">{icon}</span>}
       {state === "loading" && (
         <svg
           aria-hidden="true"
@@ -218,12 +209,8 @@ export function ProductActions({
   onAddToCart: (upc: string, qty: number) => Promise<void>;
   onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
-  const [cartState, setCartState] = React.useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
-  const [listState, setListState] = React.useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [cartState, setCartState] = React.useState<"idle" | "loading" | "done" | "error">("idle");
+  const [listState, setListState] = React.useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
   if (!upc) return null;
@@ -309,20 +296,12 @@ export function ProductActions({
               strokeWidth={2}
               stroke="currentColor"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 4.5v15m7.5-7.5h-15"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
           }
         />
       </div>
-      {errorMsg && (
-        <div className="mt-1.5 text-[11px] text-red-600 leading-tight">
-          {errorMsg}
-        </div>
-      )}
+      {errorMsg && <div className="mt-1.5 text-[11px] text-red-600 leading-tight">{errorMsg}</div>}
     </div>
   );
 }

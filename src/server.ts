@@ -52,7 +52,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
     };
 
     // Register the single unified View resource (all app tools share this one UI)
-    registerViewResource(ctx, APP_VIEW_URI, "app/index.html");
+    registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
 
     // Register all MCP features
     registerPrompts(this.server);
@@ -83,19 +83,12 @@ export default new OAuthProvider({
   // CRITICAL: Kroger single-use refresh tokens — only refreshed here to persist to grant.
   tokenExchangeCallback: async ({ grantType, props }) => {
     // Destructure grant-only fields; rest is exactly the access token props (Props type)
-    const {
-      refreshToken,
-      krogerClientId,
-      krogerClientSecret,
-      ...accessTokenProps
-    } = props as GrantProps;
+    const { refreshToken, krogerClientId, krogerClientSecret, ...accessTokenProps } =
+      props as GrantProps;
 
     if (grantType === GrantType.AUTHORIZATION_CODE) {
       const ttl = accessTokenProps.tokenExpiresAt
-        ? Math.max(
-            Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000),
-            60,
-          )
+        ? Math.max(Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000), 60)
         : 1800;
       return { accessTokenProps, accessTokenTTL: ttl };
     }
@@ -111,19 +104,13 @@ export default new OAuthProvider({
     }
 
     return (
-      await refreshKrogerToken(
-        refreshToken,
-        krogerClientId,
-        krogerClientSecret,
-      ).orTee((error) =>
+      await refreshKrogerToken(refreshToken, krogerClientId, krogerClientSecret).orTee((error) =>
         console.error("Kroger token refresh failed:", error.message),
       )
     ).match(
       (result) => {
         if (!result.refreshToken) {
-          console.error(
-            "Kroger refresh missing new refresh token (single-use). Re-auth required.",
-          );
+          console.error("Kroger refresh missing new refresh token (single-use). Re-auth required.");
           return { accessTokenTTL: 1 };
         }
 

@@ -2,8 +2,7 @@
 openapi: 3.0.3
 info:
   title: Location API
-  description:
-    "The Locations API provides access to all locations, chains, and departments
+  description: "The Locations API provides access to all locations, chains, and departments
     that are owned by The Kroger Co. <br><br>\n\n### Rate Limit\n\nThe Public Locations
     API has a **1,600 call a day per endpoint** rate limit. \n\nFor the Locations
     API, there are three endpoints that each have a 1,600 call per day rate limit.
@@ -51,8 +50,7 @@ paths:
       tags:
         - Locations
       summary: Location list
-      description:
-        Provides access to a list of locations. If the parameter `filter.chain`
+      description: Provides access to a list of locations. If the parameter `filter.chain`
         is not provided, the results include all locations and chains owned by The
         Kroger Co.<br>You may include one of the following parameters to narrow search
         results within a geographic area:<br><br> <ul> <li> <code>filter.zipCode.near</code></li>
@@ -86,8 +84,7 @@ paths:
             type: string
         - name: filter.radiusInMiles
           in: query
-          description:
-            The mile radius of results. This will be ignored if you do not
+          description: The mile radius of results. This will be ignored if you do not
             use one of the 3 starting point filters (zipCode, latLong, or lat and lon)
           schema:
             maximum: 100
@@ -104,16 +101,14 @@ paths:
             default: 10
         - name: filter.chain
           in: query
-          description:
-            The chain name of the chain. When using this filter, only stores
+          description: The chain name of the chain. When using this filter, only stores
             matching the provided chain name are returned.
           example: Kroger
           schema:
             type: string
         - name: filter.department
           in: query
-          description:
-            The departmentId of the department. Lists must be comma-separated.
+          description: The departmentId of the department. Lists must be comma-separated.
             When using this filter, only stores that have all of the departments provided
             are returned.
           example: 13
@@ -238,8 +233,7 @@ paths:
       tags:
         - Locations
       summary: Location details
-      description:
-        Provides access to the details of a specific location by using
+      description: Provides access to the details of a specific location by using
         the `locationId`.
       operationId: LocationsGetByID
       parameters:
@@ -561,8 +555,7 @@ paths:
       tags:
         - Locations
       summary: Chain details
-      description:
-        Provides access to the details of a specific chian by using the
+      description: Provides access to the details of a specific chian by using the
         chain `name`.
       operationId: GetChain
       parameters:
@@ -780,8 +773,7 @@ paths:
       tags:
         - Locations
       summary: Department list
-      description:
-        Provides access to a list of all departments, including departments
+      description: Provides access to a list of all departments, including departments
         of chains owned by The Kroger Co.
       operationId: ListDepartments
       responses:
@@ -881,8 +873,7 @@ paths:
       tags:
         - Locations
       summary: Department details
-      description:
-        "Provides access to the details of a specific department by using
+      description: "Provides access to the details of a specific department by using
         the `departmentId`. "
       operationId: GetDepartment
       parameters:
@@ -1183,8 +1174,7 @@ components:
           example: WARREN COUNTY
         state:
           type: string
-          description:
-            The state or province of the location. US locations use a two-letter
+          description: The state or province of the location. US locations use a two-letter
             codes for states.
           example: OH
         zipCode:
@@ -1371,8 +1361,7 @@ components:
           "$ref": "#/components/schemas/locations.locationHours"
         locationId:
           type: string
-          description:
-            The 3-digit management division number followed by the 5-digit
+          description: The 3-digit management division number followed by the 5-digit
             store number.
           example: "01400376"
         storeNumber:
@@ -1385,8 +1374,7 @@ components:
           example: "014"
         name:
           type: string
-          description:
-            The name of the location. The name generally consists of the
+          description: The name of the location. The name generally consists of the
             chain followed by a vanity name.
           example: Kroger Landen
     locations.locationSearchResponse:
@@ -1456,8 +1444,7 @@ components:
           example: API-4101-400
         reason:
           type: string
-          example:
-            Field 'filter.latLong.near' improper coordinate location, must
+          example: Field 'filter.latLong.near' improper coordinate location, must
             be on Earth
     Invalid_radiusInMiles:
       type: object
@@ -1470,8 +1457,7 @@ components:
           example: API-4101-400
         reason:
           type: string
-          example:
-            Field 'filter.radiusInMiles' outside of distance limits, distance
+          example: Field 'filter.radiusInMiles' outside of distance limits, distance
             range is 1 - 100 miles.
     Invalid_department:
       type: object
@@ -1500,8 +1486,7 @@ components:
   securitySchemes:
     ClientContext:
       type: oauth2
-      description:
-        "To make an API request that interacts with generalized information
+      description: "To make an API request that interacts with generalized information
         and does not require customer consent, use the [Client Credentials Grant Type](https://developer.kroger.com/reference/api/authorization-endpoints-public#tag/OAuth2/operation/accessToken)
         to authenticate your OAuth2 application.
 

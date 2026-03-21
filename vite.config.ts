@@ -29,4 +29,8 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "dist/views"),
     emptyOutDir: false,
   },
+  test: {
+    root: ".",
+    include: ["tests/**/*.test.ts"],
+  },
 });

@@ -274,29 +274,25 @@ describe("getQfcWeeklyDeals", () => {
   describe("search API augmentation of print deals", () => {
     it("augments a deal with promo price and savings when product has promo", async () => {
       setupPrintAdFetch();
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockImplementation(async (term: string) => {
-          if (term === "Fresh Strawberries") {
-            return [
-              makeProduct({
-                description: "Fresh Strawberries",
-                regular: 3.99,
-                promo: 1.99,
-              }),
-            ];
-          }
-          return [];
-        });
+      const searchProducts: ProductSearchFn = vi.fn().mockImplementation(async (term: string) => {
+        if (term === "Fresh Strawberries") {
+          return [
+            makeProduct({
+              description: "Fresh Strawberries",
+              regular: 3.99,
+              promo: 1.99,
+            }),
+          ];
+        }
+        return [];
+      });
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
         searchProducts,
       });
 
-      const strawberry = result.deals.find(
-        (d) => d.title === "Fresh Strawberries",
-      );
+      const strawberry = result.deals.find((d) => d.title === "Fresh Strawberries");
       expect(strawberry?.price).toBe("$1.99");
       expect(strawberry?.savings).toContain("Save");
       expect(strawberry?.savings).toContain("$2.00");
@@ -305,37 +301,31 @@ describe("getQfcWeeklyDeals", () => {
 
     it("augments a deal with regular price when product has no promo", async () => {
       setupPrintAdFetch();
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockImplementation(async (term: string) => {
-          if (term === "Boneless Chicken Breast") {
-            return [
-              makeProduct({
-                description: "Boneless Chicken Breast",
-                regular: 5.99,
-              }),
-            ];
-          }
-          return [];
-        });
+      const searchProducts: ProductSearchFn = vi.fn().mockImplementation(async (term: string) => {
+        if (term === "Boneless Chicken Breast") {
+          return [
+            makeProduct({
+              description: "Boneless Chicken Breast",
+              regular: 5.99,
+            }),
+          ];
+        }
+        return [];
+      });
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
         searchProducts,
       });
 
-      const chicken = result.deals.find(
-        (d) => d.title === "Boneless Chicken Breast",
-      );
+      const chicken = result.deals.find((d) => d.title === "Boneless Chicken Breast");
       expect(chicken?.price).toBe("$5.99");
       expect(chicken?.savings).toBeUndefined();
     });
 
     it("leaves price as 'See print ad' when no product match found", async () => {
       setupPrintAdFetch();
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockResolvedValue([] as KrogerProduct[]);
+      const searchProducts: ProductSearchFn = vi.fn().mockResolvedValue([] as KrogerProduct[]);
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -349,15 +339,13 @@ describe("getQfcWeeklyDeals", () => {
 
     it("counts augmentedCount correctly in meta", async () => {
       setupPrintAdFetch();
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockImplementation(async (term: string) => {
-          // Only augment Fresh Strawberries
-          if (term === "Fresh Strawberries") {
-            return [makeProduct({ regular: 3.99, promo: 1.99 })];
-          }
-          return [];
-        });
+      const searchProducts: ProductSearchFn = vi.fn().mockImplementation(async (term: string) => {
+        // Only augment Fresh Strawberries
+        if (term === "Fresh Strawberries") {
+          return [makeProduct({ regular: 3.99, promo: 1.99 })];
+        }
+        return [];
+      });
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -369,9 +357,7 @@ describe("getQfcWeeklyDeals", () => {
 
     it("reports augmentedCount of 0 when no deals are matched", async () => {
       setupPrintAdFetch();
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockResolvedValue([] as KrogerProduct[]);
+      const searchProducts: ProductSearchFn = vi.fn().mockResolvedValue([] as KrogerProduct[]);
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -394,35 +380,31 @@ describe("getQfcWeeklyDeals", () => {
 
     it("prefers a promo-priced product over a regular-only product", async () => {
       setupPrintAdFetch();
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockImplementation(async (term: string) => {
-          if (term === "Fresh Strawberries") {
-            return [
-              // First result: regular price only
-              makeProduct({
-                productId: "0000000000001",
-                regular: 5.0,
-              }),
-              // Second result: has promo price
-              makeProduct({
-                productId: "0000000000002",
-                regular: 3.99,
-                promo: 1.99,
-              }),
-            ];
-          }
-          return [];
-        });
+      const searchProducts: ProductSearchFn = vi.fn().mockImplementation(async (term: string) => {
+        if (term === "Fresh Strawberries") {
+          return [
+            // First result: regular price only
+            makeProduct({
+              productId: "0000000000001",
+              regular: 5.0,
+            }),
+            // Second result: has promo price
+            makeProduct({
+              productId: "0000000000002",
+              regular: 3.99,
+              promo: 1.99,
+            }),
+          ];
+        }
+        return [];
+      });
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
         searchProducts,
       });
 
-      const strawberry = result.deals.find(
-        (d) => d.title === "Fresh Strawberries",
-      );
+      const strawberry = result.deals.find((d) => d.title === "Fresh Strawberries");
       // Should use the promo-priced product, not the first one
       expect(strawberry?.price).toBe("$1.99");
       expect(strawberry?.savings).toBeDefined();
@@ -430,9 +412,7 @@ describe("getQfcWeeklyDeals", () => {
 
     it("handles search error for an individual deal gracefully", async () => {
       setupPrintAdFetch();
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockRejectedValue(new Error("Network error"));
+      const searchProducts: ProductSearchFn = vi.fn().mockRejectedValue(new Error("Network error"));
 
       // Should not throw — deals returned unchanged with "See print ad"
       const result = await getQfcWeeklyDeals({
@@ -475,9 +455,7 @@ describe("getQfcWeeklyDeals", () => {
         }
         // DACS endpoints fail
         if (url.includes("przone.net")) {
-          return Promise.resolve(
-            mockErrorResponse(503, { error: "Service Unavailable" }),
-          );
+          return Promise.resolve(mockErrorResponse(503, { error: "Service Unavailable" }));
         }
         return Promise.reject(new Error(`Unmocked URL: ${url}`));
       });
@@ -486,21 +464,19 @@ describe("getQfcWeeklyDeals", () => {
     it("falls back to search API when print-ad listing returns error", async () => {
       setupFailedPrintFetch();
 
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockImplementation(async (term: string) => {
-          if (term === "chicken") {
-            return [
-              makeProduct({
-                productId: "0001111000001",
-                description: "Rotisserie Chicken",
-                regular: 7.99,
-                promo: 4.99,
-              }),
-            ];
-          }
-          return [];
-        });
+      const searchProducts: ProductSearchFn = vi.fn().mockImplementation(async (term: string) => {
+        if (term === "chicken") {
+          return [
+            makeProduct({
+              productId: "0001111000001",
+              description: "Rotisserie Chicken",
+              regular: 7.99,
+              promo: 4.99,
+            }),
+          ];
+        }
+        return [];
+      });
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -529,29 +505,25 @@ describe("getQfcWeeklyDeals", () => {
         searchProducts,
       });
 
-      expect(
-        result.warnings.some((w) => w.includes("Print-ad parsing failed")),
-      ).toBe(true);
+      expect(result.warnings.some((w) => w.includes("Print-ad parsing failed"))).toBe(true);
     });
 
     it("filters out search API products without promo pricing", async () => {
       setupFailedPrintFetch();
 
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockImplementation(async (term: string) => {
-          if (term === "milk") {
-            return [
-              makeProduct({
-                productId: "0001111000001",
-                regular: 4.99,
-                promo: 2.99,
-              }),
-              makeProduct({ productId: "0001111000002", regular: 3.99 }), // no promo
-            ];
-          }
-          return [];
-        });
+      const searchProducts: ProductSearchFn = vi.fn().mockImplementation(async (term: string) => {
+        if (term === "milk") {
+          return [
+            makeProduct({
+              productId: "0001111000001",
+              regular: 4.99,
+              promo: 2.99,
+            }),
+            makeProduct({ productId: "0001111000002", regular: 3.99 }), // no promo
+          ];
+        }
+        return [];
+      });
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -573,9 +545,7 @@ describe("getQfcWeeklyDeals", () => {
         promo: 3.99,
       });
 
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockResolvedValue([duplicateProduct]);
+      const searchProducts: ProductSearchFn = vi.fn().mockResolvedValue([duplicateProduct]);
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -590,21 +560,19 @@ describe("getQfcWeeklyDeals", () => {
     it("correctly prices search API deals with promo savings", async () => {
       setupFailedPrintFetch();
 
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockImplementation(async (term: string) => {
-          if (term === "beef") {
-            return [
-              makeProduct({
-                productId: "0001111000003",
-                description: "Ground Beef",
-                regular: 8.99,
-                promo: 5.99,
-              }),
-            ];
-          }
-          return [];
-        });
+      const searchProducts: ProductSearchFn = vi.fn().mockImplementation(async (term: string) => {
+        if (term === "beef") {
+          return [
+            makeProduct({
+              productId: "0001111000003",
+              description: "Ground Beef",
+              regular: 8.99,
+              promo: 5.99,
+            }),
+          ];
+        }
+        return [];
+      });
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -628,9 +596,7 @@ describe("getQfcWeeklyDeals", () => {
         return Promise.resolve(mockErrorResponse(503));
       });
 
-      await expect(
-        getQfcWeeklyDeals({ locationId: "70500847" }),
-      ).rejects.toThrow();
+      await expect(getQfcWeeklyDeals({ locationId: "70500847" })).rejects.toThrow();
     });
 
     it("returns empty deals (not throws) when print-ad fails and search API errors are all caught per-term", async () => {
@@ -644,9 +610,7 @@ describe("getQfcWeeklyDeals", () => {
         return Promise.resolve(mockErrorResponse(503));
       });
 
-      const searchProducts: ProductSearchFn = vi
-        .fn()
-        .mockRejectedValue(new Error("Auth error"));
+      const searchProducts: ProductSearchFn = vi.fn().mockRejectedValue(new Error("Auth error"));
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -655,9 +619,7 @@ describe("getQfcWeeklyDeals", () => {
 
       expect(result.sourceMode).toBe("search_api");
       expect(result.deals).toHaveLength(0);
-      expect(
-        result.warnings.some((w) => w.includes("Print-ad parsing failed")),
-      ).toBe(true);
+      expect(result.warnings.some((w) => w.includes("Print-ad parsing failed"))).toBe(true);
     });
 
     it("throws when no print circular is found and no searchProducts provided", async () => {
@@ -680,9 +642,7 @@ describe("getQfcWeeklyDeals", () => {
         return Promise.reject(new Error(`Unmocked URL: ${url}`));
       });
 
-      await expect(
-        getQfcWeeklyDeals({ locationId: "70500847" }),
-      ).rejects.toThrow();
+      await expect(getQfcWeeklyDeals({ locationId: "70500847" })).rejects.toThrow();
     });
 
     it("adds warning but continues when circular fetch fails", async () => {
@@ -708,11 +668,9 @@ describe("getQfcWeeklyDeals", () => {
         searchProducts,
       });
 
-      expect(
-        result.warnings.some((w) =>
-          w.includes("Unable to fetch weekly circulars"),
-        ),
-      ).toBe(true);
+      expect(result.warnings.some((w) => w.includes("Unable to fetch weekly circulars"))).toBe(
+        true,
+      );
       expect(result.sourceMode).toBe("search_api");
     });
   });

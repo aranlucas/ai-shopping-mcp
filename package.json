@@ -2,33 +2,36 @@
   "name": "ai-shopping-list-mcp",
   "version": "1.0.0",
   "private": true,
+  "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
   "type": "module",
   "scripts": {
     "build": "npm run lint && npm run build:views && tsc --noEmit",
-    "build:views": "node scripts/build-views.js",
+    "build:views": "INPUT=mcp-app.html vite build",
     "test": "vitest run",
     "deploy": "npm run build:views && wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
-    "lint": "biome check --fix",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "generate:cart": "npx openapi-typescript kroger/cart.yaml -o src//services/kroger/cart.d.ts",
     "generate:location": "npx openapi-typescript kroger/location.yaml -o src/services/kroger/location.d.ts",
     "generate:product": "npx openapi-typescript kroger/product.yaml -o src/services/kroger/product.d.ts",
     "generate:identity": "npx openapi-typescript kroger/identity.yaml -o src/services/kroger/identity.d.ts",
     "prepare": "husky"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.3.0",
     "@mcp-ui/server": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.2.2",
     "@modelcontextprotocol/sdk": "1.27.1",
     "@tailwindcss/vite": "^4.2.2",
-    "agents": "^0.7.6",
+    "agents": "^0.7.9",
     "hono": "^4.12.8",
     "neverthrow": "^8.2.0",
     "openapi-fetch": "^0.17.0",
@@ -37,27 +40,26 @@
     "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.7",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vite": "^8.0.1",
     "vite-plugin-singlefile": "^2.3.2",
     "vitest": "^4.1.0",
-    "wrangler": "^4.73.0"
+    "wrangler": "^4.76.0"
   },
   "overrides": {
     "@modelcontextprotocol/sdk": "1.27.1"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx,json,css,md}": [
-      "biome check --fix --no-errors-on-unmatched"
-    ]
+    "*": "oxfmt --no-error-on-unmatched-pattern && npm run lint:fix"
   }
 }

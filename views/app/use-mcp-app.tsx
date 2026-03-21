@@ -68,8 +68,9 @@ export function useMcpApp(): McpAppState {
             return;
           }
           // Fallback: _view discriminator in structured content
-          const view = (result.structuredContent as Record<string, unknown>)
-            ._view as string | undefined;
+          const view = (result.structuredContent as Record<string, unknown>)._view as
+            | string
+            | undefined;
           if (view) setToolName((prev) => prev ?? view);
         }
       };

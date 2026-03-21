@@ -1,6 +1,6 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
-import { z } from "zod";
+import * as z from "zod/v4";
 import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
@@ -14,11 +14,7 @@ import {
 } from "../utils/result.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import {
-  getSessionScopedUserId,
-  type ToolContext,
-  textResult,
-} from "./types.js";
+import { getSessionScopedUserId, type ToolContext, textResult } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -39,9 +35,7 @@ export const manageShoppingListInputSchema = z.object({
           .string()
           .length(13, { message: "UPC must be exactly 13 characters" })
           .optional()
-          .describe(
-            "13-digit UPC from product search, needed for cart checkout",
-          ),
+          .describe("13-digit UPC from product search, needed for cart checkout"),
         quantity: z.number().min(1).max(999).default(1),
         notes: z
           .string()
@@ -57,25 +51,14 @@ export const manageShoppingListInputSchema = z.object({
     .min(1)
     .max(200)
     .optional()
-    .describe(
-      "Name of product to remove or update (required for 'remove' and 'update' actions)",
-    ),
-  quantity: z
-    .number()
-    .min(1)
-    .max(999)
-    .optional()
-    .describe("New quantity (for 'update' action)"),
+    .describe("Name of product to remove or update (required for 'remove' and 'update' actions)"),
+  quantity: z.number().min(1).max(999).optional().describe("New quantity (for 'update' action)"),
   upc: z
     .string()
     .length(13, { message: "UPC must be exactly 13 characters" })
     .optional()
     .describe("13-digit UPC to associate with item (for 'update' action)"),
-  notes: z
-    .string()
-    .max(500)
-    .optional()
-    .describe("Updated notes (for 'update' action)"),
+  notes: z.string().max(500).optional().describe("Updated notes (for 'update' action)"),
 });
 
 export function registerShoppingListTools(ctx: ToolContext) {
@@ -106,9 +89,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           case "add": {
             if (!items || items.length === 0) {
               return errAsync(
-                validationError(
-                  "Error: 'items' array is required for the 'add' action.",
-                ),
+                validationError("Error: 'items' array is required for the 'add' action."),
               );
             }
 
@@ -136,9 +117,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           case "remove": {
             if (!productName) {
               return errAsync(
-                validationError(
-                  "Error: 'productName' is required for the 'remove' action.",
-                ),
+                validationError("Error: 'productName' is required for the 'remove' action."),
               );
             }
 
@@ -155,25 +134,17 @@ export function registerShoppingListTools(ctx: ToolContext) {
           case "update": {
             if (!productName) {
               return errAsync(
-                validationError(
-                  "Error: 'productName' is required for the 'update' action.",
-                ),
+                validationError("Error: 'productName' is required for the 'update' action."),
               );
             }
 
-            const updates: Partial<
-              Pick<ShoppingListItem, "quantity" | "upc" | "notes">
-            > = {};
+            const updates: Partial<Pick<ShoppingListItem, "quantity" | "upc" | "notes">> = {};
             if (quantity !== undefined) updates.quantity = quantity;
             if (upc !== undefined) updates.upc = upc;
             if (notes !== undefined) updates.notes = notes;
 
             return safeStorage(async () => {
-              await storage.shoppingList.updateItem(
-                scopedId,
-                productName,
-                updates,
-              );
+              await storage.shoppingList.updateItem(scopedId, productName, updates);
               return storage.shoppingList.getAll(scopedId);
             }, "update shopping list item").map((list) => ({
               text: `Updated "${productName}" on shopping list.\n\nYour shopping list:\n\n${formatShoppingListCompact(list)}`,
@@ -229,9 +200,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           .string()
           .length(8, { message: "Location ID must be exactly 8 characters" })
           .optional()
-          .describe(
-            "Store location ID. If not provided, uses your preferred location.",
-          ),
+          .describe("Store location ID. If not provided, uses your preferred location."),
         modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
       }),
     },
@@ -249,19 +218,13 @@ export function registerShoppingListTools(ctx: ToolContext) {
         ).safeUnwrap();
 
         if (uncheckedItems.length === 0) {
-          return ok(
-            textResult("No unchecked items on your shopping list to checkout."),
-          );
+          return ok(textResult("No unchecked items on your shopping list to checkout."));
         }
 
         const withUpc = uncheckedItems.filter((item) => item.upc);
         const withoutUpc = uncheckedItems.filter((item) => !item.upc);
 
-        const resolved = yield* safeResolveLocationId(
-          storage,
-          props.id,
-          locationId,
-        ).safeUnwrap();
+        const resolved = yield* safeResolveLocationId(storage, props.id, locationId).safeUnwrap();
 
         const resultParts: string[] = [];
 
@@ -283,11 +246,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
               },
             }),
             () => null, // Elicitation not supported by client
-          ).orTee(() =>
-            console.warn(
-              "Elicitation unavailable, proceeding without confirmation",
-            ),
-          );
+          ).orTee(() => console.warn("Elicitation unavailable, proceeding without confirmation"));
 
           if (elicitResult.isOk()) {
             const elicit = elicitResult.value;
@@ -296,11 +255,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
               elicit.action === "cancel" ||
               (elicit.action === "accept" && elicit.content?.confirm === false)
             ) {
-              return ok(
-                textResult(
-                  "Checkout cancelled. Your shopping list remains unchanged.",
-                ),
-              );
+              return ok(textResult("Checkout cancelled. Your shopping list remains unchanged."));
             }
           }
 
@@ -323,11 +278,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           // Mark checked items via safeStorage to avoid unhandled rejections
           yield* safeStorage(async () => {
             for (const item of withUpc) {
-              await storage.shoppingList.updateItem(
-                scopedId,
-                item.productName,
-                { checked: true },
-              );
+              await storage.shoppingList.updateItem(scopedId, item.productName, { checked: true });
             }
           }, "mark items as checked").safeUnwrap();
 
@@ -351,9 +302,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           "fetch updated shopping list",
         ).safeUnwrap();
 
-        resultParts.push(
-          `\nYour shopping list:\n\n${formatShoppingListCompact(updatedList)}`,
-        );
+        resultParts.push(`\nYour shopping list:\n\n${formatShoppingListCompact(updatedList)}`);
 
         const text = resultParts.join("\n\n");
 

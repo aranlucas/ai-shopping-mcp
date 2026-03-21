@@ -1,15 +1,9 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-export type {
-  AddToCartArgs,
-  ManageShoppingListArgs,
-} from "../../src/tools/tool-types.js";
+export type { AddToCartArgs, ManageShoppingListArgs } from "../../src/tools/tool-types.js";
 
-import type {
-  AddToCartArgs,
-  ManageShoppingListArgs,
-} from "../../src/tools/tool-types.js";
+import type { AddToCartArgs, ManageShoppingListArgs } from "../../src/tools/tool-types.js";
 
 /** Discriminated union of all callable tools — enables type-safe callTool(). */
 export type ToolCall =

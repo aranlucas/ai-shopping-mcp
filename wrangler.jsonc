@@ -9,43 +9,43 @@
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat"],
   "build": {
-    "command": "npm run build:views"
+    "command": "npm run build:views",
   },
   "assets": {
     "directory": "./dist/views",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
   },
   "migrations": [
     {
       "new_sqlite_classes": ["MyMCP"],
-      "tag": "v1"
-    }
+      "tag": "v1",
+    },
   ],
   "durable_objects": {
     "bindings": [
       {
         "class_name": "MyMCP",
-        "name": "MCP_OBJECT"
-      }
-    ]
+        "name": "MCP_OBJECT",
+      },
+    ],
   },
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
-      "id": "8bd5ecd7157942228263703abbabc25f"
+      "id": "8bd5ecd7157942228263703abbabc25f",
     },
     {
       "binding": "USER_DATA_KV",
-      "id": "d7f0b87afb2b49cdbab0ead481cef6ed"
-    }
+      "id": "d7f0b87afb2b49cdbab0ead481cef6ed",
+    },
   ],
   "ai": {
-    "binding": "AI"
+    "binding": "AI",
   },
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "dev": {
-    "port": 8788
-  }
+    "port": 8788,
+  },
 }

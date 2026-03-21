@@ -71,11 +71,7 @@ describe("refreshKrogerToken", () => {
         }),
     });
 
-    const result = await refreshKrogerToken(
-      "old-refresh-token",
-      "client-id",
-      "client-secret",
-    );
+    const result = await refreshKrogerToken("old-refresh-token", "client-id", "client-secret");
 
     expect(result.isOk()).toBe(true);
     const value = result._unsafeUnwrap();
@@ -89,9 +85,7 @@ describe("refreshKrogerToken", () => {
     const fetchCall = fetchMock.mock.calls[0];
     expect(fetchCall[0]).toBe("https://api.kroger.com/v1/connect/oauth2/token");
     expect(fetchCall[1].method).toBe("POST");
-    expect(fetchCall[1].headers["Content-Type"]).toBe(
-      "application/x-www-form-urlencoded",
-    );
+    expect(fetchCall[1].headers["Content-Type"]).toBe("application/x-www-form-urlencoded");
     expect(fetchCall[1].headers.Authorization).toContain("Basic ");
   });
 
@@ -107,11 +101,7 @@ describe("refreshKrogerToken", () => {
         }),
     });
 
-    const result = await refreshKrogerToken(
-      "bad-token",
-      "client-id",
-      "client-secret",
-    );
+    const result = await refreshKrogerToken("bad-token", "client-id", "client-secret");
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("API_ERROR");
@@ -124,16 +114,10 @@ describe("refreshKrogerToken", () => {
       json: () => Promise.resolve({}),
     });
 
-    const result = await refreshKrogerToken(
-      "token",
-      "client-id",
-      "client-secret",
-    );
+    const result = await refreshKrogerToken("token", "client-id", "client-secret");
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
-    expect(error.message).toContain(
-      "Invalid response from Kroger token refresh endpoint",
-    );
+    expect(error.message).toContain("Invalid response from Kroger token refresh endpoint");
   });
 
   it("defaults expires_in to 1800 when not provided", async () => {
@@ -198,9 +182,7 @@ describe("createKrogerAuthMiddleware", () => {
     const middleware = createKrogerAuthMiddleware(() => null);
     const request = new Request("https://api.kroger.com/v1/products");
 
-    await expect(callOnRequest(middleware, request)).rejects.toThrow(
-      KrogerTokenExpiredError,
-    );
+    await expect(callOnRequest(middleware, request)).rejects.toThrow(KrogerTokenExpiredError);
   });
 
   it("adds Authorization header when token is valid", async () => {
@@ -212,9 +194,7 @@ describe("createKrogerAuthMiddleware", () => {
     const request = new Request("https://api.kroger.com/v1/products");
     const result = await callOnRequest(middleware, request);
 
-    expect((result as Request).headers.get("Authorization")).toBe(
-      "Bearer my-access-token",
-    );
+    expect((result as Request).headers.get("Authorization")).toBe("Bearer my-access-token");
   });
 
   it("throws KrogerTokenExpiredError when token is expired", async () => {
@@ -225,9 +205,7 @@ describe("createKrogerAuthMiddleware", () => {
 
     const request = new Request("https://api.kroger.com/v1/products");
 
-    await expect(callOnRequest(middleware, request)).rejects.toThrow(
-      KrogerTokenExpiredError,
-    );
+    await expect(callOnRequest(middleware, request)).rejects.toThrow(KrogerTokenExpiredError);
   });
 
   it("throws KrogerTokenExpiredError on 401 response", async () => {

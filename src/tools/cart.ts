@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod/v4";
 
 export const addToCartInputSchema = z.object({
   items: z.array(
@@ -17,9 +17,7 @@ export const addToCartInputSchema = z.object({
     .string()
     .length(8, { message: "Location ID must be exactly 8 characters" })
     .optional()
-    .describe(
-      "Store location ID for the cart. If not provided, uses your preferred location.",
-    ),
+    .describe("Store location ID for the cart. If not provided, uses your preferred location."),
 });
 
 import type { components } from "../services/kroger/cart.js";
@@ -53,31 +51,29 @@ export function registerCartTools(ctx: ToolContext) {
     },
     async ({ items, locationId }) => {
       const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
-        safeResolveLocationId(ctx.storage, props.id, locationId).andThen(
-          (resolved) => {
-            const cartItems: CartItem[] = items.map((item) => ({
-              upc: item.upc,
-              quantity: item.quantity,
-              modality: item.modality,
-            }));
+        safeResolveLocationId(ctx.storage, props.id, locationId).andThen((resolved) => {
+          const cartItems: CartItem[] = items.map((item) => ({
+            upc: item.upc,
+            quantity: item.quantity,
+            modality: item.modality,
+          }));
 
-            const requestBody: CartItemRequest = { items: cartItems };
+          const requestBody: CartItemRequest = { items: cartItems };
 
-            return fromApiResponse(
-              cartClient.PUT("/v1/cart/add", {
-                body: requestBody,
-                headers: { "Content-Type": "application/json" },
-              }),
-              "add items to cart",
-            ).map(() => {
-              const locationInfo = resolved.locationName
-                ? ` at ${resolved.locationName}`
-                : ` (Location: ${resolved.locationId})`;
+          return fromApiResponse(
+            cartClient.PUT("/v1/cart/add", {
+              body: requestBody,
+              headers: { "Content-Type": "application/json" },
+            }),
+            "add items to cart",
+          ).map(() => {
+            const locationInfo = resolved.locationName
+              ? ` at ${resolved.locationName}`
+              : ` (Location: ${resolved.locationId})`;
 
-              return `Successfully added ${items.length} item(s) to cart${locationInfo}.`;
-            });
-          },
-        ),
+            return `Successfully added ${items.length} item(s) to cart${locationInfo}.`;
+          });
+        }),
       );
 
       return toMcpResponse(await result);

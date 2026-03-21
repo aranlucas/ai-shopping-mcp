@@ -66,11 +66,7 @@ function toErrorCause(value: unknown): ErrorCause {
   return String(value);
 }
 
-export const apiError = (
-  message: string,
-  detail?: unknown,
-  status?: number,
-): ApiError => ({
+export const apiError = (message: string, detail?: unknown, status?: number): ApiError => ({
   type: "API_ERROR",
   message,
   detail: toErrorCause(detail),
@@ -92,19 +88,13 @@ export const validationError = (message: string): ValidationError => ({
   message,
 });
 
-export const storageError = (
-  message: string,
-  cause?: unknown,
-): StorageError => ({
+export const storageError = (message: string, cause?: unknown): StorageError => ({
   type: "STORAGE_ERROR",
   message,
   cause: toErrorCause(cause),
 });
 
-export const networkError = (
-  message: string,
-  cause?: unknown,
-): NetworkError => ({
+export const networkError = (message: string, cause?: unknown): NetworkError => ({
   type: "NETWORK_ERROR",
   message,
   cause: toErrorCause(cause),

@@ -4,9 +4,7 @@ import { getSessionScopedUserId, type ToolContext } from "./types.js";
 
 function jsonResource(uri: string, data: unknown) {
   return {
-    contents: [
-      { type: "text" as const, uri, text: JSON.stringify(data, null, 2) },
-    ],
+    contents: [{ type: "text" as const, uri, text: JSON.stringify(data, null, 2) }],
   };
 }
 
@@ -29,10 +27,7 @@ export function registerResources(ctx: ToolContext) {
       const props = ctx.getUser();
       if (!props?.id) return unauthenticatedResource("shopping://user/pantry");
 
-      const result = await safeStorage(
-        () => ctx.storage.pantry.getAll(props.id),
-        "fetch pantry",
-      );
+      const result = await safeStorage(() => ctx.storage.pantry.getAll(props.id), "fetch pantry");
 
       return result.match(
         (pantry) =>
@@ -59,8 +54,7 @@ export function registerResources(ctx: ToolContext) {
     },
     async () => {
       const props = ctx.getUser();
-      if (!props?.id)
-        return unauthenticatedResource("shopping://user/equipment");
+      if (!props?.id) return unauthenticatedResource("shopping://user/equipment");
 
       const result = await safeStorage(
         () => ctx.storage.equipment.getAll(props.id),
@@ -92,8 +86,7 @@ export function registerResources(ctx: ToolContext) {
     },
     async () => {
       const props = ctx.getUser();
-      if (!props?.id)
-        return unauthenticatedResource("shopping://user/location");
+      if (!props?.id) return unauthenticatedResource("shopping://user/location");
 
       const result = await safeStorage(
         () => ctx.storage.preferredLocation.get(props.id),
@@ -161,8 +154,7 @@ export function registerResources(ctx: ToolContext) {
     },
     async () => {
       const props = ctx.getUser();
-      if (!props?.id)
-        return unauthenticatedResource("shopping://user/shopping-list");
+      if (!props?.id) return unauthenticatedResource("shopping://user/shopping-list");
 
       const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
       const result = await safeStorage(
@@ -207,8 +199,7 @@ export function registerResources(ctx: ToolContext) {
       const match = uri.href.match(/shopping:\/\/product\/([0-9]{13})/);
       if (!match) {
         return jsonResource(uri.href, {
-          error:
-            "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
+          error: "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
         });
       }
 

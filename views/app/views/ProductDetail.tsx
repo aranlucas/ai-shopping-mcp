@@ -1,18 +1,12 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
-import {
-  ActionButton,
-  Badge,
-  FulfillmentTags,
-  PriceDisplay,
-} from "../../shared/components.js";
+import { ActionButton, Badge, FulfillmentTags, PriceDisplay } from "../../shared/components.js";
 import { callTool, type ProductDetailContent } from "../../shared/types.js";
 
 function StockBadge({ level }: { level: string | undefined }) {
   if (!level) return null;
   if (level === "LOW") return <Badge variant="yellow">Low Stock</Badge>;
-  if (level === "TEMPORARILY_OUT_OF_STOCK")
-    return <Badge variant="red">Out of Stock</Badge>;
+  if (level === "TEMPORARILY_OUT_OF_STOCK") return <Badge variant="red">Out of Stock</Badge>;
   return <Badge variant="green">In Stock</Badge>;
 }
 
@@ -25,12 +19,8 @@ export function ProductDetailView({
   app: App | null;
   canCallTools: boolean;
 }) {
-  const [cartState, setCartState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
-  const [listState, setListState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [cartState, setCartState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [listState, setListState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const { product } = data;
   const name = product.description || "Unknown Product";
@@ -78,9 +68,7 @@ export function ProductDetailView({
     <div className="p-4 max-w-2xl mx-auto">
       <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
         <div className="px-5 pt-5 pb-4 border-b border-gray-100">
-          <h1 className="text-base font-bold text-gray-900 leading-snug">
-            {name}
-          </h1>
+          <h1 className="text-base font-bold text-gray-900 leading-snug">{name}</h1>
           {brand && <p className="text-xs text-gray-500 mt-0.5">{brand}</p>}
           <div className="mt-2.5 flex items-center gap-3 flex-wrap">
             <PriceDisplay product={product} />
@@ -132,11 +120,7 @@ export function ProductDetailView({
                   strokeWidth={2}
                   stroke="currentColor"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
               }
             />
@@ -189,10 +173,7 @@ export function ProductDetailView({
                 Aisle Location
               </p>
               {product.aisleLocations.map((loc) => (
-                <div
-                  key={loc.description ?? loc.number}
-                  className="text-sm text-gray-600"
-                >
+                <div key={loc.description ?? loc.number} className="text-sm text-gray-600">
                   {loc.description} {loc.number ? `(${loc.number})` : ""}
                 </div>
               ))}

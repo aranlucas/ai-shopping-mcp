@@ -12,9 +12,7 @@ export function LocationDetailView({
   app: App | null;
   canCallTools: boolean;
 }) {
-  const [prefState, setPrefState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const { location } = data;
   const id = location.locationId || "";
 
@@ -95,8 +93,7 @@ export function LocationDetailView({
                 <span>
                   {location.address.addressLine1}
                   <br />
-                  {location.address.city}, {location.address.state}{" "}
-                  {location.address.zipCode}
+                  {location.address.city}, {location.address.state} {location.address.zipCode}
                 </span>
               </div>
             </div>

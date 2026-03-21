@@ -9,7 +9,9 @@ This is a Model Context Protocol (MCP) server that integrates with the Kroger AP
 ## Development Commands
 
 ### CRITICAL: Initial Setup and Verification
+
 **Always run these commands when starting work:**
+
 ```bash
 npm install                # Install dependencies (REQUIRED if node_modules doesn't exist)
 npm run build              # Verify TypeScript compilation passes
@@ -18,17 +20,23 @@ npm run build              # Verify TypeScript compilation passes
 **When using Task tool with subagents:** Subagents should always run `npm run build` after making code changes to verify compilation.
 
 ### Build & Type Checking
+
 ```bash
-npm run build              # Lint (Biome) + type-check with TypeScript (no output if successful)
+npm run build              # Lint (Biome) + build Views + type-check TypeScript (no output if successful)
+npm run build:views        # Build Vite React views only (outputs to dist/views/)
 npm run cf-typegen         # Generate Cloudflare Worker types
 ```
 
 ### Testing
+
 ```bash
-npm test                   # Run Jest test suite
+npm test                          # Run Vitest test suite
+npx vitest run path/to/test.ts    # Run a single test file
+npx vitest run -t "test name"     # Run tests matching a name pattern
 ```
 
 ### Development & Deployment
+
 ```bash
 npm run dev                # Start Wrangler dev server
 npm start                  # Alias for dev
@@ -36,12 +44,15 @@ npm run deploy             # Deploy to Cloudflare Workers
 ```
 
 ### Code Quality
+
 ```bash
 npm run lint               # Run Biome linter with auto-fix
 ```
 
 ### TypeScript Type Generation from OpenAPI
+
 The project generates TypeScript types from OpenAPI YAML specs in the `kroger/` directory:
+
 ```bash
 npm run generate:cart      # Generate cart.d.ts from cart.yaml
 npm run generate:location  # Generate location.d.ts from location.yaml
@@ -52,6 +63,7 @@ npm run generate:identity  # Generate identity.d.ts from identity.yaml
 ## Architecture
 
 ### MCP Server Structure
+
 - **server.ts**: Main MCP server (`MyMCP` class extending `McpAgent`), OAuth provider config, and tool/resource/prompt registration entry point
 - **tools/**: Modular tool registration files (each exports a `register*` function called from `server.ts`):
   - **tools/cart.ts**: Cart management tools (`add_to_cart`)
@@ -61,12 +73,18 @@ npm run generate:identity  # Generate identity.d.ts from identity.yaml
   - **tools/recipes.ts**: Recipe search and AI-powered meal planning tools (`search_recipes_from_web`, `plan_meals`)
   - **tools/shopping-list.ts**: Consolidated shopping list tool (`manage_shopping_list`) and checkout (`checkout_shopping_list`)
   - **tools/resources.ts**: MCP Resource definitions (read-only user data)
-  - **tools/types.ts**: Shared types (`Props`, `GrantProps`, `ToolContext`) and helper functions (`requireAuth`, `resolveLocationId`)
+  - **tools/types.ts**: Shared types (`Props`, `GrantProps`, `ToolContext`, `UserStorage`) and helper functions (`requireAuth`, `resolveLocationId`, `errorResult`)
+- **tools/tool-types.ts**: Zod-inferred type exports (`AddToCartArgs`, `ManageShoppingListArgs`) for cross-module use
+- **errors.ts**: Domain error types (`AppError` discriminated union: `ApiError`, `AuthError`, `NotFoundError`, `ValidationError`, `StorageError`, `NetworkError`) and constructors
+- **utils/result.ts**: neverthrow bridge utilities (`toMcpResponse`, `toMcpError`, `fromApiResponse`, `requireAuth`, `safeResolveLocationId`, `safeStorage`, `safeFetch`)
+- **utils/view-resource.ts**: MCP Apps view resource registration — loads Vite-built HTML from Cloudflare ASSETS binding
 - **prompts.ts**: MCP Prompt definitions for guided workflows
 - **kroger-handler.ts**: Hono-based HTTP handlers for OAuth flow (`/authorize`, `/callback`)
 - **workers-oauth-utils.ts**: OAuth utilities for approval dialogs and client verification
+- **services/qfc-weekly-deals.ts**: QFC weekly deals fetcher (DACS print-ad API + Kroger Product API augmentation)
 
 ### OAuth Flow Architecture
+
 The application uses a two-tier OAuth system:
 
 1. **MCP Client OAuth**: Client (e.g., Claude Desktop) authenticates to this MCP server using `@cloudflare/workers-oauth-provider`
@@ -77,12 +95,15 @@ The application uses a two-tier OAuth system:
 **CRITICAL - Single-Use Refresh Tokens**: Kroger uses single-use refresh tokens. Once a refresh token is used to obtain a new access token, it's immediately invalidated and replaced with a new refresh token. Token refresh is handled EXCLUSIVELY by `tokenExchangeCallback` to ensure the new refresh token is properly persisted to the grant. Middleware does NOT refresh tokens to avoid invalidating the refresh token before it can be persisted.
 
 ### Kroger API Client Architecture
+
 All Kroger API clients are in `src/services/kroger/`:
+
 - **client.ts**: `createKrogerClients(getTokenInfo)` factory creates all 4 typed `openapi-fetch` clients with auth middleware applied. Clients are passed to tool files via `ctx.clients` (no global singletons).
 - **cart.d.ts, location.d.ts, product.d.ts, identity.d.ts**: Auto-generated TypeScript types from OpenAPI specs
 - Middleware (`createKrogerAuthMiddleware`) adds Authorization headers but does NOT refresh tokens (see Token Refresh section below)
 
 ### Key OAuth Implementation Details
+
 - **Authorization**: `/authorize` endpoint initiates OAuth, redirecting to Kroger
 - **Callback**: `/callback` endpoint exchanges code for tokens, fetches user profile, stores tokens in `props`
 - **Props/GrantProps Split** (defined in `tools/types.ts`):
@@ -98,12 +119,15 @@ All Kroger API clients are in `src/services/kroger/`:
 ## Kroger API Setup
 
 ### Required Environment Variables
+
 - `KROGER_CLIENT_ID`: Kroger developer portal client ID
 - `KROGER_CLIENT_SECRET`: Kroger developer portal client secret
 - `COOKIE_ENCRYPTION_KEY`: Encryption key for OAuth cookies
 
 ### OAuth Redirect URI Configuration
+
 The Kroger Developer Portal must have this exact redirect URI registered:
+
 ```
 https://ai-meal-planner-mcp.aranlucas.workers.dev/callback
 ```
@@ -113,17 +137,20 @@ https://ai-meal-planner-mcp.aranlucas.workers.dev/callback
 The implementation follows Kroger's [Authorization Code Flow Tutorial](https://developer.kroger.com/reference/api/authorization-endpoints-public):
 
 **Authorization Request** (`redirectToKroger` function in kroger-handler.ts):
+
 - Uses `URL.searchParams.set()` for automatic URL encoding of parameters
 - Required parameters: scope, response_type, client_id, redirect_uri, state
 - State parameter contains base64-encoded OAuth request info
 
 **Token Exchange** (`/callback` route in kroger-handler.ts):
+
 - Uses `URLSearchParams` for automatic URL encoding of body parameters
 - Authorization header: `Basic ${btoa(CLIENT_ID:CLIENT_SECRET)}` for base64 encoding
 - Body parameters: grant_type, code, redirect_uri
 - Content-Type: `application/x-www-form-urlencoded`
 
 **Token Refresh** (`refreshKrogerToken` function in client.ts):
+
 - **CRITICAL**: Kroger uses single-use refresh tokens - once used, they're invalidated
 - Handled exclusively by `tokenExchangeCallback` in server.ts to persist new refresh tokens
 - Same pattern as token exchange: URLSearchParams body, base64-encoded Authorization header
@@ -131,6 +158,7 @@ The implementation follows Kroger's [Authorization Code Flow Tutorial](https://d
 - Response includes NEW access_token AND NEW refresh_token (both must be saved)
 
 **Encoding Notes:**
+
 - **CRITICAL**: Kroger requires `%20` encoding for spaces in scope parameter, NOT `+` encoding
   - Use `encodeURIComponent()` directly, NOT `URLSearchParams.set()`
   - `encodeURIComponent()` produces `%20` for spaces ✅
@@ -139,7 +167,9 @@ The implementation follows Kroger's [Authorization Code Flow Tutorial](https://d
 - Example: `scope=profile.compact%20cart.basic%3Awrite%20product.compact` (spaces as `%20`, colons as `%3A`)
 
 ### Required OAuth Scopes
+
 Set in `redirectToKroger` function (kroger-handler.ts):
+
 - `profile.compact`: User profile access
 - `cart.basic:write`: Shopping cart modification
 - `product.compact`: Product search and details
@@ -148,9 +178,10 @@ Set in `redirectToKroger` function (kroger-handler.ts):
 
 ### MCP Tools
 
-The server exposes 13 MCP tools, organized into modular files under `src/tools/`. Tools follow MCP best practices: consolidated CRUD operations use action discriminators, all tools include annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and errors use `isError: true` instead of throwing.
+The server exposes 14 MCP tools, organized into modular files under `src/tools/`. Tools follow MCP best practices: consolidated CRUD operations use action discriminators, all tools include annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and errors use `isError: true` instead of throwing.
 
 **Shopping & Products** (`tools/cart.ts`, `tools/location.ts`, `tools/product.ts`):
+
 1. **add_to_cart**: Add items to cart with UPC, quantity, modality
 2. **search_locations**: Find stores by zip code, chain name
 3. **get_location_details**: Get store details by location ID
@@ -158,24 +189,18 @@ The server exposes 13 MCP tools, organized into modular files under `src/tools/`
 5. **get_product_details**: Get product details by product ID
 6. **set_preferred_location**: Save user's preferred store
 
-**User Data Management** (`tools/inventory.ts`):
-7. **manage_pantry**: Consolidated pantry tool with `action: "add" | "remove" | "clear"`. Add items with quantity/expiry, remove by name, or clear all.
-8. **manage_equipment**: Consolidated equipment tool with `action: "add" | "remove" | "clear"`. Add equipment with optional category, remove by name, or clear all.
-9. **mark_order_placed**: Record completed order in history
+**User Data Management** (`tools/inventory.ts`): 7. **manage_pantry**: Consolidated pantry tool with `action: "add" | "remove" | "clear"`. Add items with quantity/expiry, remove by name, or clear all. 8. **manage_equipment**: Consolidated equipment tool with `action: "add" | "remove" | "clear"`. Add equipment with optional category, remove by name, or clear all. 9. **mark_order_placed**: Record completed order in history
 
-**Shopping List** (`tools/shopping-list.ts`):
-10. **manage_shopping_list**: Consolidated shopping list tool with `action: "add" | "remove" | "update" | "clear"`. Add items (with optional UPC, quantity, notes), remove/update by name, or clear all.
-11. **checkout_shopping_list**: Add unchecked items with UPCs to Kroger cart; reports items missing UPCs separately
+**Shopping List** (`tools/shopping-list.ts`): 10. **manage_shopping_list**: Consolidated shopping list tool with `action: "add" | "remove" | "update" | "clear"`. Add items (with optional UPC, quantity, notes), remove/update by name, or clear all. 11. **checkout_shopping_list**: Add unchecked items with UPCs to Kroger cart; reports items missing UPCs separately
 
-**AI-Powered Tools** (`tools/recipes.ts`):
-12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API
-13. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
+**AI-Powered Tools** (`tools/recipes.ts`): 12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API 13. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
 
 **Note:** User data reads (pantry, equipment, location, order history, shopping list) are provided via **MCP Resources** (see below), not tools. This allows the AI to automatically access context without explicit tool calls.
 
 ### Tool Annotations
 
 All tools include MCP annotations to help clients understand tool behavior:
+
 - **readOnlyHint**: `true` for search/query tools, `false` for mutation tools
 - **destructiveHint**: `true` for tools with clear/delete capability, `false` for additive-only
 - **idempotentHint**: `true` for search tools and set_preferred_location (same input = same result)
@@ -193,6 +218,7 @@ The server exposes contextual data via MCP Resources (defined in `src/tools/reso
 6. **shopping://product/{productId}** - Product details by UPC (template resource; uses preferred location if available)
 
 **How Resources Work:**
+
 - Resources are automatically available to the AI without explicit tool calls
 - Claude can proactively reference pantry contents, equipment, preferred location, purchase history, and shopping list
 - Enables more natural conversations ("I see you already have milk in your pantry")
@@ -221,14 +247,16 @@ The server exposes guided workflow prompts (defined in `src/prompts.ts`):
 The server uses MCP Sampling to request AI completions from the client's model:
 
 **Implementation:**
+
 ```typescript
 const result = await this.server.server.createMessage({
   messages: [{ role: "user", content: { type: "text", text: prompt } }],
-  maxTokens: 1000
+  maxTokens: 1000,
 });
 ```
 
 **Use Cases:**
+
 - AI-powered meal planning from pantry contents (`plan_meals`)
 - Recipe suggestions from pantry items
 - Shopping list categorization by department
@@ -236,26 +264,27 @@ const result = await this.server.server.createMessage({
 
 **Web Scraping with Sampling:**
 The `search_recipes_from_web` tool demonstrates AI-powered web scraping:
+
 ```typescript
 // 1. Fetch webpage content
 const response = await fetch(url);
 const html = await response.text();
 
 // 2. Clean HTML (remove scripts/styles, limit size)
-const cleanedHtml = html
-  .replace(/<script.*?<\/script>/gi, '')
-  .substring(0, 50000);
+const cleanedHtml = html.replace(/<script.*?<\/script>/gi, "").substring(0, 50000);
 
 // 3. Ask LLM to parse and extract structured data
 const result = await this.server.server.createMessage({
-  messages: [{
-    role: "user",
-    content: {
-      type: "text",
-      text: `Parse this HTML and return JSON: ${cleanedHtml}`
-    }
-  }],
-  maxTokens: 2000
+  messages: [
+    {
+      role: "user",
+      content: {
+        type: "text",
+        text: `Parse this HTML and return JSON: ${cleanedHtml}`,
+      },
+    },
+  ],
+  maxTokens: 2000,
 });
 
 // 4. Parse LLM response as JSON
@@ -265,7 +294,9 @@ const data = JSON.parse(result.content.text);
 **Security:** Sampling requests require user approval (handled by the MCP client)
 
 ### Bulk Product Search Implementation
+
 The `search_products` tool implements parallel bulk search with progress tracking:
+
 - Accepts array of 1-10 search terms
 - Returns up to 10 items per search term (fixed limit)
 - All searches execute in parallel using `Promise.all()` for optimal performance
@@ -274,6 +305,7 @@ The `search_products` tool implements parallel bulk search with progress trackin
 - Failed searches return empty results without breaking the entire operation
 
 **Example Usage:**
+
 ```typescript
 {
   "terms": ["milk", "bread", "eggs"],
@@ -282,6 +314,7 @@ The `search_products` tool implements parallel bulk search with progress trackin
 ```
 
 **Performance Pattern with Progress Tracking:**
+
 ```typescript
 // ✅ CORRECT - Parallel execution with progress notifications
 const progressToken = extra?._meta?.progressToken;
@@ -313,15 +346,16 @@ for (const term of terms) {
 }
 ```
 
-
 ## User Data Persistence
 
 ### Cloudflare KV Storage
+
 The application uses Cloudflare KV (`USER_DATA_KV` binding) for persistent user data storage:
 
 **Storage Module:** `src/utils/user-storage.ts`
 
 **Data Types (each with a dedicated storage class):**
+
 - **PreferredLocationStorage**: User's favorite store (location ID, name, address, chain)
 - **PantryStorage**: Groceries at home (product name, quantity, added date, optional expiry date)
 - **EquipmentStorage**: Kitchen equipment/tools (equipment name, category)
@@ -329,6 +363,7 @@ The application uses Cloudflare KV (`USER_DATA_KV` binding) for persistent user 
 - **OrderHistoryStorage**: Past orders (order ID, items with prices, location, timestamp)
 
 **Key Features:**
+
 - Data namespaced by user ID for isolation (`user:{userId}:{dataType}`)
 - JSON serialization for complex data structures
 - Case-insensitive deduplication for pantry, equipment, and shopping list items
@@ -337,20 +372,19 @@ The application uses Cloudflare KV (`USER_DATA_KV` binding) for persistent user 
 - Formatted responses via `src/utils/format-response.ts`
 
 **Environment Variables:**
+
 - `USER_DATA_KV`: KV namespace binding (configured in wrangler.jsonc)
 
 ## Connecting MCP Clients
 
 Use the `mcp-remote` local proxy to connect Claude Desktop:
+
 ```json
 {
   "mcpServers": {
     "ai-shopping-list": {
       "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://ai-meal-planner-mcp.aranlucas.workers.dev/sse"
-      ]
+      "args": ["mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/sse"]
     }
   }
 }
@@ -359,12 +393,14 @@ Use the `mcp-remote` local proxy to connect Claude Desktop:
 ## TypeScript Best Practices
 
 ### CRITICAL: Never Use `any` Types
+
 - **NEVER** use `any` type in TypeScript code
 - Always use proper types from OpenAPI-generated schemas
 - Use explicit type annotations for all function parameters and return values
 - When working with OpenAPI types, use the `components["schemas"]["..."]` pattern
 
 **Example - Correct Type Usage:**
+
 ```typescript
 import type { components as ProductComponents } from "../services/kroger/product.js";
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -376,9 +412,11 @@ function formatProduct(product: Product): string {
 ```
 
 **Example - WRONG (Never Do This):**
+
 ```typescript
-function formatProduct(product: any): string {  // ❌ NEVER USE ANY
-  product.aisleLocations?.map((loc) => loc.description);  // ❌ Missing type
+function formatProduct(product: any): string {
+  // ❌ NEVER USE ANY
+  product.aisleLocations?.map((loc) => loc.description); // ❌ Missing type
 }
 ```
 
@@ -387,6 +425,7 @@ function formatProduct(product: any): string {  // ❌ NEVER USE ANY
 **IMPORTANT: Prefer TypeScript type inference over explicit annotations when TypeScript can reliably infer the type.**
 
 1. **Zod Schema Integration**: Tool handler parameters are automatically typed by Zod schemas
+
    ```typescript
    // ✅ CORRECT - TypeScript infers types from Zod schema
    this.server.registerTool("search_products", {
@@ -403,6 +442,7 @@ function formatProduct(product: any): string {  // ❌ NEVER USE ANY
    ```
 
 2. **Array Callbacks**: Use inference when the array type is known
+
    ```typescript
    // ✅ CORRECT - TypeScript infers term is string from terms: string[]
    terms.map(async (term) => {
@@ -418,6 +458,7 @@ function formatProduct(product: any): string {  // ❌ NEVER USE ANY
    ```
 
 3. **OpenAPI Schema Types**: Use the generated type definitions for complex types
+
    ```typescript
    // ✅ CORRECT - Use generated types for complex structures
    type ProductItem = ProductComponents["schemas"]["products.productModel"];
@@ -428,12 +469,14 @@ function formatProduct(product: any): string {  // ❌ NEVER USE ANY
    ```
 
 **Rule of Thumb:** Only add explicit type annotations when:
+
 - TypeScript cannot infer the type (compile error)
 - Type narrowing is needed (type guards)
 - Improving code clarity for complex types
 - Defining reusable type aliases
 
 ### Proper Property Access
+
 - Always check the OpenAPI schema for correct property names
 - Properties in the API may differ from expected naming conventions
 - Example: `fulfillment.instore` (lowercase) not `fulfillment.inStore` (camelCase)
@@ -443,6 +486,7 @@ function formatProduct(product: any): string {  // ❌ NEVER USE ANY
 **CRITICAL: Always import component types directly from the OpenAPI schema files, NOT from client method return types.**
 
 **✅ CORRECT - Import types from schema files:**
+
 ```typescript
 import type { components } from "./services/kroger/cart.js";
 import type { components as ProductComponents } from "./services/kroger/product.js";
@@ -455,6 +499,7 @@ type CartItem = components["schemas"]["cart.cartItemModel"];
 ```
 
 **❌ WRONG - Do NOT infer types from client methods:**
+
 ```typescript
 // ❌ This causes TypeScript compilation errors
 type Product = NonNullable<
@@ -464,12 +509,14 @@ type ProductItem = NonNullable<Product>[number];
 ```
 
 **Why This Matters:**
+
 - The `openapi-fetch` client methods have complex generic signatures that don't work with `ReturnType`
 - TypeScript cannot properly infer the return types from client methods
 - Direct schema imports are cleaner, more reliable, and compile correctly
 - This is the pattern used throughout the codebase (see individual tool files in `src/tools/`)
 
 **Available Schema Types:**
+
 - **Product API**: `ProductComponents["schemas"]["products.productModel"]`
 - **Location API**: `LocationComponents["schemas"]["locations.location"]`
 - **Cart API**: `components["schemas"]["cart.cartItemModel"]`
@@ -478,23 +525,28 @@ type ProductItem = NonNullable<Product>[number];
 ## Important Implementation Notes
 
 ### UPC and Location ID Formats
+
 - **UPC codes**: Must be exactly 13 digits (enforced via Zod validation in tool schemas)
 - **Location IDs**: Must be exactly 8 characters (enforced throughout)
 
 ### Token Management
+
 - Access tokens expire after 30 minutes (1800s default)
 - Refresh buffer is 5 minutes (`isKrogerTokenExpiring` in client.ts), clock skew buffer is 1 minute (middleware)
 - Token refresh handled exclusively by `tokenExchangeCallback` in server.ts (NOT in middleware)
 - Kroger credentials (`krogerClientId`, `krogerClientSecret`) stored in `GrantProps` (server-side grant), not in `Props` (access token)
 
 ### API Client Pattern
+
 All Kroger API interactions use `openapi-fetch` with typed clients, except:
+
 1. OAuth token exchange (uses direct `fetch()` per Kroger docs)
 2. Token refresh (uses direct `fetch()` for Kroger's token endpoint)
 
 ## Reference Implementations
 
 ### Kroger MCP Implementations
+
 - **CupOfOwls/kroger-mcp** - https://github.com/CupOfOwls/kroger-mcp
   - Python-based FastMCP implementation
   - Includes MCP prompts for guided workflows

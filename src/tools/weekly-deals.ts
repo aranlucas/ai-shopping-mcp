@@ -1,6 +1,6 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { fromThrowable, okAsync, ResultAsync } from "neverthrow";
-import { z } from "zod";
+import * as z from "zod/v4";
 import type { AppError } from "../errors.js";
 import { networkError, storageError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
@@ -29,9 +29,7 @@ const FRESH_CACHE_MS = 6 * 60 * 60 * 1000;
 const STALE_GRACE_MS = 48 * 60 * 60 * 1000;
 
 export function isKvLike(value: unknown): value is KvLike {
-  return (
-    !!value && typeof value === "object" && "get" in value && "put" in value
-  );
+  return !!value && typeof value === "object" && "get" in value && "put" in value;
 }
 
 const safeGetCacheKv = fromThrowable(
@@ -67,9 +65,7 @@ const safeJsonParse = fromThrowable(
   () => null,
 );
 
-export function parseCacheEntry(
-  raw: string | null,
-): WeeklyDealsCacheEntry | null {
+export function parseCacheEntry(raw: string | null): WeeklyDealsCacheEntry | null {
   if (!raw) return null;
   return safeJsonParse(raw)
     .map((parsed) => {
@@ -94,10 +90,7 @@ function readWeeklyDealsCacheSafe(
   if (!kv) return okAsync({ kind: "miss" as const });
 
   return ResultAsync.fromPromise(kv.get(key), (e) =>
-    storageError(
-      `Failed to read cache: ${e instanceof Error ? e.message : String(e)}`,
-      e,
-    ),
+    storageError(`Failed to read cache: ${e instanceof Error ? e.message : String(e)}`, e),
   ).map((raw) => {
     const entry = parseCacheEntry(raw);
     if (!entry) return { kind: "miss" as const };
@@ -109,13 +102,8 @@ function readWeeklyDealsCacheSafe(
   });
 }
 
-export function getLatestCircularEndTime(
-  result: QfcDealsApiResponse,
-): number | null {
-  const candidates = [
-    result.shoppableCircular?.eventEndDate,
-    result.printCircular?.eventEndDate,
-  ]
+export function getLatestCircularEndTime(result: QfcDealsApiResponse): number | null {
+  const candidates = [result.shoppableCircular?.eventEndDate, result.printCircular?.eventEndDate]
     .map((value) => (value ? Date.parse(value) : Number.NaN))
     .filter((value) => Number.isFinite(value));
 
@@ -132,9 +120,7 @@ function writeWeeklyDealsCache(
 
   const now = Date.now();
   const eventEnd = getLatestCircularEndTime(data);
-  const freshUntil = eventEnd
-    ? Math.min(now + FRESH_CACHE_MS, eventEnd)
-    : now + FRESH_CACHE_MS;
+  const freshUntil = eventEnd ? Math.min(now + FRESH_CACHE_MS, eventEnd) : now + FRESH_CACHE_MS;
   const staleUntil = eventEnd
     ? Math.max(freshUntil, eventEnd + STALE_GRACE_MS)
     : now + FRESH_CACHE_MS + STALE_GRACE_MS;
@@ -148,20 +134,12 @@ function writeWeeklyDealsCache(
   };
 
   const expirationTtl = Math.max(300, Math.ceil((staleUntil - now) / 1000));
-  return ResultAsync.fromPromise(
-    kv.put(key, JSON.stringify(entry), { expirationTtl }),
-    (e) =>
-      storageError(
-        `Cache write failed: ${e instanceof Error ? e.message : String(e)}`,
-        e,
-      ),
+  return ResultAsync.fromPromise(kv.put(key, JSON.stringify(entry), { expirationTtl }), (e) =>
+    storageError(`Cache write failed: ${e instanceof Error ? e.message : String(e)}`, e),
   );
 }
 
-export function addCacheWarning(
-  result: QfcDealsApiResponse,
-  message: string,
-): QfcDealsApiResponse {
+export function addCacheWarning(result: QfcDealsApiResponse, message: string): QfcDealsApiResponse {
   return {
     ...result,
     warnings: [...result.warnings, message],
@@ -225,10 +203,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
       if (cacheResult.isOk()) {
         const cached = cacheResult.value;
         if (cached.kind === "fresh") {
-          const result = addCacheWarning(
-            cached.entry.data,
-            "Served from KV cache.",
-          );
+          const result = addCacheWarning(cached.entry.data, "Served from KV cache.");
           return formatWeeklyDealsToolResponse(result, "fresh");
         }
         if (cached.kind === "stale") {
@@ -282,9 +257,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         return formatWeeklyDealsToolResponse(staleData, "stale");
       }
 
-      return errorResult(
-        `Failed to fetch weekly deals: ${liveResult.error.message}`,
-      );
+      return errorResult(`Failed to fetch weekly deals: ${liveResult.error.message}`);
     },
   );
 }
@@ -312,15 +285,11 @@ export function formatWeeklyDealsToolResponse(
     result.deals.find((d) => d.validTill)?.validTill;
 
   const headerLines: string[] = [];
-  if (validFrom && validTill)
-    headerLines.push(`Valid: ${validFrom} – ${validTill}`);
-  if (result.warnings.length > 0)
-    headerLines.push(`Warnings: ${result.warnings.join(" | ")}`);
+  if (validFrom && validTill) headerLines.push(`Valid: ${validFrom} – ${validTill}`);
+  if (result.warnings.length > 0) headerLines.push(`Warnings: ${result.warnings.join(" | ")}`);
 
   const text =
-    headerLines.length > 0
-      ? `${headerLines.join("\n")}\n\n${formattedDeals}`
-      : formattedDeals;
+    headerLines.length > 0 ? `${headerLines.join("\n")}\n\n${formattedDeals}` : formattedDeals;
 
   return {
     content: [

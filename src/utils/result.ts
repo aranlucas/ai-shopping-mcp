@@ -58,10 +58,7 @@ export function fromApiResponse<T>(
   context: string,
 ): ResultAsync<T, AppError> {
   return ResultAsync.fromPromise(promise, (e) =>
-    networkError(
-      `${context}: ${e instanceof Error ? e.message : String(e)}`,
-      e,
-    ),
+    networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
   ).andThen(({ data, error, response }) => {
     if (error || !response.ok) {
       return err(apiError(`Failed to ${context}`, error));
@@ -76,9 +73,7 @@ export function fromApiResponse<T>(
  * Result-based version of requireUser.
  * Returns Ok(Props) or Err(AuthError).
  */
-export function requireAuth(
-  getUser: () => Props | null,
-): Result<Props, AppError> {
+export function requireAuth(getUser: () => Props | null): Result<Props, AppError> {
   const props = getUser();
   if (!props?.id) {
     return err(authError("User not authenticated"));
@@ -133,10 +128,7 @@ export function safeStorage<T>(
   context: string,
 ): ResultAsync<T, AppError> {
   return ResultAsync.fromPromise(operation(), (e) =>
-    storageError(
-      `${context}: ${e instanceof Error ? e.message : String(e)}`,
-      e,
-    ),
+    storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
   );
 }
 
@@ -151,10 +143,7 @@ export function safeFetch(
   context = "fetch",
 ): ResultAsync<Response, AppError> {
   return ResultAsync.fromPromise(fetch(input, init), (e) =>
-    networkError(
-      `${context}: ${e instanceof Error ? e.message : String(e)}`,
-      e,
-    ),
+    networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
   ).andThen((response) => {
     if (!response.ok) {
       return err(

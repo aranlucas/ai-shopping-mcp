@@ -1,11 +1,6 @@
 import { err, ok } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
-import {
-  apiError,
-  authError,
-  notFoundError,
-  storageError,
-} from "../../src/errors.js";
+import { apiError, authError, notFoundError, storageError } from "../../src/errors.js";
 import type { Props, UserStorage } from "../../src/tools/types.js";
 import {
   fromApiResponse,
@@ -121,10 +116,7 @@ describe("fromApiResponse", () => {
   });
 
   it("returns Err on promise rejection", async () => {
-    const result = await fromApiResponse(
-      Promise.reject(new Error("network fail")),
-      "test api",
-    );
+    const result = await fromApiResponse(Promise.reject(new Error("network fail")), "test api");
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
@@ -229,10 +221,7 @@ describe("safeStorage", () => {
   });
 
   it("returns Err on failure", async () => {
-    const result = await safeStorage(
-      () => Promise.reject(new Error("boom")),
-      "test op",
-    );
+    const result = await safeStorage(() => Promise.reject(new Error("boom")), "test op");
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");
@@ -272,10 +261,7 @@ describe("safeFetch", () => {
   });
 
   it("returns Err on network error", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockRejectedValue(new Error("network error")),
-    );
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network error")));
 
     const result = await safeFetch("https://example.com", undefined, "test");
     expect(result.isErr()).toBe(true);
@@ -309,10 +295,7 @@ describe("tool handler error path integration", () => {
   });
 
   it("safeStorage failure produces valid MCP error via toMcpResponse", async () => {
-    const result = await safeStorage(
-      () => Promise.reject(new Error("KV down")),
-      "fetch pantry",
-    );
+    const result = await safeStorage(() => Promise.reject(new Error("KV down")), "fetch pantry");
     const mcpResult = toMcpResponse(result.map(() => "unused"));
     expect(mcpResult.isError).toBe(true);
     expect(mcpResult.content[0].text).toContain("KV down");

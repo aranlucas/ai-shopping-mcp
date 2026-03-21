@@ -1,18 +1,13 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
-import { z } from "zod";
+import * as z from "zod/v4";
 import { notFoundError } from "../errors.js";
 import {
   formatLocation,
   formatLocationListCompact,
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
-import {
-  fromApiResponse,
-  requireAuth,
-  safeStorage,
-  toMcpResponse,
-} from "../utils/result.js";
+import { fromApiResponse, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import type { ToolContext } from "./types.js";
@@ -25,8 +20,7 @@ export function registerLocationTools(ctx: ToolContext) {
     "search_locations",
     {
       title: "Search Store Locations",
-      description:
-        "Searches for Kroger/QFC store locations by zip code and chain name.",
+      description: "Searches for Kroger/QFC store locations by zip code and chain name.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -111,11 +105,7 @@ export function registerLocationTools(ctx: ToolContext) {
       ).andThen((data) => {
         const location = data?.data;
         if (!location) {
-          return err(
-            notFoundError(
-              `No information found for location ID: ${locationId}`,
-            ),
-          );
+          return err(notFoundError(`No information found for location ID: ${locationId}`));
         }
         return ok(location);
       });
@@ -151,9 +141,7 @@ export function registerLocationTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: z.object({
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" }),
+        locationId: z.string().length(8, { message: "Location ID must be exactly 8 characters" }),
       }),
     },
     async ({ locationId }) => {
@@ -166,11 +154,7 @@ export function registerLocationTools(ctx: ToolContext) {
         ).andThen((data) => {
           const location = data?.data;
           if (!location) {
-            return err(
-              notFoundError(
-                `No information found for location ID: ${locationId}`,
-              ),
-            );
+            return err(notFoundError(`No information found for location ID: ${locationId}`));
           }
 
           const preferredLocation: PreferredLocation = {
@@ -183,8 +167,7 @@ export function registerLocationTools(ctx: ToolContext) {
           };
 
           return safeStorage(
-            () =>
-              ctx.storage.preferredLocation.set(props.id, preferredLocation),
+            () => ctx.storage.preferredLocation.set(props.id, preferredLocation),
             "save preferred location",
           ).map(
             () =>

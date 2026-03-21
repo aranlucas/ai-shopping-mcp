@@ -47,9 +47,6 @@ export function errorResult(text: string) {
  * Returns a session-scoped storage key for shopping list isolation.
  * Each MCP session (chat) gets its own shopping list.
  */
-export function getSessionScopedUserId(
-  userId: string,
-  sessionId: string,
-): string {
+export function getSessionScopedUserId(userId: string, sessionId: string): string {
   return `${userId}:session:${sessionId}`;
 }

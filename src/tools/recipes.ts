@@ -1,15 +1,9 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
-import { z } from "zod";
+import * as z from "zod/v4";
 import type { AppError } from "../errors.js";
 import { networkError } from "../errors.js";
-import {
-  requireAuth,
-  safeFetch,
-  safeStorage,
-  toMcpError,
-  toMcpResponse,
-} from "../utils/result.js";
+import { requireAuth, safeFetch, safeStorage, toMcpError, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
@@ -116,12 +110,9 @@ export function registerRecipeTools(ctx: ToolContext) {
 
               const metadata = [];
               if (recipe.cuisine) metadata.push(recipe.cuisine);
-              if (recipe.difficulty)
-                metadata.push(recipe.difficulty.toLowerCase());
-              if (recipe.totalTime)
-                metadata.push(`${recipe.totalTime}min total`);
-              else if (recipe.cookTime)
-                metadata.push(`${recipe.cookTime}min cook`);
+              if (recipe.difficulty) metadata.push(recipe.difficulty.toLowerCase());
+              if (recipe.totalTime) metadata.push(`${recipe.totalTime}min total`);
+              else if (recipe.cookTime) metadata.push(`${recipe.cookTime}min cook`);
               if (recipe.servings) metadata.push(recipe.servings);
               if (metadata.length > 0) {
                 parts.push(`*${metadata.join(" • ")}*`);
@@ -130,9 +121,7 @@ export function registerRecipeTools(ctx: ToolContext) {
               if (recipe.ingredients && recipe.ingredients.length > 0) {
                 parts.push("\n**Ingredients:**");
                 for (const ing of recipe.ingredients) {
-                  const amount = [ing.quantity, ing.unit]
-                    .filter(Boolean)
-                    .join(" ");
+                  const amount = [ing.quantity, ing.unit].filter(Boolean).join(" ");
                   const notes = ing.notes ? ` (${ing.notes})` : "";
                   parts.push(`- ${amount} ${ing.name}${notes}`.trim());
                 }
@@ -216,17 +205,10 @@ export function registerRecipeTools(ctx: ToolContext) {
           .boolean()
           .optional()
           .default(true)
-          .describe(
-            "Whether to prioritize using ingredients that are expiring soon",
-          ),
+          .describe("Whether to prioritize using ingredients that are expiring soon"),
       }),
     },
-    async ({
-      numberOfMeals,
-      mealType,
-      dietaryPreferences,
-      prioritizeExpiring,
-    }) => {
+    async ({ numberOfMeals, mealType, dietaryPreferences, prioritizeExpiring }) => {
       const { storage } = ctx;
 
       // Fetch user data in parallel using safeTry + ResultAsync.combine (auth folded in)
@@ -235,14 +217,8 @@ export function registerRecipeTools(ctx: ToolContext) {
 
         const [pantry, equipment, recentOrders] = yield* ResultAsync.combine([
           safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),
-          safeStorage(
-            () => storage.equipment.getAll(props.id),
-            "fetch equipment",
-          ),
-          safeStorage(
-            () => storage.orderHistory.getRecent(props.id, 10),
-            "fetch order history",
-          ),
+          safeStorage(() => storage.equipment.getAll(props.id), "fetch equipment"),
+          safeStorage(() => storage.orderHistory.getRecent(props.id, 10), "fetch order history"),
         ]).safeUnwrap();
 
         return ok({ pantry, equipment, recentOrders });
@@ -261,32 +237,22 @@ export function registerRecipeTools(ctx: ToolContext) {
       // Categorize pantry items by expiry urgency
       const now = Date.now();
       const categorizedPantry = pantry.map((item) => {
-        if (!item.expiresAt)
-          return { ...item, urgency: "none" as const, daysUntil: undefined };
+        if (!item.expiresAt) return { ...item, urgency: "none" as const, daysUntil: undefined };
         const expiresAtMs = new Date(item.expiresAt).getTime();
         if (Number.isNaN(expiresAtMs))
           return { ...item, urgency: "none" as const, daysUntil: undefined };
-        const daysUntil = Math.floor(
-          (expiresAtMs - now) / (1000 * 60 * 60 * 24),
-        );
-        if (daysUntil < 0)
-          return { ...item, urgency: "expired" as const, daysUntil };
-        if (daysUntil <= 1)
-          return { ...item, urgency: "critical" as const, daysUntil };
-        if (daysUntil <= 3)
-          return { ...item, urgency: "warning" as const, daysUntil };
+        const daysUntil = Math.floor((expiresAtMs - now) / (1000 * 60 * 60 * 24));
+        if (daysUntil < 0) return { ...item, urgency: "expired" as const, daysUntil };
+        if (daysUntil <= 1) return { ...item, urgency: "critical" as const, daysUntil };
+        if (daysUntil <= 3) return { ...item, urgency: "warning" as const, daysUntil };
         return { ...item, urgency: "ok" as const, daysUntil };
       });
 
       const expiringItems = categorizedPantry.filter(
         (item) => item.urgency === "critical" || item.urgency === "warning",
       );
-      const expiredItems = categorizedPantry.filter(
-        (item) => item.urgency === "expired",
-      );
-      const availableItems = categorizedPantry.filter(
-        (item) => item.urgency !== "expired",
-      );
+      const expiredItems = categorizedPantry.filter((item) => item.urgency === "expired");
+      const availableItems = categorizedPantry.filter((item) => item.urgency !== "expired");
 
       // Build the meal planning prompt
       const promptParts: string[] = [];
@@ -302,12 +268,8 @@ export function registerRecipeTools(ctx: ToolContext) {
         promptParts.push("\nPRIORITY - Use these expiring ingredients first:");
         for (const item of expiringItems) {
           const urgencyLabel =
-            item.urgency === "critical"
-              ? "EXPIRES TODAY/TOMORROW"
-              : "expires in 2-3 days";
-          promptParts.push(
-            `  - ${item.productName} (x${item.quantity}) - ${urgencyLabel}`,
-          );
+            item.urgency === "critical" ? "EXPIRES TODAY/TOMORROW" : "expires in 2-3 days";
+          promptParts.push(`  - ${item.productName} (x${item.quantity}) - ${urgencyLabel}`);
         }
       }
 
@@ -317,9 +279,7 @@ export function registerRecipeTools(ctx: ToolContext) {
       }
 
       if (equipment.length > 0) {
-        promptParts.push(
-          `\nAvailable kitchen equipment (${equipment.length}):`,
-        );
+        promptParts.push(`\nAvailable kitchen equipment (${equipment.length}):`);
         for (const item of equipment) {
           promptParts.push(
             `  - ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
@@ -338,9 +298,7 @@ export function registerRecipeTools(ctx: ToolContext) {
           }
         }
         frequentItems.push(
-          ...[...itemFrequency.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10),
+          ...[...itemFrequency.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10),
         );
       }
 
@@ -393,13 +351,8 @@ export function registerRecipeTools(ctx: ToolContext) {
           }),
         ),
         (e): AppError =>
-          networkError(
-            `MCP sampling failed: ${e instanceof Error ? e.message : String(e)}`,
-            e,
-          ),
-      ).orTee((error) =>
-        console.error("MCP sampling failed for meal planning:", error.message),
-      );
+          networkError(`MCP sampling failed: ${e instanceof Error ? e.message : String(e)}`, e),
+      ).orTee((error) => console.error("MCP sampling failed for meal planning:", error.message));
 
       if (samplingResult.isOk()) {
         const contentItem = Array.isArray(samplingResult.value.content)
@@ -425,11 +378,8 @@ export function registerRecipeTools(ctx: ToolContext) {
       if (expiringItems.length > 0) {
         fallbackParts.push("\n**⚠️ Expiring Soon (use first!):**");
         for (const item of expiringItems) {
-          const urgency =
-            item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
-          fallbackParts.push(
-            `- ${item.productName} x${item.quantity} (${urgency})`,
-          );
+          const urgency = item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
+          fallbackParts.push(`- ${item.productName} x${item.quantity} (${urgency})`);
         }
       }
 

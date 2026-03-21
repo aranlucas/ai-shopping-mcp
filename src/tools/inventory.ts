@@ -1,6 +1,6 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { errAsync } from "neverthrow";
-import { z } from "zod";
+import * as z from "zod/v4";
 import { validationError } from "../errors.js";
 import {
   formatEquipmentListCompact,
@@ -8,11 +8,7 @@ import {
   formatPantryListCompact,
 } from "../utils/format-response.js";
 import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
-import type {
-  EquipmentItem,
-  OrderRecord,
-  PantryItem,
-} from "../utils/user-storage.js";
+import type { EquipmentItem, OrderRecord, PantryItem } from "../utils/user-storage.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import type { ToolContext } from "./types.js";
 
@@ -32,9 +28,7 @@ export function registerInventoryTools(ctx: ToolContext) {
       },
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
-        action: z
-          .enum(["add", "remove", "clear"])
-          .describe("Action to perform on the pantry"),
+        action: z.enum(["add", "remove", "clear"]).describe("Action to perform on the pantry"),
         items: z
           .array(
             z.object({
@@ -42,9 +36,7 @@ export function registerInventoryTools(ctx: ToolContext) {
                 .string()
                 .min(1)
                 .max(200)
-                .describe(
-                  "Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')",
-                ),
+                .describe("Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')"),
               quantity: z.number().min(1).max(999),
               expiresAt: z.string().optional(),
             }),
@@ -67,9 +59,7 @@ export function registerInventoryTools(ctx: ToolContext) {
           case "add": {
             if (!items || items.length === 0) {
               return errAsync(
-                validationError(
-                  "Error: 'items' array is required for the 'add' action.",
-                ),
+                validationError("Error: 'items' array is required for the 'add' action."),
               );
             }
 
@@ -95,9 +85,7 @@ export function registerInventoryTools(ctx: ToolContext) {
           case "remove": {
             if (!productName) {
               return errAsync(
-                validationError(
-                  "Error: 'productName' is required for the 'remove' action.",
-                ),
+                validationError("Error: 'productName' is required for the 'remove' action."),
               );
             }
 
@@ -112,10 +100,7 @@ export function registerInventoryTools(ctx: ToolContext) {
           }
 
           case "clear":
-            return safeStorage(
-              () => storage.pantry.clear(props.id),
-              "clear pantry",
-            ).map(() => ({
+            return safeStorage(() => storage.pantry.clear(props.id), "clear pantry").map(() => ({
               text: "Pantry cleared successfully.",
               pantry: [] as PantryItem[],
               actionDetail: "Pantry cleared",
@@ -177,9 +162,7 @@ export function registerInventoryTools(ctx: ToolContext) {
           .min(1)
           .max(200)
           .optional()
-          .describe(
-            "Name of equipment to remove (required for 'remove' action)",
-          ),
+          .describe("Name of equipment to remove (required for 'remove' action)"),
       }),
     },
     async ({ action, items, equipmentName }) => {
@@ -190,9 +173,7 @@ export function registerInventoryTools(ctx: ToolContext) {
           case "add": {
             if (!items || items.length === 0) {
               return errAsync(
-                validationError(
-                  "Error: 'items' array is required for the 'add' action.",
-                ),
+                validationError("Error: 'items' array is required for the 'add' action."),
               );
             }
 
@@ -216,9 +197,7 @@ export function registerInventoryTools(ctx: ToolContext) {
           case "remove": {
             if (!equipmentName) {
               return errAsync(
-                validationError(
-                  "Error: 'equipmentName' is required for the 'remove' action.",
-                ),
+                validationError("Error: 'equipmentName' is required for the 'remove' action."),
               );
             }
 
@@ -232,10 +211,9 @@ export function registerInventoryTools(ctx: ToolContext) {
           }
 
           case "clear":
-            return safeStorage(
-              () => storage.equipment.clear(props.id),
-              "clear equipment",
-            ).map(() => "Equipment cleared successfully.");
+            return safeStorage(() => storage.equipment.clear(props.id), "clear equipment").map(
+              () => "Equipment cleared successfully.",
+            );
         }
       });
 
@@ -287,12 +265,8 @@ export function registerInventoryTools(ctx: ToolContext) {
           notes,
         };
 
-        return safeStorage(
-          () => ctx.storage.orderHistory.add(props.id, order),
-          "record order",
-        ).map(
-          () =>
-            `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
+        return safeStorage(() => ctx.storage.orderHistory.add(props.id, order), "record order").map(
+          () => `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
         );
       });
 

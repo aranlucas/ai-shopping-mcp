@@ -68,12 +68,7 @@ export function EmptyState({
         {icon}
       </div>
       <p className="text-sm font-medium text-gray-600">{message}</p>
-      {description && (
-        <p className="text-xs text-gray-400 mt-1 max-w-xs">{description}</p>
-      )}
+      {description && <p className="text-xs text-gray-400 mt-1 max-w-xs">{description}</p>}
     </div>
   );
 }
-
-// Need React for JSX
-import type React from "react";

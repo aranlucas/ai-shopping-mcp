@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { ErrorDisplay, Loading } from "../shared/status.js";
+import { ErrorDisplay, Loading } from "./shared/status.js";
 import type {
   LocationDetailContent,
   LocationResultsContent,
@@ -9,20 +9,20 @@ import type {
   RecipeResultsContent,
   ShoppingListContent,
   WeeklyDealsContent,
-} from "../shared/types.js";
-import { useMcpApp } from "./use-mcp-app.js";
-import { LocationDetailView } from "./views/LocationDetail.js";
-import { LocationResultsView } from "./views/LocationResults.js";
-import { PantryView } from "./views/Pantry.js";
-import { ProductDetailView } from "./views/ProductDetail.js";
-import { ProductSearchView } from "./views/ProductSearch.js";
-import { RecipeResultsView } from "./views/RecipeResults.js";
-import { ShoppingListView } from "./views/ShoppingList.js";
-import { WeeklyDealsView } from "./views/WeeklyDeals.js";
+} from "./shared/types.js";
+import { useMcpApp } from "./app/use-mcp-app.js";
+import { LocationDetailView } from "./app/views/LocationDetail.js";
+import { LocationResultsView } from "./app/views/LocationResults.js";
+import { PantryView } from "./app/views/Pantry.js";
+import { ProductDetailView } from "./app/views/ProductDetail.js";
+import { ProductSearchView } from "./app/views/ProductSearch.js";
+import { RecipeResultsView } from "./app/views/RecipeResults.js";
+import { ShoppingListView } from "./app/views/ShoppingList.js";
+import { WeeklyDealsView } from "./app/views/WeeklyDeals.js";
+import { StrictMode } from "react";
 
 function App() {
-  const { toolName, data, setData, app, isConnected, canCallTools, error } =
-    useMcpApp();
+  const { toolName, data, setData, app, isConnected, canCallTools, error } = useMcpApp();
 
   if (error) return <ErrorDisplay message={error.message} />;
   if (!isConnected || !data) return <Loading />;
@@ -83,19 +83,15 @@ function App() {
       return <RecipeResultsView data={data as RecipeResultsContent} />;
     case "get_weekly_deals":
       return (
-        <WeeklyDealsView
-          data={data as WeeklyDealsContent}
-          app={app}
-          canCallTools={canCallTools}
-        />
+        <WeeklyDealsView data={data as WeeklyDealsContent} app={app} canCallTools={canCallTools} />
       );
     default:
-      return (
-        <Loading
-          message={`Loading view for ${toolName ?? "unknown tool"}...`}
-        />
-      );
+      return <Loading message={`Loading view for ${toolName ?? "unknown tool"}...`} />;
   }
 }
 
-createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+createRoot(document.getElementById("root") as HTMLElement).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
