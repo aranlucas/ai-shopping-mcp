@@ -1,19 +1,9 @@
 @import "tailwindcss";
 
-/* Override Tailwind's built-in dark variant to:
-   1. Prefer explicit theme set by the ext-apps host (data-theme attribute or .dark class)
-   2. Fall back to prefers-color-scheme: dark when the host hasn't sent a theme yet
-      (covers the initial render before onhostcontextchanged fires) */
-@variant dark {
-  &:where([data-theme="dark"] *, .dark *) {
-    @slot;
-  }
-  @media (prefers-color-scheme: dark) {
-    &:not(:where([data-theme="light"] *, .light *)) {
-      @slot;
-    }
-  }
-}
+/* Dark mode: responds to data-theme="dark" set by applyDocumentTheme() from ext-apps.
+   Single-pattern variant avoids CSS duplication and color-mix() in media queries.
+   Initial dark mode before host fires is handled by the inline script in index.html. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
   /* Brand palette (static values — these don't need host overrides) */
@@ -73,6 +63,6 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #d1d5db transparent;
 }
-:where([data-theme="dark"], .dark) * {
+:where([data-theme="dark"]) * {
   scrollbar-color: #374151 transparent;
 }
