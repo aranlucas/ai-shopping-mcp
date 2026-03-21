@@ -68,16 +68,37 @@ describe("toMcpError", () => {
 describe("fromApiResponse", () => {
   it("returns Ok when data present", async () => {
     const result = await fromApiResponse(
-      Promise.resolve({ data: { items: [1, 2, 3] }, error: undefined }),
+      Promise.resolve({
+        data: { items: [1, 2, 3] },
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }),
       "test api",
     );
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({ items: [1, 2, 3] });
   });
 
+  it("returns Ok with undefined data for 204 No Content", async () => {
+    const result = await fromApiResponse(
+      Promise.resolve({
+        data: undefined,
+        error: undefined,
+        response: new Response(null, { status: 204 }),
+      }),
+      "test api",
+    );
+    expect(result.isOk()).toBe(true);
+    expect(result._unsafeUnwrap()).toBeUndefined();
+  });
+
   it("returns Err when error present", async () => {
     const result = await fromApiResponse(
-      Promise.resolve({ data: undefined, error: { message: "bad request" } }),
+      Promise.resolve({
+        data: undefined,
+        error: { message: "bad request" },
+        response: new Response(null, { status: 400 }),
+      }),
       "test api",
     );
     expect(result.isErr()).toBe(true);
@@ -86,13 +107,17 @@ describe("fromApiResponse", () => {
     expect(error.message).toContain("test api");
   });
 
-  it("returns Err when data is null", async () => {
+  it("returns Err when response is not ok", async () => {
     const result = await fromApiResponse(
-      Promise.resolve({ data: null, error: undefined }),
+      Promise.resolve({
+        data: undefined,
+        error: undefined,
+        response: new Response(null, { status: 500 }),
+      }),
       "test api",
     );
     expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("NOT_FOUND");
+    expect(result._unsafeUnwrapErr().type).toBe("API_ERROR");
   });
 
   it("returns Err on promise rejection", async () => {
@@ -295,7 +320,11 @@ describe("tool handler error path integration", () => {
 
   it("fromApiResponse → andThen chain produces correct not-found error", async () => {
     const result = await fromApiResponse(
-      Promise.resolve({ data: { item: null }, error: undefined }),
+      Promise.resolve({
+        data: { item: null },
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }),
       "get product",
     ).andThen((data) => {
       if (!(data as { item: unknown }).item) {
