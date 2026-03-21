@@ -7,7 +7,7 @@
     "build": "npm run lint && npm run build:views && tsc --noEmit",
     "build:views": "node scripts/build-views.js",
     "test": "vitest run",
-    "deploy": "wrangler deploy",
+    "deploy": "npm run build:views && wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
