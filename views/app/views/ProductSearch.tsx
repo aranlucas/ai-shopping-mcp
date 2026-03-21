@@ -111,7 +111,14 @@ export function ProductSearchView({
       name: "add_to_cart",
       arguments: { items: [{ upc, quantity: qty, modality: "PICKUP" }] },
     });
-    if (result?.isError) throw new Error("Failed to add to cart");
+    if (result?.isError) {
+      const msg =
+        result.content
+          ?.map((c) => ("text" in c ? c.text : ""))
+          .filter(Boolean)
+          .join(" ") || "Failed to add to cart";
+      throw new Error(msg);
+    }
   };
 
   const handleAddToList = async (name: string, upc: string) => {
@@ -122,7 +129,14 @@ export function ProductSearchView({
         items: [{ productName: name, upc, quantity: 1 }],
       },
     });
-    if (result?.isError) throw new Error("Failed to add to list");
+    if (result?.isError) {
+      const msg =
+        result.content
+          ?.map((c) => ("text" in c ? c.text : ""))
+          .filter(Boolean)
+          .join(" ") || "Failed to add to list";
+      throw new Error(msg);
+    }
   };
 
   const hasResults = results.some((r) => !r.failed && r.products.length > 0);

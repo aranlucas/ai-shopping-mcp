@@ -24,7 +24,7 @@ export const addToCartInputSchema = z.object({
 
 import type { components } from "../services/kroger/cart.js";
 import {
-  fromApiResponse,
+  fromApiResponseNoContent,
   requireAuth,
   safeResolveLocationId,
   toMcpResponse,
@@ -63,7 +63,7 @@ export function registerCartTools(ctx: ToolContext) {
 
             const requestBody: CartItemRequest = { items: cartItems };
 
-            return fromApiResponse(
+            return fromApiResponseNoContent(
               cartClient.PUT("/v1/cart/add", {
                 body: requestBody,
                 headers: { "Content-Type": "application/json" },
