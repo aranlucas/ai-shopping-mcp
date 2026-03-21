@@ -1,3 +1,4 @@
+import { ReactNode, useState } from "react";
 import type { ProductData } from "./types.js";
 
 const badgeVariants = {
@@ -14,7 +15,7 @@ export function Badge({
   children,
 }: {
   variant: "green" | "red" | "yellow" | "blue" | "gray" | "purple";
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <span
@@ -31,7 +32,7 @@ export function SectionHeader({
   subtitle,
 }: {
   title: string;
-  badge?: React.ReactNode;
+  badge?: ReactNode;
   subtitle?: string;
 }) {
   return (
@@ -129,7 +130,7 @@ export function ActionButton({
   state: "idle" | "loading" | "done" | "error";
   onClick: () => void;
   disabled?: boolean;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   idleLabel: string;
   loadingLabel?: string;
   doneLabel?: string;
@@ -209,9 +210,9 @@ export function ProductActions({
   onAddToCart: (upc: string, qty: number) => Promise<void>;
   onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
-  const [cartState, setCartState] = React.useState<"idle" | "loading" | "done" | "error">("idle");
-  const [listState, setListState] = React.useState<"idle" | "loading" | "done" | "error">("idle");
-  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+  const [cartState, setCartState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [listState, setListState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!upc) return null;
 

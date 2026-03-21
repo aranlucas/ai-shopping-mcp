@@ -195,6 +195,8 @@ The server exposes 14 MCP tools, organized into modular files under `src/tools/`
 
 **AI-Powered Tools** (`tools/recipes.ts`): 12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API 13. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
 
+**Weekly Deals** (`tools/weekly-deals.ts`): 14. **get_weekly_deals**: Fetches current QFC/Kroger weekly deals from the print ad (DACS API), augmented with real pricing from Kroger Product Search API. Results are KV-cached (6h fresh / 48h stale-while-revalidate). Returns `structuredContent` with `_view: "get_weekly_deals"` for the MCP Apps React view.
+
 **Note:** User data reads (pantry, equipment, location, order history, shopping list) are provided via **MCP Resources** (see below), not tools. This allows the AI to automatically access context without explicit tool calls.
 
 ### Tool Annotations
@@ -390,6 +392,45 @@ Use the `mcp-remote` local proxy to connect Claude Desktop:
 }
 ```
 
+## Error Handling Pattern
+
+### neverthrow Result Types
+
+Newer tools use `neverthrow` (`Result`/`ResultAsync`) for type-safe error handling instead of try/catch. The bridge between Results and MCP responses lives in `src/utils/result.ts`:
+
+```typescript
+import { toMcpResponse, fromApiResponse, safeStorage } from "../utils/result.js";
+import type { AppError } from "../errors.js";
+
+// Wrap an openapi-fetch call
+const result = await fromApiResponse(
+  productClient.GET("/v1/products", { params: { query: { ... } } }),
+  "search products"
+);
+
+// Convert Result to MCP tool response
+return toMcpResponse(result.map(data => formatProducts(data)));
+```
+
+**AppError discriminated union** (defined in `src/errors.ts`): `ApiError | AuthError | NotFoundError | ValidationError | StorageError | NetworkError`. Use the constructors (`apiError()`, `authError()`, etc.) — never construct the objects directly.
+
+Older tools use the simpler `errorResult(message)` / `textResult(text)` helpers from `tools/types.ts`. Both patterns coexist; prefer the neverthrow pattern for new tools.
+
+## MCP Apps / React Views
+
+Tools can return rich UI by registering a view resource and including `structuredContent` in their response. The view is a Vite-built React app (`views/app/`) served from the Cloudflare ASSETS binding.
+
+**How it works:**
+
+1. At startup: `registerViewResource(ctx, APP_VIEW_URI, "app.html")` registers a single `ui://shopping-app` resource
+2. Tool response includes `structuredContent: { _view: "tool_name", ...data }` and `_meta: { ui: { resourceUri: APP_VIEW_URI } }`
+3. MCP host fetches the resource HTML, renders it in an iframe, passes tool result via `ontoolresult`
+4. React app routes to the correct view component based on `_view` discriminator
+
+**View components** live in `views/app/views/`. Each view handles one tool's `structuredContent` shape. Shared UI components are in `views/shared/`.
+
+**Build:** `npm run build:views` compiles the React app into a single inlined HTML file via `vite-plugin-singlefile`.
+
 ## TypeScript Best Practices
 
 ### CRITICAL: Never Use `any` Types
@@ -422,58 +463,13 @@ function formatProduct(product: any): string {
 
 ### Type Annotation Requirements
 
-**IMPORTANT: Prefer TypeScript type inference over explicit annotations when TypeScript can reliably infer the type.**
+Prefer TypeScript type inference over explicit annotations when TypeScript can reliably infer the type. Zod schema tool handler parameters, array callbacks with known element types, and `openapi-fetch` response destructuring are all inferred automatically — don't re-annotate them.
 
-1. **Zod Schema Integration**: Tool handler parameters are automatically typed by Zod schemas
-
-   ```typescript
-   // ✅ CORRECT - TypeScript infers types from Zod schema
-   this.server.registerTool("search_products", {
-     inputSchema: z.object({
-       terms: z.array(z.string()),
-       locationId: z.string()
-     })
-   }, async ({ terms, locationId }) => {  // Types inferred automatically
-     // terms is string[], locationId is string
-   });
-
-   // ❌ WRONG - Redundant explicit typing
-   async ({ terms, locationId }: { terms: string[], locationId: string }) => { ... }
-   ```
-
-2. **Array Callbacks**: Use inference when the array type is known
-
-   ```typescript
-   // ✅ CORRECT - TypeScript infers term is string from terms: string[]
-   terms.map(async (term) => {
-     const result = await productClient.GET("/v1/products", { ... });
-     return { term, products: result.data };
-   });
-
-   // ❌ UNNECESSARY - Type annotation redundant when TypeScript can infer
-   terms.map(async (term: string) => { ... })
-
-   // ✅ NECESSARY - Explicit type needed when inference isn't clear
-   items.filter((item): item is ValidItem => item.valid !== false)
-   ```
-
-3. **OpenAPI Schema Types**: Use the generated type definitions for complex types
-
-   ```typescript
-   // ✅ CORRECT - Use generated types for complex structures
-   type ProductItem = ProductComponents["schemas"]["products.productModel"];
-   const allProducts: ProductItem[] = [];
-
-   // ❌ WRONG - Don't use any or create manual interfaces
-   type Product = any;
-   ```
-
-**Rule of Thumb:** Only add explicit type annotations when:
+Only add explicit annotations when:
 
 - TypeScript cannot infer the type (compile error)
-- Type narrowing is needed (type guards)
-- Improving code clarity for complex types
-- Defining reusable type aliases
+- Type narrowing is needed (type guards, e.g. `(item): item is ValidItem => ...`)
+- Defining reusable type aliases for complex OpenAPI schema types
 
 ### Proper Property Access
 

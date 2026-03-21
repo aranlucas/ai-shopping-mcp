@@ -1,4 +1,4 @@
-/** Shared loading spinner and error display for MCP views. */
+import { ReactNode } from "react";
 
 export function Loading({ message }: { message?: string }) {
   return (
@@ -58,7 +58,7 @@ export function EmptyState({
   message,
   description,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   message: string;
   description?: string;
 }) {
