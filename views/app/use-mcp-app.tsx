@@ -60,17 +60,27 @@ export function useMcpApp(): McpAppState {
       appInstance.ontoolresult = (result) => {
         if (result.structuredContent) {
           setData(result.structuredContent);
-          // Fall back to _view discriminator if toolInfo wasn't available
+          // Primary: read toolInfo from host context (App class merges
+          // onhostcontextchanged updates into _hostContext before this fires)
+          const ctxName = appInstance.getHostContext()?.toolInfo?.tool?.name;
+          if (ctxName) {
+            setToolName((prev) => prev ?? ctxName);
+            return;
+          }
+          // Fallback: _view discriminator in structured content
           const view = (result.structuredContent as Record<string, unknown>)
             ._view as string | undefined;
           if (view) setToolName((prev) => prev ?? view);
         }
       };
 
-      // Unified host context handler — handles theme, variables, AND fonts
-      // in one callback. This fixes the dark mode bug where useHostStyles'
-      // two sub-hooks overwrite each other's onhostcontextchanged handler.
-      appInstance.onhostcontextchanged = (params) => applyStyles(params);
+      // Unified host context handler — handles theme, variables, fonts,
+      // AND toolInfo updates sent after initial connection.
+      appInstance.onhostcontextchanged = (params) => {
+        applyStyles(params);
+        const name = params.toolInfo?.tool?.name;
+        if (name) setToolName((prev) => prev ?? name);
+      };
 
       appInstance.onerror = console.error;
     },
