@@ -1,10 +1,19 @@
 @import "tailwindcss";
 
-/* Override Tailwind's built-in dark variant (which defaults to prefers-color-scheme)
-   to match whichever mechanism the ext-apps host uses: data-theme attribute or .dark class. */
+/* Override Tailwind's built-in dark variant to:
+   1. Prefer explicit theme set by the ext-apps host (data-theme attribute or .dark class)
+   2. Fall back to prefers-color-scheme: dark when the host hasn't sent a theme yet
+      (covers the initial render before onhostcontextchanged fires) */
 @variant dark {
   &:where([data-theme="dark"], .dark, [data-theme="dark"] *, .dark *) {
     @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:not(
+        :where([data-theme="light"], .light, [data-theme="light"] *, .light *)
+      ) {
+      @slot;
+    }
   }
 }
 
