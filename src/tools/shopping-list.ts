@@ -5,7 +5,7 @@ import { validationError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import {
-  fromApiResponse,
+  fromApiResponseNoContent,
   requireAuth,
   safeResolveLocationId,
   safeStorage,
@@ -308,7 +308,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
           const requestBody: CartItemRequest = { items: cartItems };
 
-          yield* fromApiResponse(
+          yield* fromApiResponseNoContent(
             cartClient.PUT("/v1/cart/add", {
               body: requestBody,
               headers: { "Content-Type": "application/json" },

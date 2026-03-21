@@ -235,85 +235,105 @@ export function ProductActions({
   const [listState, setListState] = React.useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
   if (!upc) return null;
 
   const handleCart = async () => {
     setCartState("loading");
+    setErrorMsg(null);
     try {
       await onAddToCart(upc, 1);
       setCartState("done");
       setTimeout(() => setCartState("idle"), 2000);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to add to cart";
       setCartState("error");
-      setTimeout(() => setCartState("idle"), 2000);
+      setErrorMsg(msg);
+      setTimeout(() => {
+        setCartState("idle");
+        setErrorMsg(null);
+      }, 5000);
     }
   };
 
   const handleList = async () => {
     setListState("loading");
+    setErrorMsg(null);
     try {
       await onAddToList(name, upc);
       setListState("done");
       setTimeout(() => setListState("idle"), 2000);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to add to list";
       setListState("error");
-      setTimeout(() => setListState("idle"), 2000);
+      setErrorMsg(msg);
+      setTimeout(() => {
+        setListState("idle");
+        setErrorMsg(null);
+      }, 5000);
     }
   };
 
   return (
-    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
-      <ActionButton
-        state={cartState}
-        onClick={handleCart}
-        disabled={disabled}
-        idleLabel="Add to Cart"
-        loadingLabel="Adding..."
-        doneLabel="Added!"
-        failLabel="Failed"
-        variant="primary"
-        icon={
-          <svg
-            aria-hidden="true"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-            />
-          </svg>
-        }
-      />
-      <ActionButton
-        state={listState}
-        onClick={handleList}
-        disabled={disabled}
-        idleLabel="Save"
-        loadingLabel="Saving..."
-        doneLabel="Saved!"
-        failLabel="Failed"
-        variant="secondary"
-        icon={
-          <svg
-            aria-hidden="true"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-        }
-      />
+    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+      <div className="flex gap-2">
+        <ActionButton
+          state={cartState}
+          onClick={handleCart}
+          disabled={disabled}
+          idleLabel="Add to Cart"
+          loadingLabel="Adding..."
+          doneLabel="Added!"
+          failLabel="Failed"
+          variant="primary"
+          icon={
+            <svg
+              aria-hidden="true"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+              />
+            </svg>
+          }
+        />
+        <ActionButton
+          state={listState}
+          onClick={handleList}
+          disabled={disabled}
+          idleLabel="Save"
+          loadingLabel="Saving..."
+          doneLabel="Saved!"
+          failLabel="Failed"
+          variant="secondary"
+          icon={
+            <svg
+              aria-hidden="true"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+          }
+        />
+      </div>
+      {errorMsg && (
+        <div className="mt-1.5 text-[11px] text-red-600 dark:text-red-400 leading-tight">
+          {errorMsg}
+        </div>
+      )}
     </div>
   );
 }

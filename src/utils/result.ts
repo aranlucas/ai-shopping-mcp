@@ -70,6 +70,27 @@ export function fromApiResponse<T>(
   });
 }
 
+/**
+ * Wraps an openapi-fetch response for endpoints that return 204 No Content.
+ * Unlike fromApiResponse, this does NOT treat missing data as an error.
+ */
+export function fromApiResponseNoContent(
+  promise: Promise<{ data?: unknown; error?: unknown }>,
+  context: string,
+): ResultAsync<undefined, AppError> {
+  return ResultAsync.fromPromise(promise, (e) =>
+    networkError(
+      `${context}: ${e instanceof Error ? e.message : String(e)}`,
+      e,
+    ),
+  ).andThen(({ error }) => {
+    if (error) {
+      return err(apiError(`Failed to ${context}`, error));
+    }
+    return ok(undefined as undefined);
+  });
+}
+
 // --- Auth Helpers ---
 
 /**
