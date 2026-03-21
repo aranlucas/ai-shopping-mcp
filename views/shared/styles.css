@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
-/* Activate dark: variants when host sets data-theme="dark" on <html>.
-   useHostStyleVariables() calls applyDocumentTheme() which sets this attribute. */
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/* Activate dark: variants when host sets either data-theme="dark" attribute
+   or a .dark class on <html>. The ext-apps SDK's getDocumentTheme() checks
+   both, so we must handle both here too. */
+@custom-variant dark (&:where(
+    [data-theme="dark"],
+    [data-theme="dark"] *,
+    .dark,
+    .dark *
+  ));
 
 @theme {
   /* Brand palette (static values — these don't need host overrides) */
@@ -84,7 +90,7 @@
     scrollbar-width: thin;
     scrollbar-color: #d1d5db transparent;
   }
-  .dark * {
+  :where([data-theme="dark"], .dark) * {
     scrollbar-color: #374151 transparent;
   }
 }
