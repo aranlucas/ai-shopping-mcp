@@ -1,34 +1,79 @@
 @import "tailwindcss";
 
-/* Remap Tailwind's surface color tokens to host CSS variables.
-   Host sets --color-background-* / --color-text-* as inline styles on
-   document.documentElement via useHostStyleVariables(), which takes the
-   highest cascade priority and automatically overrides these.
-   Using plain rules (no @layer) for broadest Android compatibility. */
+/* Remap Tailwind v4 color tokens to MCP host CSS variables.
+   In Tailwind v4, utilities like bg-gray-900 resolve to var(--color-gray-900).
+   Overriding these here makes all existing classes automatically adapt to
+   the host's dark/light theme with zero component changes.
+
+   Host sets --color-background-* / --color-text-* / --color-border-* as
+   inline styles on document.documentElement via applyHostStyleVariables(),
+   which takes highest cascade priority and overrides these fallbacks.
+
+   For accent colors without host equivalents, light-dark() works because
+   applyDocumentTheme() sets both data-theme and color-scheme on the document. */
 :root {
-  /* Card/surface backgrounds */
+  /* ── Gray scale: surfaces ── */
   --color-white: var(--color-background-secondary, #ffffff);
-  --color-gray-800: var(--color-background-secondary, #374151);
-
-  /* Page/app backgrounds */
   --color-gray-50: var(--color-background-primary, #f9fafb);
-  --color-gray-950: var(--color-background-primary, #030712);
-
-  /* Subtle element backgrounds (icon containers, badges) */
   --color-gray-100: var(--color-background-tertiary, #f3f4f6);
 
-  /* Border radius from host */
+  /* ── Gray scale: borders ── */
+  --color-gray-200: var(--color-border-secondary, #e5e7eb);
+  --color-gray-300: var(--color-border-tertiary, #d1d5db);
+
+  /* ── Gray scale: text ── */
+  --color-gray-400: var(--color-text-disabled, #9ca3af);
+  --color-gray-500: var(--color-text-tertiary, #6b7280);
+  --color-gray-600: var(--color-text-secondary, #4b5563);
+  --color-gray-700: var(--color-text-secondary, #374151);
+  --color-gray-800: var(--color-text-primary, #1f2937);
+  --color-gray-900: var(--color-text-primary, #111827);
+  --color-gray-950: var(--color-text-primary, #030712);
+
+  /* ── Success (emerald) ── */
+  --color-emerald-50: var(--color-background-success, #ecfdf5);
+  --color-emerald-500: light-dark(#10b981, #34d399);
+  --color-emerald-600: light-dark(#059669, #34d399);
+  --color-emerald-700: var(--color-text-on-success, #047857);
+
+  /* ── Danger (red) ── */
+  --color-red-50: var(--color-background-danger, #fef2f2);
+  --color-red-200: light-dark(#fecaca, #991b1b);
+  --color-red-500: light-dark(#ef4444, #f87171);
+  --color-red-600: light-dark(#dc2626, #f87171);
+  --color-red-700: var(--color-text-on-danger, #b91c1c);
+
+  /* ── Warning (amber) ── */
+  --color-amber-50: var(--color-background-warning, #fffbeb);
+  --color-amber-200: light-dark(#fde68a, #92400e);
+  --color-amber-500: light-dark(#f59e0b, #fbbf24);
+  --color-amber-700: var(--color-text-on-warning, #b45309);
+
+  /* ── Info (blue) ── */
+  --color-blue-50: var(--color-background-info, #eff6ff);
+  --color-blue-500: light-dark(#3b82f6, #60a5fa);
+  --color-blue-600: var(--color-text-link, #2563eb);
+  --color-blue-700: var(--color-text-on-info, #1d4ed8);
+  --color-blue-800: light-dark(#1e40af, #3b82f6);
+
+  /* ── Purple ── */
+  --color-purple-50: light-dark(#faf5ff, #3b0764);
+  --color-purple-600: light-dark(#9333ea, #a855f7);
+  --color-purple-700: light-dark(#7e22ce, #c084fc);
+
+  /* ── Pink ── */
+  --color-pink-50: light-dark(#fdf2f8, #831843);
+  --color-pink-700: light-dark(#be185d, #f472b6);
+
+  /* ── Border radius from host ── */
   --radius-card: var(--border-radius-lg, 0.75rem);
   --radius-btn: var(--border-radius-md, 0.5rem);
   --radius-badge: var(--border-radius-full, 9999px);
 }
 
 body {
-  /* Directly reference host background var with simple hex fallback */
   background-color: var(--color-background-primary, #f9fafb);
-  /* Directly reference host text color var */
   color: var(--color-text-primary, #1e293b);
-  /* Host font stack */
   font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   font-weight: var(--font-weight-normal, 400);
 }
