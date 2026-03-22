@@ -74,6 +74,7 @@ export function useMcpApp(): McpAppState {
       appInstance.onhostcontextchanged = (params) => {
         const name = params.toolInfo?.tool?.name;
         if (name) setToolName(name);
+        applyStyles(params);
       };
 
       appInstance.onerror = console.error;
