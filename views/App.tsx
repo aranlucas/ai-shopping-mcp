@@ -1,3 +1,11 @@
+import {
+  applyDocumentTheme,
+  applyHostFonts,
+  applyHostStyleVariables,
+  type McpUiHostContext,
+} from "@modelcontextprotocol/ext-apps";
+import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ErrorDisplay, Loading } from "./shared/status.js";
 import type {
@@ -10,7 +18,6 @@ import type {
   ShoppingListContent,
   WeeklyDealsContent,
 } from "./shared/types.js";
-import { useMcpApp } from "./app/use-mcp-app.js";
 import { LocationDetailView } from "./app/views/LocationDetail.js";
 import { LocationResultsView } from "./app/views/LocationResults.js";
 import { PantryView } from "./app/views/Pantry.js";
@@ -19,10 +26,68 @@ import { ProductSearchView } from "./app/views/ProductSearch.js";
 import { RecipeResultsView } from "./app/views/RecipeResults.js";
 import { ShoppingListView } from "./app/views/ShoppingList.js";
 import { WeeklyDealsView } from "./app/views/WeeklyDeals.js";
-import { StrictMode } from "react";
+
+function applyStyles(ctx: Partial<McpUiHostContext>) {
+  if (ctx.theme === "light" || ctx.theme === "dark") {
+    applyDocumentTheme(ctx.theme);
+  }
+  if (ctx.styles?.variables) {
+    applyHostStyleVariables(ctx.styles.variables);
+  }
+  if (ctx.styles?.css?.fonts) {
+    applyHostFonts(ctx.styles.css.fonts);
+  }
+}
 
 function App() {
-  const { toolName, data, setData, app, isConnected, canCallTools, error } = useMcpApp();
+  const [toolName, setToolName] = useState<string | null>(null);
+  const [data, setData] = useState<unknown>(null);
+
+  const { app, isConnected, error } = useApp({
+    appInfo: { name: "shopping-app", version: "1.0.0" },
+    capabilities: {},
+    onAppCreated: (appInstance) => {
+      appInstance.ontoolresult = (result) => {
+        if (result.structuredContent) {
+          setData(result.structuredContent);
+          const ctxName = appInstance.getHostContext()?.toolInfo?.tool?.name;
+          if (ctxName) setToolName(ctxName);
+        }
+      };
+      appInstance.onerror = console.error;
+      // NOTE: onhostcontextchanged is NOT set here. Setting it during onAppCreated
+      // (which fires before connect() resolves) causes styles to be applied too
+      // early on Android, breaking layout. It is set in useEffect below instead.
+    },
+  });
+
+  // Set unified host context change handler via React lifecycle, not during connect.
+  // Single handler for theme + variables + fonts + toolInfo avoids the useHostStyles
+  // overwrite bug where useHostStyleVariables and useHostFonts each set
+  // onhostcontextchanged and the second overwrites the first.
+  useEffect(() => {
+    if (!app) return;
+    app.onhostcontextchanged = (params) => {
+      const name = params.toolInfo?.tool?.name;
+      if (name) setToolName(name);
+      applyStyles(params);
+    };
+  }, [app]);
+
+  // Apply initial styles and resolve tool name after connection.
+  // getHostContext() returns the fully merged context (including any notifications
+  // that fired between connect and this effect running), so nothing is missed.
+  useEffect(() => {
+    if (!app || !isConnected) return;
+    const ctx = app.getHostContext();
+    if (ctx) {
+      applyStyles(ctx);
+      const name = ctx.toolInfo?.tool?.name;
+      if (name) setToolName((prev) => prev ?? name);
+    }
+  }, [app, isConnected]);
+
+  const canCallTools = isConnected && !!app?.getHostCapabilities()?.serverTools;
 
   if (error) return <ErrorDisplay message={error.message} />;
   if (!isConnected || !data) return <Loading />;
