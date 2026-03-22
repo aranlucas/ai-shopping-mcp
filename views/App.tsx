@@ -1,10 +1,14 @@
+/**
+ * @file MCP Apps React view for the AI Shopping MCP server.
+ */
+import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps";
 import {
   applyDocumentTheme,
   applyHostFonts,
   applyHostStyleVariables,
-  type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps";
 import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ErrorDisplay, Loading } from "./shared/status.js";
@@ -27,70 +31,78 @@ import { RecipeResultsView } from "./app/views/RecipeResults.js";
 import { ShoppingListView } from "./app/views/ShoppingList.js";
 import { WeeklyDealsView } from "./app/views/WeeklyDeals.js";
 
-function applyStyles(ctx: Partial<McpUiHostContext>) {
-  if (ctx.theme === "light" || ctx.theme === "dark") {
-    applyDocumentTheme(ctx.theme);
-  }
-  if (ctx.styles?.variables) {
-    applyHostStyleVariables(ctx.styles.variables);
-  }
-  if (ctx.styles?.css?.fonts) {
-    applyHostFonts(ctx.styles.css.fonts);
-  }
-}
+function ShoppingApp() {
+  const [toolResult, setToolResult] = useState<CallToolResult | null>(null);
+  const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
 
-function App() {
-  const [toolName, setToolName] = useState<string | null>(null);
-  const [data, setData] = useState<unknown>(null);
-
-  const { app, isConnected, error } = useApp({
+  const { app, error } = useApp({
     appInfo: { name: "shopping-app", version: "1.0.0" },
     capabilities: {},
-    onAppCreated: (appInstance) => {
-      appInstance.ontoolresult = (result) => {
-        if (result.structuredContent) {
-          setData(result.structuredContent);
-          const ctxName = appInstance.getHostContext()?.toolInfo?.tool?.name;
-          if (ctxName) setToolName(ctxName);
-        }
+    onAppCreated: (app) => {
+      app.onteardown = async () => {
+        return {};
       };
-      appInstance.onerror = console.error;
-      // NOTE: onhostcontextchanged is NOT set here. Setting it during onAppCreated
-      // (which fires before connect() resolves) causes styles to be applied too
-      // early on Android, breaking layout. It is set in useEffect below instead.
+      app.ontoolinput = async (input) => {
+        console.info("Received tool call input:", input);
+      };
+      app.ontoolresult = async (result) => {
+        console.info("Received tool call result:", result);
+        setToolResult(result);
+      };
+      app.ontoolcancelled = (params) => {
+        console.info("Tool call cancelled:", params.reason);
+      };
+      app.onerror = console.error;
+      app.onhostcontextchanged = (params) => {
+        setHostContext((prev) => ({ ...prev, ...params }));
+      };
     },
   });
 
-  // Set unified host context change handler via React lifecycle, not during connect.
-  // Single handler for theme + variables + fonts + toolInfo avoids the useHostStyles
-  // overwrite bug where useHostStyleVariables and useHostFonts each set
-  // onhostcontextchanged and the second overwrites the first.
   useEffect(() => {
-    if (!app) return;
-    app.onhostcontextchanged = (params) => {
-      const name = params.toolInfo?.tool?.name;
-      if (name) setToolName(name);
-      applyStyles(params);
-    };
+    if (app) {
+      setHostContext(app.getHostContext());
+    }
   }, [app]);
 
-  // Apply initial styles and resolve tool name after connection.
-  // getHostContext() returns the fully merged context (including any notifications
-  // that fired between connect and this effect running), so nothing is missed.
-  useEffect(() => {
-    if (!app || !isConnected) return;
-    const ctx = app.getHostContext();
-    if (ctx) {
-      applyStyles(ctx);
-      const name = ctx.toolInfo?.tool?.name;
-      if (name) setToolName((prev) => prev ?? name);
-    }
-  }, [app, isConnected]);
-
-  const canCallTools = isConnected && !!app?.getHostCapabilities()?.serverTools;
-
   if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !data) return <Loading />;
+  if (!app) return <Loading />;
+
+  return <ShoppingAppInner app={app} toolResult={toolResult} hostContext={hostContext} />;
+}
+
+interface ShoppingAppInnerProps {
+  app: App;
+  toolResult: CallToolResult | null;
+  hostContext?: McpUiHostContext;
+}
+
+function ShoppingAppInner({ app, toolResult, hostContext }: ShoppingAppInnerProps) {
+  const [data, setData] = useState<unknown>(null);
+
+  useEffect(() => {
+    if (toolResult?.structuredContent) {
+      setData(toolResult.structuredContent);
+    }
+  }, [toolResult]);
+
+  useEffect(() => {
+    if (!hostContext) return;
+    if (hostContext.theme === "light" || hostContext.theme === "dark") {
+      applyDocumentTheme(hostContext.theme);
+    }
+    if (hostContext.styles?.variables) {
+      applyHostStyleVariables(hostContext.styles.variables);
+    }
+    if (hostContext.styles?.css?.fonts) {
+      applyHostFonts(hostContext.styles.css.fonts);
+    }
+  }, [hostContext]);
+
+  const toolName = hostContext?.toolInfo?.tool?.name ?? null;
+  const canCallTools = !!app.getHostCapabilities()?.serverTools;
+
+  if (!data) return <Loading />;
 
   switch (toolName) {
     case "search_products":
@@ -157,6 +169,6 @@ function App() {
 
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
-    <App />
+    <ShoppingApp />
   </StrictMode>,
 );
