@@ -289,3 +289,78 @@ export function ProductActions({
     </div>
   );
 }
+
+export function ProductCard({
+  product,
+  canCallTools,
+  onAddToCart,
+  onAddToList,
+}: {
+  product: ProductData;
+  canCallTools: boolean;
+  onAddToCart: (upc: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
+}) {
+  const name = product.description || "Unknown Product";
+  const brand = product.brand;
+  const upc = product.upc;
+  const size = product.items?.[0]?.size;
+  const aisle =
+    product.aisleLocations?.[0]?.description ||
+    (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
+
+  return (
+    <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 flex flex-col overflow-hidden">
+      <div className="p-3 flex-1">
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-[13px] text-gray-900 leading-snug">{name}</div>
+            {(brand || size) && (
+              <div className="text-[11px] text-gray-400 mt-0.5">
+                {brand}
+                {brand && size && " · "}
+                {size}
+              </div>
+            )}
+            {aisle && (
+              <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-0.5">
+                <svg
+                  aria-hidden="true"
+                  className="w-2.5 h-2.5 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+                  />
+                </svg>
+                {aisle}
+              </div>
+            )}
+          </div>
+          <div className="shrink-0">
+            <PriceDisplay product={product} />
+          </div>
+        </div>
+        <FulfillmentTags product={product} />
+        {upc && <div className="text-[9px] text-gray-300 mt-1 font-mono">{upc}</div>}
+      </div>
+      <ProductActions
+        upc={upc}
+        name={name}
+        disabled={!canCallTools}
+        onAddToCart={onAddToCart}
+        onAddToList={onAddToList}
+      />
+    </div>
+  );
+}
