@@ -154,7 +154,7 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
     case "manage_pantry":
       return <PantryView data={data} setData={setData} app={app} canCallTools={canCallTools} />;
     case "search_recipes_from_web":
-      return <RecipeResultsView data={data} />;
+      return <RecipeResultsView data={data} app={app} canCallTools={canCallTools} />;
     case "get_weekly_deals":
       return <WeeklyDealsView data={data} app={app} canCallTools={canCallTools} />;
   }
