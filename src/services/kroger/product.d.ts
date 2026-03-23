@@ -26,7 +26,6 @@ export interface paths {
      *     `filter.productId` - When using the productId parameter, the API performs a query to find an exact match. The format for the productId is a 13 digit number.
      *
      *      NOTE: If converting from a barcode omit the check digit.
-     *
      */
     get: operations["productGet"];
     put?: never;
@@ -144,6 +143,8 @@ export interface components {
        * @example /p/kroger-2-reduced-fat-milk/0001111041700?cid=dis.api.tpi_products-api_20240521_b:all_c:p_t:
        */
       productPageURI?: string;
+      /** @description The alias ProductId of the product to return. */
+      aliasProductIds?: string[];
       aisleLocations?: components["schemas"]["products.productAisleLocationModel"][];
       /**
        * @description The brand name of the product.
@@ -162,6 +163,83 @@ export interface components {
        * @example Kroger 2% Reduced Fat Milk
        */
       description?: string;
+      /**
+       * @description Indicates if the product contains alcohol.
+       * @example false
+       */
+      alcohol?: boolean;
+      /**
+       * @description The proof of the alcohol in the product.
+       * @example 0
+       */
+      alcoholProof?: number;
+      /**
+       * @description Indicates if the product has an age restriction.
+       * @example false
+       */
+      ageRestriction?: boolean;
+      /**
+       * @description Indicates if the product is eligible for SNAP benefits.
+       * @example true
+       */
+      snapEligible?: boolean;
+      /**
+       * @description Any manufacturer declarations for the product.
+       * @example [
+       *       "Live Naturally",
+       *       "Kosher",
+       *       "Tree Nuts Free"
+       *     ]
+       */
+      manufacturerDeclarations?: string[];
+      sweeteningMethods?: {
+        /** @example UNSPECIFIED */
+        code?: string;
+        /** @example Unspecified */
+        name?: string;
+      };
+      allergens?: components["schemas"]["products.allergenModel"][];
+      /**
+       * @description The description of the allergens for the product.
+       * @example Free from Cereals and Their Derivatives.
+       */
+      allergensDescription?: string;
+      /**
+       * @description Indicates if the product is certified for Passover.
+       * @example false
+       */
+      certifiedForPassover?: boolean;
+      /**
+       * @description Indicates if the product is hypoallergenic.
+       * @example false
+       */
+      hypoallergenic?: boolean;
+      /**
+       * @description Indicates if the product is non-GMO.
+       * @example false
+       */
+      nonGmo?: boolean;
+      /**
+       * @description The name of the non-GMO claim.
+       * @example PRODUCT LABELED WITH NON-GMO CLAIM
+       */
+      nonGmoClaimName?: string;
+      /**
+       * @description The name of the organic claim.
+       * @example ORGANIC CLAIM AND PRINTED ON PACKAGE
+       */
+      organicClaimName?: string;
+      /**
+       * @description The description of the product to appear on the receipt.
+       * @example KROGER 2% RF MILK
+       */
+      receiptDescription?: string;
+      /**
+       * @description Any warnings for the product.
+       * @example KEEP REFRIGERATED
+       */
+      warnings?: string;
+      retstrictions?: components["schemas"]["products.restrictionsModel"];
       items?: components["schemas"]["products.productItemModel"][];
       itemInformation?: components["schemas"]["products.productBoxedDimensionsModel"];
       temperature?: components["schemas"]["products.productTemperatureModel"];
@@ -171,6 +249,109 @@ export interface components {
        * @example 0001111041700
        */
       upc?: string;
+      ratingsAndReviews?: {
+        /**
+         * @description The average overall rating of the product.
+         * @example 4.5
+         */
+        averageOverallRating?: number;
+        /**
+         * @description The total number of reviews for the product.
+         * @example 12
+         */
+        totalReviewCount?: number;
+      };
+      nutritionInformation?: components["schemas"]["products.nutritionInformationModel"];
+    };
+    "products.restrictionsModel": {
+      /** @example 10 */
+      maximumOrderQuantity?: number;
+      /** @example 1 */
+      minimumOrderQuantity?: number;
+      /**
+       * @example [
+       *       "12345",
+       *       "67890"
+       *     ]
+       */
+      postalCode?: string[];
+      /** @example false */
+      shippable?: boolean;
+      /**
+       * @example [
+       *       "CA",
+       *       "NY"
+       *     ]
+       */
+      stateCodes?: string[];
+    };
+    "products.nutritionInformationModel": {
+      /** @example "Milk, skim milk, vitamin A palmitate, and vitamin D3.CONTAINS: MILK. */
+      ingredientStatement?: string;
+      /** @example Percent Daily Values are based on a 2,000 calorie diet. */
+      dailyValueIntakeReference?: string;
+      servingSize?: components["schemas"]["products.servingSizeModel"];
+      nutrients?: components["schemas"]["products.nutrientModel"][];
+      preparationState?: {
+        /** @example UNPREPARED */
+        code?: string;
+        /** @example Unprepared */
+        name?: string;
+      };
+      servingsPerPackage?: {
+        /** @example 8.0 Exact */
+        description?: string;
+        /** @example 8 */
+        value?: number;
+      };
+      /** @example 73 */
+      nutritionalRating?: string;
+    };
+    "products.allergenModel": {
+      /** @example Free from */
+      levelOfContainmentName?: string;
+      /** @example Tree Nuts and Their Derivatives */
+      name?: string;
+    };
+    "products.servingSizeModel": {
+      /** @example 8 fl oz (240mL) */
+      description?: string;
+      /** @example 240 */
+      quantity?: number;
+      unitOfMeasure?: {
+        /** @example ml */
+        abbreviation?: string;
+        /** @example MLT */
+        code?: string;
+        /** @example Millilitre */
+        name?: string;
+      };
+    };
+    "products.nutrientModel": {
+      /** @example CA */
+      code?: string;
+      /** @example calcium */
+      description?: string;
+      /** @example Calcium */
+      displayName?: string;
+      /** @example 25 */
+      percentDailyIntake?: number;
+      /** @example 290 */
+      quantity?: number;
+      precision?: {
+        /** @example APPROXIMATELY */
+        code?: string;
+        /** @example Approximately */
+        name?: string;
+      };
+      unitOfMeasure?: {
+        /** @example mg */
+        abbreviation?: string;
+        /** @example MGM */
+        code?: string;
+        /** @example Milligram */
+        name?: string;
+      };
     };
     "products.productPayloadModel": {
       data?: components["schemas"]["products.productModel"];
@@ -226,19 +407,34 @@ export interface components {
     "products.productBoxedDimensionsModel": {
       /**
        * @description The depth of the product.
-       * @example 3.5
+       * @example 6
        */
       depth?: string;
       /**
        * @description The height of the product.
-       * @example 2.0
+       * @example 10
        */
       height?: string;
       /**
        * @description The length of the product.
-       * @example 4.75
+       * @example 6
        */
       width?: string;
+      /**
+       * @description The gross weight of the product.
+       * @example 8.82 [lb_av]
+       */
+      grossWeight?: string;
+      /**
+       * @description The net weight of the product.
+       * @example 8.62 [lb_av]
+       */
+      netWeight?: string;
+      /**
+       * @description The average weight per unit of the product.
+       * @example 8.62 [lb_av]
+       */
+      averageWeightPerUnit?: string;
     };
     "products.productItemModel": {
       /**
@@ -301,6 +497,17 @@ export interface components {
        * @example 1.59
        */
       promoPerUnitEstimate?: number;
+      expirationDate?: components["schemas"]["products.dateValueModel"];
+      effectiveDate?: components["schemas"]["products.dateValueModel"];
+    };
+    "products.dateValueModel": {
+      /**
+       * Format: date
+       * @example 9999-12-31T00:00:00Z
+       */
+      value?: string;
+      /** @example UTC */
+      timezone?: string;
     };
     /** @description Information about the product's image. */
     "products.productImageModel": {
@@ -380,12 +587,13 @@ export interface operations {
          * @example Kroger
          */
         "filter.brand"?: string;
-        /** @description 'The available fulfillment types of the product(s) to return.
+        /**
+         * @description 'The available fulfillment types of the product(s) to return.
          *     Fulfillment types are case-sensitive, and lists must be comma-separated.
          *     Must be one or more of the follow types: <ul> <li> `ais` - Available In
          *     Store</li> <li> `csp` - Curbside Pickup</li> <li> `dth` - Delivery To Home</li>
          *     <li> `sth` - Ship To Home</li> </ui>'
-         *      */
+         */
         "filter.fulfillment"?: "ais" | "csp" | "dth" | "sth";
         /** @description The number of products to skip. */
         "filter.start"?: number;

@@ -4,6 +4,8 @@ import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import {
   callTool,
+  parseStructuredContent,
+  type AppData,
   type ShoppingListContent,
   type ShoppingListItemData,
 } from "../../shared/types.js";
@@ -30,42 +32,47 @@ function ShoppingItem({
     }
   };
 
-  const isDimmed = item.checked || removeState !== "idle";
-
   return (
     <div
-      className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border transition-all duration-150 ${item.checked ? "bg-gray-50/50 border-gray-100" : "bg-white border-gray-200/60 shadow-sm"} ${isDimmed ? "opacity-50" : ""}`}
+      className={`flex items-center gap-2.5 py-2.5 transition-opacity duration-150 ${removeState !== "idle" || item.checked ? "opacity-40" : ""}`}
     >
+      {/* Checkbox indicator */}
       <div
-        className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${item.checked ? "bg-emerald-500 border-emerald-500" : "border-gray-300"}`}
+        className={`shrink-0 w-3.5 h-3.5 rounded-sm border-2 flex items-center justify-center transition-colors ${
+          item.checked ? "bg-emerald-500 border-emerald-500" : "border-gray-300"
+        }`}
       >
         {item.checked && (
           <svg
             aria-hidden="true"
-            className="w-2.5 h-2.5 text-white"
+            className="w-2 h-2 text-white"
             fill="none"
             viewBox="0 0 24 24"
-            strokeWidth={3}
+            strokeWidth={3.5}
             stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
         )}
       </div>
+
+      {/* Content */}
       <div className="flex-1 min-w-0">
         <div
-          className={`text-sm font-medium leading-snug ${item.checked ? "line-through text-gray-400" : "text-gray-900"}`}
+          className={`text-[13px] font-medium leading-snug truncate ${item.checked ? "line-through text-gray-400" : "text-gray-900"}`}
         >
           {item.productName}
         </div>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <span className="text-xs text-gray-400">&times;{item.quantity}</span>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <span className="text-[11px] text-gray-400 font-mono">×{item.quantity}</span>
           {item.upc ? <Badge variant="green">UPC</Badge> : <Badge variant="yellow">No UPC</Badge>}
           {item.notes && (
-            <span className="text-xs text-gray-400 italic truncate max-w-32">{item.notes}</span>
+            <span className="text-[11px] text-gray-400 italic truncate max-w-28">{item.notes}</span>
           )}
         </div>
       </div>
+
+      {/* Remove */}
       {!item.checked && (
         <ActionButton
           state={removeState}
@@ -79,7 +86,7 @@ function ShoppingItem({
           icon={
             <svg
               aria-label="Remove"
-              className="w-3.5 h-3.5"
+              className="w-3 h-3"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={2.5}
@@ -101,7 +108,7 @@ export function ShoppingListView({
   canCallTools,
 }: {
   data: ShoppingListContent;
-  setData: (data: unknown) => void;
+  setData: (data: AppData | null) => void;
   app: App | null;
   canCallTools: boolean;
 }) {
@@ -113,19 +120,19 @@ export function ShoppingListView({
       arguments: { action: "remove", productName: name },
     });
     if (result?.isError) throw new Error("Failed to remove item");
-    const updated = result?.structuredContent as ShoppingListContent | undefined;
-    if (updated?.items) setData(updated);
+    const updated = parseStructuredContent(result?.structuredContent);
+    if (updated) setData(updated);
   };
 
   if (items.length === 0) {
     return (
-      <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">Shopping List</h1>
+      <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">Shopping List</h1>
         <EmptyState
           icon={
             <svg
               aria-hidden="true"
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -151,18 +158,24 @@ export function ShoppingListView({
   const withoutUpc = unchecked.filter((i) => !i.upc);
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
+    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
       <SectionHeader
         title="Shopping List"
-        badge={<Badge variant="blue">{unchecked.length} to buy</Badge>}
+        badge={
+          <span className="text-[11px] text-gray-400 font-mono">{unchecked.length} to buy</span>
+        }
         subtitle={actionDetail}
       />
-      <div className="flex gap-1.5 mb-4 flex-wrap">
+
+      {/* Status chips */}
+      <div className="flex gap-1.5 mb-3 flex-wrap">
         <Badge variant="green">{withUpc.length} ready</Badge>
         {withoutUpc.length > 0 && <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>}
         {checked.length > 0 && <Badge variant="gray">{checked.length} in cart</Badge>}
       </div>
-      <div className="space-y-1.5">
+
+      {/* Unchecked items */}
+      <div className="divide-y divide-[var(--app-border)]">
         {unchecked.map((item) => (
           <ShoppingItem
             key={item.productName}
@@ -172,12 +185,14 @@ export function ShoppingListView({
           />
         ))}
       </div>
+
+      {/* Checked items */}
       {checked.length > 0 && (
-        <div className="mt-6">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-            In Cart ({checked.length})
+        <div className="mt-5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            In Cart · {checked.length}
           </p>
-          <div className="space-y-1.5">
+          <div className="divide-y divide-[var(--app-border)]">
             {checked.map((item) => (
               <ShoppingItem
                 key={item.productName}

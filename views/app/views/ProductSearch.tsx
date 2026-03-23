@@ -33,40 +33,49 @@ function ProductCard({
     (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
 
   return (
-    <div className="group bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 flex flex-col">
-      <div className="flex-1">
-        <div className="font-semibold text-sm text-gray-900 leading-snug">{name}</div>
-        {brand && <div className="text-xs text-gray-500 mt-0.5 font-medium">{brand}</div>}
-        {size && <div className="text-xs text-gray-400 mt-0.5">{size}</div>}
-        <div className="mt-2">
-          <PriceDisplay product={product} />
+    <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 flex flex-col overflow-hidden">
+      <div className="p-3 flex-1">
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-[13px] text-gray-900 leading-snug">{name}</div>
+            {(brand || size) && (
+              <div className="text-[11px] text-gray-400 mt-0.5">
+                {brand}
+                {brand && size && " · "}
+                {size}
+              </div>
+            )}
+            {aisle && (
+              <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-0.5">
+                <svg
+                  aria-hidden="true"
+                  className="w-2.5 h-2.5 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+                  />
+                </svg>
+                {aisle}
+              </div>
+            )}
+          </div>
+          <div className="shrink-0">
+            <PriceDisplay product={product} />
+          </div>
         </div>
         <FulfillmentTags product={product} />
-        {aisle && (
-          <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
-            <svg
-              aria-hidden="true"
-              className="w-3 h-3 shrink-0 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-              />
-            </svg>
-            {aisle}
-          </div>
-        )}
-        {upc && <div className="text-[10px] text-gray-300 mt-0.5 font-mono">{upc}</div>}
+        {upc && <div className="text-[9px] text-gray-300 mt-1 font-mono">{upc}</div>}
       </div>
       <ProductActions
         upc={upc}
@@ -126,10 +135,10 @@ export function ProductSearchView({
   const hasResults = results.some((r) => !r.failed && r.products.length > 0);
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
+    <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
       <SectionHeader
         title="Product Search"
-        badge={<Badge variant="blue">{totalProducts} products</Badge>}
+        badge={<span className="text-[11px] text-gray-400 font-mono">{totalProducts} items</span>}
         subtitle={`${results.length} search term${results.length !== 1 ? "s" : ""}`}
       />
 
@@ -138,7 +147,7 @@ export function ProductSearchView({
           icon={
             <svg
               aria-hidden="true"
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -161,11 +170,11 @@ export function ProductSearchView({
           return (
             <div
               key={result.term}
-              className="bg-red-50 rounded-xl p-3.5 mb-4 border border-red-100/80 text-sm text-red-600 flex items-center gap-2"
+              className="bg-red-50 rounded-lg px-3 py-2 mb-4 border border-red-100 text-xs text-red-600 flex items-center gap-1.5"
             >
               <svg
                 aria-hidden="true"
-                className="w-4 h-4 shrink-0"
+                className="w-3.5 h-3.5 shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -183,22 +192,27 @@ export function ProductSearchView({
         }
         if (result.products.length === 0) {
           return (
-            <div key={result.term} className="mb-6">
-              <div className="flex items-center gap-2 mb-2">
-                <h2 className="font-semibold text-sm text-gray-700">{result.term}</h2>
-                <Badge variant="gray">0 items</Badge>
+            <div key={result.term} className="mb-5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                  {result.term}
+                </span>
+                <span className="text-[11px] text-gray-300">·</span>
+                <span className="text-[11px] text-gray-400">No results</span>
               </div>
-              <p className="text-sm text-gray-400 pl-0.5">No products found.</p>
             </div>
           );
         }
         return (
-          <div key={result.term} className="mb-8">
-            <div className="flex items-center gap-2 mb-3">
-              <h2 className="font-semibold text-sm text-gray-800 capitalize">{result.term}</h2>
-              <Badge variant="blue">{result.products.length} items</Badge>
+          <div key={result.term} className="mb-6">
+            <div className="flex items-center gap-2 mb-2.5">
+              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                {result.term}
+              </span>
+              <span className="text-[11px] text-gray-300">·</span>
+              <span className="text-[11px] text-gray-400">{result.products.length} items</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {result.products.map((product) => (
                 <ProductCard
                   key={product.upc ?? product.description}

@@ -171,3 +171,30 @@ b,
 strong {
   font-weight: var(--font-weight-bold);
 }
+
+/* ── MCP App design tokens ── */
+:root {
+  --app-accent: light-dark(#15803d, #4ade80);
+  --app-accent-hover: light-dark(#166534, #22c55e);
+  --app-accent-active: light-dark(#14532d, #16a34a);
+  --app-accent-bg: light-dark(rgba(21, 128, 61, 0.08), rgba(74, 222, 128, 0.1));
+  --app-accent-text: light-dark(#15803d, #4ade80);
+  --app-border: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.08));
+  --app-border-hover: light-dark(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.15));
+  --app-card-bg: var(--color-background-secondary, #ffffff);
+}
+
+@keyframes app-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-view-in {
+  animation: app-fade-up 0.16s ease-out both;
+}

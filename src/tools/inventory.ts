@@ -114,6 +114,7 @@ export function registerInventoryTools(ctx: ToolContext) {
       return {
         content: [{ type: "text" as const, text }],
         structuredContent: {
+          _view: "manage_pantry",
           items: pantry,
           actionDetail,
         },

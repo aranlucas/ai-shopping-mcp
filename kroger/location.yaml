@@ -35,7 +35,7 @@ info:
     name: API Support
     email: APISupport@kroger.com
     url: https://developer.kroger.com
-  version: 1.2.2
+  version: 1.2.3
 servers:
   - url: https://api.kroger.com
     description: Production Environment
@@ -1196,6 +1196,56 @@ components:
             - "02"
           items:
             type: string
+        domain:
+          type: string
+          description: The domain of the chain.
+          example: kroger.com
+        friendlyBannerName:
+          type: string
+          description: The friendly name for this chain.
+          example: Baker's
+        defaultTitle:
+          type: string
+          description: The default title for this chain.
+          example: Baker's
+        titleExtension:
+          type: string
+          description: The title extension for this chain.
+          example: Fresh Food. Low Prices. | Shop Groceries Online
+        appleAppId:
+          type: string
+          description: The Apple app ID for this chain.
+          example: app-id=584405207
+        googleAppId:
+          type: string
+          description: The Google app ID for this chain.
+          example: app-id=com.bakersplus.mobile
+        themeColor:
+          type: string
+          description: The theme color for this chain.
+          example: "#ef3e42"
+        description:
+          type: string
+          description: The description for this chain.
+          example: Shop low prices on groceries & choose pickup or delivery. Fill
+            prescriptions, save with 100s of digital coupons, get fuel points, cash
+            checks, send money & more at Baker's.
+        modalityCapabilities:
+          type: object
+          description: The e-commerce modality capabilities for this chain.
+          properties:
+            delivery:
+              type: boolean
+              description: Flag for if this chain supports e-commerce delivery.
+            instore:
+              type: boolean
+              description: Flag for if this chain supports e-commerce in-store shopping.
+            curbside:
+              type: boolean
+              description: Flag for if this chain supports e-commerce pickup.
+            shiptohome:
+              type: boolean
+              description: Flag for if this chain supports e-commerce shipping.
     locations.chainResponse:
       type: object
       properties:

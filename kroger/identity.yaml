@@ -173,7 +173,8 @@ components:
           type: object
           properties:
             id:
-              type: string
+              type: object
+              properties: {}
               description: The customer's profile Id.
               example: 53990804-cfd1-43f3-8256-bdc9817a4fd0
         meta:

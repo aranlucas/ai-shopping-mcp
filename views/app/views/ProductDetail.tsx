@@ -65,19 +65,21 @@ export function ProductDetailView({
   };
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100">
-          <h1 className="text-base font-bold text-gray-900 leading-snug">{name}</h1>
-          {brand && <p className="text-xs text-gray-500 mt-0.5">{brand}</p>}
+    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+      <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] overflow-hidden">
+        {/* Header */}
+        <div className="px-4 pt-4 pb-3 border-b border-[var(--app-border)]">
+          <h1 className="text-sm font-semibold text-gray-900 leading-snug">{name}</h1>
+          {brand && <p className="text-[11px] text-gray-400 mt-0.5">{brand}</p>}
           <div className="mt-2.5 flex items-center gap-3 flex-wrap">
             <PriceDisplay product={product} />
             <FulfillmentTags product={product} />
           </div>
         </div>
 
+        {/* Actions */}
         {upc && (
-          <div className="px-5 py-4 border-b border-gray-100 flex gap-2">
+          <div className="px-4 py-3 border-b border-[var(--app-border)] flex gap-1.5">
             <ActionButton
               state={cartState}
               onClick={handleAddToCart}
@@ -127,22 +129,23 @@ export function ProductDetailView({
           </div>
         )}
 
-        <div className="px-5 py-4 space-y-4">
+        {/* Details */}
+        <div className="px-4 py-3 space-y-3.5">
           {product.items && product.items.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                 Options
               </p>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 {product.items.map((item) => (
                   <div
                     key={item.size ?? item.itemId}
-                    className="flex items-center gap-2 text-sm text-gray-700"
+                    className="flex items-center gap-2 text-xs text-gray-700"
                   >
                     {item.size && <span>{item.size}</span>}
                     {item.price?.regular && (
-                      <span className="text-gray-400">
-                        &middot; ${item.price.regular.toFixed(2)}
+                      <span className="text-gray-400 font-mono">
+                        ${item.price.regular.toFixed(2)}
                       </span>
                     )}
                     <StockBadge level={item.inventory?.stockLevel} />
@@ -154,10 +157,10 @@ export function ProductDetailView({
 
           {product.categories && product.categories.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                 Category
               </p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1">
                 {product.categories.map((c) => (
                   <Badge key={c} variant="gray">
                     {c}
@@ -169,11 +172,11 @@ export function ProductDetailView({
 
           {product.aisleLocations && product.aisleLocations.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Aisle Location
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                Aisle
               </p>
               {product.aisleLocations.map((loc) => (
-                <div key={loc.description ?? loc.number} className="text-sm text-gray-600">
+                <div key={loc.description ?? loc.number} className="text-xs text-gray-600">
                   {loc.description} {loc.number ? `(${loc.number})` : ""}
                 </div>
               ))}

@@ -2,10 +2,10 @@ import { ReactNode } from "react";
 
 export function Loading({ message }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-3">
+    <div className="flex flex-col items-center justify-center py-16 gap-2.5">
       <svg
         aria-hidden="true"
-        className="animate-spin h-6 w-6 text-blue-500"
+        className="animate-spin h-5 w-5 text-[var(--app-accent)]"
         viewBox="0 0 24 24"
         fill="none"
       >
@@ -23,20 +23,20 @@ export function Loading({ message }: { message?: string }) {
           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
         />
       </svg>
-      <span className="text-sm">{message ?? "Loading..."}</span>
+      <span className="text-xs text-gray-400">{message ?? "Loading..."}</span>
     </div>
   );
 }
 
 export function ErrorDisplay({ message }: { message: string }) {
   return (
-    <div className="m-4 rounded-xl bg-red-50 border border-red-200 p-4 flex items-start gap-3">
+    <div className="mx-3.5 my-3 rounded-lg bg-red-50 border border-red-100 px-3.5 py-3 flex items-start gap-2.5">
       <svg
         aria-hidden="true"
-        className="w-4 h-4 text-red-500 mt-0.5 shrink-0"
+        className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0"
         fill="none"
         viewBox="0 0 24 24"
-        strokeWidth={2}
+        strokeWidth={2.5}
         stroke="currentColor"
       >
         <path
@@ -46,8 +46,8 @@ export function ErrorDisplay({ message }: { message: string }) {
         />
       </svg>
       <div>
-        <p className="text-sm font-medium text-red-700">Something went wrong</p>
-        <p className="text-xs text-red-600/80 mt-0.5">{message}</p>
+        <p className="text-xs font-medium text-red-700">Something went wrong</p>
+        <p className="text-xs text-red-500 mt-0.5 leading-snug">{message}</p>
       </div>
     </div>
   );
@@ -63,12 +63,14 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-      <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3 text-gray-400">
+    <div className="flex flex-col items-center justify-center py-14 text-center px-4">
+      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center mb-3 text-gray-400">
         {icon}
       </div>
-      <p className="text-sm font-medium text-gray-600">{message}</p>
-      {description && <p className="text-xs text-gray-400 mt-1 max-w-xs">{description}</p>}
+      <p className="text-xs font-medium text-gray-600">{message}</p>
+      {description && (
+        <p className="text-[11px] text-gray-400 mt-1 max-w-xs leading-relaxed">{description}</p>
+      )}
     </div>
   );
 }

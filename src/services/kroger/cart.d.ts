@@ -17,7 +17,6 @@ export interface paths {
      * @description Provides access to add items to an authenticated customer's cart.
      *     <br><br> **Note**: the customer must be authenticated using the
      *     OAuth2 Authorization Code grant type.
-     *
      */
     put: operations["putCarts"];
     post?: never;

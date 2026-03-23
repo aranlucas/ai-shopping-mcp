@@ -62,7 +62,7 @@ export interface components {
          * @description The customer's profile Id.
          * @example 53990804-cfd1-43f3-8256-bdc9817a4fd0
          */
-        id?: string;
+        id?: Record<string, never>;
       };
       meta?: components["schemas"]["MetaModel"];
     };

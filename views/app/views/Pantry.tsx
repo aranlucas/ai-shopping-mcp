@@ -2,7 +2,13 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import { callTool, type PantryItemData, type PantryListContent } from "../../shared/types.js";
+import {
+  callTool,
+  parseStructuredContent,
+  type AppData,
+  type PantryItemData,
+  type PantryListContent,
+} from "../../shared/types.js";
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (!expiresAt) return null;
@@ -12,12 +18,8 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (daysUntil === 0) return <Badge variant="red">Today</Badge>;
   if (daysUntil <= 3) return <Badge variant="yellow">{daysUntil}d left</Badge>;
   return (
-    <span className="text-xs text-gray-400">
-      Exp{" "}
-      {expiryDate.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      })}
+    <span className="text-[11px] text-gray-400">
+      Exp {expiryDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
     </span>
   );
 }
@@ -44,7 +46,7 @@ function PantryItemRow({
     }
   };
 
-  const isExpiring = (() => {
+  const isExpiringSoon = (() => {
     if (!item.expiresAt) return false;
     const d = Math.floor((new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     return d >= 0 && d <= 3;
@@ -52,12 +54,15 @@ function PantryItemRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all duration-150 ${removeState !== "idle" ? "opacity-40" : ""} ${isExpiring ? "bg-amber-50/50 border-amber-200/60" : "bg-white border-gray-200/60 shadow-sm"}`}
+      className={`flex items-center gap-2.5 py-2.5 transition-opacity duration-150 ${removeState !== "idle" ? "opacity-40" : ""}`}
     >
-      <div className="shrink-0 w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center">
+      {/* Icon */}
+      <div
+        className={`shrink-0 w-6 h-6 rounded flex items-center justify-center ${isExpiringSoon ? "bg-amber-50 text-amber-500" : "bg-gray-100 text-gray-400"}`}
+      >
         <svg
           aria-hidden="true"
-          className="w-3.5 h-3.5 text-gray-500"
+          className="w-3.5 h-3.5"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={1.5}
@@ -70,13 +75,17 @@ function PantryItemRow({
           />
         </svg>
       </div>
+
+      {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-900 truncate">{item.productName}</div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <span className="text-xs text-gray-400">&times;{item.quantity}</span>
+        <div className="text-[13px] font-medium text-gray-900 truncate">{item.productName}</div>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <span className="text-[11px] text-gray-400 font-mono">×{item.quantity}</span>
           <ExpiryBadge expiresAt={item.expiresAt} />
         </div>
       </div>
+
+      {/* Remove */}
       <ActionButton
         state={removeState}
         onClick={handleRemove}
@@ -89,7 +98,7 @@ function PantryItemRow({
         icon={
           <svg
             aria-label="Remove"
-            className="w-3.5 h-3.5"
+            className="w-3 h-3"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2.5}
@@ -110,7 +119,7 @@ export function PantryView({
   canCallTools,
 }: {
   data: PantryListContent;
-  setData: (data: unknown) => void;
+  setData: (data: AppData | null) => void;
   app: App | null;
   canCallTools: boolean;
 }) {
@@ -122,19 +131,19 @@ export function PantryView({
       arguments: { action: "remove", items: [{ productName: name }] },
     });
     if (result?.isError) throw new Error("Failed to remove item");
-    const updated = result?.structuredContent as PantryListContent | undefined;
-    if (updated?.items) setData(updated);
+    const updated = parseStructuredContent(result?.structuredContent);
+    if (updated) setData(updated);
   };
 
   if (items.length === 0) {
     return (
-      <div className="p-4 max-w-2xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">Pantry</h1>
+      <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">Pantry</h1>
         <EmptyState
           icon={
             <svg
               aria-hidden="true"
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -162,17 +171,18 @@ export function PantryView({
   });
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
+    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
       <SectionHeader
         title="Pantry"
-        badge={<Badge variant="blue">{items.length} items</Badge>}
+        badge={<span className="text-[11px] text-gray-400 font-mono">{items.length} items</span>}
         subtitle={actionDetail}
       />
+
       {expiring.length > 0 && (
-        <div className="mb-4 bg-amber-50 border border-amber-200/60 rounded-xl px-3.5 py-2.5 flex items-center gap-2.5">
+        <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 flex items-center gap-2">
           <svg
             aria-hidden="true"
-            className="w-4 h-4 text-amber-500 shrink-0"
+            className="w-3.5 h-3.5 text-amber-500 shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -184,12 +194,13 @@ export function PantryView({
               d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
             />
           </svg>
-          <span className="text-sm font-medium text-amber-700">
+          <span className="text-xs font-medium text-amber-700">
             {expiring.length} item{expiring.length !== 1 ? "s" : ""} expiring soon
           </span>
         </div>
       )}
-      <div className="space-y-1.5">
+
+      <div className="divide-y divide-[var(--app-border)]">
         {items.map((item) => (
           <PantryItemRow
             key={item.productName}

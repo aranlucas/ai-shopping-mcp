@@ -221,6 +221,57 @@ export interface components {
        *     ]
        */
       divisionNumbers?: string[];
+      /**
+       * @description The domain of the chain.
+       * @example kroger.com
+       */
+      domain?: string;
+      /**
+       * @description The friendly name for this chain.
+       * @example Baker's
+       */
+      friendlyBannerName?: string;
+      /**
+       * @description The default title for this chain.
+       * @example Baker's
+       */
+      defaultTitle?: string;
+      /**
+       * @description The title extension for this chain.
+       * @example Fresh Food. Low Prices. | Shop Groceries Online
+       */
+      titleExtension?: string;
+      /**
+       * @description The Apple app ID for this chain.
+       * @example app-id=584405207
+       */
+      appleAppId?: string;
+      /**
+       * @description The Google app ID for this chain.
+       * @example app-id=com.bakersplus.mobile
+       */
+      googleAppId?: string;
+      /**
+       * @description The theme color for this chain.
+       * @example #ef3e42
+       */
+      themeColor?: string;
+      /**
+       * @description The description for this chain.
+       * @example Shop low prices on groceries & choose pickup or delivery. Fill prescriptions, save with 100s of digital coupons, get fuel points, cash checks, send money & more at Baker's.
+       */
+      description?: string;
+      /** @description The e-commerce modality capabilities for this chain. */
+      modalityCapabilities?: {
+        /** @description Flag for if this chain supports e-commerce delivery. */
+        delivery?: boolean;
+        /** @description Flag for if this chain supports e-commerce in-store shopping. */
+        instore?: boolean;
+        /** @description Flag for if this chain supports e-commerce pickup. */
+        curbside?: boolean;
+        /** @description Flag for if this chain supports e-commerce shipping. */
+        shiptohome?: boolean;
+      };
     };
     "locations.chainResponse": {
       data?: components["schemas"]["locations.chain"];
@@ -726,7 +777,6 @@ export interface operations {
          *     the chain `name` is returned from the [/chains](#operation/ListChains) endpoint
          *     as `name` and from the [/locations](#operation/SearchLocations) endpoint
          *     as `chain`.
-         *
          * @example Kroger
          */
         name: string;
@@ -783,7 +833,6 @@ export interface operations {
          *     the chain `name` is returned from the [/chains](#operation/ListChains) endpoint
          *     as `name` and from the [/locations](#operation/SearchLocations) endpoint
          *     as `chain`.
-         *
          * @example Kroger
          */
         name: string;

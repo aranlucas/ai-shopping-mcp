@@ -154,3 +154,25 @@ export interface RecipeResultsContent {
   recipes: RecipeData[];
   searchQuery: string;
 }
+
+/** Discriminated union of all possible tool structuredContent shapes. */
+export type AppData =
+  | ({ _view: "search_products" } & ProductSearchResultsContent)
+  | ({ _view: "get_product_details" } & ProductDetailContent)
+  | ({ _view: "search_locations" } & LocationResultsContent)
+  | ({ _view: "get_location_details" } & LocationDetailContent)
+  | ({ _view: "manage_shopping_list" } & ShoppingListContent)
+  | ({ _view: "manage_pantry" } & PantryListContent)
+  | ({ _view: "search_recipes_from_web" } & RecipeResultsContent)
+  | ({ _view: "get_weekly_deals" } & WeeklyDealsContent);
+
+/**
+ * Parse unknown structuredContent into a typed AppData value.
+ * Returns null if the value is missing or has no recognized _view.
+ */
+export function parseStructuredContent(raw: unknown): AppData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const view = (raw as Record<string, unknown>)._view;
+  if (typeof view !== "string") return null;
+  return raw as AppData;
+}

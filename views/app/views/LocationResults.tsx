@@ -2,7 +2,13 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import { callTool, type LocationData, type LocationResultsContent } from "../../shared/types.js";
+import {
+  callTool,
+  parseStructuredContent,
+  type AppData,
+  type LocationData,
+  type LocationResultsContent,
+} from "../../shared/types.js";
 
 function LocationCard({
   location,
@@ -42,22 +48,13 @@ function LocationCard({
   };
 
   return (
-    <div className="bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div>
-          <div className="font-semibold text-sm text-gray-900 leading-snug">
-            {location.name || "Unknown Store"}
-          </div>
-          {location.chain && (
-            <div className="mt-1">
-              <Badge variant="blue">{location.chain}</Badge>
-            </div>
-          )}
-        </div>
-        <div className="shrink-0 w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+    <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 p-3">
+      {/* Header */}
+      <div className="flex items-start gap-2 mb-2">
+        <div className="shrink-0 w-7 h-7 rounded bg-gray-100 flex items-center justify-center text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-4 h-4 text-blue-500"
+            className="w-4 h-4"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -70,9 +67,21 @@ function LocationCard({
             />
           </svg>
         </div>
+        <div className="min-w-0">
+          <div className="font-medium text-[13px] text-gray-900 leading-snug">
+            {location.name || "Unknown Store"}
+          </div>
+          {location.chain && (
+            <div className="mt-0.5">
+              <Badge variant="gray">{location.chain}</Badge>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Address */}
       {location.address && (
-        <div className="text-xs text-gray-500 flex items-start gap-1.5 mb-1.5">
+        <div className="text-[11px] text-gray-500 flex items-start gap-1 mb-1">
           <svg
             aria-hidden="true"
             className="w-3 h-3 text-gray-400 mt-0.5 shrink-0"
@@ -99,7 +108,7 @@ function LocationCard({
         </div>
       )}
       {location.phone && (
-        <div className="text-xs text-gray-500 flex items-center gap-1.5 mb-2">
+        <div className="text-[11px] text-gray-500 flex items-center gap-1 mb-1.5">
           <svg
             aria-hidden="true"
             className="w-3 h-3 text-gray-400 shrink-0"
@@ -117,8 +126,10 @@ function LocationCard({
           {location.phone}
         </div>
       )}
-      <div className="text-[10px] text-gray-300 font-mono mb-3">ID: {id}</div>
-      <div className="flex gap-2 pt-3 border-t border-gray-100">
+      <div className="text-[9px] text-gray-300 font-mono mb-2.5">{id}</div>
+
+      {/* Actions */}
+      <div className="flex gap-1.5 pt-2.5 border-t border-[var(--app-border)]">
         <ActionButton
           state={prefState}
           onClick={handleSetPreferred}
@@ -161,10 +172,12 @@ function LocationCard({
 
 export function LocationResultsView({
   data,
+  setData,
   app,
   canCallTools,
 }: {
   data: LocationResultsContent;
+  setData: (data: AppData | null) => void;
   app: App | null;
   canCallTools: boolean;
 }) {
@@ -184,17 +197,19 @@ export function LocationResultsView({
       arguments: { locationId: id },
     });
     if (result?.isError) throw new Error("Failed to load details");
+    const parsed = parseStructuredContent(result?.structuredContent);
+    if (parsed) setData(parsed);
   };
 
   if (locations.length === 0) {
     return (
-      <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">Store Locations</h1>
+      <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
+        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">Store Locations</h1>
         <EmptyState
           icon={
             <svg
               aria-hidden="true"
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -220,12 +235,14 @@ export function LocationResultsView({
   }
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
+    <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
       <SectionHeader
         title="Store Locations"
-        badge={<Badge variant="blue">{locations.length} found</Badge>}
+        badge={
+          <span className="text-[11px] text-gray-400 font-mono">{locations.length} found</span>
+        }
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {locations.map((loc) => (
           <LocationCard
             key={loc.locationId}

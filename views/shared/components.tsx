@@ -2,12 +2,12 @@ import { ReactNode, useState } from "react";
 import type { ProductData } from "./types.js";
 
 const badgeVariants = {
-  green: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
-  red: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
-  yellow: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
-  blue: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
-  gray: "bg-gray-100 text-gray-600 ring-1 ring-gray-500/20",
-  purple: "bg-purple-50 text-purple-700 ring-1 ring-purple-600/20",
+  green: "bg-emerald-50 text-emerald-700",
+  red: "bg-red-50 text-red-600",
+  yellow: "bg-amber-50 text-amber-700",
+  blue: "bg-blue-50 text-blue-700",
+  gray: "bg-gray-100 text-gray-500",
+  purple: "bg-purple-50 text-purple-700",
 } as const;
 
 export function Badge({
@@ -19,7 +19,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeVariants[variant]}`}
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${badgeVariants[variant]}`}
     >
       {children}
     </span>
@@ -36,12 +36,12 @@ export function SectionHeader({
   subtitle?: string;
 }) {
   return (
-    <div className="mb-5">
-      <div className="flex items-center gap-2.5">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight">{title}</h1>
+    <div className="mb-4">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-sm font-semibold text-gray-900 tracking-tight">{title}</h1>
         {badge}
       </div>
-      {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+      {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
     </div>
   );
 }
@@ -50,42 +50,25 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   const item = product.items?.[0];
   if (!item?.fulfillment) return null;
 
-  const tags: Array<{ label: string; cls: string }> = [];
-  if (item.fulfillment.curbside)
-    tags.push({
-      label: "Pickup",
-      cls: "bg-blue-50 text-blue-700",
-    });
-  if (item.fulfillment.delivery)
-    tags.push({
-      label: "Delivery",
-      cls: "bg-pink-50 text-pink-700",
-    });
-  if (item.fulfillment.instore)
-    tags.push({
-      label: "In-Store",
-      cls: "bg-emerald-50 text-emerald-700",
-    });
+  const tags: Array<{ label: string; variant: "blue" | "purple" | "green" }> = [];
+  if (item.fulfillment.curbside) tags.push({ label: "Pickup", variant: "blue" });
+  if (item.fulfillment.delivery) tags.push({ label: "Delivery", variant: "purple" });
+  if (item.fulfillment.instore) tags.push({ label: "In-Store", variant: "green" });
 
   if (tags.length === 0) {
     return (
-      <div className="flex flex-wrap gap-1 mt-2">
-        <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold bg-red-50 text-red-600 ring-1 ring-red-600/10">
-          Out of Stock
-        </span>
+      <div className="flex flex-wrap gap-1 mt-1.5">
+        <Badge variant="red">Out of Stock</Badge>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-wrap gap-1 mt-2">
+    <div className="flex flex-wrap gap-1 mt-1.5">
       {tags.map((t) => (
-        <span
-          key={t.label}
-          className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${t.cls} ring-1 ring-current/10`}
-        >
+        <Badge key={t.label} variant={t.variant}>
           {t.label}
-        </span>
+        </Badge>
       ))}
     </div>
   );
@@ -94,22 +77,22 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
 export function PriceDisplay({ product }: { product: ProductData }) {
   const item = product.items?.[0];
   if (!item?.price?.regular) {
-    return <span className="text-xs text-gray-400">Price unavailable</span>;
+    return <span className="text-xs text-gray-400 font-mono">—</span>;
   }
   const { regular, promo } = item.price;
   const hasPromo = promo != null && promo !== regular;
 
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span className="text-base font-bold text-emerald-600">
+      <span className="text-[15px] font-medium text-emerald-600 font-mono leading-none">
         ${hasPromo ? promo?.toFixed(2) : regular?.toFixed(2)}
       </span>
       {hasPromo && (
         <>
-          <span className="text-xs text-gray-400 line-through">${regular?.toFixed(2)}</span>
-          <span className="inline-flex items-center rounded bg-red-500 px-1 py-px text-[10px] font-bold text-white leading-tight">
-            SALE
+          <span className="text-xs text-gray-400 line-through font-mono">
+            ${regular?.toFixed(2)}
           </span>
+          <Badge variant="red">Sale</Badge>
         </>
       )}
     </span>
@@ -148,32 +131,32 @@ export function ActionButton({
 
   const primaryCls =
     state === "done"
-      ? "bg-emerald-600 text-white shadow-sm"
+      ? "bg-emerald-600 text-white"
       : state === "error"
-        ? "bg-red-600 text-white shadow-sm"
-        : "bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm";
+        ? "bg-red-500 text-white"
+        : "bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-active)] text-white";
 
   const secondaryCls =
     state === "done"
-      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+      ? "border-emerald-300 text-emerald-700 bg-emerald-50"
       : state === "error"
-        ? "bg-red-50 text-red-700 ring-red-200"
-        : "bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 active:bg-gray-200";
+        ? "border-red-200 text-red-600 bg-red-50"
+        : "border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 active:bg-gray-100";
 
   return (
     <button
       type="button"
       disabled={disabled || state === "loading"}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 ${
-        variant === "primary" ? primaryCls : `ring-1 ${secondaryCls}`
-      } disabled:opacity-50 disabled:cursor-not-allowed`}
+      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+        variant === "primary" ? primaryCls : `border ${secondaryCls}`
+      } disabled:opacity-40 disabled:cursor-not-allowed`}
       onClick={onClick}
     >
-      {icon && state === "idle" && <span className="shrink-0 w-3.5 h-3.5">{icon}</span>}
+      {icon && state === "idle" && <span className="shrink-0 w-3 h-3">{icon}</span>}
       {state === "loading" && (
         <svg
           aria-hidden="true"
-          className="animate-spin shrink-0 w-3.5 h-3.5"
+          className="animate-spin shrink-0 w-3 h-3"
           viewBox="0 0 24 24"
           fill="none"
         >
@@ -253,8 +236,8 @@ export function ProductActions({
   };
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-100">
-      <div className="flex gap-2">
+    <div className="mt-2.5 pt-2.5 border-t border-[var(--app-border)]">
+      <div className="flex gap-1.5">
         <ActionButton
           state={cartState}
           onClick={handleCart}
@@ -302,7 +285,7 @@ export function ProductActions({
           }
         />
       </div>
-      {errorMsg && <div className="mt-1.5 text-[11px] text-red-600 leading-tight">{errorMsg}</div>}
+      {errorMsg && <div className="mt-1 text-[11px] text-red-600">{errorMsg}</div>}
     </div>
   );
 }

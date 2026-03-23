@@ -28,22 +28,20 @@ function DealCard({
   };
 
   return (
-    <div className="bg-white rounded-xl p-3.5 border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300/80 transition-all duration-200 flex flex-col">
+    <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 p-3 flex flex-col">
       <div className="flex-1">
-        <div className="font-semibold text-sm text-gray-900 leading-snug">{deal.title}</div>
+        <div className="font-medium text-[13px] text-gray-900 leading-snug">{deal.title}</div>
         {deal.details && (
-          <div className="text-xs text-gray-500 mt-0.5 leading-relaxed">{deal.details}</div>
+          <div className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{deal.details}</div>
         )}
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-base font-bold text-emerald-600">{deal.price || "See ad"}</span>
-          {deal.savings && (
-            <span className="inline-flex items-center rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
-              {deal.savings}
-            </span>
-          )}
+        <div className="mt-2.5 flex items-baseline gap-2">
+          <span className="text-xl font-semibold text-emerald-600 font-mono leading-none">
+            {deal.price || "See ad"}
+          </span>
+          {deal.savings && <Badge variant="red">{deal.savings}</Badge>}
         </div>
       </div>
-      <div className="mt-3 pt-3 border-t border-gray-100">
+      <div className="mt-2.5 pt-2.5 border-t border-[var(--app-border)]">
         <ActionButton
           state={searchState}
           onClick={handleSearch}
@@ -95,13 +93,13 @@ export function WeeklyDealsView({
 
   if (deals.length === 0) {
     return (
-      <div className="p-4 max-w-4xl mx-auto">
-        <h1 className="text-lg font-bold text-gray-900 tracking-tight mb-1">Weekly Deals</h1>
+      <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
+        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">Weekly Deals</h1>
         <EmptyState
           icon={
             <svg
               aria-hidden="true"
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -123,13 +121,13 @@ export function WeeklyDealsView({
   }
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
+    <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
       <SectionHeader
         title="Weekly Deals"
-        badge={<Badge variant="green">{deals.length} deals</Badge>}
-        subtitle={validFrom && validTill ? `Valid ${validFrom} \u2013 ${validTill}` : undefined}
+        badge={<span className="text-[11px] text-gray-400 font-mono">{deals.length} deals</span>}
+        subtitle={validFrom && validTill ? `Valid ${validFrom} – ${validTill}` : undefined}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {deals.map((deal) => (
           <DealCard
             key={deal.title}

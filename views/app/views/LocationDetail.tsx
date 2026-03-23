@@ -32,14 +32,15 @@ export function LocationDetailView({
   };
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100">
-          <div className="flex items-start gap-3">
-            <div className="shrink-0 w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+      <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] overflow-hidden">
+        {/* Header */}
+        <div className="px-4 pt-4 pb-3 border-b border-[var(--app-border)]">
+          <div className="flex items-start gap-2.5">
+            <div className="shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500">
               <svg
                 aria-hidden="true"
-                className="w-5 h-5 text-blue-500"
+                className="w-4 h-4"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={1.5}
@@ -53,27 +54,29 @@ export function LocationDetailView({
               </svg>
             </div>
             <div>
-              <h1 className="text-base font-bold text-gray-900">
+              <h1 className="text-sm font-semibold text-gray-900">
                 {location.name || "Unknown Store"}
               </h1>
               {location.chain && (
-                <div className="mt-1">
-                  <Badge variant="blue">{location.chain}</Badge>
+                <div className="mt-0.5">
+                  <Badge variant="gray">{location.chain}</Badge>
                 </div>
               )}
             </div>
           </div>
         </div>
-        <div className="px-5 py-4 space-y-4">
+
+        {/* Details */}
+        <div className="px-4 py-3 space-y-3">
           {location.address && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
                 Address
               </p>
-              <div className="text-sm text-gray-700 flex items-start gap-2">
+              <div className="text-xs text-gray-700 flex items-start gap-1.5">
                 <svg
                   aria-hidden="true"
-                  className="w-4 h-4 text-gray-400 mt-0.5 shrink-0"
+                  className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={2}
@@ -98,15 +101,16 @@ export function LocationDetailView({
               </div>
             </div>
           )}
+
           {location.phone && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
                 Phone
               </p>
-              <div className="text-sm text-gray-700 flex items-center gap-2">
+              <div className="text-xs text-gray-700 flex items-center gap-1.5">
                 <svg
                   aria-hidden="true"
-                  className="w-4 h-4 text-gray-400 shrink-0"
+                  className="w-3.5 h-3.5 text-gray-400 shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={2}
@@ -122,12 +126,13 @@ export function LocationDetailView({
               </div>
             </div>
           )}
+
           {location.departments && location.departments.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Departments ({location.departments.length})
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                Departments · {location.departments.length}
               </p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1">
                 {location.departments
                   .filter((d) => d.name)
                   .map((d) => (
@@ -138,14 +143,17 @@ export function LocationDetailView({
               </div>
             </div>
           )}
+
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
               Location ID
             </p>
-            <p className="text-xs text-gray-400 font-mono">{id}</p>
+            <p className="text-[11px] text-gray-400 font-mono">{id}</p>
           </div>
         </div>
-        <div className="px-5 pb-5 pt-1">
+
+        {/* Action */}
+        <div className="px-4 pb-4 pt-1">
           <ActionButton
             state={prefState}
             onClick={handleSetPreferred}

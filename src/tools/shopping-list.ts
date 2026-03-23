@@ -175,6 +175,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       return {
         content: [{ type: "text" as const, text }],
         structuredContent: {
+          _view: "manage_shopping_list",
           items: list,
           actionDetail,
         },
@@ -308,6 +309,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         return ok({
           content: [{ type: "text" as const, text }],
           structuredContent: {
+            _view: "manage_shopping_list",
             items: updatedList,
             actionDetail: `Checkout complete: ${withUpc.length} item(s) added to cart`,
           },
