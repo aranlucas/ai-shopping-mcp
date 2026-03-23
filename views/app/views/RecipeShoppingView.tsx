@@ -60,6 +60,45 @@ function getProductPrice(product: ProductData): number | null {
   return promo != null && promo !== regular ? promo : regular;
 }
 
+// --- IngredientCard ---
+
+function IngredientCard({
+  result,
+  ing,
+  canCallTools,
+  onAddToCart,
+  onAddToList,
+}: {
+  result: ProductSearchResultsContent["results"][number];
+  ing: { quantity?: string; unit?: string; name: string; notes?: string } | undefined;
+  canCallTools: boolean;
+  onAddToCart: (upc: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
+}) {
+  const label = ing ? formatIngredientLabel(ing) : result.term;
+  const product = result.products[0];
+
+  return (
+    <div>
+      <p className="text-[10px] text-gray-400 mb-1 truncate" title={label}>
+        {label}
+      </p>
+      {product ? (
+        <ProductCard
+          product={product}
+          canCallTools={canCallTools}
+          onAddToCart={onAddToCart}
+          onAddToList={onAddToList}
+        />
+      ) : (
+        <div className="rounded-lg border border-[var(--app-border)] bg-gray-50 p-4 text-[11px] text-gray-400 text-center">
+          No results found
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Component ---
 
 export function RecipeShoppingView({
@@ -177,36 +216,6 @@ export function RecipeShoppingView({
     }
   }
 
-  // Reusable ingredient card renderer
-  const renderIngredientCard = (
-    result: ProductSearchResultsContent["results"][number],
-    idx: number,
-  ) => {
-    const ing = nameToIngredient.get(result.term);
-    const label = ing ? formatIngredientLabel(ing) : result.term;
-    const product = result.products[0];
-
-    return (
-      <div key={`${result.term}-${idx}`}>
-        <p className="text-[10px] text-gray-400 mb-1 truncate" title={label}>
-          {label}
-        </p>
-        {product ? (
-          <ProductCard
-            product={product}
-            canCallTools={canCallTools}
-            onAddToCart={handleAddToCart}
-            onAddToList={handleAddToList}
-          />
-        ) : (
-          <div className="rounded-lg border border-[var(--app-border)] bg-gray-50 p-4 text-[11px] text-gray-400 text-center">
-            No results found
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in pb-20">
       {/* Header */}
@@ -241,7 +250,16 @@ export function RecipeShoppingView({
 
       {/* Main ingredient cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-        {mainEntries.map(({ result }, idx) => renderIngredientCard(result, idx))}
+        {mainEntries.map(({ result }) => (
+          <IngredientCard
+            key={result.term}
+            result={result}
+            ing={nameToIngredient.get(result.term)}
+            canCallTools={canCallTools}
+            onAddToCart={handleAddToCart}
+            onAddToList={handleAddToList}
+          />
+        ))}
       </div>
 
       {/* Not searched */}
@@ -288,7 +306,16 @@ export function RecipeShoppingView({
           </div>
           {showStapleDetails && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
-              {stapleEntries.map(({ result }, idx) => renderIngredientCard(result, idx))}
+              {stapleEntries.map(({ result }) => (
+                <IngredientCard
+                  key={result.term}
+                  result={result}
+                  ing={nameToIngredient.get(result.term)}
+                  canCallTools={canCallTools}
+                  onAddToCart={handleAddToCart}
+                  onAddToList={handleAddToList}
+                />
+              ))}
             </div>
           )}
         </div>
