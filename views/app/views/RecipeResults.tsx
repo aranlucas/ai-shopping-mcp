@@ -1,9 +1,33 @@
 import { useState } from "react";
+import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { Badge, SectionHeader } from "../../shared/components.js";
-import { EmptyState } from "../../shared/status.js";
-import type { RecipeData, RecipeResultsContent } from "../../shared/types.js";
+import { EmptyState, Loading } from "../../shared/status.js";
+import {
+  callTool,
+  parseStructuredContent,
+  type ProductSearchResultsContent,
+  type RecipeData,
+  type RecipeResultsContent,
+} from "../../shared/types.js";
+import { RecipeShoppingView } from "./RecipeShoppingView.js";
 
-function RecipeCard({ recipe }: { recipe: RecipeData }) {
+type RecipeViewMode =
+  | { mode: "recipes" }
+  | {
+      mode: "shopping";
+      recipe: RecipeData;
+      results: ProductSearchResultsContent | null;
+      loading: boolean;
+      error: string | null;
+    };
+
+function RecipeCard({
+  recipe,
+  onShopIngredients,
+}: {
+  recipe: RecipeData;
+  onShopIngredients: (recipe: RecipeData) => void;
+}) {
   const [showInstructions, setShowInstructions] = useState(false);
   const time = recipe.totalTime ?? recipe.cookTime;
 
@@ -121,7 +145,7 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
       )}
 
       {/* Footer */}
-      <div className="px-3 py-2.5 mt-auto border-t border-[var(--app-border)] bg-gray-50/50">
+      <div className="px-3 py-2.5 mt-auto border-t border-[var(--app-border)] bg-gray-50/50 flex items-center gap-2">
         <a
           href={`https://janella-cookbook.vercel.app/recipe/${recipe.slug}`}
           target="_blank"
@@ -144,12 +168,130 @@ function RecipeCard({ recipe }: { recipe: RecipeData }) {
             />
           </svg>
         </a>
+        {recipe.ingredients && recipe.ingredients.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onShopIngredients(recipe)}
+            className="ml-auto inline-flex items-center gap-1 rounded-full border border-[var(--app-accent-text)] px-3 py-1 text-[11px] font-medium text-[var(--app-accent-text)] hover:bg-[var(--app-accent-text)]/5 transition-colors bg-transparent cursor-pointer"
+          >
+            <svg
+              aria-hidden="true"
+              className="w-3 h-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+              />
+            </svg>
+            Shop Ingredients
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-export function RecipeResultsView({ data }: { data: RecipeResultsContent }) {
+export function RecipeResultsView({
+  data,
+  app,
+  canCallTools,
+}: {
+  data: RecipeResultsContent;
+  app: App | null;
+  canCallTools: boolean;
+}) {
+  const [viewMode, setViewMode] = useState<RecipeViewMode>({ mode: "recipes" });
+
+  const handleShopIngredients = async (recipe: RecipeData) => {
+    if (!recipe.ingredients?.length) return;
+    setViewMode({ mode: "shopping", recipe, results: null, loading: true, error: null });
+    const terms = recipe.ingredients.slice(0, 10).map((i) => i.name);
+    try {
+      const result = await callTool(app, {
+        name: "search_products",
+        arguments: { terms },
+      });
+      if (result?.isError) {
+        const msg =
+          result.content
+            ?.map((c) => ("text" in c ? c.text : ""))
+            .filter(Boolean)
+            .join(" ") || "Search failed. Try again.";
+        setViewMode({ mode: "shopping", recipe, results: null, loading: false, error: msg });
+        return;
+      }
+      // `structuredContent` is present on CallToolResult in this SDK — same access as App.tsx line 127
+      const parsed = parseStructuredContent(result?.structuredContent);
+      if (parsed?._view === "search_products") {
+        setViewMode({ mode: "shopping", recipe, results: parsed, loading: false, error: null });
+      } else {
+        setViewMode({
+          mode: "shopping",
+          recipe,
+          results: null,
+          loading: false,
+          error: "Unexpected response from search. Try again.",
+        });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Search failed. Try again.";
+      setViewMode({ mode: "shopping", recipe, results: null, loading: false, error: msg });
+    }
+  };
+
+  // Shopping mode states
+  if (viewMode.mode === "shopping") {
+    if (viewMode.loading) {
+      return <Loading message="Searching for ingredients…" />;
+    }
+    if (viewMode.error || !viewMode.results) {
+      return (
+        <div className="px-3.5 py-3 max-w-4xl mx-auto">
+          <button
+            type="button"
+            onClick={() => setViewMode({ mode: "recipes" })}
+            className="text-[11px] text-[var(--app-accent-text)] hover:opacity-80 flex items-center gap-1 mb-4 bg-transparent border-0 p-0 cursor-pointer"
+          >
+            <svg
+              aria-hidden="true"
+              className="w-3 h-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+            Back to recipes
+          </button>
+          <p className="text-sm text-red-600 mb-3">{viewMode.error ?? "Something went wrong."}</p>
+          <button
+            type="button"
+            onClick={() => handleShopIngredients(viewMode.recipe)}
+            className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer bg-transparent"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return (
+      <RecipeShoppingView
+        recipe={viewMode.recipe}
+        results={viewMode.results}
+        canCallTools={canCallTools}
+        app={app}
+        onBack={() => setViewMode({ mode: "recipes" })}
+      />
+    );
+  }
+
+  // Recipes mode (default)
   const { recipes, searchQuery } = data;
 
   if (recipes.length === 0) {
@@ -189,7 +331,7 @@ export function RecipeResultsView({ data }: { data: RecipeResultsContent }) {
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {recipes.map((recipe) => (
-          <RecipeCard key={recipe.slug} recipe={recipe} />
+          <RecipeCard key={recipe.slug} recipe={recipe} onShopIngredients={handleShopIngredients} />
         ))}
       </div>
     </div>
