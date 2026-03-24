@@ -3,7 +3,7 @@ import { err, ok, ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 import { notFoundError } from "../errors.js";
 import { formatProductCompact, formatProductList } from "../utils/format-response.js";
-import { fromApiResponse, toMcpResponse } from "../utils/result.js";
+import { fromApiResponse, safeResolveLocationId, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type ToolContext, textResult } from "./types.js";
 
@@ -33,11 +33,26 @@ export function registerProductTools(ctx: ToolContext) {
         locationId: z
           .string()
           .length(8, { message: "Location ID must be exactly 8 characters" })
-          .describe("Location ID to check product availability at a specific store"),
+          .optional()
+          .describe(
+            "Location ID to check product availability at a specific store. If omitted, the user's saved preferred location is used.",
+          ),
       }),
     },
     async ({ terms, locationId }, extra) => {
       const ITEMS_PER_TERM = 10;
+
+      // Resolve locationId: explicit arg → preferred location → omit filter
+      let resolvedLocationId: string | undefined = locationId;
+      if (!resolvedLocationId) {
+        const userId = ctx.getUser()?.id;
+        if (userId) {
+          const resolved = await safeResolveLocationId(ctx.storage, userId, undefined);
+          if (resolved.isOk()) {
+            resolvedLocationId = resolved.value.locationId;
+          }
+        }
+      }
 
       let completedSearches = 0;
       const totalSearches = terms.length;
@@ -46,7 +61,7 @@ export function registerProductTools(ctx: ToolContext) {
       const searchPromises = terms.map(async (term) => {
         const queryParams: Record<string, string | number> = {
           "filter.term": term,
-          "filter.locationId": locationId,
+          ...(resolvedLocationId ? { "filter.locationId": resolvedLocationId } : {}),
           "filter.fulfillment": "ais",
           "filter.limit": ITEMS_PER_TERM,
         };
