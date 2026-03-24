@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { ActionButton, ProductCard } from "../../shared/components.js";
 import {
@@ -68,15 +68,24 @@ function IngredientCard({
   canCallTools,
   onAddToCart,
   onAddToList,
+  onAdded,
 }: {
   result: ProductSearchResultsContent["results"][number];
   ing: { quantity?: string; unit?: string; name: string; notes?: string } | undefined;
   canCallTools: boolean;
   onAddToCart: (upc: string, qty: number) => Promise<void>;
   onAddToList: (name: string, upc: string) => Promise<void>;
+  onAdded?: (info: { ingredient: string; product: string }) => void;
 }) {
   const label = ing ? formatIngredientLabel(ing) : result.term;
   const product = result.products[0];
+
+  const handleAddToCart = async (upc: string, qty: number) => {
+    await onAddToCart(upc, qty);
+    if (product) {
+      onAdded?.({ ingredient: label, product: product.description });
+    }
+  };
 
   return (
     <div>
@@ -87,7 +96,7 @@ function IngredientCard({
         <ProductCard
           product={product}
           canCallTools={canCallTools}
-          onAddToCart={onAddToCart}
+          onAddToCart={handleAddToCart}
           onAddToList={onAddToList}
         />
       ) : (
@@ -139,6 +148,24 @@ export function RecipeShoppingView({
     (e) => !e.result.failed && e.result.products.length > 0,
   ).length;
   const stapleCount = stapleEntries.length;
+
+  // LLM context update — individual ingredient added to cart
+  const handleIngredientAdded = ({
+    ingredient,
+    product,
+  }: {
+    ingredient: string;
+    product: string;
+  }) => {
+    app?.updateModelContext({
+      structuredContent: {
+        event: "ingredient_added_to_cart",
+        recipe: recipe.title,
+        ingredient,
+        product,
+      },
+    });
+  };
 
   // Per-card action handlers (single-item calls, same as ProductSearchView)
   const handleAddToCart = async (upc: string, qty: number) => {
@@ -192,6 +219,26 @@ export function RecipeShoppingView({
       if (r?.isError) throw new Error("Failed to add to cart");
       setAddAllState("done");
       setTimeout(() => setAddAllState("idle"), 2000);
+      const addedNames = items
+        .map(
+          (item) =>
+            classified.find((e) => e.result.products[0]?.upc === item.upc)?.result.products[0]
+              ?.description,
+        )
+        .filter(Boolean) as string[];
+      const nameList =
+        addedNames.length <= 3
+          ? addedNames.join(", ")
+          : `${addedNames.slice(0, 3).join(", ")}, and ${addedNames.length - 3} more`;
+      app?.sendMessage({
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `I just added ${addedNames.length} ingredients for ${recipe.title} to my Kroger cart: ${nameList}.`,
+          },
+        ],
+      });
     } catch {
       setAddAllState("error");
       setTimeout(() => setAddAllState("idle"), 3000);
@@ -215,6 +262,20 @@ export function RecipeShoppingView({
       anyPriced = true;
     }
   }
+
+  // Mount effect — notify LLM that shopping view opened
+  useEffect(() => {
+    app?.updateModelContext({
+      structuredContent: {
+        event: "recipe_shopping_started",
+        recipe: recipe.title,
+        ingredientCount: ingredients.length,
+        stapleCount,
+        ...(anyPriced ? { estimatedTotal: parseFloat(total.toFixed(2)) } : {}),
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
   return (
     <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in pb-20">
@@ -258,6 +319,7 @@ export function RecipeShoppingView({
             canCallTools={canCallTools}
             onAddToCart={handleAddToCart}
             onAddToList={handleAddToList}
+            onAdded={handleIngredientAdded}
           />
         ))}
       </div>
@@ -289,7 +351,17 @@ export function RecipeShoppingView({
               <input
                 type="checkbox"
                 checked={includeStaples}
-                onChange={(e) => setIncludeStaples(e.target.checked)}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setIncludeStaples(next);
+                  app?.updateModelContext({
+                    structuredContent: {
+                      event: "pantry_staples_toggled",
+                      recipe: recipe.title,
+                      includeStaples: next,
+                    },
+                  });
+                }}
                 className="rounded border-gray-300 accent-[var(--app-accent)]"
               />
               <span className="text-[12px] text-gray-700">
@@ -314,6 +386,7 @@ export function RecipeShoppingView({
                   canCallTools={canCallTools}
                   onAddToCart={handleAddToCart}
                   onAddToList={handleAddToList}
+                  onAdded={handleIngredientAdded}
                 />
               ))}
             </div>
