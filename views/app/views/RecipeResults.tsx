@@ -273,7 +273,8 @@ export function RecipeResultsView({
           <button
             type="button"
             onClick={() => handleShopIngredients(viewMode.recipe)}
-            className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer bg-transparent"
+            disabled={viewMode.loading}
+            className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer bg-transparent disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Try again
           </button>
