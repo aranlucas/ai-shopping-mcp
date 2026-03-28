@@ -1,10 +1,12 @@
-import { err, ok, ResultAsync } from "neverthrow";
+import { ResultAsync, err, ok } from "neverthrow";
 import createClient, { type Middleware } from "openapi-fetch";
-import { type AppError, apiError, networkError } from "../../errors.js";
+
 import type { paths as CartPaths } from "./cart.js";
 import type { paths as IdentityPaths } from "./identity.js";
 import type { paths as LocationPaths } from "./location.js";
 import type { paths as ProductPaths } from "./product.js";
+
+import { type AppError, apiError, networkError } from "../../errors.js";
 
 export interface KrogerTokenInfo {
   accessToken: string;

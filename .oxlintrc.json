@@ -1,8 +1,10 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": null,
+  "jsPlugins": ["eslint-plugin-perfectionist"],
   "categories": {},
-  "rules": {},
+  "rules": {
+    "perfectionist/sort-imports": "error"
+  },
   "settings": {
     "jsx-a11y": {
       "polymorphicPropName": null,

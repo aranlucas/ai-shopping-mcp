@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
+
 import {
   addCacheWarning,
   buildWeeklyDealsCacheKey,

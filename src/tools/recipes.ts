@@ -1,7 +1,9 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { err, ok, ResultAsync, safeTry } from "neverthrow";
+import { ResultAsync, err, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
+
 import type { AppError } from "../errors.js";
+
 import { networkError } from "../errors.js";
 import { requireAuth, safeFetch, safeStorage, toMcpError, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";

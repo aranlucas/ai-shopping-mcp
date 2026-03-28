@@ -1,13 +1,15 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
 import { useState } from "react";
+
 import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import {
-  callTool,
-  parseStructuredContent,
   type AppData,
   type PantryItemData,
   type PantryListContent,
+  callTool,
+  parseStructuredContent,
 } from "../../shared/types.js";
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {

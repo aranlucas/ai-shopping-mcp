@@ -1,13 +1,15 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { fromThrowable, okAsync, ResultAsync } from "neverthrow";
+import { ResultAsync, fromThrowable, okAsync } from "neverthrow";
 import * as z from "zod/v4";
+
 import type { AppError } from "../errors.js";
-import { networkError, storageError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
+
+import { networkError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { errorResult, type ToolContext } from "./types.js";
+import { type ToolContext, errorResult } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
 

@@ -1,6 +1,7 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+
 import { fromApiResponse, safeStorage } from "../utils/result.js";
-import { getSessionScopedUserId, type ToolContext } from "./types.js";
+import { type ToolContext, getSessionScopedUserId } from "./types.js";
 
 function jsonResource(uri: string, data: unknown) {
   return {

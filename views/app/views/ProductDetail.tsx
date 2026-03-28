@@ -1,7 +1,9 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
 import { useState } from "react";
+
 import { ActionButton, Badge, FulfillmentTags, PriceDisplay } from "../../shared/components.js";
-import { callTool, type ProductDetailContent } from "../../shared/types.js";
+import { type ProductDetailContent, callTool } from "../../shared/types.js";
 
 function StockBadge({ level }: { level: string | undefined }) {
   if (!level) return null;

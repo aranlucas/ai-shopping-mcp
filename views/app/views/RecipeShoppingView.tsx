@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
+import { useEffect, useState } from "react";
+
 import { ActionButton, ProductCard } from "../../shared/components.js";
 import {
-  callTool,
   type ProductData,
   type ProductSearchResultsContent,
   type RecipeData,
+  callTool,
 } from "../../shared/types.js";
 
 // --- Pantry staple classification ---

@@ -1,13 +1,15 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
 import { useState } from "react";
+
 import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import {
-  callTool,
-  parseStructuredContent,
   type AppData,
   type ShoppingListContent,
   type ShoppingListItemData,
+  callTool,
+  parseStructuredContent,
 } from "../../shared/types.js";
 
 function ShoppingItem({

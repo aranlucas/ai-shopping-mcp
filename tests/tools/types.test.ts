@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+
 import type { Props, ToolContext } from "../../src/tools/types.js";
+
 import { errorResult, textResult } from "../../src/tools/types.js";
 
 // ----- getUser -----

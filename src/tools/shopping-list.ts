@@ -1,8 +1,11 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { errAsync, ok, ResultAsync, safeTry } from "neverthrow";
+import { ResultAsync, errAsync, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
-import { validationError } from "../errors.js";
+
 import type { components } from "../services/kroger/cart.js";
+import type { ShoppingListItem } from "../utils/user-storage.js";
+
+import { validationError } from "../errors.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import {
   fromApiResponse,
@@ -12,9 +15,8 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
-import type { ShoppingListItem } from "../utils/user-storage.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { getSessionScopedUserId, type ToolContext, textResult } from "./types.js";
+import { type ToolContext, getSessionScopedUserId, textResult } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];

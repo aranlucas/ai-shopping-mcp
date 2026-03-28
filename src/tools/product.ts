@@ -1,6 +1,7 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { err, ok, ResultAsync } from "neverthrow";
+import { ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
+
 import { notFoundError } from "../errors.js";
 import { formatProductCompact, formatProductList } from "../utils/format-response.js";
 import { fromApiResponse, safeResolveLocationId, toMcpResponse } from "../utils/result.js";

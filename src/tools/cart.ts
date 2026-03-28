@@ -21,13 +21,14 @@ export const addToCartInputSchema = z.object({
 });
 
 import type { components } from "../services/kroger/cart.js";
+import type { ToolContext } from "./types.js";
+
 import {
   fromApiResponse,
   requireAuth,
   safeResolveLocationId,
   toMcpResponse,
 } from "../utils/result.js";
-import type { ToolContext } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];

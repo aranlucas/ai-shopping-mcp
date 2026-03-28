@@ -1,8 +1,10 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
 import { useState } from "react";
+
 import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import { callTool, type DealData, type WeeklyDealsContent } from "../../shared/types.js";
+import { type DealData, type WeeklyDealsContent, callTool } from "../../shared/types.js";
 
 function DealCard({
   deal,

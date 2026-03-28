@@ -2,7 +2,10 @@
  * neverthrow utilities for bridging Result types with MCP tool responses
  * and wrapping common async operations.
  */
-import { err, ok, okAsync, type Result, ResultAsync } from "neverthrow";
+import { type Result, ResultAsync, err, ok, okAsync } from "neverthrow";
+
+import type { Props, UserStorage } from "../tools/types.js";
+
 import {
   type AppError,
   apiError,
@@ -12,7 +15,6 @@ import {
   notFoundError,
   storageError,
 } from "../errors.js";
-import type { Props, UserStorage } from "../tools/types.js";
 
 // --- MCP Response Bridge ---
 

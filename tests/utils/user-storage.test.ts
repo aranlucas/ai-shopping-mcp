@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
-  createUserStorage,
   EquipmentStorage,
   OrderHistoryStorage,
   PantryStorage,
   PreferredLocationStorage,
   ShoppingListStorage,
+  createUserStorage,
 } from "../../src/utils/user-storage.js";
 
 /**

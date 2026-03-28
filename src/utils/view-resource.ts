@@ -15,6 +15,7 @@
  */
 
 import { RESOURCE_MIME_TYPE, registerAppResource } from "@modelcontextprotocol/ext-apps/server";
+
 import type { ToolContext } from "../tools/types.js";
 
 export { RESOURCE_MIME_TYPE };

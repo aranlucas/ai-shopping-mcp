@@ -1,5 +1,7 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
 import { useState } from "react";
+
 import { LocationDetailView } from "../app/views/LocationDetail.js";
 import { LocationResultsView } from "../app/views/LocationResults.js";
 import { PantryView } from "../app/views/Pantry.js";

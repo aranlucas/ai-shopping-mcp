@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ProductSearchFn } from "../../src/services/qfc-weekly-deals.js";
+
 import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
 
 type KrogerProduct = ProductComponents["schemas"]["products.productModel"];

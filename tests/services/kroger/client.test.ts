@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
 import {
+  KrogerTokenExpiredError,
   createKrogerAuthMiddleware,
   isKrogerTokenExpiring,
-  KrogerTokenExpiredError,
   refreshKrogerToken,
 } from "../../../src/services/kroger/client.js";
 

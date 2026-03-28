@@ -1,6 +1,9 @@
 import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
+
+import type { GrantProps, Props, ToolContext } from "./tools/types.js";
+
 import { KrogerHandler } from "./kroger-handler.js";
 import { registerPrompts } from "./prompts.js";
 import {
@@ -15,7 +18,6 @@ import { registerProductTools } from "./tools/product.js";
 import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
-import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { createUserStorage } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";

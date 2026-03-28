@@ -4,6 +4,7 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
 import * as z from "zod/v4";
 
 export function registerPrompts(server: McpServer) {

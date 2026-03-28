@@ -2,12 +2,12 @@
  * @file MCP Apps React view for the AI Shopping MCP server.
  */
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps";
-import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
+import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ErrorDisplay, Loading } from "./shared/status.js";
-import { parseStructuredContent, type AppData } from "./shared/types.js";
+
 import { LocationDetailView } from "./app/views/LocationDetail.js";
 import { LocationResultsView } from "./app/views/LocationResults.js";
 import { PantryView } from "./app/views/Pantry.js";
@@ -16,6 +16,8 @@ import { ProductSearchView } from "./app/views/ProductSearch.js";
 import { RecipeResultsView } from "./app/views/RecipeResults.js";
 import { ShoppingListView } from "./app/views/ShoppingList.js";
 import { WeeklyDealsView } from "./app/views/WeeklyDeals.js";
+import { ErrorDisplay, Loading } from "./shared/status.js";
+import { type AppData, parseStructuredContent } from "./shared/types.js";
 
 function ShoppingApp() {
   const [toolResult, setToolResult] = useState<CallToolResult | null>(null);

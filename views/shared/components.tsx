@@ -1,4 +1,5 @@
 import { ReactNode, useState } from "react";
+
 import type { ProductData } from "./types.js";
 
 const badgeVariants = {

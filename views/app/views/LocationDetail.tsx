@@ -1,7 +1,9 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
 import { useState } from "react";
+
 import { ActionButton, Badge } from "../../shared/components.js";
-import { callTool, type LocationDetailContent } from "../../shared/types.js";
+import { type LocationDetailContent, callTool } from "../../shared/types.js";
 
 export function LocationDetailView({
   data,

@@ -1,7 +1,8 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
 import { ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import { callTool, type ProductSearchResultsContent } from "../../shared/types.js";
+import { type ProductSearchResultsContent, callTool } from "../../shared/types.js";
 
 export function ProductSearchView({
   data,

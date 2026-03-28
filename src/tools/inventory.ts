@@ -1,6 +1,10 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { errAsync } from "neverthrow";
 import * as z from "zod/v4";
+
+import type { EquipmentItem, OrderRecord, PantryItem } from "../utils/user-storage.js";
+import type { ToolContext } from "./types.js";
+
 import { validationError } from "../errors.js";
 import {
   formatEquipmentListCompact,
@@ -8,9 +12,7 @@ import {
   formatPantryListCompact,
 } from "../utils/format-response.js";
 import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
-import type { EquipmentItem, OrderRecord, PantryItem } from "../utils/user-storage.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import type { ToolContext } from "./types.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
   registerAppTool(

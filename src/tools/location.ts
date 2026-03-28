@@ -1,6 +1,10 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
+
+import type { PreferredLocation } from "../utils/user-storage.js";
+import type { ToolContext } from "./types.js";
+
 import { notFoundError } from "../errors.js";
 import {
   formatLocation,
@@ -8,9 +12,7 @@ import {
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
 import { fromApiResponse, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
-import type { PreferredLocation } from "../utils/user-storage.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import type { ToolContext } from "./types.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;

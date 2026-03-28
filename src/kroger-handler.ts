@@ -1,6 +1,9 @@
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
+
 import { Hono } from "hono";
+
 import type { KrogerTokenResponse } from "./services/kroger/client.js";
+
 import {
   clientIdAlreadyApproved,
   parseRedirectApproval,

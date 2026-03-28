@@ -1,13 +1,15 @@
-import { useState } from "react";
 import type { App } from "@modelcontextprotocol/ext-apps/react";
+
+import { useState } from "react";
+
 import { Badge, SectionHeader } from "../../shared/components.js";
 import { EmptyState, Loading } from "../../shared/status.js";
 import {
-  callTool,
-  parseStructuredContent,
   type ProductSearchResultsContent,
   type RecipeData,
   type RecipeResultsContent,
+  callTool,
+  parseStructuredContent,
 } from "../../shared/types.js";
 import { RecipeShoppingView } from "./RecipeShoppingView.js";
 
