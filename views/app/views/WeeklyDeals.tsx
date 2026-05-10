@@ -1,19 +1,26 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
+import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import { type DealData, type WeeklyDealsContent, callTool } from "../../shared/types.js";
+import {
+  type DealData,
+  type WeeklyDealsContent,
+  callTool,
+  sendUserMessage,
+} from "../../shared/types.js";
 
 function DealCard({
   deal,
   canCallTools,
   onSearch,
+  onPlanMeal,
 }: {
   deal: DealData;
   canCallTools: boolean;
   onSearch: (title: string) => Promise<void>;
+  onPlanMeal: (title: string) => void;
 }) {
   const [searchState, setSearchState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
@@ -43,7 +50,7 @@ function DealCard({
           {deal.savings && <Badge variant="red">{deal.savings}</Badge>}
         </div>
       </div>
-      <div className="mt-2.5 pt-2.5 border-t border-[var(--app-border)]">
+      <div className="mt-2.5 pt-2.5 border-t border-[var(--app-border)] flex gap-1.5">
         <ActionButton
           state={searchState}
           onClick={handleSearch}
@@ -69,6 +76,28 @@ function DealCard({
             </svg>
           }
         />
+        <button
+          type="button"
+          onClick={() => onPlanMeal(deal.title)}
+          className="inline-flex items-center gap-1 rounded border border-[var(--app-border)] px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors bg-transparent cursor-pointer"
+          title="Ask the assistant to plan a meal using this deal"
+        >
+          <svg
+            aria-hidden="true"
+            className="w-3 h-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
+            />
+          </svg>
+          Plan a meal
+        </button>
       </div>
     </div>
   );
@@ -78,12 +107,27 @@ export function WeeklyDealsView({
   data,
   app,
   canCallTools,
+  hostContext,
 }: {
   data: WeeklyDealsContent;
   app: App | null;
   canCallTools: boolean;
+  hostContext?: McpUiHostContext;
 }) {
   const { deals, validFrom, validTill } = data;
+
+  useEffect(() => {
+    if (!app || deals.length === 0) return;
+    app.updateModelContext({
+      structuredContent: {
+        event: "weekly_deals_viewed",
+        count: deals.length,
+        validFrom,
+        validTill,
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deals.length]);
 
   const handleSearch = async (title: string) => {
     const result = await callTool(app, {
@@ -91,6 +135,10 @@ export function WeeklyDealsView({
       arguments: { terms: [title] },
     });
     if (result?.isError) throw new Error("Failed to search product");
+  };
+
+  const handlePlanMeal = (title: string) => {
+    sendUserMessage(app, `Plan a quick meal that uses "${title}" from this week's deals.`);
   };
 
   if (deals.length === 0) {
@@ -128,14 +176,16 @@ export function WeeklyDealsView({
         title="Weekly Deals"
         badge={<span className="text-[11px] text-gray-400 font-mono">{deals.length} deals</span>}
         subtitle={validFrom && validTill ? `Valid ${validFrom} – ${validTill}` : undefined}
+        trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {deals.map((deal) => (
           <DealCard
             key={deal.title}
             deal={deal}
             canCallTools={canCallTools}
             onSearch={handleSearch}
+            onPlanMeal={handlePlanMeal}
           />
         ))}
       </div>

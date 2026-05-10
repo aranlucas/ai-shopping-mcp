@@ -6,6 +6,7 @@ import { notFoundError } from "../errors.js";
 import { formatProductCompact, formatProductList } from "../utils/format-response.js";
 import { fromApiResponse, safeResolveLocationId, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
@@ -39,6 +40,7 @@ export function registerProductTools(ctx: ToolContext) {
             "Location ID to check product availability at a specific store. If omitted, the user's saved preferred location is used.",
           ),
       }),
+      outputSchema: searchProductsOutputSchema,
     },
     async ({ terms, locationId }, extra) => {
       const ITEMS_PER_TERM = 10;
@@ -185,6 +187,7 @@ export function registerProductTools(ctx: ToolContext) {
           .optional()
           .describe("Location ID to check product availability and pricing at a specific store"),
       }),
+      outputSchema: getProductDetailsOutputSchema,
     },
     async ({ productId, locationId }) => {
       const queryParams: Record<string, string> = {};

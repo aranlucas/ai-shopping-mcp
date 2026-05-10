@@ -31,6 +31,37 @@ export function callTool(
   });
 }
 
+/**
+ * Open an external URL via the host. Falls back to window.open() if the host
+ * does not support openLink or denies the request, since iframe-sandboxed
+ * `<a target="_blank">` is unreliable across MCP hosts.
+ */
+export async function openExternalLink(app: App | null | undefined, url: string): Promise<void> {
+  if (!app) return;
+  const supported = !!app.getHostCapabilities()?.openLinks;
+  if (supported) {
+    try {
+      const result = await app.openLink({ url });
+      if (!result.isError) return;
+    } catch {
+      // fall through to window.open
+    }
+  }
+  try {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch {
+    // host blocked window.open — nothing we can do silently
+  }
+}
+
+/** Send a short message to the host on behalf of the user. Best-effort. */
+export function sendUserMessage(app: App | null | undefined, text: string): void {
+  app?.sendMessage({
+    role: "user",
+    content: [{ type: "text", text }],
+  });
+}
+
 export interface DealData {
   title: string;
   details?: string;

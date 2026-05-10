@@ -7,6 +7,7 @@ import type { AppError } from "../errors.js";
 import { networkError } from "../errors.js";
 import { requireAuth, safeFetch, safeStorage, toMcpError, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { searchRecipesOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
@@ -31,6 +32,7 @@ export function registerRecipeTools(ctx: ToolContext) {
           .max(200)
           .describe("Recipe search query (e.g., 'Cookie', 'Pasta', 'Chicken')"),
       }),
+      outputSchema: searchRecipesOutputSchema,
     },
     async ({ searchQuery }) => {
       const apiUrl = "https://janella-cookbook.vercel.app/api/search";
@@ -156,14 +158,11 @@ export function registerRecipeTools(ctx: ToolContext) {
       }
 
       const { text, recipes: recipeData } = res.value;
-      if (recipeData.length === 0) {
-        return textResult(text);
-      }
 
       return {
         content: [{ type: "text" as const, text }],
         structuredContent: {
-          _view: "search_recipes_from_web",
+          _view: "search_recipes_from_web" as const,
           recipes: recipeData.map((r) => r.recipe),
           searchQuery,
         },

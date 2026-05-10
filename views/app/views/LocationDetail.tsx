@@ -3,7 +3,7 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 
 import { ActionButton, Badge } from "../../shared/components.js";
-import { type LocationDetailContent, callTool } from "../../shared/types.js";
+import { type LocationDetailContent, callTool, openExternalLink } from "../../shared/types.js";
 
 export function LocationDetailView({
   data,
@@ -17,6 +17,12 @@ export function LocationDetailView({
   const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const { location } = data;
   const id = location.locationId || "";
+  const mapsUrl = (() => {
+    const a = location.address;
+    if (!a?.addressLine1) return null;
+    const parts = [a.addressLine1, a.city, a.state, a.zipCode].filter(Boolean).join(", ");
+    return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
+  })();
 
   const handleSetPreferred = async () => {
     setPrefState("loading");
@@ -155,7 +161,7 @@ export function LocationDetailView({
         </div>
 
         {/* Action */}
-        <div className="px-4 pb-4 pt-1">
+        <div className="px-4 pb-4 pt-1 flex gap-1.5">
           <ActionButton
             state={prefState}
             onClick={handleSetPreferred}
@@ -181,6 +187,31 @@ export function LocationDetailView({
               </svg>
             }
           />
+          {mapsUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                void openExternalLink(app, mapsUrl);
+              }}
+              className="inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 bg-transparent cursor-pointer"
+            >
+              <svg
+                aria-hidden="true"
+                className="w-3 h-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"
+                />
+              </svg>
+              Open in Maps
+            </button>
+          )}
         </div>
       </div>
     </div>
