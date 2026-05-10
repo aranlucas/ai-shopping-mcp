@@ -13,6 +13,7 @@ import {
 } from "../utils/format-response.js";
 import { fromApiResponse, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { getLocationDetailsOutputSchema, searchLocationsOutputSchema } from "./output-schemas.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
@@ -38,6 +39,7 @@ export function registerLocationTools(ctx: ToolContext) {
         limit: z.number().min(1).max(200).optional().default(1),
         chain: z.string().optional().default("QFC"),
       }),
+      outputSchema: searchLocationsOutputSchema,
     },
     async ({ zipCodeNear, limit, chain }) => {
       const queryParams: Record<string, string | number> = {};
@@ -97,6 +99,7 @@ export function registerLocationTools(ctx: ToolContext) {
           message: "Location ID must be exactly 8 characters long",
         }),
       }),
+      outputSchema: getLocationDetailsOutputSchema,
     },
     async ({ locationId }) => {
       const result = await fromApiResponse(

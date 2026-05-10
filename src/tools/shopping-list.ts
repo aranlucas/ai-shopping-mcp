@@ -16,6 +16,7 @@ import {
   toMcpResponse,
 } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { manageShoppingListOutputSchema } from "./output-schemas.js";
 import { type ToolContext, getSessionScopedUserId, textResult } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
@@ -81,6 +82,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       },
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: manageShoppingListInputSchema,
+      outputSchema: manageShoppingListOutputSchema,
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
       const result = requireAuth(ctx.getUser).asyncAndThen((props) => {

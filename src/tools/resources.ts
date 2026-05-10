@@ -190,6 +190,46 @@ export function registerResources(ctx: ToolContext) {
     "Product Details",
     new ResourceTemplate("shopping://product/{productId}", {
       list: undefined,
+      complete: {
+        productId: async (value) => {
+          // Suggest 13-digit UPCs the user has interacted with: shopping list first,
+          // then recent orders. Filter by the in-flight prefix so completions stay focused.
+          const props = ctx.getUser();
+          if (!props?.id) return [];
+          const prefix = value.trim();
+
+          const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
+          const [listResult, ordersResult] = await Promise.all([
+            safeStorage(
+              () => ctx.storage.shoppingList.getAll(scopedId),
+              "fetch shopping list for completion",
+            ),
+            safeStorage(
+              () => ctx.storage.orderHistory.getRecent(props.id, 20),
+              "fetch orders for completion",
+            ),
+          ]);
+
+          const upcs = new Set<string>();
+          listResult.map((list) => {
+            for (const item of list) {
+              if (item.upc && /^\d{13}$/.test(item.upc)) upcs.add(item.upc);
+            }
+          });
+          ordersResult.map((orders) => {
+            for (const order of orders) {
+              for (const item of order.items) {
+                if (item.productId && /^\d{13}$/.test(item.productId)) {
+                  upcs.add(item.productId);
+                }
+              }
+            }
+          });
+
+          const matches = [...upcs].filter((upc) => !prefix || upc.startsWith(prefix));
+          return matches.slice(0, 50);
+        },
+      },
     }),
     {
       description:

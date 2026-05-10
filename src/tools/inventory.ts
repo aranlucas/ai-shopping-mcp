@@ -13,6 +13,7 @@ import {
 } from "../utils/format-response.js";
 import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { managePantryOutputSchema } from "./output-schemas.js";
 
 export function registerInventoryTools(ctx: ToolContext) {
   registerAppTool(
@@ -46,6 +47,7 @@ export function registerInventoryTools(ctx: ToolContext) {
           .optional()
           .describe("Items to add or remove (required for 'add' and 'remove' actions)"),
       }),
+      outputSchema: managePantryOutputSchema,
     },
     async ({ action, items }) => {
       const result = requireAuth(ctx.getUser).asyncAndThen((props) => {

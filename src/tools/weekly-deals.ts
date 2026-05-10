@@ -9,6 +9,7 @@ import { networkError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { getWeeklyDealsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -188,6 +189,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           .default(2)
           .describe("Print-ad fallback only: number of ad pages to parse"),
       }),
+      outputSchema: getWeeklyDealsOutputSchema,
     },
     async ({ locationId, limit, pageLimit }) => {
       const kv = getCacheKv(ctx);
