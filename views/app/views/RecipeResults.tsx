@@ -1,14 +1,15 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { Badge, SectionHeader } from "../../shared/components.js";
+import { Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState, Loading } from "../../shared/status.js";
 import {
   type ProductSearchResultsContent,
   type RecipeData,
   type RecipeResultsContent,
   callTool,
+  openExternalLink,
   parseStructuredContent,
 } from "../../shared/types.js";
 import { RecipeShoppingView } from "./RecipeShoppingView.js";
@@ -25,13 +26,16 @@ type RecipeViewMode =
 
 function RecipeCard({
   recipe,
+  app,
   onShopIngredients,
 }: {
   recipe: RecipeData;
+  app: App | null;
   onShopIngredients: (recipe: RecipeData) => void;
 }) {
   const [showInstructions, setShowInstructions] = useState(false);
   const time = recipe.totalTime ?? recipe.cookTime;
+  const recipeUrl = `https://janella-cookbook.vercel.app/recipe/${recipe.slug}`;
 
   return (
     <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 overflow-hidden flex flex-col">
@@ -148,11 +152,12 @@ function RecipeCard({
 
       {/* Footer */}
       <div className="px-3 py-2.5 mt-auto border-t border-[var(--app-border)] bg-gray-50/50 flex items-center gap-2">
-        <a
-          href={`https://janella-cookbook.vercel.app/recipe/${recipe.slug}`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--app-accent-text)] hover:opacity-80 transition-opacity no-underline"
+        <button
+          type="button"
+          onClick={() => {
+            void openExternalLink(app, recipeUrl);
+          }}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--app-accent-text)] hover:opacity-80 transition-opacity bg-transparent border-0 p-0 cursor-pointer"
         >
           View full recipe
           <svg
@@ -169,7 +174,7 @@ function RecipeCard({
               d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
             />
           </svg>
-        </a>
+        </button>
         {recipe.ingredients && recipe.ingredients.length > 0 && (
           <button
             type="button"
@@ -202,10 +207,12 @@ export function RecipeResultsView({
   data,
   app,
   canCallTools,
+  hostContext,
 }: {
   data: RecipeResultsContent;
   app: App | null;
   canCallTools: boolean;
+  hostContext?: McpUiHostContext;
 }) {
   const [viewMode, setViewMode] = useState<RecipeViewMode>({ mode: "recipes" });
 
@@ -331,10 +338,16 @@ export function RecipeResultsView({
         title="Recipes"
         badge={<span className="text-[11px] text-gray-400 font-mono">{recipes.length} found</span>}
         subtitle={`Results for "${searchQuery}"`}
+        trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {recipes.map((recipe) => (
-          <RecipeCard key={recipe.slug} recipe={recipe} onShopIngredients={handleShopIngredients} />
+          <RecipeCard
+            key={recipe.slug}
+            recipe={recipe}
+            app={app}
+            onShopIngredients={handleShopIngredients}
+          />
         ))}
       </div>
     </div>

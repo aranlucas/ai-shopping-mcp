@@ -10,6 +10,7 @@ import {
   type ShoppingListItemData,
   callTool,
   parseStructuredContent,
+  sendUserMessage,
 } from "../../shared/types.js";
 
 function ShoppingItem({
@@ -159,6 +160,21 @@ export function ShoppingListView({
   const withUpc = unchecked.filter((i) => i.upc);
   const withoutUpc = unchecked.filter((i) => !i.upc);
 
+  const handleCheckout = () => {
+    sendUserMessage(
+      app,
+      `Check out my shopping list — add the ${withUpc.length} item${withUpc.length === 1 ? "" : "s"} ready for checkout to my Kroger cart.`,
+    );
+  };
+
+  const handleFindUpcs = () => {
+    const names = withoutUpc.map((i) => i.productName).join(", ");
+    sendUserMessage(
+      app,
+      `Find UPCs for these shopping list items so they're ready to check out: ${names}.`,
+    );
+  };
+
   return (
     <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
       <SectionHeader
@@ -175,6 +191,58 @@ export function ShoppingListView({
         {withoutUpc.length > 0 && <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>}
         {checked.length > 0 && <Badge variant="gray">{checked.length} in cart</Badge>}
       </div>
+
+      {/* Quick actions */}
+      {(withUpc.length > 0 || withoutUpc.length > 0) && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {withUpc.length > 0 && (
+            <button
+              type="button"
+              onClick={handleCheckout}
+              className="inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-active)] text-white border-0 cursor-pointer transition-colors"
+            >
+              <svg
+                aria-hidden="true"
+                className="w-3 h-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+                />
+              </svg>
+              Check out {withUpc.length} item{withUpc.length === 1 ? "" : "s"}
+            </button>
+          )}
+          {withoutUpc.length > 0 && (
+            <button
+              type="button"
+              onClick={handleFindUpcs}
+              className="inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium border border-[var(--app-border)] text-gray-600 hover:bg-gray-50 hover:border-gray-300 bg-transparent cursor-pointer transition-colors"
+            >
+              <svg
+                aria-hidden="true"
+                className="w-3 h-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+                />
+              </svg>
+              Find missing UPCs
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Unchecked items */}
       <div className="divide-y divide-[var(--app-border)]">

@@ -10,6 +10,7 @@ import {
   type PantryListContent,
   callTool,
   parseStructuredContent,
+  sendUserMessage,
 } from "../../shared/types.js";
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
@@ -172,6 +173,14 @@ export function PantryView({
     return d >= 0 && d <= 3;
   });
 
+  const handleSuggestRecipes = () => {
+    const focus = expiring.length > 0 ? " Prioritize what's expiring soon." : "";
+    sendUserMessage(
+      app,
+      `Suggest a few recipes I can make from what's currently in my pantry.${focus}`,
+    );
+  };
+
   return (
     <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
       <SectionHeader
@@ -196,9 +205,35 @@ export function PantryView({
               d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
             />
           </svg>
-          <span className="text-xs font-medium text-amber-700">
+          <span className="text-xs font-medium text-amber-700 flex-1">
             {expiring.length} item{expiring.length !== 1 ? "s" : ""} expiring soon
           </span>
+        </div>
+      )}
+
+      {items.length >= 3 && (
+        <div className="mb-3 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSuggestRecipes}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--app-accent-text)] px-3 py-1 text-[11px] font-medium text-[var(--app-accent-text)] hover:bg-[var(--app-accent-text)]/5 transition-colors bg-transparent cursor-pointer"
+          >
+            <svg
+              aria-hidden="true"
+              className="w-3 h-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
+              />
+            </svg>
+            Suggest recipes from pantry
+          </button>
         </div>
       )}
 

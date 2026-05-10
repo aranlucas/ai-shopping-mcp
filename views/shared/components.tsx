@@ -1,3 +1,5 @@
+import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
+
 import { ReactNode, useState } from "react";
 
 import type { ProductData } from "./types.js";
@@ -31,19 +33,75 @@ export function SectionHeader({
   title,
   badge,
   subtitle,
+  trailing,
 }: {
   title: string;
   badge?: ReactNode;
   subtitle?: string;
+  trailing?: ReactNode;
 }) {
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-sm font-semibold text-gray-900 tracking-tight">{title}</h1>
-        {badge}
+        <div className="flex items-center gap-2 min-w-0">
+          <h1 className="text-sm font-semibold text-gray-900 tracking-tight truncate">{title}</h1>
+          {badge}
+        </div>
+        {trailing}
       </div>
       {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
     </div>
+  );
+}
+
+export function DisplayModeToggle({
+  app,
+  hostContext,
+}: {
+  app: App | null | undefined;
+  hostContext: McpUiHostContext | undefined;
+}) {
+  const current = hostContext?.displayMode;
+  const available = hostContext?.availableDisplayModes ?? [];
+  const supportsFullscreen = available.includes("fullscreen");
+  const supportsInline = available.includes("inline");
+  if (!app || !supportsFullscreen || !supportsInline) return null;
+  const isFullscreen = current === "fullscreen";
+  const next = isFullscreen ? "inline" : "fullscreen";
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void app.requestDisplayMode({ mode: next });
+      }}
+      aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors bg-transparent border-0 cursor-pointer"
+    >
+      <svg
+        aria-hidden="true"
+        className="w-3.5 h-3.5"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={2}
+        stroke="currentColor"
+      >
+        {isFullscreen ? (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"
+          />
+        ) : (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+          />
+        )}
+      </svg>
+    </button>
   );
 }
 

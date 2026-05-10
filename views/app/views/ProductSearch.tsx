@@ -1,6 +1,6 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
-import { ProductCard, SectionHeader } from "../../shared/components.js";
+import { DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import { type ProductSearchResultsContent, callTool } from "../../shared/types.js";
 
@@ -8,10 +8,12 @@ export function ProductSearchView({
   data,
   app,
   canCallTools,
+  hostContext,
 }: {
   data: ProductSearchResultsContent;
   app: App | null;
   canCallTools: boolean;
+  hostContext?: McpUiHostContext;
 }) {
   const { results, totalProducts } = data;
 
@@ -56,6 +58,7 @@ export function ProductSearchView({
         title="Product Search"
         badge={<span className="text-[11px] text-gray-400 font-mono">{totalProducts} items</span>}
         subtitle={`${results.length} search term${results.length !== 1 ? "s" : ""}`}
+        trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
 
       {!hasResults && (
@@ -128,7 +131,7 @@ export function ProductSearchView({
               <span className="text-[11px] text-gray-300">·</span>
               <span className="text-[11px] text-gray-400">{result.products.length} items</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {result.products.map((product) => (
                 <ProductCard
                   key={product.upc ?? product.description}

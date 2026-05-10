@@ -1,31 +1,42 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
+import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import {
   type AppData,
   type LocationData,
   type LocationResultsContent,
   callTool,
+  openExternalLink,
   parseStructuredContent,
 } from "../../shared/types.js";
+
+function locationToMapsUrl(loc: LocationData): string | null {
+  const a = loc.address;
+  if (!a?.addressLine1) return null;
+  const parts = [a.addressLine1, a.city, a.state, a.zipCode].filter(Boolean).join(", ");
+  return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
+}
 
 function LocationCard({
   location,
   canCallTools,
+  app,
   onSetPreferred,
   onViewDetails,
 }: {
   location: LocationData;
   canCallTools: boolean;
+  app: App | null;
   onSetPreferred: (id: string) => Promise<void>;
   onViewDetails: (id: string) => Promise<void>;
 }) {
   const id = location.locationId || "";
   const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [detailState, setDetailState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const mapsUrl = locationToMapsUrl(location);
 
   const handleSetPreferred = async () => {
     setPrefState("loading");
@@ -103,10 +114,36 @@ function LocationCard({
               d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
             />
           </svg>
-          <span>
+          <span className="flex-1 min-w-0">
             {location.address.addressLine1}, {location.address.city}, {location.address.state}{" "}
             {location.address.zipCode}
           </span>
+          {mapsUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                void openExternalLink(app, mapsUrl);
+              }}
+              title="Open in Maps"
+              aria-label="Open in Maps"
+              className="shrink-0 text-[var(--app-accent-text)] hover:opacity-80 bg-transparent border-0 p-0 cursor-pointer"
+            >
+              <svg
+                aria-hidden="true"
+                className="w-3 h-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                />
+              </svg>
+            </button>
+          )}
         </div>
       )}
       {location.phone && (
@@ -177,11 +214,13 @@ export function LocationResultsView({
   setData,
   app,
   canCallTools,
+  hostContext,
 }: {
   data: LocationResultsContent;
   setData: (data: AppData | null) => void;
   app: App | null;
   canCallTools: boolean;
+  hostContext?: McpUiHostContext;
 }) {
   const { locations } = data;
 
@@ -243,13 +282,15 @@ export function LocationResultsView({
         badge={
           <span className="text-[11px] text-gray-400 font-mono">{locations.length} found</span>
         }
+        trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {locations.map((loc) => (
           <LocationCard
             key={loc.locationId}
             location={loc}
             canCallTools={canCallTools}
+            app={app}
             onSetPreferred={handleSetPreferred}
             onViewDetails={handleViewDetails}
           />

@@ -140,12 +140,25 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
 
   switch (data._view) {
     case "search_products":
-      return <ProductSearchView data={data} app={app} canCallTools={canCallTools} />;
+      return (
+        <ProductSearchView
+          data={data}
+          app={app}
+          canCallTools={canCallTools}
+          hostContext={hostContext}
+        />
+      );
     case "get_product_details":
       return <ProductDetailView data={data} app={app} canCallTools={canCallTools} />;
     case "search_locations":
       return (
-        <LocationResultsView data={data} setData={setData} app={app} canCallTools={canCallTools} />
+        <LocationResultsView
+          data={data}
+          setData={setData}
+          app={app}
+          canCallTools={canCallTools}
+          hostContext={hostContext}
+        />
       );
     case "get_location_details":
       return <LocationDetailView data={data} app={app} canCallTools={canCallTools} />;
@@ -156,9 +169,23 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
     case "manage_pantry":
       return <PantryView data={data} setData={setData} app={app} canCallTools={canCallTools} />;
     case "search_recipes_from_web":
-      return <RecipeResultsView data={data} app={app} canCallTools={canCallTools} />;
+      return (
+        <RecipeResultsView
+          data={data}
+          app={app}
+          canCallTools={canCallTools}
+          hostContext={hostContext}
+        />
+      );
     case "get_weekly_deals":
-      return <WeeklyDealsView data={data} app={app} canCallTools={canCallTools} />;
+      return (
+        <WeeklyDealsView
+          data={data}
+          app={app}
+          canCallTools={canCallTools}
+          hostContext={hostContext}
+        />
+      );
   }
 }
 
