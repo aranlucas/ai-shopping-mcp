@@ -1,6 +1,7 @@
 import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
+import { WorkerEntrypoint } from "cloudflare:workers";
 
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 
@@ -69,9 +70,19 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
   }
 }
 
+class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
+  fetch() {
+    return Response.json({
+      sub: this.ctx.props.id,
+      id: this.ctx.props.id,
+    });
+  }
+}
+
 export default new OAuthProvider({
   apiHandlers: {
     "/mcp": MyMCP.serve("/mcp"),
+    "/userinfo": UserInfoHandler,
   },
   // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
   defaultHandler: KrogerHandler as any,
