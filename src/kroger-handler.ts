@@ -6,6 +6,8 @@ import type { KrogerTokenResponse } from "./services/kroger/client.js";
 
 import {
   clientIdAlreadyApproved,
+  createSignedCookiePayload,
+  parseSignedCookiePayload,
   parseRedirectApproval,
   renderApprovalDialog,
 } from "./workers-oauth-utils";
@@ -16,6 +18,11 @@ interface Env {
   KROGER_CLIENT_SECRET: string;
   COOKIE_ENCRYPTION_KEY: string;
 }
+
+type KrogerOAuthStateCookie = {
+  csrfState: string;
+  oauthReqInfo: AuthRequest;
+};
 
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
 
@@ -67,7 +74,7 @@ app.post("/authorize", async (c) => {
   console.log("POST /authorize - Processing approval");
 
   let state: { oauthReqInfo?: AuthRequest };
-  let headers: Record<string, string>;
+  let headers: Headers;
   try {
     // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
     const result = await parseRedirectApproval(c.req.raw, c.env.COOKIE_ENCRYPTION_KEY);
@@ -95,7 +102,7 @@ async function redirectToKroger(
   request: Request,
   _oauthReqInfo: AuthRequest, // Stored in cookie instead of state param
   env: Env & { OAUTH_PROVIDER: OAuthHelpers },
-  headers: Record<string, string> = {},
+  headers: HeadersInit = {},
 ) {
   console.log("Building Kroger redirect URL");
 
@@ -120,8 +127,11 @@ async function redirectToKroger(
   // Generate a simple random state for CSRF protection (Kroger requirement)
   // Store oauthReqInfo in a cookie to avoid large state params
   const csrfState = crypto.randomUUID();
-  const oauthInfoB64 = btoa(JSON.stringify(_oauthReqInfo));
-  const cookieValue = `kroger_oauth_state=${oauthInfoB64}; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/`;
+  const oauthStateCookie = await createSignedCookiePayload(
+    { csrfState, oauthReqInfo: _oauthReqInfo },
+    env.COOKIE_ENCRYPTION_KEY,
+  );
+  const cookieValue = `kroger_oauth_state=${oauthStateCookie}; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/`;
 
   // Order matches Postman: response_type, client_id, scope, redirect_uri, state
   // State is a simple UUID for CSRF protection (not the full oauthReqInfo)
@@ -139,13 +149,13 @@ async function redirectToKroger(
     url_preview: `${fullUrl.substring(0, 150)}...`,
   });
 
+  const responseHeaders = new Headers(headers);
+  responseHeaders.append("Set-Cookie", cookieValue);
+  responseHeaders.set("Location", fullUrl);
+
   return new Response(null, {
     status: 302,
-    headers: {
-      ...headers,
-      "Set-Cookie": cookieValue,
-      Location: fullUrl,
-    },
+    headers: responseHeaders,
   });
 }
 
@@ -196,21 +206,28 @@ app.get("/callback", async (c) => {
     }),
   );
 
-  const oauthInfoB64 = cookies.kroger_oauth_state;
-  if (!oauthInfoB64) {
+  const oauthStateCookie = cookies.kroger_oauth_state;
+  if (!oauthStateCookie) {
     console.error("Missing kroger_oauth_state cookie");
     return c.text("Missing authentication cookie", 400);
   }
 
-  let oauthReqInfo: AuthRequest;
-  try {
-    const decoded = atob(oauthInfoB64);
-    oauthReqInfo = JSON.parse(decoded) as AuthRequest;
-    console.log("Retrieved oauthReqInfo from cookie");
-  } catch (e) {
-    console.error("Failed to parse oauthReqInfo from cookie:", e);
+  const parsedStateCookie = await parseSignedCookiePayload<KrogerOAuthStateCookie>(
+    oauthStateCookie,
+    c.env.COOKIE_ENCRYPTION_KEY,
+  );
+  if (!parsedStateCookie?.oauthReqInfo || !parsedStateCookie.csrfState) {
+    console.error("Failed to parse Kroger OAuth state cookie");
     return c.text("Invalid authentication cookie", 400);
   }
+
+  if (parsedStateCookie.csrfState !== stateParam) {
+    console.error("Kroger OAuth state mismatch");
+    return c.text("Invalid state parameter", 400);
+  }
+
+  const { oauthReqInfo } = parsedStateCookie;
+  console.log("Retrieved oauthReqInfo from cookie");
 
   if (!oauthReqInfo.clientId) {
     console.error("State missing clientId:", JSON.stringify(oauthReqInfo));

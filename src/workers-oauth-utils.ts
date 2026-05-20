@@ -1,7 +1,9 @@
 import type { ClientInfo } from "@cloudflare/workers-oauth-provider"; // Adjust path if necessary
 
 const COOKIE_NAME = "mcp-approved-clients";
+const CSRF_COOKIE_NAME = "__Host-CSRF_TOKEN";
 const ONE_YEAR_IN_SECONDS = 31536000;
+const TEN_MINUTES_IN_SECONDS = 600;
 
 // --- Helper Functions ---
 
@@ -85,6 +87,45 @@ async function verifySignature(
   }
 }
 
+export async function createSignedCookiePayload(
+  payloadValue: unknown,
+  cookieSecret: string,
+): Promise<string> {
+  const payload = JSON.stringify(payloadValue);
+  const key = await importKey(cookieSecret);
+  const signature = await signData(key, payload);
+  return `${signature}.${btoa(payload)}`;
+}
+
+export async function parseSignedCookiePayload<T>(
+  cookieValue: string,
+  cookieSecret: string,
+): Promise<T | null> {
+  const parts = cookieValue.split(".");
+
+  if (parts.length !== 2) {
+    console.warn("Invalid cookie format received.");
+    return null;
+  }
+
+  const [signatureHex, base64Payload] = parts;
+  const payload = atob(base64Payload);
+  const key = await importKey(cookieSecret);
+  const isValid = await verifySignature(key, signatureHex, payload);
+
+  if (!isValid) {
+    console.warn("Cookie signature verification failed.");
+    return null;
+  }
+
+  try {
+    return JSON.parse(payload) as T;
+  } catch (e) {
+    console.error("Error parsing cookie payload:", e);
+    return null;
+  }
+}
+
 /**
  * Parses the signed cookie and verifies its integrity.
  * @param cookieHeader - The value of the Cookie header from the request.
@@ -97,46 +138,50 @@ async function getApprovedClientsFromCookie(
 ): Promise<string[] | null> {
   if (!cookieHeader) return null;
 
+  const cookieValue = getCookieValue(cookieHeader, COOKIE_NAME);
+  if (!cookieValue) return null;
+
+  const approvedClients = await parseSignedCookiePayload<unknown>(cookieValue, secret);
+
+  if (!Array.isArray(approvedClients)) {
+    console.warn("Cookie payload is not an array.");
+    return null; // Payload isn't an array
+  }
+
+  // Ensure all elements are strings
+  if (!approvedClients.every((item) => typeof item === "string")) {
+    console.warn("Cookie payload contains non-string elements.");
+    return null;
+  }
+
+  return approvedClients as string[];
+}
+
+function getCookieValue(cookieHeader: string, cookieName: string): string | null {
   const cookies = cookieHeader.split(";").map((c) => c.trim());
-  const targetCookie = cookies.find((c) => c.startsWith(`${COOKIE_NAME}=`));
+  const targetCookie = cookies.find((c) => c.startsWith(`${cookieName}=`));
+  return targetCookie ? targetCookie.substring(cookieName.length + 1) : null;
+}
 
-  if (!targetCookie) return null;
+function generateCSRFProtection() {
+  const token = crypto.randomUUID();
+  const setCookie = `${CSRF_COOKIE_NAME}=${token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${TEN_MINUTES_IN_SECONDS}`;
+  return { setCookie, token };
+}
 
-  const cookieValue = targetCookie.substring(COOKIE_NAME.length + 1);
-  const parts = cookieValue.split(".");
-
-  if (parts.length !== 2) {
-    console.warn("Invalid cookie format received.");
-    return null; // Invalid format
+function validateCSRFToken(formData: FormData, request: Request) {
+  const tokenFromForm = formData.get("csrf_token");
+  if (typeof tokenFromForm !== "string" || !tokenFromForm) {
+    throw new Error("Missing or invalid CSRF token.");
   }
 
-  const [signatureHex, base64Payload] = parts;
-  const payload = atob(base64Payload); // Assuming payload is base64 encoded JSON string
-
-  const key = await importKey(secret);
-  const isValid = await verifySignature(key, signatureHex, payload);
-
-  if (!isValid) {
-    console.warn("Cookie signature verification failed.");
-    return null; // Signature invalid
+  const cookieHeader = request.headers.get("Cookie") || "";
+  const tokenFromCookie = getCookieValue(cookieHeader, CSRF_COOKIE_NAME);
+  if (!tokenFromCookie || tokenFromForm !== tokenFromCookie) {
+    throw new Error("CSRF token mismatch.");
   }
 
-  try {
-    const approvedClients = JSON.parse(payload);
-    if (!Array.isArray(approvedClients)) {
-      console.warn("Cookie payload is not an array.");
-      return null; // Payload isn't an array
-    }
-    // Ensure all elements are strings
-    if (!approvedClients.every((item) => typeof item === "string")) {
-      console.warn("Cookie payload contains non-string elements.");
-      return null;
-    }
-    return approvedClients as string[];
-  } catch (e) {
-    console.error("Error parsing cookie payload:", e);
-    return null; // JSON parsing failed
-  }
+  return `${CSRF_COOKIE_NAME}=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`;
 }
 
 // --- Exported Functions ---
@@ -186,6 +231,7 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
 
   // Encode state for form submission
   const encodedState = btoa(JSON.stringify(state));
+  const csrf = generateCSRFProtection();
 
   // Sanitize any untrusted content
   const serverName = sanitizeHtml(server.name);
@@ -193,10 +239,10 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
   const serverDescription = server.description ? sanitizeHtml(server.description) : "";
 
   // Safe URLs
-  const logoUrl = server.logo ? sanitizeHtml(server.logo) : "";
-  const clientUri = client?.clientUri ? sanitizeHtml(client.clientUri) : "";
-  const policyUri = client?.policyUri ? sanitizeHtml(client.policyUri) : "";
-  const tosUri = client?.tosUri ? sanitizeHtml(client.tosUri) : "";
+  const logoUrl = server.logo ? sanitizeHtml(sanitizeUrl(server.logo)) : "";
+  const clientUri = client?.clientUri ? sanitizeHtml(sanitizeUrl(client.clientUri)) : "";
+  const policyUri = client?.policyUri ? sanitizeHtml(sanitizeUrl(client.policyUri)) : "";
+  const tosUri = client?.tosUri ? sanitizeHtml(sanitizeUrl(client.tosUri)) : "";
 
   // Client contacts
   const contacts =
@@ -205,7 +251,7 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
   // Get redirect URIs
   const redirectUris =
     client?.redirectUris && client.redirectUris.length > 0
-      ? client.redirectUris.map((uri) => sanitizeHtml(uri))
+      ? client.redirectUris.map((uri) => sanitizeHtml(sanitizeUrl(uri))).filter(Boolean)
       : [];
 
   // Generate HTML for the approval dialog
@@ -487,9 +533,10 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
             
             <form method="post" action="${new URL(request.url).pathname}">
               <input type="hidden" name="state" value="${encodedState}">
+              <input type="hidden" name="csrf_token" value="${csrf.token}">
               
               <div class="actions">
-                <button type="button" class="button button-secondary" onclick="window.history.back()">Cancel</button>
+                <a href="/" class="button button-secondary">Cancel</a>
                 <button type="submit" class="button button-primary">Approve</button>
               </div>
             </form>
@@ -501,7 +548,11 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
 
   return new Response(htmlContent, {
     headers: {
+      "Content-Security-Policy":
+        "default-src 'none'; style-src 'unsafe-inline'; img-src https:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
       "Content-Type": "text/html; charset=utf-8",
+      "Set-Cookie": csrf.setCookie,
+      "X-Frame-Options": "DENY",
     },
   });
 }
@@ -513,7 +564,7 @@ export interface ParsedApprovalResult {
   /** The original state object passed through the form. */
   state: Record<string, unknown>;
   /** Headers to set on the redirect response, including the Set-Cookie header. */
-  headers: Record<string, string>;
+  headers: Headers;
 }
 
 /**
@@ -539,9 +590,11 @@ export async function parseRedirectApproval(
 
   let state: DecodedState;
   let clientId: string | undefined;
+  let clearCsrfCookie: string;
 
   try {
     const formData = await request.formData();
+    clearCsrfCookie = validateCSRFToken(formData, request);
     const encodedState = formData.get("state");
 
     if (typeof encodedState !== "string" || !encodedState) {
@@ -569,15 +622,15 @@ export async function parseRedirectApproval(
   const updatedApprovedClients = Array.from(new Set([...existingApprovedClients, clientId]));
 
   // Sign the updated list
-  const payload = JSON.stringify(updatedApprovedClients);
-  const key = await importKey(cookieSecret);
-  const signature = await signData(key, payload);
-  const newCookieValue = `${signature}.${btoa(payload)}`; // signature.base64(payload)
+  const newCookieValue = await createSignedCookiePayload(updatedApprovedClients, cookieSecret);
 
   // Generate Set-Cookie header
-  const headers: Record<string, string> = {
-    "Set-Cookie": `${COOKIE_NAME}=${newCookieValue}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${ONE_YEAR_IN_SECONDS}`,
-  };
+  const headers = new Headers();
+  headers.append(
+    "Set-Cookie",
+    `${COOKIE_NAME}=${newCookieValue}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${ONE_YEAR_IN_SECONDS}`,
+  );
+  headers.append("Set-Cookie", clearCsrfCookie);
 
   return { state, headers };
 }
@@ -594,4 +647,13 @@ function sanitizeHtml(unsafe: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function sanitizeUrl(unsafe: string): string {
+  try {
+    const parsed = new URL(unsafe);
+    return ["http:", "https:"].includes(parsed.protocol) ? unsafe : "";
+  } catch {
+    return "";
+  }
 }

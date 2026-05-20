@@ -34,8 +34,8 @@
     "@modelcontextprotocol/ext-apps": "^1.7.2",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@tailwindcss/vite": "^4.3.0",
-    "agents": "^0.12.4",
-    "hono": "^4.12.19",
+    "agents": "^0.13.0",
+    "hono": "^4.12.21",
     "neverthrow": "^8.2.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.2.6",
@@ -43,26 +43,27 @@
     "tailwindcss": "^4.3.0"
   },
   "devDependencies": {
-    "@types/node": "^25.8.0",
-    "@types/react": "^19.2.14",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "concurrently": "^9.2.1",
     "eslint-plugin-perfectionist": "^5.9.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
-    "oxfmt": "^0.50.0",
-    "oxlint": "^1.65.0",
+    "oxfmt": "^0.51.0",
+    "oxlint": "^1.66.0",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "vite": "^8.0.13",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.6",
-    "wrangler": "^4.92.0"
+    "wrangler": "^4.93.0"
   },
   "overrides": {
-    "@modelcontextprotocol/sdk": "1.29.0"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "ws": "8.20.1"
   },
   "lint-staged": {
     "*": "oxfmt --no-error-on-unmatched-pattern && npm run lint:fix"
