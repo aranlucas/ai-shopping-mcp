@@ -1,7 +1,8 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { ResultAsync, errAsync, ok, safeTry } from "neverthrow";
+import { type Result, ResultAsync, err, errAsync, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
+import type { AppError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 
@@ -21,6 +22,61 @@ import { type ToolContext, getSessionScopedUserId, textResult } from "./types.js
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
+
+type CheckoutConfirmationServer = {
+  elicitInput(input: {
+    message: string;
+    requestedSchema: {
+      type: "object";
+      properties: {
+        confirm: {
+          type: "boolean";
+          title: string;
+          description: string;
+          default: boolean;
+        };
+      };
+    };
+  }): Promise<{ action: "accept" | "decline" | "cancel"; content?: { confirm?: boolean } }>;
+};
+
+type CheckoutConfirmationItem = Pick<ShoppingListItem, "productName" | "quantity">;
+
+export async function requestCheckoutConfirmation(
+  server: CheckoutConfirmationServer,
+  items: CheckoutConfirmationItem[],
+): Promise<Result<void, AppError>> {
+  return ResultAsync.fromPromise(
+    server.elicitInput({
+      message: `Add ${items.length} item(s) to your Kroger cart? Items: ${items.map((i) => `${i.productName} x${i.quantity}`).join(", ")}`,
+      requestedSchema: {
+        type: "object" as const,
+        properties: {
+          confirm: {
+            type: "boolean" as const,
+            title: "Confirm checkout",
+            description: "Add these items to your Kroger cart?",
+            default: true,
+          },
+        },
+      },
+    }),
+    () =>
+      validationError(
+        "Checkout requires confirmation, but this MCP client does not support elicitation. Please confirm checkout explicitly and try again.",
+      ),
+  ).andThen((elicit) => {
+    if (
+      elicit.action === "decline" ||
+      elicit.action === "cancel" ||
+      (elicit.action === "accept" && elicit.content?.confirm === false)
+    ) {
+      return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+    }
+
+    return ok(undefined);
+  });
+}
 
 export const manageShoppingListInputSchema = z.object({
   action: z
@@ -233,35 +289,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         const resultParts: string[] = [];
 
         if (withUpc.length > 0) {
-          // Use MCP elicitation to confirm checkout with the user
-          const elicitResult = await ResultAsync.fromPromise(
-            ctx.server.server.elicitInput({
-              message: `Add ${withUpc.length} item(s) to your Kroger cart? Items: ${withUpc.map((i) => `${i.productName} x${i.quantity}`).join(", ")}`,
-              requestedSchema: {
-                type: "object" as const,
-                properties: {
-                  confirm: {
-                    type: "boolean" as const,
-                    title: "Confirm checkout",
-                    description: "Add these items to your Kroger cart?",
-                    default: true,
-                  },
-                },
-              },
-            }),
-            () => null, // Elicitation not supported by client
-          ).orTee(() => console.warn("Elicitation unavailable, proceeding without confirmation"));
-
-          if (elicitResult.isOk()) {
-            const elicit = elicitResult.value;
-            if (
-              elicit.action === "decline" ||
-              elicit.action === "cancel" ||
-              (elicit.action === "accept" && elicit.content?.confirm === false)
-            ) {
-              return ok(textResult("Checkout cancelled. Your shopping list remains unchanged."));
-            }
-          }
+          yield* (await requestCheckoutConfirmation(ctx.server.server, withUpc)).safeUnwrap();
 
           const cartItems: CartItem[] = withUpc.map((item) => ({
             upc: item.upc as string,

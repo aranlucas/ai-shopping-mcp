@@ -32,7 +32,7 @@ Now that your MCP server is running, you can use the [mcp-remote local proxy](ht
   "mcpServers": {
     "ai-shopping-list": {
       "command": "npx",
-      "args": ["mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/sse"]
+      "args": ["mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"]
     }
   }
 }

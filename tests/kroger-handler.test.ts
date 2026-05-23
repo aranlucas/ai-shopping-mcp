@@ -126,9 +126,38 @@ describe("Kroger OAuth handler", () => {
     expect(response.status).toBe(302);
     expect(response.headers.getSetCookie()).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("mcp-approved-clients="),
+        expect.stringContaining("__Host-mcp-approved-clients="),
         expect.stringContaining("kroger_oauth_state="),
       ]),
     );
+  });
+
+  it("requires fresh approval when an approved client changes redirect URI", async () => {
+    const env = makeEnv();
+    const approvedResponse = await approveClient(env);
+    const approvedCookie = approvedResponse.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith("__Host-mcp-approved-clients="));
+
+    env.OAUTH_PROVIDER.parseAuthRequest = vi.fn().mockResolvedValue({
+      clientId: "mcp-client",
+      codeChallenge: "challenge",
+      redirectUri: "https://attacker.test/callback",
+      scope: "tools",
+    });
+
+    const response = await KrogerHandler.request(
+      "https://worker.test/authorize?client_id=mcp-client",
+      {
+        headers: {
+          Cookie: approvedCookie ?? "",
+        },
+      },
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+    expect(await response.text()).toContain("is requesting access");
   });
 });

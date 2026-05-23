@@ -1,11 +1,67 @@
 import type { ClientInfo } from "@cloudflare/workers-oauth-provider"; // Adjust path if necessary
 
-const COOKIE_NAME = "mcp-approved-clients";
+const COOKIE_NAME = "__Host-mcp-approved-clients";
 const CSRF_COOKIE_NAME = "__Host-CSRF_TOKEN";
 const ONE_YEAR_IN_SECONDS = 31536000;
 const TEN_MINUTES_IN_SECONDS = 600;
 
 // --- Helper Functions ---
+
+type ApprovalRequest = {
+  clientId?: string;
+  redirectUri?: string;
+  scope?: string | string[];
+};
+
+type ApprovedClientRecord = {
+  clientId: string;
+  redirectUri: string;
+  scope: string;
+};
+
+function normalizeScope(scope: unknown): string {
+  if (Array.isArray(scope)) {
+    return scope
+      .filter((item): item is string => typeof item === "string")
+      .flatMap((item) => item.split(/\s+/))
+      .filter(Boolean)
+      .sort()
+      .join(" ");
+  }
+
+  if (typeof scope === "string") {
+    return scope.split(/\s+/).filter(Boolean).sort().join(" ");
+  }
+
+  return "";
+}
+
+function toApprovalRecord(request: ApprovalRequest): ApprovedClientRecord | null {
+  if (!request.clientId || !request.redirectUri) return null;
+
+  return {
+    clientId: request.clientId,
+    redirectUri: request.redirectUri,
+    scope: normalizeScope(request.scope),
+  };
+}
+
+function isApprovedClientRecord(value: unknown): value is ApprovedClientRecord {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "clientId" in value &&
+    "redirectUri" in value &&
+    "scope" in value &&
+    typeof value.clientId === "string" &&
+    typeof value.redirectUri === "string" &&
+    typeof value.scope === "string"
+  );
+}
+
+function approvalRecordsMatch(a: ApprovedClientRecord, b: ApprovedClientRecord): boolean {
+  return a.clientId === b.clientId && a.redirectUri === b.redirectUri && a.scope === b.scope;
+}
 
 /**
  * Decodes a URL-safe base64 string back to its original data.
@@ -135,7 +191,7 @@ export async function parseSignedCookiePayload<T>(
 async function getApprovedClientsFromCookie(
   cookieHeader: string | null,
   secret: string,
-): Promise<string[] | null> {
+): Promise<ApprovedClientRecord[] | null> {
   if (!cookieHeader) return null;
 
   const cookieValue = getCookieValue(cookieHeader, COOKIE_NAME);
@@ -148,13 +204,12 @@ async function getApprovedClientsFromCookie(
     return null; // Payload isn't an array
   }
 
-  // Ensure all elements are strings
-  if (!approvedClients.every((item) => typeof item === "string")) {
-    console.warn("Cookie payload contains non-string elements.");
+  if (!approvedClients.every(isApprovedClientRecord)) {
+    console.warn("Cookie payload contains invalid approval records.");
     return null;
   }
 
-  return approvedClients as string[];
+  return approvedClients;
 }
 
 function getCookieValue(cookieHeader: string, cookieName: string): string | null {
@@ -197,14 +252,18 @@ function validateCSRFToken(formData: FormData, request: Request) {
  */
 export async function clientIdAlreadyApproved(
   request: Request,
-  clientId: string,
+  oauthRequest: ApprovalRequest,
   cookieSecret: string,
 ): Promise<boolean> {
-  if (!clientId) return false;
+  const requestedApproval = toApprovalRecord(oauthRequest);
+  if (!requestedApproval) return false;
+
   const cookieHeader = request.headers.get("Cookie");
   const approvedClients = await getApprovedClientsFromCookie(cookieHeader, cookieSecret);
 
-  return approvedClients?.includes(clientId) ?? false;
+  return (
+    approvedClients?.some((approved) => approvalRecordsMatch(approved, requestedApproval)) ?? false
+  );
 }
 
 export interface ApprovalDialogOptions {
@@ -585,11 +644,11 @@ export async function parseRedirectApproval(
   }
 
   interface DecodedState extends Record<string, unknown> {
-    oauthReqInfo?: { clientId?: string };
+    oauthReqInfo?: ApprovalRequest;
   }
 
   let state: DecodedState;
-  let clientId: string | undefined;
+  let approvedClient: ApprovedClientRecord | null;
   let clearCsrfCookie: string;
 
   try {
@@ -602,10 +661,10 @@ export async function parseRedirectApproval(
     }
 
     state = decodeState<DecodedState>(encodedState);
-    clientId = state?.oauthReqInfo?.clientId;
+    approvedClient = state.oauthReqInfo ? toApprovalRecord(state.oauthReqInfo) : null;
 
-    if (!clientId) {
-      throw new Error("Could not extract clientId from state object.");
+    if (!approvedClient) {
+      throw new Error("Could not extract client approval details from state object.");
     }
   } catch (e) {
     console.error("Error processing form submission:", e);
@@ -619,7 +678,12 @@ export async function parseRedirectApproval(
     (await getApprovedClientsFromCookie(cookieHeader, cookieSecret)) || [];
 
   // Add the newly approved client ID (avoid duplicates)
-  const updatedApprovedClients = Array.from(new Set([...existingApprovedClients, clientId]));
+  const updatedApprovedClients = [
+    ...existingApprovedClients.filter(
+      (approved) => !approvalRecordsMatch(approved, approvedClient),
+    ),
+    approvedClient,
+  ];
 
   // Sign the updated list
   const newCookieValue = await createSignedCookiePayload(updatedApprovedClients, cookieSecret);
