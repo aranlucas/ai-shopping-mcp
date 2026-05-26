@@ -51,9 +51,7 @@ app.get("/authorize", async (c) => {
     return c.text("Invalid request - missing clientId", 400);
   }
 
-  if (
-    await clientIdAlreadyApproved(c.req.raw, oauthReqInfo.clientId, c.env.COOKIE_ENCRYPTION_KEY)
-  ) {
+  if (await clientIdAlreadyApproved(c.req.raw, oauthReqInfo, c.env.COOKIE_ENCRYPTION_KEY)) {
     console.log("Client already approved, redirecting to Kroger");
     return redirectToKroger(c.req.raw, oauthReqInfo, c.env);
   }

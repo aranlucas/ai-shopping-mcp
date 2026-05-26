@@ -20,6 +20,7 @@ import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
+import { withMcpOriginProtection } from "./utils/mcp-security.js";
 import { createUserStorage } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
@@ -81,7 +82,7 @@ class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
 
 export default new OAuthProvider({
   apiHandlers: {
-    "/mcp": MyMCP.serve("/mcp"),
+    "/mcp": withMcpOriginProtection(MyMCP.serve("/mcp")),
     "/userinfo": UserInfoHandler,
   },
   // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
@@ -89,6 +90,9 @@ export default new OAuthProvider({
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",
+  allowPlainPKCE: false,
+  clientIdMetadataDocumentEnabled: true,
+  scopesSupported: ["profile.compact", "cart.basic:write", "product.compact"],
 
   // Syncs Kroger tokens with MCP token lifecycle using accessTokenProps/newProps separation:
   // - accessTokenProps: only what middleware needs (id, accessToken, tokenExpiresAt)
