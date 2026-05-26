@@ -67,5 +67,8 @@
   },
   "lint-staged": {
     "*": "oxfmt --no-error-on-unmatched-pattern && npm run lint:fix"
+  },
+  "engines": {
+    "node": ">=24.13.0"
   }
 }
