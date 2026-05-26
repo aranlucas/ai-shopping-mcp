@@ -213,9 +213,14 @@ async function getApprovedClientsFromCookie(
 }
 
 function getCookieValue(cookieHeader: string, cookieName: string): string | null {
+  return getCookieValues(cookieHeader, cookieName)[0] ?? null;
+}
+
+function getCookieValues(cookieHeader: string, cookieName: string): string[] {
   const cookies = cookieHeader.split(";").map((c) => c.trim());
-  const targetCookie = cookies.find((c) => c.startsWith(`${cookieName}=`));
-  return targetCookie ? targetCookie.substring(cookieName.length + 1) : null;
+  return cookies
+    .filter((c) => c.startsWith(`${cookieName}=`))
+    .map((c) => c.substring(cookieName.length + 1));
 }
 
 function generateCSRFProtection() {
@@ -231,8 +236,8 @@ function validateCSRFToken(formData: FormData, request: Request) {
   }
 
   const cookieHeader = request.headers.get("Cookie") || "";
-  const tokenFromCookie = getCookieValue(cookieHeader, CSRF_COOKIE_NAME);
-  if (!tokenFromCookie || tokenFromForm !== tokenFromCookie) {
+  const tokensFromCookies = getCookieValues(cookieHeader, CSRF_COOKIE_NAME);
+  if (!tokensFromCookies.includes(tokenFromForm)) {
     throw new Error("CSRF token mismatch.");
   }
 

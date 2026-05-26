@@ -132,6 +132,37 @@ describe("Kroger OAuth handler", () => {
     );
   });
 
+  it("accepts approval submissions when duplicate CSRF cookies include the form token", async () => {
+    const env = makeEnv();
+    const consentResponse = await KrogerHandler.request(
+      "https://worker.test/authorize?client_id=mcp-client",
+      undefined,
+      env,
+    );
+    const consentHtml = await consentResponse.text();
+    const csrfToken = extractHiddenInput(consentHtml, "csrf_token");
+    const csrfCookie = consentResponse.headers
+      .getSetCookie()
+      .find((cookie) => cookie.startsWith("__Host-CSRF_TOKEN="));
+
+    const response = await KrogerHandler.request(
+      "https://worker.test/authorize",
+      {
+        body: new URLSearchParams({
+          csrf_token: csrfToken,
+          state: extractHiddenInput(consentHtml, "state"),
+        }),
+        headers: {
+          Cookie: `__Host-CSRF_TOKEN=stale-token; ${csrfCookie?.split(";")[0] ?? ""}`,
+        },
+        method: "POST",
+      },
+      env,
+    );
+
+    expect(response.status).toBe(302);
+  });
+
   it("requires fresh approval when an approved client changes redirect URI", async () => {
     const env = makeEnv();
     const approvedResponse = await approveClient(env);
