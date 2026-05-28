@@ -24,9 +24,9 @@ function ShoppingApp() {
   const [partialArgs, setPartialArgs] = useState<Record<string, unknown> | null>(null);
   const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
 
-  const { app, error } = useApp({
+  const { app, isConnected, error } = useApp({
     appInfo: { name: "shopping-app", version: "1.0.0" },
-    capabilities: {},
+    capabilities: { availableDisplayModes: ["inline", "fullscreen"] },
     onAppCreated: (app) => {
       app.onteardown = async () => {
         return {};
@@ -63,7 +63,7 @@ function ShoppingApp() {
   useHostStyles(app, app?.getHostContext());
 
   if (error) return <ErrorDisplay message={error.message} />;
-  if (!app) return <Loading />;
+  if (!isConnected || !app) return <Loading />;
 
   return (
     <ShoppingAppInner

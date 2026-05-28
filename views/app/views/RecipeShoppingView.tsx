@@ -160,6 +160,12 @@ export function RecipeShoppingView({
     product: string;
   }) => {
     app?.updateModelContext({
+      content: [
+        {
+          type: "text",
+          text: `Added ${product} (ingredient: ${ingredient}) to cart for "${recipe.title}".`,
+        },
+      ],
       structuredContent: {
         event: "ingredient_added_to_cart",
         recipe: recipe.title,
@@ -268,6 +274,12 @@ export function RecipeShoppingView({
   // Mount effect — notify LLM that shopping view opened
   useEffect(() => {
     app?.updateModelContext({
+      content: [
+        {
+          type: "text",
+          text: `User is shopping for ingredients for "${recipe.title}" (${ingredients.length} ingredient${ingredients.length !== 1 ? "s" : ""}${anyPriced ? `, estimated $${total.toFixed(2)}` : ""}).`,
+        },
+      ],
       structuredContent: {
         event: "recipe_shopping_started",
         recipe: recipe.title,
@@ -357,6 +369,12 @@ export function RecipeShoppingView({
                   const next = e.target.checked;
                   setIncludeStaples(next);
                   app?.updateModelContext({
+                    content: [
+                      {
+                        type: "text",
+                        text: `User ${next ? "included" : "excluded"} pantry staples when shopping for "${recipe.title}".`,
+                      },
+                    ],
                     structuredContent: {
                       event: "pantry_staples_toggled",
                       recipe: recipe.title,
