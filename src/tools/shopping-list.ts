@@ -243,7 +243,8 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "checkout_shopping_list",
     {
       title: "Checkout Shopping List to Cart",
@@ -255,6 +256,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: true,
       },
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         locationId: z
           .string()
@@ -263,6 +265,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           .describe("Store location ID. If not provided, uses your preferred location."),
         modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
       }),
+      outputSchema: manageShoppingListOutputSchema,
     },
     async ({ locationId, modality }) => {
       const { storage } = ctx;
