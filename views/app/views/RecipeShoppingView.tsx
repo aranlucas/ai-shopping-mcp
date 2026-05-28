@@ -85,7 +85,7 @@ function IngredientCard({
   const handleAddToCart = async (upc: string, qty: number) => {
     await onAddToCart(upc, qty);
     if (product) {
-      onAdded?.({ ingredient: label, product: product.description });
+      onAdded?.({ ingredient: label, product: product.description ?? "" });
     }
   };
 
@@ -203,7 +203,7 @@ export function RecipeShoppingView({
   // "Add All to Cart" — single batched call
   const handleAddAll = async () => {
     setAddAllState("loading");
-    const items: Array<{ upc: string; quantity: number; modality: string }> = [];
+    const items: Array<{ upc: string; quantity: number; modality: "DELIVERY" | "PICKUP" }> = [];
     for (const { result, staple } of classified) {
       if (staple && !includeStaples) continue;
       const upc = result.products[0]?.upc;
