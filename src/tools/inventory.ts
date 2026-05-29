@@ -15,6 +15,26 @@ import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { managePantryOutputSchema } from "./output-schemas.js";
 
+/** Input schema for the `manage_pantry` tool. Exported so the client can infer
+ *  its argument type (see `tool-types.ts`) for type-safe `callTool()` calls. */
+export const managePantryInputSchema = z.object({
+  action: z.enum(["add", "remove", "clear"]).describe("Action to perform on the pantry"),
+  items: z
+    .array(
+      z.object({
+        productName: z
+          .string()
+          .min(1)
+          .max(200)
+          .describe("Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')"),
+        quantity: z.number().min(1).max(999).optional(),
+        expiresAt: z.string().optional(),
+      }),
+    )
+    .optional()
+    .describe("Items to add or remove (required for 'add' and 'remove' actions)"),
+});
+
 export function registerInventoryTools(ctx: ToolContext) {
   registerAppTool(
     ctx.server,
@@ -30,23 +50,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         openWorldHint: false,
       },
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
-      inputSchema: z.object({
-        action: z.enum(["add", "remove", "clear"]).describe("Action to perform on the pantry"),
-        items: z
-          .array(
-            z.object({
-              productName: z
-                .string()
-                .min(1)
-                .max(200)
-                .describe("Normalized product name (e.g., 'Eggs', 'Milk', 'Bread')"),
-              quantity: z.number().min(1).max(999).optional(),
-              expiresAt: z.string().optional(),
-            }),
-          )
-          .optional()
-          .describe("Items to add or remove (required for 'add' and 'remove' actions)"),
-      }),
+      inputSchema: managePantryInputSchema,
       outputSchema: managePantryOutputSchema,
     },
     async ({ action, items }) => {

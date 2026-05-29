@@ -16,8 +16,9 @@ import { ProductSearchView } from "./app/views/ProductSearch.js";
 import { RecipeResultsView } from "./app/views/RecipeResults.js";
 import { ShoppingListView } from "./app/views/ShoppingList.js";
 import { WeeklyDealsView } from "./app/views/WeeklyDeals.js";
+import { useResettableState } from "./shared/hooks.js";
 import { ErrorDisplay, Loading } from "./shared/status.js";
-import { type AppData, parseStructuredContent } from "./shared/types.js";
+import { parseStructuredContent } from "./shared/types.js";
 
 function ShoppingApp() {
   const [toolResult, setToolResult] = useState<CallToolResult | null>(null);
@@ -122,13 +123,13 @@ function getPartialLoadingMessage(viewKey: string | null, args: Record<string, u
 }
 
 function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: ShoppingAppInnerProps) {
-  const [data, setData] = useState<AppData | null>(null);
-
-  useEffect(() => {
-    if (toolResult?.structuredContent) {
-      setData(parseStructuredContent(toolResult.structuredContent));
-    }
-  }, [toolResult]);
+  // `data` is seeded from `toolResult` but child views edit it locally (optimistic
+  // updates via `setData`), so it isn't purely derived — we can't compute it inline.
+  // `useResettableState` re-seeds it during render whenever a new tool result
+  // arrives, which is what React recommends instead of a re-syncing Effect.
+  const [data, setData] = useResettableState(toolResult, (result) =>
+    parseStructuredContent(result?.structuredContent),
+  );
 
   const toolName = hostContext?.toolInfo?.tool?.name ?? null;
   const canCallTools = !!app.getHostCapabilities()?.serverTools;

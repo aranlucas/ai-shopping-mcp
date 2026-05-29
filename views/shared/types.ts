@@ -1,15 +1,34 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type * as z from "zod/v4";
 
-export type { AddToCartArgs, ManageShoppingListArgs } from "../../src/tools/tool-types.js";
+export type {
+  AddToCartArgs,
+  ManagePantryArgs,
+  ManageShoppingListArgs,
+} from "../../src/tools/tool-types.js";
 
-import type { AddToCartArgs, ManageShoppingListArgs } from "../../src/tools/tool-types.js";
+import type {
+  getLocationDetailsOutputSchema,
+  getProductDetailsOutputSchema,
+  getWeeklyDealsOutputSchema,
+  managePantryOutputSchema,
+  manageShoppingListOutputSchema,
+  searchLocationsOutputSchema,
+  searchProductsOutputSchema,
+  searchRecipesOutputSchema,
+} from "../../src/tools/output-schemas.js";
+import type {
+  AddToCartArgs,
+  ManagePantryArgs,
+  ManageShoppingListArgs,
+} from "../../src/tools/tool-types.js";
 
 /** Discriminated union of all callable tools — enables type-safe callTool(). */
 export type ToolCall =
   | { name: "add_to_cart"; arguments: AddToCartArgs }
   | { name: "manage_shopping_list"; arguments: ManageShoppingListArgs }
-  | { name: "manage_pantry"; arguments: Record<string, unknown> }
+  | { name: "manage_pantry"; arguments: ManagePantryArgs }
   | { name: "set_preferred_location"; arguments: { locationId: string } }
   | { name: "get_location_details"; arguments: { locationId: string } }
   | { name: "search_products"; arguments: { terms: string[] } };
@@ -45,140 +64,47 @@ export function sendUserMessage(app: App | null | undefined, text: string): void
   });
 }
 
-export interface DealData {
-  title: string;
-  details?: string;
-  price?: string;
-  savings?: string | null;
-  validFrom?: string;
-  validTill?: string;
-}
+/**
+ * View content types.
+ *
+ * These are inferred directly from the server's Zod output schemas
+ * (`src/tools/output-schemas.ts`) — the single source of truth for the
+ * `structuredContent` contract. Inferring them here keeps the client in
+ * lockstep with the server: any schema change flows through automatically,
+ * so the two halves can't drift. The imports above are `import type` only,
+ * so no Zod runtime is pulled into the views bundle.
+ */
+export type WeeklyDealsContent = z.infer<typeof getWeeklyDealsOutputSchema>;
+export type LocationResultsContent = z.infer<typeof searchLocationsOutputSchema>;
+export type LocationDetailContent = z.infer<typeof getLocationDetailsOutputSchema>;
+export type ProductSearchResultsContent = z.infer<typeof searchProductsOutputSchema>;
+export type ProductDetailContent = z.infer<typeof getProductDetailsOutputSchema>;
+export type PantryListContent = z.infer<typeof managePantryOutputSchema>;
+export type ShoppingListContent = z.infer<typeof manageShoppingListOutputSchema>;
+export type RecipeResultsContent = z.infer<typeof searchRecipesOutputSchema>;
 
-export interface WeeklyDealsContent {
-  deals: DealData[];
-  validFrom?: string;
-  validTill?: string;
-}
+/** Element/sub-shapes, indexed out of the inferred content types above. */
+export type DealData = WeeklyDealsContent["deals"][number];
+export type LocationData = LocationDetailContent["location"];
+export type ProductData = ProductDetailContent["product"];
+export type PantryItemData = PantryListContent["items"][number];
+export type ShoppingListItemData = ShoppingListContent["items"][number];
+export type RecipeData = RecipeResultsContent["recipes"][number];
 
-export interface LocationData {
-  locationId: string;
-  name?: string;
-  chain?: string;
-  address?: {
-    addressLine1?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-  };
-  phone?: string;
-  departments?: Array<{ name?: string; phone?: string }>;
-}
-
-export interface LocationResultsContent {
-  locations: LocationData[];
-}
-
-export interface LocationDetailContent {
-  location: LocationData;
-}
-
-export interface ProductData {
-  upc?: string;
-  description?: string;
-  brand?: string;
-  categories?: string[];
-  aisleLocations?: Array<{
-    description?: string;
-    number?: string;
-  }>;
-  items?: Array<{
-    itemId?: string;
-    size?: string;
-    price?: { regular?: number; promo?: number };
-    fulfillment?: {
-      curbside?: boolean;
-      delivery?: boolean;
-      instore?: boolean;
-    };
-    inventory?: { stockLevel?: string };
-  }>;
-}
-
-export interface ProductSearchResultsContent {
-  results: Array<{
-    term: string;
-    products: ProductData[];
-    failed: boolean;
-  }>;
-  totalProducts: number;
-}
-
-export interface ProductDetailContent {
-  product: ProductData;
-}
-
-export interface PantryItemData {
-  productName: string;
-  quantity: number;
-  addedAt?: string;
-  expiresAt?: string;
-}
-
-export interface PantryListContent {
-  items: PantryItemData[];
-  actionDetail?: string;
-}
-
-export interface ShoppingListItemData {
-  productName: string;
-  upc?: string;
-  quantity: number;
-  notes?: string;
-  addedAt?: string;
-  checked: boolean;
-}
-
-export interface ShoppingListContent {
-  items: ShoppingListItemData[];
-  actionDetail?: string;
-}
-
-export interface RecipeData {
-  title: string;
-  description?: string;
-  cuisine?: string;
-  difficulty?: string;
-  totalTime?: number;
-  cookTime?: number;
-  servings?: string;
-  slug: string;
-  ingredients?: Array<{
-    quantity?: string;
-    unit?: string;
-    name: string;
-    notes?: string;
-  }>;
-  instructions?: Array<{
-    stepNumber: number;
-    instruction: string;
-  }>;
-}
-
-export interface RecipeResultsContent {
-  recipes: RecipeData[];
-  searchQuery: string;
-}
-
-/** Discriminated union of all possible tool structuredContent shapes. */
+/**
+ * Discriminated union of all possible tool `structuredContent` shapes.
+ * Each member already carries its `_view` literal from the schema, so this
+ * narrows cleanly on `data._view`.
+ */
 export type AppData =
-  | ({ _view: "search_products" } & ProductSearchResultsContent)
-  | ({ _view: "get_product_details" } & ProductDetailContent)
-  | ({ _view: "search_locations" } & LocationResultsContent)
-  | ({ _view: "get_location_details" } & LocationDetailContent)
-  | ({ _view: "manage_shopping_list" } & ShoppingListContent)
-  | ({ _view: "manage_pantry" } & PantryListContent)
-  | ({ _view: "search_recipes_from_web" } & RecipeResultsContent)
-  | ({ _view: "get_weekly_deals" } & WeeklyDealsContent);
+  | ProductSearchResultsContent
+  | ProductDetailContent
+  | LocationResultsContent
+  | LocationDetailContent
+  | ShoppingListContent
+  | PantryListContent
+  | RecipeResultsContent
+  | WeeklyDealsContent;
 
 /**
  * Parse unknown structuredContent into a typed AppData value.
