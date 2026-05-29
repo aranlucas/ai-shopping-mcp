@@ -3,13 +3,14 @@ import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
+import type { ToolContext } from "./types.js";
 
 import { networkError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
+import { toMcpError } from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { getWeeklyDealsOutputSchema } from "./output-schemas.js";
-import { type ToolContext, errorResult } from "./types.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
 
@@ -259,7 +260,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         return formatWeeklyDealsToolResponse(staleData, "stale");
       }
 
-      return errorResult(`Failed to fetch weekly deals: ${liveResult.error.message}`);
+      return toMcpError(liveResult.error);
     },
   );
 }

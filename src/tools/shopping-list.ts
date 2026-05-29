@@ -13,7 +13,6 @@ import {
   safeResolveLocationId,
   safeStorage,
   toMcpError,
-  toMcpResponse,
 } from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { manageShoppingListOutputSchema } from "./output-schemas.js";
@@ -225,7 +224,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
       const res = await result;
       if (res.isErr()) {
-        return toMcpResponse(res.map(() => ""));
+        return toMcpError(res.error);
       }
 
       const { text, list, actionDetail } = res.value;

@@ -102,6 +102,7 @@ describe("fromApiResponse", () => {
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("API_ERROR");
     expect(error.message).toContain("test api");
+    expect(error.type === "API_ERROR" && error.status).toBe(400);
   });
 
   it("returns Err when response is not ok", async () => {
@@ -114,7 +115,9 @@ describe("fromApiResponse", () => {
       "test api",
     );
     expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("API_ERROR");
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("API_ERROR");
+    expect(error.type === "API_ERROR" && error.status).toBe(500);
   });
 
   it("returns Err on promise rejection", async () => {
