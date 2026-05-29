@@ -31,7 +31,6 @@ export type ToolContext = {
   getUser: () => Props | null;
   getEnv: () => Env;
   getSessionId: () => string;
-  keepAliveWhile: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
 // --- Response helpers ---

@@ -193,7 +193,7 @@ The server exposes 14 MCP tools, organized into modular files under `src/tools/`
 
 **Shopping List** (`tools/shopping-list.ts`): 10. **manage_shopping_list**: Consolidated shopping list tool with `action: "add" | "remove" | "update" | "clear"`. Add items (with optional UPC, quantity, notes), remove/update by name, or clear all. 11. **checkout_shopping_list**: Add unchecked items with UPCs to Kroger cart; reports items missing UPCs separately
 
-**AI-Powered Tools** (`tools/recipes.ts`): 12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API 13. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
+**AI-Powered Tools** (`tools/recipes.ts`): 12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API 13. **plan_meals**: Returns structured pantry/equipment/order context (expiry-prioritized) for the host model to turn into meal suggestions
 
 **Weekly Deals** (`tools/weekly-deals.ts`): 14. **get_weekly_deals**: Fetches current QFC/Kroger weekly deals from the print ad (DACS API), augmented with real pricing from Kroger Product Search API. Results are KV-cached (6h fresh / 48h stale-while-revalidate).
 
@@ -244,56 +244,20 @@ The server exposes guided workflow prompts (defined in `src/prompts.ts`):
    - Optional parameter: `recipe_type` (default: "classic apple pie")
    - Workflow: Search recipe, get ingredients, look up products, add to cart with substitution suggestions
 
-### MCP Sampling
+### MCP Sampling (removed)
 
-The server uses MCP Sampling to request AI completions from the client's model:
+This server no longer uses MCP Sampling (`createMessage`). Sampling is
+**deprecated** as of MCP spec change SEP-2577 (low client adoption; direct
+LLM-provider integration is the recommended alternative), so it has been
+removed in favor of letting the host model do the generation:
 
-**Implementation:**
-
-```typescript
-const result = await this.server.server.createMessage({
-  messages: [{ role: "user", content: { type: "text", text: prompt } }],
-  maxTokens: 1000,
-});
-```
-
-**Use Cases:**
-
-- AI-powered meal planning from pantry contents (`plan_meals`)
-- Recipe suggestions from pantry items
-- Shopping list categorization by department
-- Meal planning with dietary preferences and expiry-aware prioritization
-
-**Web Scraping with Sampling:**
-The `search_recipes_from_web` tool demonstrates AI-powered web scraping:
-
-```typescript
-// 1. Fetch webpage content
-const response = await fetch(url);
-const html = await response.text();
-
-// 2. Clean HTML (remove scripts/styles, limit size)
-const cleanedHtml = html.replace(/<script.*?<\/script>/gi, "").substring(0, 50000);
-
-// 3. Ask LLM to parse and extract structured data
-const result = await this.server.server.createMessage({
-  messages: [
-    {
-      role: "user",
-      content: {
-        type: "text",
-        text: `Parse this HTML and return JSON: ${cleanedHtml}`,
-      },
-    },
-  ],
-  maxTokens: 2000,
-});
-
-// 4. Parse LLM response as JSON
-const data = JSON.parse(result.content.text);
-```
-
-**Security:** Sampling requests require user approval (handled by the MCP client)
+- **`plan_meals`**: gathers pantry/equipment/order context, categorizes pantry
+  items by expiry urgency, and returns a structured Markdown summary with an
+  "Action Required" prompt. The host model reads that context and produces the
+  actual meal suggestions — no server-side completion call.
+- **`search_recipes_from_web`**: fetches structured recipe data directly from
+  Janella's Cookbook API (`response.json()`). It does not scrape HTML or ask an
+  LLM to parse anything.
 
 ### Bulk Product Search Implementation
 

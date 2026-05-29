@@ -106,13 +106,26 @@ export type AppData =
   | RecipeResultsContent
   | WeeklyDealsContent;
 
+/** The set of `_view` discriminators we know how to render. */
+const KNOWN_VIEWS = new Set<AppData["_view"]>([
+  "search_products",
+  "get_product_details",
+  "search_locations",
+  "get_location_details",
+  "manage_shopping_list",
+  "manage_pantry",
+  "search_recipes_from_web",
+  "get_weekly_deals",
+]);
+
 /**
  * Parse unknown structuredContent into a typed AppData value.
- * Returns null if the value is missing or has no recognized _view.
+ * Returns null if the value is missing or carries an unrecognized `_view`,
+ * so an unknown payload surfaces as "loading" rather than a blank render.
  */
 export function parseStructuredContent(raw: unknown): AppData | null {
   if (!raw || typeof raw !== "object") return null;
-  const view = (raw as Record<string, unknown>)._view;
-  if (typeof view !== "string") return null;
+  const view = (raw as { _view?: unknown })._view;
+  if (typeof view !== "string" || !KNOWN_VIEWS.has(view as AppData["_view"])) return null;
   return raw as AppData;
 }

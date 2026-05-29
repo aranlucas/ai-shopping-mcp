@@ -52,7 +52,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       getUser: () => this.props ?? null,
       getEnv: () => this.env,
       getSessionId: () => this.getSessionId(),
-      keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
     };
 
     // Register the single unified View resource (all app tools share this one UI)

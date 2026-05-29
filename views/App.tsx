@@ -187,6 +187,10 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
           hostContext={hostContext}
         />
       );
+    default:
+      // `parseStructuredContent` only yields known views, so this is unreachable
+      // — but it keeps the switch exhaustive and avoids a silent blank render.
+      return <ErrorDisplay message="This result can't be displayed." />;
   }
 }
 
