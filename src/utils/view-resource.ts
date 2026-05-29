@@ -14,6 +14,9 @@
  *  5. Client-side React in the iframe routes to the correct view component
  */
 
+import type { RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+
 import {
   type McpUiAppToolConfig,
   RESOURCE_MIME_TYPE,
@@ -21,8 +24,6 @@ import {
   registerAppResource,
   registerAppTool,
 } from "@modelcontextprotocol/ext-apps/server";
-import type { RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 import type { ToolContext } from "../tools/types.js";
 
