@@ -13,8 +13,10 @@ import {
   refreshKrogerToken,
 } from "./services/kroger/client.js";
 import { registerCartTools } from "./tools/cart.js";
-import { registerInventoryTools } from "./tools/inventory.js";
+import { registerEquipmentTools } from "./tools/equipment.js";
 import { registerLocationTools } from "./tools/location.js";
+import { registerOrderTools } from "./tools/orders.js";
+import { registerPantryTools } from "./tools/pantry.js";
 import { registerProductTools } from "./tools/product.js";
 import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
@@ -23,6 +25,23 @@ import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { withMcpOriginProtection } from "./utils/mcp-security.js";
 import { createUserStorage } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
+
+/**
+ * Tool/resource registrars, each invoked with the shared ToolContext.
+ * Add a new tool module here — registration order is not significant.
+ */
+const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
+  registerCartTools,
+  registerLocationTools,
+  registerProductTools,
+  registerPantryTools,
+  registerEquipmentTools,
+  registerOrderTools,
+  registerRecipeTools,
+  registerShoppingListTools,
+  registerWeeklyDealsTools,
+  registerResources,
+];
 
 export class MyMCP extends McpAgent<Env, unknown, Props> {
   server = new McpServer(
@@ -52,7 +71,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       getUser: () => this.props ?? null,
       getEnv: () => this.env,
       getSessionId: () => this.getSessionId(),
-      keepAliveWhile: <T>(fn: () => Promise<T>) => this.keepAliveWhile(fn),
     };
 
     // Register the single unified View resource (all app tools share this one UI)
@@ -60,14 +78,7 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
 
     // Register all MCP features
     registerPrompts(this.server);
-    registerCartTools(ctx);
-    registerLocationTools(ctx);
-    registerProductTools(ctx);
-    registerInventoryTools(ctx);
-    registerRecipeTools(ctx);
-    registerShoppingListTools(ctx);
-    registerWeeklyDealsTools(ctx);
-    registerResources(ctx);
+    for (const register of TOOL_REGISTRARS) register(ctx);
   }
 }
 

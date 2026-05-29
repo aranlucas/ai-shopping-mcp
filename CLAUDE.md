@@ -64,12 +64,14 @@ npm run generate:identity  # Generate identity.d.ts from identity.yaml
 
 ### MCP Server Structure
 
-- **server.ts**: Main MCP server (`MyMCP` class extending `McpAgent`), OAuth provider config, and tool/resource/prompt registration entry point
+- **server.ts**: Main MCP server (`MyMCP` class extending `McpAgent`), OAuth provider config, and tool/resource/prompt registration entry point. Tool modules are registered by iterating the `TOOL_REGISTRARS` array — add a new module's `register*` function there.
 - **tools/**: Modular tool registration files (each exports a `register*` function called from `server.ts`):
   - **tools/cart.ts**: Cart management tools (`add_to_cart`)
   - **tools/location.ts**: Location search and preference tools (`search_locations`, `get_location_details`, `set_preferred_location`)
   - **tools/product.ts**: Product search and details tools (`search_products`, `get_product_details`)
-  - **tools/inventory.ts**: Consolidated pantry (`manage_pantry`), equipment (`manage_equipment`), and order history (`mark_order_placed`) tools
+  - **tools/pantry.ts**: Consolidated pantry tool (`manage_pantry`) — a view tool registered via `registerViewTool`
+  - **tools/equipment.ts**: Consolidated equipment tool (`manage_equipment`)
+  - **tools/orders.ts**: Order history tool (`mark_order_placed`)
   - **tools/recipes.ts**: Recipe search and AI-powered meal planning tools (`search_recipes_from_web`, `plan_meals`)
   - **tools/shopping-list.ts**: Consolidated shopping list tool (`manage_shopping_list`) and checkout (`checkout_shopping_list`)
   - **tools/resources.ts**: MCP Resource definitions (read-only user data)
@@ -189,11 +191,11 @@ The server exposes 14 MCP tools, organized into modular files under `src/tools/`
 5. **get_product_details**: Get product details by product ID
 6. **set_preferred_location**: Save user's preferred store
 
-**User Data Management** (`tools/inventory.ts`): 7. **manage_pantry**: Consolidated pantry tool with `action: "add" | "remove" | "clear"`. Add items with quantity/expiry, remove by name, or clear all. 8. **manage_equipment**: Consolidated equipment tool with `action: "add" | "remove" | "clear"`. Add equipment with optional category, remove by name, or clear all. 9. **mark_order_placed**: Record completed order in history
+**User Data Management** (`tools/pantry.ts`, `tools/equipment.ts`, `tools/orders.ts`): 7. **manage_pantry**: Consolidated pantry tool with `action: "add" | "remove" | "clear"`. Add items with quantity/expiry, remove by name, or clear all. 8. **manage_equipment**: Consolidated equipment tool with `action: "add" | "remove" | "clear"`. Add equipment with optional category, remove by name, or clear all. 9. **mark_order_placed**: Record completed order in history
 
 **Shopping List** (`tools/shopping-list.ts`): 10. **manage_shopping_list**: Consolidated shopping list tool with `action: "add" | "remove" | "update" | "clear"`. Add items (with optional UPC, quantity, notes), remove/update by name, or clear all. 11. **checkout_shopping_list**: Add unchecked items with UPCs to Kroger cart; reports items missing UPCs separately
 
-**AI-Powered Tools** (`tools/recipes.ts`): 12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API 13. **plan_meals**: AI-powered meal suggestions based on pantry contents, equipment, dietary preferences, and expiring items (uses MCP Sampling with structured fallback)
+**AI-Powered Tools** (`tools/recipes.ts`): 12. **search_recipes_from_web**: Search and extract recipes from Janella's Cookbook API 13. **plan_meals**: Returns structured pantry/equipment/order context (expiry-prioritized) for the host model to turn into meal suggestions
 
 **Weekly Deals** (`tools/weekly-deals.ts`): 14. **get_weekly_deals**: Fetches current QFC/Kroger weekly deals from the print ad (DACS API), augmented with real pricing from Kroger Product Search API. Results are KV-cached (6h fresh / 48h stale-while-revalidate).
 
@@ -244,56 +246,20 @@ The server exposes guided workflow prompts (defined in `src/prompts.ts`):
    - Optional parameter: `recipe_type` (default: "classic apple pie")
    - Workflow: Search recipe, get ingredients, look up products, add to cart with substitution suggestions
 
-### MCP Sampling
+### MCP Sampling (removed)
 
-The server uses MCP Sampling to request AI completions from the client's model:
+This server no longer uses MCP Sampling (`createMessage`). Sampling is
+**deprecated** as of MCP spec change SEP-2577 (low client adoption; direct
+LLM-provider integration is the recommended alternative), so it has been
+removed in favor of letting the host model do the generation:
 
-**Implementation:**
-
-```typescript
-const result = await this.server.server.createMessage({
-  messages: [{ role: "user", content: { type: "text", text: prompt } }],
-  maxTokens: 1000,
-});
-```
-
-**Use Cases:**
-
-- AI-powered meal planning from pantry contents (`plan_meals`)
-- Recipe suggestions from pantry items
-- Shopping list categorization by department
-- Meal planning with dietary preferences and expiry-aware prioritization
-
-**Web Scraping with Sampling:**
-The `search_recipes_from_web` tool demonstrates AI-powered web scraping:
-
-```typescript
-// 1. Fetch webpage content
-const response = await fetch(url);
-const html = await response.text();
-
-// 2. Clean HTML (remove scripts/styles, limit size)
-const cleanedHtml = html.replace(/<script.*?<\/script>/gi, "").substring(0, 50000);
-
-// 3. Ask LLM to parse and extract structured data
-const result = await this.server.server.createMessage({
-  messages: [
-    {
-      role: "user",
-      content: {
-        type: "text",
-        text: `Parse this HTML and return JSON: ${cleanedHtml}`,
-      },
-    },
-  ],
-  maxTokens: 2000,
-});
-
-// 4. Parse LLM response as JSON
-const data = JSON.parse(result.content.text);
-```
-
-**Security:** Sampling requests require user approval (handled by the MCP client)
+- **`plan_meals`**: gathers pantry/equipment/order context, categorizes pantry
+  items by expiry urgency, and returns a structured Markdown summary with an
+  "Action Required" prompt. The host model reads that context and produces the
+  actual meal suggestions — no server-side completion call.
+- **`search_recipes_from_web`**: fetches structured recipe data directly from
+  Janella's Cookbook API (`response.json()`). It does not scrape HTML or ask an
+  LLM to parse anything.
 
 ### Bulk Product Search Implementation
 

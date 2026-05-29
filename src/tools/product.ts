@@ -1,19 +1,18 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import { notFoundError } from "../errors.js";
 import { formatProductCompact, formatProductList } from "../utils/format-response.js";
 import { fromApiResponse, safeResolveLocationId, toMcpResponse } from "../utils/result.js";
-import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { registerViewTool } from "../utils/view-resource.js";
 import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
 
-  registerAppTool(
-    ctx.server,
+  registerViewTool(
+    ctx,
     "search_products",
     {
       title: "Search Products",
@@ -25,7 +24,6 @@ export function registerProductTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         terms: z
           .array(z.string().max(100))
@@ -163,8 +161,8 @@ export function registerProductTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  registerViewTool(
+    ctx,
     "get_product_details",
     {
       title: "Get Product Details",
@@ -176,7 +174,6 @@ export function registerProductTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         productId: z.string().length(13, {
           message: "Product ID must be a 13-digit UPC number",

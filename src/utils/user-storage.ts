@@ -57,6 +57,22 @@ const getKey = (userId: string, dataType: string): string => {
 };
 
 /**
+ * Parse a JSON string read from KV, returning `fallback` if the value is
+ * missing or malformed. KV entries can be hand-edited or left over from an
+ * older shape, so a corrupted entry should degrade to the default rather than
+ * throw and break the whole read.
+ */
+function parseJson<T>(value: string | null, fallback: T): T {
+  if (value == null) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch (error) {
+    console.warn("Discarding corrupted KV entry:", error);
+    return fallback;
+  }
+}
+
+/**
  * Preferred Location Storage
  */
 export class PreferredLocationStorage {
@@ -70,8 +86,7 @@ export class PreferredLocationStorage {
   async get(userId: string): Promise<PreferredLocation | null> {
     const key = getKey(userId, "preferred_location");
     const value = await this.kv.get(key);
-    if (!value) return null;
-    return JSON.parse(value) as PreferredLocation;
+    return parseJson<PreferredLocation | null>(value, null);
   }
 
   async delete(userId: string): Promise<void> {
@@ -89,8 +104,7 @@ export class PantryStorage {
   async getAll(userId: string): Promise<PantryItem[]> {
     const key = getKey(userId, "pantry");
     const value = await this.kv.get(key);
-    if (!value) return [];
-    return JSON.parse(value) as PantryItem[];
+    return parseJson<PantryItem[]>(value, []);
   }
 
   async add(userId: string, item: PantryItem): Promise<PantryItem[]> {
@@ -158,8 +172,7 @@ export class EquipmentStorage {
   async getAll(userId: string): Promise<EquipmentItem[]> {
     const key = getKey(userId, "equipment");
     const value = await this.kv.get(key);
-    if (!value) return [];
-    return JSON.parse(value) as EquipmentItem[];
+    return parseJson<EquipmentItem[]>(value, []);
   }
 
   async add(userId: string, item: EquipmentItem): Promise<EquipmentItem[]> {
@@ -209,8 +222,7 @@ export class ShoppingListStorage {
   async getAll(userId: string): Promise<ShoppingListItem[]> {
     const key = getKey(userId, "shopping_list");
     const value = await this.kv.get(key);
-    if (!value) return [];
-    return JSON.parse(value) as ShoppingListItem[];
+    return parseJson<ShoppingListItem[]>(value, []);
   }
 
   async add(userId: string, item: ShoppingListItem): Promise<ShoppingListItem[]> {
@@ -305,8 +317,7 @@ export class OrderHistoryStorage {
   async getAll(userId: string): Promise<OrderRecord[]> {
     const key = getKey(userId, "order_history");
     const value = await this.kv.get(key);
-    if (!value) return [];
-    return JSON.parse(value) as OrderRecord[];
+    return parseJson<OrderRecord[]>(value, []);
   }
 
   async add(userId: string, order: OrderRecord): Promise<OrderRecord[]> {

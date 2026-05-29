@@ -10,6 +10,7 @@ import type {
 } from "../shared/types.js";
 
 export const mockWeeklyDeals: WeeklyDealsContent = {
+  _view: "get_weekly_deals",
   validFrom: "2026-03-18",
   validTill: "2026-03-24",
   deals: [
@@ -43,6 +44,7 @@ export const mockWeeklyDeals: WeeklyDealsContent = {
 };
 
 export const mockProductSearch: ProductSearchResultsContent = {
+  _view: "search_products",
   totalProducts: 3,
   results: [
     {
@@ -87,6 +89,7 @@ export const mockProductSearch: ProductSearchResultsContent = {
 };
 
 export const mockProductDetail: ProductDetailContent = {
+  _view: "get_product_details",
   product: {
     upc: "0001111042578",
     description: "Organic Whole Milk",
@@ -106,6 +109,7 @@ export const mockProductDetail: ProductDetailContent = {
 };
 
 export const mockLocationResults: LocationResultsContent = {
+  _view: "search_locations",
   locations: [
     {
       locationId: "70500847",
@@ -135,6 +139,7 @@ export const mockLocationResults: LocationResultsContent = {
 };
 
 export const mockLocationDetail: LocationDetailContent = {
+  _view: "get_location_details",
   location: {
     locationId: "70500847",
     name: "QFC",
@@ -155,6 +160,7 @@ export const mockLocationDetail: LocationDetailContent = {
 };
 
 export const mockPantry: PantryListContent = {
+  _view: "manage_pantry",
   items: [
     { productName: "Eggs", quantity: 12, addedAt: "2026-03-20" },
     {
@@ -175,6 +181,7 @@ export const mockPantry: PantryListContent = {
 };
 
 export const mockShoppingList: ShoppingListContent = {
+  _view: "manage_shopping_list",
   items: [
     {
       productName: "Organic Whole Milk",
@@ -209,6 +216,7 @@ export const mockShoppingList: ShoppingListContent = {
 };
 
 export const mockRecipes: RecipeResultsContent = {
+  _view: "search_recipes_from_web",
   searchQuery: "pasta carbonara",
   recipes: [
     {

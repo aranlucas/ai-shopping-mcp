@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -12,14 +11,14 @@ import {
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
 import { fromApiResponse, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
-import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { registerViewTool } from "../utils/view-resource.js";
 import { getLocationDetailsOutputSchema, searchLocationsOutputSchema } from "./output-schemas.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
 
-  registerAppTool(
-    ctx.server,
+  registerViewTool(
+    ctx,
     "search_locations",
     {
       title: "Search Store Locations",
@@ -30,7 +29,6 @@ export function registerLocationTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         zipCodeNear: z
           .string()
@@ -80,8 +78,8 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  registerViewTool(
+    ctx,
     "get_location_details",
     {
       title: "Get Store Details",
@@ -93,7 +91,6 @@ export function registerLocationTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         locationId: z.string().length(8, {
           message: "Location ID must be exactly 8 characters long",

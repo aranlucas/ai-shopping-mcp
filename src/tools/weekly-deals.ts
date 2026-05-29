@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync, fromThrowable, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -8,7 +7,7 @@ import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import { networkError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
-import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { registerViewTool } from "../utils/view-resource.js";
 import { getWeeklyDealsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
 
@@ -150,8 +149,8 @@ export function addCacheWarning(result: QfcDealsApiResponse, message: string): Q
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  registerViewTool(
+    ctx,
     "get_weekly_deals",
     {
       title: "Get Weekly Deals",
@@ -163,7 +162,6 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         locationId: z
           .string()

@@ -132,8 +132,7 @@ export function WeeklyDealsView({
         validTill,
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deals.length]);
+  }, [app, deals.length, validFrom, validTill]);
 
   const handleSearch = async (title: string) => {
     const result = await callTool(app, {
