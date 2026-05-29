@@ -119,6 +119,12 @@ export function WeeklyDealsView({
   useEffect(() => {
     if (!app || deals.length === 0) return;
     app.updateModelContext({
+      content: [
+        {
+          type: "text",
+          text: `User is viewing ${deals.length} weekly deal${deals.length !== 1 ? "s" : ""}${validFrom ? ` valid ${validFrom} – ${validTill}` : ""}.`,
+        },
+      ],
       structuredContent: {
         event: "weekly_deals_viewed",
         count: deals.length,

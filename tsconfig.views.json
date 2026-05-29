@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["views/**/*"]
+  "include": ["views/**/*", "worker-configuration.d.ts"]
 }

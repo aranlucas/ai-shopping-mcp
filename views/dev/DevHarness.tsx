@@ -62,7 +62,12 @@ export function DevHarness() {
         return <ProductDetailView data={mockProductDetail} app={mockApp} canCallTools={false} />;
       case "search_locations":
         return (
-          <LocationResultsView data={mockLocationResults} app={mockApp} canCallTools={false} />
+          <LocationResultsView
+            data={mockLocationResults}
+            setData={setData}
+            app={mockApp}
+            canCallTools={false}
+          />
         );
       case "get_location_details":
         return <LocationDetailView data={mockLocationDetail} app={mockApp} canCallTools={false} />;
@@ -85,7 +90,7 @@ export function DevHarness() {
           />
         );
       case "search_recipes_from_web":
-        return <RecipeResultsView data={mockRecipes} />;
+        return <RecipeResultsView data={mockRecipes} app={mockApp} canCallTools={false} />;
     }
   }
 
