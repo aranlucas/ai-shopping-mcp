@@ -2,7 +2,7 @@ import { ResultAsync, err, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
 import { networkError } from "../errors.js";
-import { requireAuth, safeFetch, safeStorage, toMcpError, toMcpResponse } from "../utils/result.js";
+import { requireAuth, safeFetch, safeStorage, toMcpError } from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { searchRecipesOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
@@ -150,7 +150,7 @@ export function registerRecipeTools(ctx: ToolContext) {
 
       const res = await result;
       if (res.isErr()) {
-        return toMcpResponse(res.map(() => ""));
+        return toMcpError(res.error);
       }
 
       const { text, recipes: recipeData } = res.value;

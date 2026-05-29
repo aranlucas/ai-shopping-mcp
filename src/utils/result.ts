@@ -63,7 +63,7 @@ export function fromApiResponse<T>(
     networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
   ).andThen(({ data, error, response }) => {
     if (error || !response.ok) {
-      return err(apiError(`Failed to ${context}`, error));
+      return err(apiError(`Failed to ${context}`, error, response.status));
     }
     return ok(data as T);
   });

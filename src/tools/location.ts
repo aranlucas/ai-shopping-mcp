@@ -10,7 +10,13 @@ import {
   formatLocationListCompact,
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
-import { fromApiResponse, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
+import {
+  fromApiResponse,
+  requireAuth,
+  safeStorage,
+  toMcpError,
+  toMcpResponse,
+} from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { getLocationDetailsOutputSchema, searchLocationsOutputSchema } from "./output-schemas.js";
 
@@ -66,7 +72,7 @@ export function registerLocationTools(ctx: ToolContext) {
       });
 
       if (result.isErr()) {
-        return toMcpResponse(result.map(() => ""));
+        return toMcpError(result.error);
       }
 
       const { locations, text } = result.value;
@@ -113,7 +119,7 @@ export function registerLocationTools(ctx: ToolContext) {
       });
 
       if (result.isErr()) {
-        return toMcpResponse(result.map(() => ""));
+        return toMcpError(result.error);
       }
 
       const location = result.value;

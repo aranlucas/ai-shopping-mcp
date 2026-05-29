@@ -3,7 +3,7 @@ import * as z from "zod/v4";
 
 import { notFoundError } from "../errors.js";
 import { formatProductCompact, formatProductList } from "../utils/format-response.js";
-import { fromApiResponse, safeResolveLocationId, toMcpResponse } from "../utils/result.js";
+import { fromApiResponse, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
@@ -209,7 +209,7 @@ export function registerProductTools(ctx: ToolContext) {
       });
 
       if (result.isErr()) {
-        return toMcpResponse(result.map(() => ""));
+        return toMcpError(result.error);
       }
 
       const product = result.value;

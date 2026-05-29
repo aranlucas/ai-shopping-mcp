@@ -6,7 +6,7 @@ import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
 import { formatPantryListCompact } from "../utils/format-response.js";
-import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
+import { requireAuth, safeStorage, toMcpError } from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { managePantryOutputSchema } from "./output-schemas.js";
 
@@ -108,7 +108,7 @@ export function registerPantryTools(ctx: ToolContext) {
 
       const res = await result;
       if (res.isErr()) {
-        return toMcpResponse(res.map(() => ""));
+        return toMcpError(res.error);
       }
 
       const { text, pantry, actionDetail } = res.value;
