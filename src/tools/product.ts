@@ -1,12 +1,23 @@
 import { ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
+import type { AppError } from "../errors.js";
+
 import { notFoundError } from "../errors.js";
 import { formatProductCompact, formatProductList } from "../utils/format-response.js";
 import { fromApiResponse, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
+
+export function logProductSearchError(term: string, error: AppError) {
+  if (error.type === "AUTH_ERROR") {
+    console.warn(`Search unavailable for "${term}":`, error.message);
+    return;
+  }
+
+  console.error(`Error searching products for "${term}":`, error.message);
+}
 
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
@@ -100,7 +111,7 @@ export function registerProductTools(ctx: ToolContext) {
               failed: false as const,
             };
           })
-          .orTee((error) => console.error(`Error searching products for "${term}":`, error.message))
+          .orTee((error) => logProductSearchError(term, error))
           .unwrapOr({
             term,
             products: [] as never[],

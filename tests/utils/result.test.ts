@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Props, UserStorage } from "../../src/tools/types.js";
 
 import { apiError, authError, notFoundError, storageError } from "../../src/errors.js";
+import { KrogerTokenExpiredError } from "../../src/services/kroger/client.js";
 import {
   fromApiResponse,
   requireAuth,
@@ -126,6 +127,18 @@ describe("fromApiResponse", () => {
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
     expect(error.message).toContain("network fail");
+  });
+
+  it("preserves Kroger expired-token rejections as auth errors", async () => {
+    const result = await fromApiResponse(
+      Promise.reject(new KrogerTokenExpiredError("Kroger access token has expired. Reconnect.")),
+      "search products",
+    );
+
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("AUTH_ERROR");
+    expect(error.message).toBe("Kroger access token has expired. Reconnect.");
   });
 });
 

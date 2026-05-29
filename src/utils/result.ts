@@ -59,9 +59,12 @@ export function fromApiResponse<T>(
   promise: Promise<{ data?: T; error?: unknown; response: Response }>,
   context: string,
 ): ResultAsync<T, AppError> {
-  return ResultAsync.fromPromise(promise, (e) =>
-    networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
-  ).andThen(({ data, error, response }) => {
+  return ResultAsync.fromPromise(promise, (e) => {
+    if (e instanceof Error && e.name === "KrogerTokenExpiredError") {
+      return authError(e.message);
+    }
+    return networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e);
+  }).andThen(({ data, error, response }) => {
     if (error || !response.ok) {
       return err(apiError(`Failed to ${context}`, error, response.status));
     }
