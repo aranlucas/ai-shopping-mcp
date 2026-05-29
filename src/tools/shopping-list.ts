@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type Result, ResultAsync, err, errAsync, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -16,7 +15,7 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
-import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { registerViewTool } from "../utils/view-resource.js";
 import { manageShoppingListOutputSchema } from "./output-schemas.js";
 import { type ToolContext, getSessionScopedUserId, textResult } from "./types.js";
 
@@ -123,8 +122,8 @@ export const manageShoppingListInputSchema = z.object({
 export function registerShoppingListTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
-  registerAppTool(
-    ctx.server,
+  registerViewTool(
+    ctx,
     "manage_shopping_list",
     {
       title: "Manage Shopping List",
@@ -136,7 +135,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: false,
       },
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: manageShoppingListInputSchema,
       outputSchema: manageShoppingListOutputSchema,
     },
@@ -243,8 +241,8 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  registerViewTool(
+    ctx,
     "checkout_shopping_list",
     {
       title: "Checkout Shopping List to Cart",
@@ -256,7 +254,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         locationId: z
           .string()

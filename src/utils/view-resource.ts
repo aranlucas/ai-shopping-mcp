@@ -14,7 +14,15 @@
  *  5. Client-side React in the iframe routes to the correct view component
  */
 
-import { RESOURCE_MIME_TYPE, registerAppResource } from "@modelcontextprotocol/ext-apps/server";
+import {
+  type McpUiAppToolConfig,
+  RESOURCE_MIME_TYPE,
+  type ToolCallback,
+  registerAppResource,
+  registerAppTool,
+} from "@modelcontextprotocol/ext-apps/server";
+import type { RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 import type { ToolContext } from "../tools/types.js";
 
@@ -22,6 +30,39 @@ export { RESOURCE_MIME_TYPE };
 
 /** Single resource URI shared by all app tools. */
 export const APP_VIEW_URI = "ui://shopping-app";
+
+/** Schema argument accepted by `registerAppTool` (a Zod object or any Standard Schema). */
+type ToolSchema = NonNullable<McpUiAppToolConfig["inputSchema"]>;
+
+/**
+ * `registerAppTool` bound to this server's single shared app view.
+ *
+ * Every view-backed tool renders into the same `APP_VIEW_URI` resource, so this
+ * wrapper injects `_meta.ui.resourceUri` instead of each tool repeating it (and
+ * importing `APP_VIEW_URI`). It mirrors `registerAppTool`'s generics so handler
+ * argument inference from `inputSchema` is fully preserved.
+ */
+export function registerViewTool<
+  OutputArgs extends ToolSchema,
+  InputArgs extends ToolSchema | undefined = undefined,
+>(
+  ctx: ToolContext,
+  name: string,
+  config: Omit<McpUiAppToolConfig, "_meta"> & {
+    inputSchema?: InputArgs;
+    outputSchema?: OutputArgs;
+  },
+  cb: ToolCallback<
+    InputArgs extends undefined | ZodRawShapeCompat | AnySchema ? InputArgs : AnySchema
+  >,
+): RegisteredTool {
+  return registerAppTool(
+    ctx.server,
+    name,
+    { ...config, _meta: { ui: { resourceUri: APP_VIEW_URI } } },
+    cb,
+  );
+}
 
 const ERROR_HTML = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/></head>

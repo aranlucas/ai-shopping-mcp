@@ -64,12 +64,14 @@ npm run generate:identity  # Generate identity.d.ts from identity.yaml
 
 ### MCP Server Structure
 
-- **server.ts**: Main MCP server (`MyMCP` class extending `McpAgent`), OAuth provider config, and tool/resource/prompt registration entry point
+- **server.ts**: Main MCP server (`MyMCP` class extending `McpAgent`), OAuth provider config, and tool/resource/prompt registration entry point. Tool modules are registered by iterating the `TOOL_REGISTRARS` array — add a new module's `register*` function there.
 - **tools/**: Modular tool registration files (each exports a `register*` function called from `server.ts`):
   - **tools/cart.ts**: Cart management tools (`add_to_cart`)
   - **tools/location.ts**: Location search and preference tools (`search_locations`, `get_location_details`, `set_preferred_location`)
   - **tools/product.ts**: Product search and details tools (`search_products`, `get_product_details`)
-  - **tools/inventory.ts**: Consolidated pantry (`manage_pantry`), equipment (`manage_equipment`), and order history (`mark_order_placed`) tools
+  - **tools/pantry.ts**: Consolidated pantry tool (`manage_pantry`) — a view tool registered via `registerViewTool`
+  - **tools/equipment.ts**: Consolidated equipment tool (`manage_equipment`)
+  - **tools/orders.ts**: Order history tool (`mark_order_placed`)
   - **tools/recipes.ts**: Recipe search and AI-powered meal planning tools (`search_recipes_from_web`, `plan_meals`)
   - **tools/shopping-list.ts**: Consolidated shopping list tool (`manage_shopping_list`) and checkout (`checkout_shopping_list`)
   - **tools/resources.ts**: MCP Resource definitions (read-only user data)
@@ -189,7 +191,7 @@ The server exposes 14 MCP tools, organized into modular files under `src/tools/`
 5. **get_product_details**: Get product details by product ID
 6. **set_preferred_location**: Save user's preferred store
 
-**User Data Management** (`tools/inventory.ts`): 7. **manage_pantry**: Consolidated pantry tool with `action: "add" | "remove" | "clear"`. Add items with quantity/expiry, remove by name, or clear all. 8. **manage_equipment**: Consolidated equipment tool with `action: "add" | "remove" | "clear"`. Add equipment with optional category, remove by name, or clear all. 9. **mark_order_placed**: Record completed order in history
+**User Data Management** (`tools/pantry.ts`, `tools/equipment.ts`, `tools/orders.ts`): 7. **manage_pantry**: Consolidated pantry tool with `action: "add" | "remove" | "clear"`. Add items with quantity/expiry, remove by name, or clear all. 8. **manage_equipment**: Consolidated equipment tool with `action: "add" | "remove" | "clear"`. Add equipment with optional category, remove by name, or clear all. 9. **mark_order_placed**: Record completed order in history
 
 **Shopping List** (`tools/shopping-list.ts`): 10. **manage_shopping_list**: Consolidated shopping list tool with `action: "add" | "remove" | "update" | "clear"`. Add items (with optional UPC, quantity, notes), remove/update by name, or clear all. 11. **checkout_shopping_list**: Add unchecked items with UPCs to Kroger cart; reports items missing UPCs separately
 

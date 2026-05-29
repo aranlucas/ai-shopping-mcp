@@ -106,17 +106,25 @@ export type AppData =
   | RecipeResultsContent
   | WeeklyDealsContent;
 
+/**
+ * Exhaustive map of the `_view` discriminators we know how to render. Typing it
+ * as `Record<AppData["_view"], true>` makes it a compile error to add a view to
+ * `AppData` (i.e. a new tool output schema) without registering it here — so the
+ * runtime `KNOWN_VIEWS` set below can't silently drift from the type.
+ */
+const VIEW_NAMES: Record<AppData["_view"], true> = {
+  search_products: true,
+  get_product_details: true,
+  search_locations: true,
+  get_location_details: true,
+  manage_shopping_list: true,
+  manage_pantry: true,
+  search_recipes_from_web: true,
+  get_weekly_deals: true,
+};
+
 /** The set of `_view` discriminators we know how to render. */
-const KNOWN_VIEWS = new Set<AppData["_view"]>([
-  "search_products",
-  "get_product_details",
-  "search_locations",
-  "get_location_details",
-  "manage_shopping_list",
-  "manage_pantry",
-  "search_recipes_from_web",
-  "get_weekly_deals",
-]);
+const KNOWN_VIEWS = new Set(Object.keys(VIEW_NAMES) as AppData["_view"][]);
 
 /**
  * Parse unknown structuredContent into a typed AppData value.

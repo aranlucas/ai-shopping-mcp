@@ -1,16 +1,15 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync, err, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
 import { networkError } from "../errors.js";
 import { requireAuth, safeFetch, safeStorage, toMcpError, toMcpResponse } from "../utils/result.js";
-import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { registerViewTool } from "../utils/view-resource.js";
 import { searchRecipesOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  registerViewTool(
+    ctx,
     "search_recipes_from_web",
     {
       title: "Search Recipes",
@@ -22,7 +21,6 @@ export function registerRecipeTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       inputSchema: z.object({
         searchQuery: z
           .string()
