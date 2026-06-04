@@ -1,8 +1,95 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
+import { useRef } from "react";
+
 import { DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import { type ProductSearchResultsContent, callTool } from "../../shared/types.js";
+import {
+  type ProductData,
+  type ProductSearchResultsContent,
+  callTool,
+} from "../../shared/types.js";
+
+function ProductCarousel({
+  products,
+  onAddToCart,
+  onAddToList,
+  canCallTools,
+}: {
+  products: ProductData[];
+  onAddToCart: (upc: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
+  canCallTools: boolean;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (dir: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "left" ? -220 : 220, behavior: "smooth" });
+  };
+
+  return (
+    <div className="relative group">
+      <button
+        type="button"
+        onClick={() => scroll("left")}
+        aria-label="Scroll left"
+        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 z-10 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-500 hover:text-gray-800 hover:shadow-md transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+      >
+        <svg
+          aria-hidden="true"
+          className="w-3 h-3"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2.5}
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+        </svg>
+      </button>
+
+      <div
+        ref={scrollRef}
+        className="flex gap-2 overflow-x-auto pb-1 scroll-smooth"
+        style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
+      >
+        {products.map((product) => (
+          <div
+            key={product.upc ?? product.description}
+            className="shrink-0 w-52"
+            style={{ scrollSnapAlign: "start" }}
+          >
+            <ProductCard
+              product={product}
+              onAddToCart={onAddToCart}
+              onAddToList={onAddToList}
+              canCallTools={canCallTools}
+            />
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => scroll("right")}
+        aria-label="Scroll right"
+        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1 z-10 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-500 hover:text-gray-800 hover:shadow-md transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+      >
+        <svg
+          aria-hidden="true"
+          className="w-3 h-3"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2.5}
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+      </button>
+    </div>
+  );
+}
 
 export function ProductSearchView({
   data,
@@ -131,17 +218,12 @@ export function ProductSearchView({
               <span className="text-[11px] text-gray-300">·</span>
               <span className="text-[11px] text-gray-400">{result.products.length} items</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {result.products.map((product) => (
-                <ProductCard
-                  key={product.upc ?? product.description}
-                  product={product}
-                  onAddToCart={handleAddToCart}
-                  onAddToList={handleAddToList}
-                  canCallTools={canCallTools}
-                />
-              ))}
-            </div>
+            <ProductCarousel
+              products={result.products}
+              onAddToCart={handleAddToCart}
+              onAddToList={handleAddToList}
+              canCallTools={canCallTools}
+            />
           </div>
         );
       })}
