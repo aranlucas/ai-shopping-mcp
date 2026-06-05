@@ -67,19 +67,22 @@ export async function requestCheckoutConfirmation(
         : ("error" as const),
   );
 
-  // Client doesn't support elicitation — treat as implicit confirmation and proceed
-  if (elicitResult.isErr() && elicitResult.error === "unsupported") return ok(undefined);
-  if (elicitResult.isErr()) return err(validationError("Elicitation request failed unexpectedly."));
-
-  const elicit = elicitResult.value;
-  if (
-    elicit.action === "decline" ||
-    elicit.action === "cancel" ||
-    (elicit.action === "accept" && elicit.content?.confirm === false)
-  ) {
-    return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
-  }
-  return ok(undefined);
+  return elicitResult.match(
+    (elicit) => {
+      if (
+        elicit.action === "decline" ||
+        elicit.action === "cancel" ||
+        (elicit.action === "accept" && elicit.content?.confirm === false)
+      ) {
+        return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+      }
+      return ok(undefined);
+    },
+    (e) =>
+      e === "unsupported"
+        ? ok(undefined) // client doesn't support elicitation — treat as implicit confirmation
+        : err(validationError("Elicitation request failed unexpectedly.")),
+  );
 }
 
 export const manageShoppingListInputSchema = z.object({
