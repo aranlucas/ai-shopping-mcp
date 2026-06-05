@@ -46,7 +46,7 @@ export async function requestCheckoutConfirmation(
 ): Promise<Result<void, AppError>> {
   const itemList = items.map((i) => `${i.productName} x${i.quantity}`).join(", ");
 
-  return ResultAsync.fromPromise(
+  const elicitResult = await ResultAsync.fromPromise(
     server.elicitInput({
       message: `Add ${items.length} item(s) to your Kroger cart? Items: ${itemList}`,
       requestedSchema: {
@@ -61,20 +61,21 @@ export async function requestCheckoutConfirmation(
         },
       },
     }),
-    () => null,
-  )
-    .orElse(() => ok(null)) // client doesn't support elicitation — treat as confirmed
-    .andThen((elicit) => {
-      if (
-        elicit !== null &&
-        (elicit.action === "decline" ||
-          elicit.action === "cancel" ||
-          (elicit.action === "accept" && elicit.content?.confirm === false))
-      ) {
-        return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
-      }
-      return ok(undefined);
-    });
+    () => validationError("elicitation_unsupported"),
+  );
+
+  // Client doesn't support elicitation — treat as implicit confirmation and proceed
+  if (elicitResult.isErr()) return ok(undefined);
+
+  const elicit = elicitResult.value;
+  if (
+    elicit.action === "decline" ||
+    elicit.action === "cancel" ||
+    (elicit.action === "accept" && elicit.content?.confirm === false)
+  ) {
+    return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+  }
+  return ok(undefined);
 }
 
 export const manageShoppingListInputSchema = z.object({
