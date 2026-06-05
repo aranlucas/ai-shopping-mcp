@@ -40,13 +40,18 @@ type CheckoutConfirmationServer = {
 
 type CheckoutConfirmationItem = Pick<ShoppingListItem, "productName" | "quantity">;
 
+class ElicitationUnsupportedError extends Error {}
+class ElicitationFailedError extends Error {}
+
 export async function requestCheckoutConfirmation(
   server: CheckoutConfirmationServer,
   items: CheckoutConfirmationItem[],
 ): Promise<Result<void, AppError>> {
-  return ResultAsync.fromPromise(
+  const itemList = items.map((i) => `${i.productName} x${i.quantity}`).join(", ");
+
+  const elicitResult = await ResultAsync.fromPromise(
     server.elicitInput({
-      message: `Add ${items.length} item(s) to your Kroger cart? Items: ${items.map((i) => `${i.productName} x${i.quantity}`).join(", ")}`,
+      message: `Add ${items.length} item(s) to your Kroger cart? Items: ${itemList}`,
       requestedSchema: {
         type: "object" as const,
         properties: {
@@ -59,21 +64,28 @@ export async function requestCheckoutConfirmation(
         },
       },
     }),
-    () =>
-      validationError(
-        "Checkout requires confirmation, but this MCP client does not support elicitation. Please confirm checkout explicitly and try again.",
-      ),
-  ).andThen((elicit) => {
-    if (
-      elicit.action === "decline" ||
-      elicit.action === "cancel" ||
-      (elicit.action === "accept" && elicit.content?.confirm === false)
-    ) {
-      return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
-    }
+    (e) =>
+      e instanceof Error && e.message === "Client does not support form elicitation."
+        ? new ElicitationUnsupportedError()
+        : new ElicitationFailedError(),
+  );
 
-    return ok(undefined);
-  });
+  return elicitResult.match(
+    (elicit) => {
+      if (
+        elicit.action === "decline" ||
+        elicit.action === "cancel" ||
+        (elicit.action === "accept" && elicit.content?.confirm === false)
+      ) {
+        return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+      }
+      return ok(undefined);
+    },
+    (e) =>
+      e instanceof ElicitationUnsupportedError
+        ? ok(undefined) // client doesn't support elicitation — treat as implicit confirmation
+        : err(validationError("Elicitation request failed unexpectedly.")),
+  );
 }
 
 export const manageShoppingListInputSchema = z.object({
