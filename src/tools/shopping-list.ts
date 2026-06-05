@@ -61,11 +61,15 @@ export async function requestCheckoutConfirmation(
         },
       },
     }),
-    () => validationError("elicitation_unsupported"),
+    (e) =>
+      e instanceof Error && e.message === "Client does not support form elicitation."
+        ? ("unsupported" as const)
+        : ("error" as const),
   );
 
   // Client doesn't support elicitation — treat as implicit confirmation and proceed
-  if (elicitResult.isErr()) return ok(undefined);
+  if (elicitResult.isErr() && elicitResult.error === "unsupported") return ok(undefined);
+  if (elicitResult.isErr()) return err(validationError("Elicitation request failed unexpectedly."));
 
   const elicit = elicitResult.value;
   if (
