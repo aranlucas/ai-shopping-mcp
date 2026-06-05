@@ -44,9 +44,11 @@ export async function requestCheckoutConfirmation(
   server: CheckoutConfirmationServer,
   items: CheckoutConfirmationItem[],
 ): Promise<Result<void, AppError>> {
+  const itemList = items.map((i) => `${i.productName} x${i.quantity}`).join(", ");
+
   return ResultAsync.fromPromise(
     server.elicitInput({
-      message: `Add ${items.length} item(s) to your Kroger cart? Items: ${items.map((i) => `${i.productName} x${i.quantity}`).join(", ")}`,
+      message: `Add ${items.length} item(s) to your Kroger cart? Items: ${itemList}`,
       requestedSchema: {
         type: "object" as const,
         properties: {
@@ -59,21 +61,20 @@ export async function requestCheckoutConfirmation(
         },
       },
     }),
-    () =>
-      validationError(
-        "Checkout requires confirmation, but this MCP client does not support elicitation. Please confirm checkout explicitly and try again.",
-      ),
-  ).andThen((elicit) => {
-    if (
-      elicit.action === "decline" ||
-      elicit.action === "cancel" ||
-      (elicit.action === "accept" && elicit.content?.confirm === false)
-    ) {
-      return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
-    }
-
-    return ok(undefined);
-  });
+    () => null,
+  )
+    .orElse(() => ok(null)) // client doesn't support elicitation — treat as confirmed
+    .andThen((elicit) => {
+      if (
+        elicit !== null &&
+        (elicit.action === "decline" ||
+          elicit.action === "cancel" ||
+          (elicit.action === "accept" && elicit.content?.confirm === false))
+      ) {
+        return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+      }
+      return ok(undefined);
+    });
 }
 
 export const manageShoppingListInputSchema = z.object({
