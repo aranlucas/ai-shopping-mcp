@@ -40,6 +40,9 @@ type CheckoutConfirmationServer = {
 
 type CheckoutConfirmationItem = Pick<ShoppingListItem, "productName" | "quantity">;
 
+class ElicitationUnsupportedError extends Error {}
+class ElicitationFailedError extends Error {}
+
 export async function requestCheckoutConfirmation(
   server: CheckoutConfirmationServer,
   items: CheckoutConfirmationItem[],
@@ -63,8 +66,8 @@ export async function requestCheckoutConfirmation(
     }),
     (e) =>
       e instanceof Error && e.message === "Client does not support form elicitation."
-        ? ("unsupported" as const)
-        : ("error" as const),
+        ? new ElicitationUnsupportedError()
+        : new ElicitationFailedError(),
   );
 
   return elicitResult.match(
@@ -79,7 +82,7 @@ export async function requestCheckoutConfirmation(
       return ok(undefined);
     },
     (e) =>
-      e === "unsupported"
+      e instanceof ElicitationUnsupportedError
         ? ok(undefined) // client doesn't support elicitation — treat as implicit confirmation
         : err(validationError("Elicitation request failed unexpectedly.")),
   );
