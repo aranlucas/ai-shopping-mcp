@@ -5,7 +5,12 @@ import type { AppError } from "../errors.js";
 
 import { notFoundError } from "../errors.js";
 import { formatProductCompact, formatProductList } from "../utils/format-response.js";
-import { fromApiResponse, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import {
+  fromApiResponse,
+  getAuthProps,
+  safeResolveLocationId,
+  toMcpError,
+} from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
@@ -57,7 +62,7 @@ export function registerProductTools(ctx: ToolContext) {
       // Resolve locationId: explicit arg → preferred location → omit filter
       let resolvedLocationId: string | undefined = locationId;
       if (!resolvedLocationId) {
-        const userId = ctx.getUser()?.id;
+        const userId = getAuthProps()?.id;
         if (userId) {
           const resolved = await safeResolveLocationId(ctx.storage, userId, undefined);
           if (resolved.isOk()) {

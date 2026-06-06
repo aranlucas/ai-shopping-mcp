@@ -23,14 +23,12 @@ export type GrantProps = Props & {
 export type UserStorage = ReturnType<typeof createUserStorage>;
 
 // Shared context passed to all tool registration functions.
-// Dependencies are injected here (storage, auth) rather than created per-call.
+// Infrastructure dependencies only. Auth is accessed via getMcpAuthContext() from agents/mcp.
 export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;
   storage: UserStorage;
-  getUser: () => Props | null;
   getEnv: () => Env;
-  getSessionId: () => string;
 };
 
 // --- Response helpers ---

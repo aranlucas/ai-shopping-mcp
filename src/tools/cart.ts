@@ -20,11 +20,14 @@ export const addToCartInputSchema = z.object({
     .describe("Store location ID for the cart. If not provided, uses your preferred location."),
 });
 
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+
 import type { components } from "../services/kroger/cart.js";
 import type { ToolContext } from "./types.js";
 
 import {
   fromApiResponse,
+  getAuthProps,
   requireAuth,
   safeResolveLocationId,
   toMcpResponse,
@@ -36,7 +39,8 @@ type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 export function registerCartTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "add_to_cart",
     {
       title: "Add Items to Cart",
@@ -49,9 +53,10 @@ export function registerCartTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: addToCartInputSchema,
+      _meta: {},
     },
     async ({ items, locationId }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) =>
         safeResolveLocationId(ctx.storage, props.id, locationId).andThen((resolved) => {
           const cartItems: CartItem[] = items.map((item) => ({
             upc: item.upc,

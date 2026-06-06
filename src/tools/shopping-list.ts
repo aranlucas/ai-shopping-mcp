@@ -1,3 +1,4 @@
+import { getMcpAuthContext } from "agents/mcp";
 import { type Result, ResultAsync, err, errAsync, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -9,6 +10,7 @@ import { validationError } from "../errors.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import {
   fromApiResponse,
+  getAuthProps,
   requireAuth,
   safeResolveLocationId,
   safeStorage,
@@ -150,9 +152,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       outputSchema: manageShoppingListOutputSchema,
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
         const { storage } = ctx;
-        const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
+        const scopedId = getSessionScopedUserId(props.id, props.id);
 
         switch (action) {
           case "add": {
@@ -280,8 +282,8 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
       // Use safeTry for the entire checkout flow, including auth
       const result = await safeTry(async function* () {
-        const props = yield* requireAuth(ctx.getUser).safeUnwrap();
-        const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
+        const props = yield* requireAuth(getAuthProps()).safeUnwrap();
+        const scopedId = getSessionScopedUserId(props.id, props.id);
 
         const uncheckedItems = yield* safeStorage(
           () => storage.shoppingList.getUnchecked(scopedId),

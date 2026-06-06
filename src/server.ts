@@ -1,6 +1,6 @@
 import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpAgent } from "agents/mcp";
+import { createMcpHandler, getMcpAuthContext } from "agents/mcp";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
@@ -26,61 +26,46 @@ import { withMcpOriginProtection } from "./utils/mcp-security.js";
 import { createUserStorage } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
-/**
- * Tool/resource registrars, each invoked with the shared ToolContext.
- * Add a new tool module here — registration order is not significant.
- */
-const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
-  registerCartTools,
-  registerLocationTools,
-  registerProductTools,
-  registerPantryTools,
-  registerEquipmentTools,
-  registerOrderTools,
-  registerRecipeTools,
-  registerShoppingListTools,
-  registerWeeklyDealsTools,
-  registerResources,
-];
-
-export class MyMCP extends McpAgent<Env, unknown, Props> {
-  server = new McpServer(
-    {
-      name: "kroger-ai-assistant",
-      version: "1.0.0",
-    },
+function createServer(env: Env) {
+  const server = new McpServer(
+    { name: "kroger-ai-assistant", version: "1.0.0" },
     {
       instructions:
         "AI shopping assistant for Kroger/QFC stores. Manage shopping lists, search products, find store locations, track pantry inventory, and plan meals. Use MCP Resources to read user context (pantry, equipment, shopping list, preferred location) before making suggestions.",
     },
   );
 
-  private initialized = false;
+  const storage = createUserStorage(env.USER_DATA_KV);
+  const getTokenInfo = () => (getMcpAuthContext()?.props as Props | undefined) ?? null;
 
-  async init() {
-    // Guard against duplicate registration on SSE reconnection
-    if (this.initialized) return;
-    this.initialized = true;
-    const clients = createKrogerClients(() => this.props ?? null);
-    const storage = createUserStorage(this.env.USER_DATA_KV);
+  const ctx: ToolContext = {
+    server,
+    clients: createKrogerClients(getTokenInfo),
+    storage,
+    getEnv: () => env,
+  };
 
-    const ctx: ToolContext = {
-      server: this.server,
-      clients,
-      storage,
-      getUser: () => this.props ?? null,
-      getEnv: () => this.env,
-      getSessionId: () => this.getSessionId(),
-    };
+  registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
+  registerPrompts(server);
+  registerCartTools(ctx);
+  registerLocationTools(ctx);
+  registerProductTools(ctx);
+  registerPantryTools(ctx);
+  registerEquipmentTools(ctx);
+  registerOrderTools(ctx);
+  registerRecipeTools(ctx);
+  registerShoppingListTools(ctx);
+  registerWeeklyDealsTools(ctx);
+  registerResources(ctx);
 
-    // Register the single unified View resource (all app tools share this one UI)
-    registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
-
-    // Register all MCP features
-    registerPrompts(this.server);
-    for (const register of TOOL_REGISTRARS) register(ctx);
-  }
+  return server;
 }
+
+const mcpHandler = {
+  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    return createMcpHandler(createServer(env))(request, env, ctx);
+  },
+};
 
 class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
   fetch() {
@@ -93,10 +78,9 @@ class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
 
 export default new OAuthProvider({
   apiHandlers: {
-    "/mcp": withMcpOriginProtection(MyMCP.serve("/mcp")),
+    "/mcp": withMcpOriginProtection(mcpHandler),
     "/userinfo": UserInfoHandler,
   },
-  // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
   defaultHandler: KrogerHandler as any,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
@@ -105,12 +89,7 @@ export default new OAuthProvider({
   clientIdMetadataDocumentEnabled: true,
   scopesSupported: ["profile.compact", "cart.basic:write", "product.compact"],
 
-  // Syncs Kroger tokens with MCP token lifecycle using accessTokenProps/newProps separation:
-  // - accessTokenProps: only what middleware needs (id, accessToken, tokenExpiresAt)
-  // - newProps: full grant including Kroger refresh token + credentials (stays server-side)
-  // CRITICAL: Kroger single-use refresh tokens — only refreshed here to persist to grant.
   tokenExchangeCallback: async ({ grantType, props }) => {
-    // Destructure grant-only fields; rest is exactly the access token props (Props type)
     const { refreshToken, krogerClientId, krogerClientSecret, ...accessTokenProps } =
       props as GrantProps;
 
@@ -124,7 +103,7 @@ export default new OAuthProvider({
     if (grantType !== GrantType.REFRESH_TOKEN) return {};
 
     if (!refreshToken || !krogerClientId || !krogerClientSecret) {
-      return { accessTokenTTL: 1 }; // Force re-auth
+      return { accessTokenTTL: 1 };
     }
 
     if (!isKrogerTokenExpiring(accessTokenProps.tokenExpiresAt)) {

@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { errAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -6,10 +7,11 @@ import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
 import { formatEquipmentListCompact } from "../utils/format-response.js";
-import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
+import { getAuthProps, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 
 export function registerEquipmentTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "manage_equipment",
     {
       title: "Manage Kitchen Equipment",
@@ -47,9 +49,10 @@ export function registerEquipmentTools(ctx: ToolContext) {
           .optional()
           .describe("Name of equipment to remove (required for 'remove' action)"),
       }),
+      _meta: {},
     },
     async ({ action, items, equipmentName }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
         const { storage } = ctx;
 
         switch (action) {

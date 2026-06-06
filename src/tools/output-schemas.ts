@@ -30,10 +30,10 @@ const productSchema = z.looseObject({
           .optional(),
         fulfillment: z
           .looseObject({
-            curbside: z.boolean().optional(),
-            delivery: z.boolean().optional(),
-            instore: z.boolean().optional(),
-            shiptohome: z.boolean().optional(),
+            curbside: z.boolean().nullable().optional(),
+            delivery: z.boolean().nullable().optional(),
+            instore: z.boolean().nullable().optional(),
+            shiptohome: z.boolean().nullable().optional(),
           })
           .optional(),
         inventory: z.looseObject({ stockLevel: z.string().optional() }).optional(),
@@ -89,15 +89,20 @@ const recipeSchema = z.looseObject({
   ingredients: z
     .array(
       z.looseObject({
-        quantity: z.string().optional(),
-        unit: z.string().optional(),
+        quantity: z.string().nullable().optional(),
+        unit: z.string().nullable().optional(),
         name: z.string(),
-        notes: z.string().optional(),
+        notes: z.string().nullable().optional(),
       }),
     )
     .optional(),
   instructions: z
-    .array(z.looseObject({ stepNumber: z.number(), instruction: z.string() }))
+    .array(
+      z.looseObject({
+        stepNumber: z.number().optional(),
+        instruction: z.string().optional(),
+      }),
+    )
     .optional(),
 });
 

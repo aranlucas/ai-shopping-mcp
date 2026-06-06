@@ -1,13 +1,15 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
-import { requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
+import { getAuthProps, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
 
 export function registerOrderTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "mark_order_placed",
     {
       title: "Record Order",
@@ -31,9 +33,10 @@ export function registerOrderTools(ctx: ToolContext) {
         locationId: z.string().optional(),
         notes: z.string().max(500).optional(),
       }),
+      _meta: {},
     },
     async ({ items, locationId, notes }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
         const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
         const estimatedTotal = items.reduce(

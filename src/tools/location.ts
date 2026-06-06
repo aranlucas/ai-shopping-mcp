@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -12,6 +13,7 @@ import {
 } from "../utils/format-response.js";
 import {
   fromApiResponse,
+  getAuthProps,
   requireAuth,
   safeStorage,
   toMcpError,
@@ -136,7 +138,8 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "set_preferred_location",
     {
       title: "Set Preferred Store",
@@ -151,9 +154,10 @@ export function registerLocationTools(ctx: ToolContext) {
       inputSchema: z.object({
         locationId: z.string().length(8, { message: "Location ID must be exactly 8 characters" }),
       }),
+      _meta: {},
     },
     async ({ locationId }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) =>
         fromApiResponse(
           locationClient.GET("/v1/locations/{locationId}", {
             params: { path: { locationId } },

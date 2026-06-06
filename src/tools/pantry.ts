@@ -6,7 +6,7 @@ import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
 import { formatPantryListCompact } from "../utils/format-response.js";
-import { requireAuth, safeStorage, toMcpError } from "../utils/result.js";
+import { getAuthProps, requireAuth, safeStorage, toMcpError } from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { managePantryOutputSchema } from "./output-schemas.js";
 
@@ -48,7 +48,7 @@ export function registerPantryTools(ctx: ToolContext) {
       outputSchema: managePantryOutputSchema,
     },
     async ({ action, items }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
         const { storage } = ctx;
 
         switch (action) {

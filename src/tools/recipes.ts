@@ -1,8 +1,10 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import { getMcpAuthContext } from "agents/mcp";
 import { ResultAsync, err, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
 import { networkError } from "../errors.js";
-import { requireAuth, safeFetch, safeStorage, toMcpError } from "../utils/result.js";
+import { getAuthProps, requireAuth, safeFetch, safeStorage, toMcpError } from "../utils/result.js";
 import { registerViewTool } from "../utils/view-resource.js";
 import { searchRecipesOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
@@ -166,7 +168,8 @@ export function registerRecipeTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "plan_meals",
     {
       title: "Plan Meals from Pantry",
@@ -204,13 +207,14 @@ export function registerRecipeTools(ctx: ToolContext) {
           .default(true)
           .describe("Whether to prioritize using ingredients that are expiring soon"),
       }),
+      _meta: {},
     },
     async ({ numberOfMeals, mealType, dietaryPreferences, prioritizeExpiring }) => {
       const { storage } = ctx;
 
       // Fetch user data in parallel using safeTry + ResultAsync.combine (auth folded in)
       const dataResult = await safeTry(async function* () {
-        const props = yield* requireAuth(ctx.getUser).safeUnwrap();
+        const props = yield* requireAuth(getAuthProps()).safeUnwrap();
 
         const [pantry, equipment, recentOrders] = yield* ResultAsync.combine([
           safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),
