@@ -22,10 +22,10 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "generate:apis": "npm run generate:cart && npm run generate:location && npm run generate:product && npm run generate:identity",
-    "generate:cart": "npx openapi-typescript kroger/cart.yaml -o src//services/kroger/cart.d.ts",
-    "generate:location": "npx openapi-typescript kroger/location.yaml -o src/services/kroger/location.d.ts",
-    "generate:product": "npx openapi-typescript kroger/product.yaml -o src/services/kroger/product.d.ts",
-    "generate:identity": "npx openapi-typescript kroger/identity.yaml -o src/services/kroger/identity.d.ts",
+    "generate:cart": "npx openapi-typescript kroger/cart.json -o src//services/kroger/cart.d.ts",
+    "generate:location": "npx openapi-typescript kroger/location.json -o src/services/kroger/location.d.ts",
+    "generate:product": "npx openapi-typescript kroger/product.json -o src/services/kroger/product.d.ts",
+    "generate:identity": "npx openapi-typescript kroger/identity.json -o src/services/kroger/identity.d.ts",
     "prepare": "husky"
   },
   "dependencies": {
