@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync, fromThrowable, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -9,7 +10,7 @@ import { networkError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
 import { toMcpError } from "../utils/result.js";
-import { registerViewTool } from "../utils/view-resource.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getWeeklyDealsOutputSchema } from "./output-schemas.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
@@ -150,13 +151,14 @@ export function addCacheWarning(result: QfcDealsApiResponse, message: string): Q
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "get_weekly_deals",
     {
       title: "Get Weekly Deals",
       description:
         "Fetches current QFC/Kroger weekly deals from the print ad (DACS), then augments each deal with real pricing from the Kroger Product Search API. Falls back to search-API-only deal discovery if print-ad parsing fails.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

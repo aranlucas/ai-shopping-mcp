@@ -1,6 +1,6 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import { fromApiResponse, safeStorage } from "../utils/result.js";
+import { fromApiResponse, getAuthProps, safeStorage } from "../utils/result.js";
 import { type ToolContext, getSessionScopedUserId } from "./types.js";
 
 function jsonResource(uri: string, data: unknown) {
@@ -25,7 +25,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
+      const props = getAuthProps();
       if (!props?.id) return unauthenticatedResource("shopping://user/pantry");
 
       const result = await safeStorage(() => ctx.storage.pantry.getAll(props.id), "fetch pantry");
@@ -54,7 +54,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
+      const props = getAuthProps();
       if (!props?.id) return unauthenticatedResource("shopping://user/equipment");
 
       const result = await safeStorage(
@@ -86,7 +86,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
+      const props = getAuthProps();
       if (!props?.id) return unauthenticatedResource("shopping://user/location");
 
       const result = await safeStorage(
@@ -122,7 +122,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
+      const props = getAuthProps();
       if (!props?.id) return unauthenticatedResource("shopping://user/orders");
 
       const result = await safeStorage(
@@ -154,7 +154,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "application/json",
     },
     async () => {
-      const props = ctx.getUser();
+      const props = getAuthProps();
       if (!props?.id) return unauthenticatedResource("shopping://user/shopping-list");
 
       const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
@@ -194,7 +194,7 @@ export function registerResources(ctx: ToolContext) {
         productId: async (value) => {
           // Suggest 13-digit UPCs the user has interacted with: shopping list first,
           // then recent orders. Filter by the in-flight prefix so completions stay focused.
-          const props = ctx.getUser();
+          const props = getAuthProps();
           if (!props?.id) return [];
           const prefix = value.trim();
 
@@ -246,7 +246,7 @@ export function registerResources(ctx: ToolContext) {
 
       const productId = match[1];
 
-      const props = ctx.getUser();
+      const props = getAuthProps();
       const locationId = props?.id
         ? (
             await safeStorage(

@@ -68,7 +68,6 @@ export class MyMCP extends McpAgent<Env, unknown, Props> {
       server: this.server,
       clients,
       storage,
-      getUser: () => this.props ?? null,
       getEnv: () => this.env,
       getSessionId: () => this.getSessionId(),
     };

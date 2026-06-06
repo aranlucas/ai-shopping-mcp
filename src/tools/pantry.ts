@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { errAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -6,8 +7,8 @@ import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
 import { formatPantryListCompact } from "../utils/format-response.js";
-import { requireAuth, safeStorage, toMcpError } from "../utils/result.js";
-import { registerViewTool } from "../utils/view-resource.js";
+import { getAuthProps, requireAuth, safeStorage, toMcpError } from "../utils/result.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { managePantryOutputSchema } from "./output-schemas.js";
 
 /** Input schema for the `manage_pantry` tool. Exported so the client can infer
@@ -31,13 +32,14 @@ export const managePantryInputSchema = z.object({
 });
 
 export function registerPantryTools(ctx: ToolContext) {
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "manage_pantry",
     {
       title: "Manage Pantry Inventory",
       description:
         "Manage your pantry inventory: add items, remove an item, or clear all items. Tracks what groceries you have at home to avoid duplicate purchases and enable meal planning.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -48,7 +50,7 @@ export function registerPantryTools(ctx: ToolContext) {
       outputSchema: managePantryOutputSchema,
     },
     async ({ action, items }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
         const { storage } = ctx;
 
         switch (action) {

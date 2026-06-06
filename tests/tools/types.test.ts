@@ -1,31 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { Props, ToolContext } from "../../src/tools/types.js";
+import { errorResult, getSessionScopedUserId, textResult } from "../../src/tools/types.js";
 
-import { errorResult, textResult } from "../../src/tools/types.js";
+// ----- getSessionScopedUserId -----
 
-// ----- getUser -----
-
-describe("getUser", () => {
-  it("returns null when not authenticated", () => {
-    const ctx = {
-      getUser: () => null,
-    } as unknown as ToolContext;
-
-    expect(ctx.getUser()).toBeNull();
-  });
-
-  it("returns props when authenticated", () => {
-    const props: Props = {
-      id: "user-123",
-      accessToken: "token",
-      tokenExpiresAt: Date.now(),
-    };
-    const ctx = {
-      getUser: () => props,
-    } as unknown as ToolContext;
-
-    expect(ctx.getUser()).toEqual(props);
+describe("getSessionScopedUserId", () => {
+  it("combines user and session identifiers", () => {
+    expect(getSessionScopedUserId("user-123", "session-456")).toBe("user-123:session:session-456");
   });
 });
 

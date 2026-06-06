@@ -151,23 +151,23 @@ describe("requireAuth", () => {
       accessToken: "token",
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
     };
-    const result = requireAuth(() => props);
+    const result = requireAuth(props);
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual(props);
   });
 
   it("returns Err when user is null", () => {
-    const result = requireAuth(() => null);
+    const result = requireAuth(null);
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().type).toBe("AUTH_ERROR");
   });
 
   it("returns Err when user has empty id", () => {
-    const result = requireAuth(() => ({
+    const result = requireAuth({
       id: "",
       accessToken: "token",
       tokenExpiresAt: Date.now(),
-    }));
+    });
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().type).toBe("AUTH_ERROR");
   });
@@ -295,7 +295,7 @@ describe("safeFetch", () => {
 
 describe("tool handler error path integration", () => {
   it("requireAuth → toMcpError short-circuits unauthenticated requests", () => {
-    const authResult = requireAuth(() => null);
+    const authResult = requireAuth(null);
     expect(authResult.isErr()).toBe(true);
     const mcpResult = toMcpError(authResult._unsafeUnwrapErr());
     expect(mcpResult.isError).toBe(true);
@@ -304,9 +304,7 @@ describe("tool handler error path integration", () => {
 
   it("requireAuth → asyncAndThen chain propagates auth errors", async () => {
     const { errAsync } = await import("neverthrow");
-    const result = requireAuth(() => null).asyncAndThen(() =>
-      errAsync(storageError("should not reach")),
-    );
+    const result = requireAuth(null).asyncAndThen(() => errAsync(storageError("should not reach")));
     const awaited = await result;
     expect(awaited.isErr()).toBe(true);
     expect(awaited._unsafeUnwrapErr().type).toBe("AUTH_ERROR");

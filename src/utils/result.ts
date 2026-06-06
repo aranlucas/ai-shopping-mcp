@@ -2,6 +2,7 @@
  * neverthrow utilities for bridging Result types with MCP tool responses
  * and wrapping common async operations.
  */
+import { getMcpAuthContext } from "agents/mcp";
 import { type Result, ResultAsync, err, ok, okAsync } from "neverthrow";
 
 import type { Props, UserStorage } from "../tools/types.js";
@@ -75,11 +76,19 @@ export function fromApiResponse<T>(
 // --- Auth Helpers ---
 
 /**
+ * Returns the current auth props from the MCP request context.
+ * Returns null if the request is not authenticated.
+ */
+export function getAuthProps(): Props | null {
+  const auth = getMcpAuthContext();
+  return (auth?.props as Props) ?? null;
+}
+
+/**
  * Result-based version of requireUser.
  * Returns Ok(Props) or Err(AuthError).
  */
-export function requireAuth(getUser: () => Props | null): Result<Props, AppError> {
-  const props = getUser();
+export function requireAuth(props: Props | null): Result<Props, AppError> {
   if (!props?.id) {
     return err(authError("User not authenticated"));
   }

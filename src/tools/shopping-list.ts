@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type Result, ResultAsync, err, errAsync, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -9,12 +10,13 @@ import { validationError } from "../errors.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import {
   fromApiResponse,
+  getAuthProps,
   requireAuth,
   safeResolveLocationId,
   safeStorage,
   toMcpError,
 } from "../utils/result.js";
-import { registerViewTool } from "../utils/view-resource.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { manageShoppingListOutputSchema } from "./output-schemas.js";
 import { type ToolContext, getSessionScopedUserId, textResult } from "./types.js";
 
@@ -133,13 +135,14 @@ export const manageShoppingListInputSchema = z.object({
 export function registerShoppingListTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "manage_shopping_list",
     {
       title: "Manage Shopping List",
       description:
         "Manage your shopping list: add items, remove an item, update item details (quantity, UPC, notes), or clear all items. Build a list of products before checkout. Items with a UPC (from product search) can be sent directly to cart via checkout_shopping_list.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
@@ -150,7 +153,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       outputSchema: manageShoppingListOutputSchema,
     },
     async ({ action, items, productName, quantity, upc, notes }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) => {
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
         const { storage } = ctx;
         const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
@@ -252,13 +255,14 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "checkout_shopping_list",
     {
       title: "Checkout Shopping List to Cart",
       description:
         "Adds all unchecked shopping list items with UPCs to your Kroger cart. Items without a UPC are listed separately so you can search for them first. After checkout, items are marked as checked.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -280,7 +284,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
       // Use safeTry for the entire checkout flow, including auth
       const result = await safeTry(async function* () {
-        const props = yield* requireAuth(ctx.getUser).safeUnwrap();
+        const props = yield* requireAuth(getAuthProps()).safeUnwrap();
         const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
 
         const uncheckedItems = yield* safeStorage(

@@ -1,20 +1,22 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync, err, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
 import { networkError } from "../errors.js";
-import { requireAuth, safeFetch, safeStorage, toMcpError } from "../utils/result.js";
-import { registerViewTool } from "../utils/view-resource.js";
+import { getAuthProps, requireAuth, safeFetch, safeStorage, toMcpError } from "../utils/result.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { searchRecipesOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
 
 export function registerRecipeTools(ctx: ToolContext) {
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "search_recipes_from_web",
     {
       title: "Search Recipes",
       description:
         "Searches for recipes from Janella's Cookbook API. Returns detailed recipe information including ingredients, instructions, and metadata.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -166,12 +168,14 @@ export function registerRecipeTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "plan_meals",
     {
       title: "Plan Meals from Pantry",
       description:
         "AI-powered meal suggestions based on pantry inventory, kitchen equipment, and shopping history. Prioritizes ingredients expiring soon to reduce food waste.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -210,7 +214,7 @@ export function registerRecipeTools(ctx: ToolContext) {
 
       // Fetch user data in parallel using safeTry + ResultAsync.combine (auth folded in)
       const dataResult = await safeTry(async function* () {
-        const props = yield* requireAuth(ctx.getUser).safeUnwrap();
+        const props = yield* requireAuth(getAuthProps()).safeUnwrap();
 
         const [pantry, equipment, recentOrders] = yield* ResultAsync.combine([
           safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),

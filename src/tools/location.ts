@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -12,23 +13,25 @@ import {
 } from "../utils/format-response.js";
 import {
   fromApiResponse,
+  getAuthProps,
   requireAuth,
   safeStorage,
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
-import { registerViewTool } from "../utils/view-resource.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getLocationDetailsOutputSchema, searchLocationsOutputSchema } from "./output-schemas.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
 
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "search_locations",
     {
       title: "Search Store Locations",
       description: "Searches for Kroger/QFC store locations by zip code and chain name.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -84,13 +87,14 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "get_location_details",
     {
       title: "Get Store Details",
       description:
         "Retrieves detailed information about a specific Kroger store by its location ID, including address, hours, and departments.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -136,12 +140,14 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "set_preferred_location",
     {
       title: "Set Preferred Store",
       description:
         "Saves a store as your preferred location for future product searches and cart operations.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -153,7 +159,7 @@ export function registerLocationTools(ctx: ToolContext) {
       }),
     },
     async ({ locationId }) => {
-      const result = requireAuth(ctx.getUser).asyncAndThen((props) =>
+      const result = requireAuth(getAuthProps()).asyncAndThen((props) =>
         fromApiResponse(
           locationClient.GET("/v1/locations/{locationId}", {
             params: { path: { locationId } },

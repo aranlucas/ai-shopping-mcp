@@ -1,3 +1,4 @@
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -5,8 +6,13 @@ import type { AppError } from "../errors.js";
 
 import { notFoundError } from "../errors.js";
 import { formatProductCompact, formatProductList } from "../utils/format-response.js";
-import { fromApiResponse, safeResolveLocationId, toMcpError } from "../utils/result.js";
-import { registerViewTool } from "../utils/view-resource.js";
+import {
+  fromApiResponse,
+  getAuthProps,
+  safeResolveLocationId,
+  toMcpError,
+} from "../utils/result.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
 
@@ -22,13 +28,14 @@ export function logProductSearchError(term: string, error: AppError) {
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
 
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "search_products",
     {
       title: "Search Products",
       description:
         "Searches for Kroger products using multiple search terms in parallel. Each term returns up to 10 items with pricing and availability. Results sorted by pickup availability.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -57,7 +64,7 @@ export function registerProductTools(ctx: ToolContext) {
       // Resolve locationId: explicit arg → preferred location → omit filter
       let resolvedLocationId: string | undefined = locationId;
       if (!resolvedLocationId) {
-        const userId = ctx.getUser()?.id;
+        const userId = getAuthProps()?.id;
         if (userId) {
           const resolved = await safeResolveLocationId(ctx.storage, userId, undefined);
           if (resolved.isOk()) {
@@ -172,13 +179,14 @@ export function registerProductTools(ctx: ToolContext) {
     },
   );
 
-  registerViewTool(
-    ctx,
+  registerAppTool(
+    ctx.server,
     "get_product_details",
     {
       title: "Get Product Details",
       description:
         "Retrieves detailed information about a specific Kroger product by its 13-digit UPC, including pricing, availability, and nutritional information.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
