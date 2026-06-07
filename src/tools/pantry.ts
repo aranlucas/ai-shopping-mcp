@@ -1,7 +1,9 @@
+import type { Result } from "neverthrow";
+
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { errAsync } from "neverthrow";
 import * as z from "zod/v4";
 
+import type { AppError } from "../errors.js";
 import type { PantryItem } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
@@ -53,17 +55,28 @@ export function registerPantryTools(ctx: ToolContext) {
       const props = getProps();
       const { storage } = ctx;
 
-      const result = (() => {
-        switch (action) {
-          case "add": {
-            if (!items || items.length === 0) {
-              return errAsync(
-                validationError("Error: 'items' array is required for the 'add' action."),
-              );
-            }
+      const toView = (
+        result: Result<{ text: string; pantry: PantryItem[]; actionDetail: string }, AppError>,
+      ) =>
+        result.match(
+          ({ text, pantry, actionDetail }) => ({
+            content: [{ type: "text" as const, text }],
+            structuredContent: { _view: "manage_pantry" as const, items: pantry, actionDetail },
+          }),
+          (error) => toMcpError(error),
+        );
 
-            const now = new Date().toISOString();
-            return safeStorage(async () => {
+      switch (action) {
+        case "add": {
+          if (!items || items.length === 0) {
+            return toMcpError(
+              validationError("Error: 'items' array is required for the 'add' action."),
+            );
+          }
+
+          const now = new Date().toISOString();
+          return toView(
+            await safeStorage(async () => {
               for (const item of items) {
                 const pantryItem: PantryItem = {
                   productName: item.productName,
@@ -78,17 +91,19 @@ export function registerPantryTools(ctx: ToolContext) {
               text: `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
               pantry,
               actionDetail: `Added ${items.length} item(s)`,
-            }));
+            })),
+          );
+        }
+
+        case "remove": {
+          if (!items || items.length === 0) {
+            return toMcpError(
+              validationError("Error: 'items' array is required for the 'remove' action."),
+            );
           }
 
-          case "remove": {
-            if (!items || items.length === 0) {
-              return errAsync(
-                validationError("Error: 'items' array is required for the 'remove' action."),
-              );
-            }
-
-            return safeStorage(async () => {
+          return toView(
+            await safeStorage(async () => {
               for (const item of items) {
                 await storage.pantry.remove(props.id, item.productName);
               }
@@ -97,33 +112,19 @@ export function registerPantryTools(ctx: ToolContext) {
               text: `Removed ${items.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
               pantry,
               actionDetail: `Removed ${items.length} item(s)`,
-            }));
-          }
+            })),
+          );
+        }
 
-          case "clear":
-            return safeStorage(() => storage.pantry.clear(props.id), "clear pantry").map(() => ({
+        case "clear":
+          return toView(
+            await safeStorage(() => storage.pantry.clear(props.id), "clear pantry").map(() => ({
               text: "Pantry cleared successfully.",
               pantry: [] as PantryItem[],
               actionDetail: "Pantry cleared",
-            }));
-        }
-      })();
-
-      const res = await result;
-      if (res.isErr()) {
-        return toMcpError(res.error);
+            })),
+          );
       }
-
-      const { text, pantry, actionDetail } = res.value;
-
-      return {
-        content: [{ type: "text" as const, text }],
-        structuredContent: {
-          _view: "manage_pantry",
-          items: pantry,
-          actionDetail,
-        },
-      };
     },
   );
 }
