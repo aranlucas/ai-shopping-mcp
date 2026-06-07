@@ -27,8 +27,7 @@ import type { ToolContext } from "./types.js";
 
 import {
   fromApiResponse,
-  getAuthProps,
-  requireAuth,
+  getProps,
   safeResolveLocationId,
   toMcpResponse,
 } from "../utils/result.js";
@@ -57,8 +56,9 @@ export function registerCartTools(ctx: ToolContext) {
       inputSchema: addToCartInputSchema,
     },
     async ({ items, locationId }) => {
-      const result = requireAuth(getAuthProps()).asyncAndThen((props) =>
-        safeResolveLocationId(ctx.storage, props.id, locationId).andThen((resolved) => {
+      const props = getProps();
+      const result = safeResolveLocationId(ctx.storage, props.id, locationId).andThen(
+        (resolved) => {
           const cartItems: CartItem[] = items.map((item) => ({
             upc: item.upc,
             quantity: item.quantity,
@@ -80,7 +80,7 @@ export function registerCartTools(ctx: ToolContext) {
 
             return `Successfully added ${items.length} item(s) to cart${locationInfo}.`;
           });
-        }),
+        },
       );
 
       return toMcpResponse(await result);

@@ -106,7 +106,7 @@ function getResource(name: string): CapturedResource {
 }
 
 async function callResource(name: string, uri = "shopping://x") {
-  return getResource(name).handler(new URL(uri));
+  return await getResource(name).handler(new URL(uri));
 }
 
 function getCompleteFn(name: string, field: string): CompleteFn {
@@ -144,13 +144,14 @@ describe("registerResources", () => {
     expect(decoded.itemCount).toBe(1);
   });
 
-  it("returns an unauthenticated error for pantry when no user", async () => {
+  it("throws when reading pantry outside an authenticated request", async () => {
     unauthenticate();
     const { registerResources } = await import("../../src/tools/resources.js");
     registerResources(makeContext(makeStorage()));
 
-    const decoded = decodeResource(await callResource("Pantry Inventory"));
-    expect(decoded.error).toContain("not authenticated");
+    await expect(callResource("Pantry Inventory")).rejects.toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 
   it("returns a fetch error when pantry storage throws", async () => {
@@ -178,8 +179,8 @@ describe("registerResources", () => {
     testState.capturedResources.length = 0;
     unauthenticate();
     registerResources(makeContext(makeStorage()));
-    expect(decodeResource(await callResource("Equipment Inventory")).error).toContain(
-      "not authenticated",
+    await expect(callResource("Equipment Inventory")).rejects.toThrow(
+      "outside an authenticated MCP request",
     );
   });
 
@@ -216,8 +217,8 @@ describe("registerResources", () => {
     testState.capturedResources.length = 0;
     unauthenticate();
     registerResources(makeContext(makeStorage()));
-    expect(decodeResource(await callResource("Preferred Store Location")).error).toContain(
-      "not authenticated",
+    await expect(callResource("Preferred Store Location")).rejects.toThrow(
+      "outside an authenticated MCP request",
     );
   });
 
@@ -242,8 +243,8 @@ describe("registerResources", () => {
     testState.capturedResources.length = 0;
     unauthenticate();
     registerResources(makeContext(makeStorage()));
-    expect(decodeResource(await callResource("Order History")).error).toContain(
-      "not authenticated",
+    await expect(callResource("Order History")).rejects.toThrow(
+      "outside an authenticated MCP request",
     );
   });
 
@@ -282,8 +283,8 @@ describe("registerResources", () => {
     testState.capturedResources.length = 0;
     unauthenticate();
     registerResources(makeContext(makeStorage()));
-    expect(decodeResource(await callResource("Shopping List")).error).toContain(
-      "not authenticated",
+    await expect(callResource("Shopping List")).rejects.toThrow(
+      "outside an authenticated MCP request",
     );
   });
 
@@ -402,13 +403,13 @@ describe("registerResources", () => {
       expect(prefixed).toEqual(["1111111111111"]);
     });
 
-    it("returns no completions when unauthenticated", async () => {
+    it("throws when completing outside an authenticated request", async () => {
       const { registerResources } = await import("../../src/tools/resources.js");
       registerResources(makeContext(makeStorage()));
       unauthenticate();
 
       const complete = getCompleteFn("Product Details", "productId");
-      expect(await complete("1")).toEqual([]);
+      await expect(complete("1")).rejects.toThrow("outside an authenticated MCP request");
     });
   });
 });

@@ -7,7 +7,7 @@ import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
 import { formatEquipmentListCompact } from "../utils/format-response.js";
-import { getAuthProps, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
+import { getProps, safeStorage, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 
 export function registerEquipmentTools(ctx: ToolContext) {
@@ -53,9 +53,10 @@ export function registerEquipmentTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, equipmentName }) => {
-      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
-        const { storage } = ctx;
+      const props = getProps();
+      const { storage } = ctx;
 
+      const result = (() => {
         switch (action) {
           case "add": {
             if (!items || items.length === 0) {
@@ -102,7 +103,7 @@ export function registerEquipmentTools(ctx: ToolContext) {
               () => "Equipment cleared successfully.",
             );
         }
-      });
+      })();
 
       return toMcpResponse(await result);
     },

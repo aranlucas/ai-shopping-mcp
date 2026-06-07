@@ -67,3 +67,26 @@ Delete the `requireAuth` test cases.
 - Not switching to `getMcpAuthContext()` (would lose `Props` type safety via `Record<string, unknown>` cast).
 - Not restructuring Props to use JWT claims shape.
 - Not inlining tool registration into `MyMCP`.
+
+## Implementation (2026-06-06)
+
+The codebase had already migrated auth access from `ctx.getUser()` to the
+module-level `getAuthProps()` helper (backed by `getMcpAuthContext()`) before
+this spec was implemented, so the final shape differs slightly from the sketch
+above while keeping the same intent:
+
+- `src/utils/result.ts`: `getAuthProps(): Props | null` and `requireAuth` are
+  replaced by a single `getProps(): Props`. It reads `getMcpAuthContext()` and
+  returns a non-null `Props`, throwing only if called outside an authenticated
+  MCP request — a condition `OAuthProvider` (`server.ts` `apiHandlers`) makes
+  unreachable in production. The `Record<string, unknown>` concern from the
+  non-goals is contained to this one cast.
+- Tool handlers (`cart`, `location`, `pantry`, `equipment`, `orders`,
+  `recipes`, `shopping-list`) drop the `requireAuth(getAuthProps())` wrapper and
+  call `const props = getProps()` directly. Switch-based handlers wrap their
+  branches in an IIFE so the neverthrow chain is unchanged.
+- `src/tools/product.ts` and `src/tools/resources.ts` drop the `?.id` /
+  null-guard branches (and the `unauthenticatedResource` helper) in favor of
+  `getProps()`.
+- Tests that exercised the now-unreachable unauthenticated path assert that
+  `getProps()` throws instead of returning a graceful auth error.

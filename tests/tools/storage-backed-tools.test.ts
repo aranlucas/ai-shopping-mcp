@@ -247,17 +247,14 @@ describe("storage-backed tools", () => {
     });
   });
 
-  it("returns an auth error when pantry is used without a user", async () => {
+  it("throws when pantry is used outside an authenticated request", async () => {
     unauthenticate();
     const { registerPantryTools } = await import("../../src/tools/pantry.js");
     registerPantryTools(makeContext());
 
-    const result = await getCapturedHandler("manage_pantry")({
-      action: "clear",
-    });
-
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("User not authenticated");
+    await expect(getCapturedHandler("manage_pantry")({ action: "clear" })).rejects.toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 
   it("adds, removes, and clears kitchen equipment", async () => {

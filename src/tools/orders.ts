@@ -5,7 +5,7 @@ import type { OrderRecord } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
-import { getAuthProps, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
+import { getProps, safeStorage, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 
 export function registerOrderTools(ctx: ToolContext) {
@@ -37,28 +37,28 @@ export function registerOrderTools(ctx: ToolContext) {
       }),
     },
     async ({ items, locationId, notes }) => {
-      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
-        const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-        const estimatedTotal = items.reduce(
-          (sum, item) => sum + (item.price || 0) * item.quantity,
-          0,
-        );
+      const props = getProps();
+      const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+      const estimatedTotal = items.reduce(
+        (sum, item) => sum + (item.price || 0) * item.quantity,
+        0,
+      );
 
-        const order: OrderRecord = {
-          orderId,
-          items,
-          totalItems,
-          estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
-          placedAt: new Date().toISOString(),
-          locationId,
-          notes,
-        };
+      const order: OrderRecord = {
+        orderId,
+        items,
+        totalItems,
+        estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
+        placedAt: new Date().toISOString(),
+        locationId,
+        notes,
+      };
 
-        return safeStorage(() => ctx.storage.orderHistory.add(props.id, order), "record order").map(
-          () => `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
-        );
-      });
+      const result = safeStorage(
+        () => ctx.storage.orderHistory.add(props.id, order),
+        "record order",
+      ).map(() => `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`);
 
       return toMcpResponse(await result);
     },

@@ -1,17 +1,13 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { encode } from "@toon-format/toon";
 
-import { fromApiResponse, getAuthProps, safeStorage } from "../utils/result.js";
+import { fromApiResponse, getProps, safeStorage } from "../utils/result.js";
 import { type ToolContext, getSessionScopedUserId } from "./types.js";
 
 export function toonResource(uri: string, data: unknown) {
   return {
     contents: [{ type: "text" as const, uri, mimeType: "text/toon", text: encode(data) }],
   };
-}
-
-function unauthenticatedResource(uri: string) {
-  return toonResource(uri, { error: "User not authenticated" });
 }
 
 export function registerResources(ctx: ToolContext) {
@@ -26,8 +22,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getAuthProps();
-      if (!props?.id) return unauthenticatedResource("shopping://user/pantry");
+      const props = getProps();
 
       const result = await safeStorage(() => ctx.storage.pantry.getAll(props.id), "fetch pantry");
 
@@ -55,8 +50,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getAuthProps();
-      if (!props?.id) return unauthenticatedResource("shopping://user/equipment");
+      const props = getProps();
 
       const result = await safeStorage(
         () => ctx.storage.equipment.getAll(props.id),
@@ -87,8 +81,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getAuthProps();
-      if (!props?.id) return unauthenticatedResource("shopping://user/location");
+      const props = getProps();
 
       const result = await safeStorage(
         () => ctx.storage.preferredLocation.get(props.id),
@@ -123,8 +116,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getAuthProps();
-      if (!props?.id) return unauthenticatedResource("shopping://user/orders");
+      const props = getProps();
 
       const result = await safeStorage(
         () => ctx.storage.orderHistory.getRecent(props.id, 20),
@@ -155,8 +147,7 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getAuthProps();
-      if (!props?.id) return unauthenticatedResource("shopping://user/shopping-list");
+      const props = getProps();
 
       const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
       const result = await safeStorage(
@@ -195,8 +186,7 @@ export function registerResources(ctx: ToolContext) {
         productId: async (value) => {
           // Suggest 13-digit UPCs the user has interacted with: shopping list first,
           // then recent orders. Filter by the in-flight prefix so completions stay focused.
-          const props = getAuthProps();
-          if (!props?.id) return [];
+          const props = getProps();
           const prefix = value.trim();
 
           const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
@@ -247,17 +237,15 @@ export function registerResources(ctx: ToolContext) {
 
       const productId = match[1];
 
-      const props = getAuthProps();
-      const locationId = props?.id
-        ? (
-            await safeStorage(
-              () => ctx.storage.preferredLocation.get(props.id),
-              "fetch preferred location",
-            )
-          )
-            .map((loc) => loc?.locationId)
-            .unwrapOr(undefined)
-        : undefined;
+      const props = getProps();
+      const locationId = (
+        await safeStorage(
+          () => ctx.storage.preferredLocation.get(props.id),
+          "fetch preferred location",
+        )
+      )
+        .map((loc) => loc?.locationId)
+        .unwrapOr(undefined);
 
       const queryParams: Record<string, string> = {};
       if (locationId) {

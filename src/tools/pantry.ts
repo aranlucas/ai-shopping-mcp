@@ -7,7 +7,7 @@ import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
 import { formatPantryListCompact } from "../utils/format-response.js";
-import { getAuthProps, requireAuth, safeStorage, toMcpError } from "../utils/result.js";
+import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { managePantryOutputSchema } from "./output-schemas.js";
 
@@ -50,9 +50,10 @@ export function registerPantryTools(ctx: ToolContext) {
       outputSchema: managePantryOutputSchema,
     },
     async ({ action, items }) => {
-      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
-        const { storage } = ctx;
+      const props = getProps();
+      const { storage } = ctx;
 
+      const result = (() => {
         switch (action) {
           case "add": {
             if (!items || items.length === 0) {
@@ -106,7 +107,7 @@ export function registerPantryTools(ctx: ToolContext) {
               actionDetail: "Pantry cleared",
             }));
         }
-      });
+      })();
 
       const res = await result;
       if (res.isErr()) {
