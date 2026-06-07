@@ -17,7 +17,12 @@ export default defineConfig({
             remoteBindings: false,
             wrangler: { configPath: "./wrangler.jsonc" },
             miniflare: {
-              vars: {
+              // Miniflare's WorkerOptions expose plain variables through
+              // `bindings`, not `vars` (which is wrangler-config syntax). Using
+              // `vars` here is silently ignored, so these must live under
+              // `bindings` to be available in tests (e.g. in CI, where the
+              // gitignored .dev.vars file does not exist).
+              bindings: {
                 KROGER_CLIENT_ID: "test-kroger-client-id",
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
