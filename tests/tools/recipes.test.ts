@@ -371,15 +371,14 @@ describe("recipe tools", () => {
       expect(text).toContain("Sugar x1");
     });
 
-    it("returns an auth error when unauthenticated", async () => {
+    it("throws when planning meals outside an authenticated request", async () => {
       unauthenticate();
       const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext());
 
-      const result = await getCapturedHandler("plan_meals")({});
-
-      expect(isErrorResult(result)).toBe(true);
-      expect(textFromResult(result)).toContain("User not authenticated");
+      await expect(getCapturedHandler("plan_meals")({})).rejects.toThrow(
+        "outside an authenticated MCP request",
+      );
     });
   });
 });

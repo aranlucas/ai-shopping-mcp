@@ -3,7 +3,7 @@ import { ResultAsync, err, ok, safeTry } from "neverthrow";
 import * as z from "zod/v4";
 
 import { networkError } from "../errors.js";
-import { getAuthProps, requireAuth, safeFetch, safeStorage, toMcpError } from "../utils/result.js";
+import { getProps, safeFetch, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { searchRecipesOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
@@ -214,7 +214,7 @@ export function registerRecipeTools(ctx: ToolContext) {
 
       // Fetch user data in parallel using safeTry + ResultAsync.combine (auth folded in)
       const dataResult = await safeTry(async function* () {
-        const props = yield* requireAuth(getAuthProps()).safeUnwrap();
+        const props = getProps();
 
         const [pantry, equipment, recentOrders] = yield* ResultAsync.combine([
           safeStorage(() => storage.pantry.getAll(props.id), "fetch pantry"),

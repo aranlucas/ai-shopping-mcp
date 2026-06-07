@@ -76,23 +76,34 @@ export function fromApiResponse<T>(
 // --- Auth Helpers ---
 
 /**
- * Returns the current auth props from the MCP request context.
- * Returns null if the request is not authenticated.
+ * Returns the auth props for the current MCP request.
+ *
+ * `OAuthProvider` gates every `/mcp` request (see `server.ts` `apiHandlers`),
+ * so `props` is always populated by the time a tool or resource handler runs.
+ * The non-null return type expresses that invariant in the type system instead
+ * of re-checking it at every call site.
+ *
+ * The SDK types the auth context as `{ props: Record<string, unknown> }`, so we
+ * validate the fields and build a real `Props` rather than blindly asserting
+ * `as Props`. Throws if called outside an authenticated MCP request, or if the
+ * props are missing the expected fields — both are programming/configuration
+ * errors, not reachable runtime states.
  */
-export function getAuthProps(): Props | null {
-  const auth = getMcpAuthContext();
-  return (auth?.props as Props) ?? null;
-}
-
-/**
- * Result-based version of requireUser.
- * Returns Ok(Props) or Err(AuthError).
- */
-export function requireAuth(props: Props | null): Result<Props, AppError> {
-  if (!props?.id) {
-    return err(authError("User not authenticated"));
+export function getProps(): Props {
+  const props = getMcpAuthContext()?.props;
+  if (
+    !props ||
+    typeof props.id !== "string" ||
+    typeof props.accessToken !== "string" ||
+    typeof props.tokenExpiresAt !== "number"
+  ) {
+    throw new Error("getProps() called outside an authenticated MCP request");
   }
-  return ok(props);
+  return {
+    id: props.id,
+    accessToken: props.accessToken,
+    tokenExpiresAt: props.tokenExpiresAt,
+  };
 }
 
 // --- Location Resolution ---

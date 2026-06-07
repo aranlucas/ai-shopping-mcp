@@ -1,5 +1,4 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { errAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { EquipmentItem } from "../utils/user-storage.js";
@@ -7,7 +6,7 @@ import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
 import { formatEquipmentListCompact } from "../utils/format-response.js";
-import { getAuthProps, requireAuth, safeStorage, toMcpResponse } from "../utils/result.js";
+import { getProps, safeStorage, toMcpError, toMcpResponse } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 
 export function registerEquipmentTools(ctx: ToolContext) {
@@ -53,58 +52,60 @@ export function registerEquipmentTools(ctx: ToolContext) {
       }),
     },
     async ({ action, items, equipmentName }) => {
-      const result = requireAuth(getAuthProps()).asyncAndThen((props) => {
-        const { storage } = ctx;
+      const props = getProps();
+      const { storage } = ctx;
 
-        switch (action) {
-          case "add": {
-            if (!items || items.length === 0) {
-              return errAsync(
-                validationError("Error: 'items' array is required for the 'add' action."),
-              );
-            }
-
-            const now = new Date().toISOString();
-            return safeStorage(async () => {
-              for (const item of items) {
-                const equipmentItem: EquipmentItem = {
-                  equipmentName: item.equipmentName,
-                  category: item.category,
-                  addedAt: now,
-                };
-                await storage.equipment.add(props.id, equipmentItem);
-              }
-              return storage.equipment.getAll(props.id);
-            }, "add equipment items").map(
-              (equipment) =>
-                `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
+      switch (action) {
+        case "add": {
+          if (!items || items.length === 0) {
+            return toMcpError(
+              validationError("Error: 'items' array is required for the 'add' action."),
             );
           }
 
-          case "remove": {
-            if (!equipmentName) {
-              return errAsync(
-                validationError("Error: 'equipmentName' is required for the 'remove' action."),
-              );
+          const now = new Date().toISOString();
+          const result = await safeStorage(async () => {
+            for (const item of items) {
+              const equipmentItem: EquipmentItem = {
+                equipmentName: item.equipmentName,
+                category: item.category,
+                addedAt: now,
+              };
+              await storage.equipment.add(props.id, equipmentItem);
             }
-
-            return safeStorage(async () => {
-              await storage.equipment.remove(props.id, equipmentName);
-              return storage.equipment.getAll(props.id);
-            }, "remove equipment item").map(
-              (equipment) =>
-                `Item removed from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-            );
-          }
-
-          case "clear":
-            return safeStorage(() => storage.equipment.clear(props.id), "clear equipment").map(
-              () => "Equipment cleared successfully.",
-            );
+            return storage.equipment.getAll(props.id);
+          }, "add equipment items").map(
+            (equipment) =>
+              `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
+          );
+          return toMcpResponse(result);
         }
-      });
 
-      return toMcpResponse(await result);
+        case "remove": {
+          if (!equipmentName) {
+            return toMcpError(
+              validationError("Error: 'equipmentName' is required for the 'remove' action."),
+            );
+          }
+
+          const result = await safeStorage(async () => {
+            await storage.equipment.remove(props.id, equipmentName);
+            return storage.equipment.getAll(props.id);
+          }, "remove equipment item").map(
+            (equipment) =>
+              `Item removed from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
+          );
+          return toMcpResponse(result);
+        }
+
+        case "clear": {
+          const result = await safeStorage(
+            () => storage.equipment.clear(props.id),
+            "clear equipment",
+          ).map(() => "Equipment cleared successfully.");
+          return toMcpResponse(result);
+        }
+      }
     },
   );
 }
