@@ -1,9 +1,6 @@
-import type { Result } from "neverthrow";
-
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import * as z from "zod/v4";
 
-import type { AppError } from "../errors.js";
 import type { PantryItem } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
@@ -55,17 +52,6 @@ export function registerPantryTools(ctx: ToolContext) {
       const props = getProps();
       const { storage } = ctx;
 
-      const toView = (
-        result: Result<{ text: string; pantry: PantryItem[]; actionDetail: string }, AppError>,
-      ) =>
-        result.match(
-          ({ text, pantry, actionDetail }) => ({
-            content: [{ type: "text" as const, text }],
-            structuredContent: { _view: "manage_pantry" as const, items: pantry, actionDetail },
-          }),
-          (error) => toMcpError(error),
-        );
-
       switch (action) {
         case "add": {
           if (!items || items.length === 0) {
@@ -75,24 +61,32 @@ export function registerPantryTools(ctx: ToolContext) {
           }
 
           const now = new Date().toISOString();
-          return toView(
-            await safeStorage(async () => {
-              for (const item of items) {
-                const pantryItem: PantryItem = {
-                  productName: item.productName,
-                  quantity: item.quantity ?? 1,
-                  addedAt: now,
-                  expiresAt: item.expiresAt,
-                };
-                await storage.pantry.add(props.id, pantryItem);
-              }
-              return storage.pantry.getAll(props.id);
-            }, "add pantry items").map((pantry) => ({
-              text: `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-              pantry,
+          const result = await safeStorage(async () => {
+            for (const item of items) {
+              const pantryItem: PantryItem = {
+                productName: item.productName,
+                quantity: item.quantity ?? 1,
+                addedAt: now,
+                expiresAt: item.expiresAt,
+              };
+              await storage.pantry.add(props.id, pantryItem);
+            }
+            return storage.pantry.getAll(props.id);
+          }, "add pantry items").map((pantry) => ({
+            content: [
+              {
+                type: "text" as const,
+                text: `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
+              },
+            ],
+            structuredContent: {
+              _view: "manage_pantry" as const,
+              items: pantry,
               actionDetail: `Added ${items.length} item(s)`,
-            })),
-          );
+            },
+          }));
+          if (result.isErr()) return toMcpError(result.error);
+          return result.value;
         }
 
         case "remove": {
@@ -102,28 +96,43 @@ export function registerPantryTools(ctx: ToolContext) {
             );
           }
 
-          return toView(
-            await safeStorage(async () => {
-              for (const item of items) {
-                await storage.pantry.remove(props.id, item.productName);
-              }
-              return storage.pantry.getAll(props.id);
-            }, "remove pantry items").map((pantry) => ({
-              text: `Removed ${items.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-              pantry,
+          const result = await safeStorage(async () => {
+            for (const item of items) {
+              await storage.pantry.remove(props.id, item.productName);
+            }
+            return storage.pantry.getAll(props.id);
+          }, "remove pantry items").map((pantry) => ({
+            content: [
+              {
+                type: "text" as const,
+                text: `Removed ${items.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
+              },
+            ],
+            structuredContent: {
+              _view: "manage_pantry" as const,
+              items: pantry,
               actionDetail: `Removed ${items.length} item(s)`,
-            })),
-          );
+            },
+          }));
+          if (result.isErr()) return toMcpError(result.error);
+          return result.value;
         }
 
-        case "clear":
-          return toView(
-            await safeStorage(() => storage.pantry.clear(props.id), "clear pantry").map(() => ({
-              text: "Pantry cleared successfully.",
-              pantry: [] as PantryItem[],
+        case "clear": {
+          const result = await safeStorage(
+            () => storage.pantry.clear(props.id),
+            "clear pantry",
+          ).map(() => ({
+            content: [{ type: "text" as const, text: "Pantry cleared successfully." }],
+            structuredContent: {
+              _view: "manage_pantry" as const,
+              items: [] as PantryItem[],
               actionDetail: "Pantry cleared",
-            })),
-          );
+            },
+          }));
+          if (result.isErr()) return toMcpError(result.error);
+          return result.value;
+        }
       }
     },
   );
