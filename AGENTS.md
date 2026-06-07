@@ -37,6 +37,7 @@ pnpm generate:identity
 
 ## Non-Negotiable Rules
 
+- Always run `pnpm test` before handing back any behavioral change, and add tests for every new tool, resource, handler, branch, or bug fix. Do not consider work complete until the relevant tests exist and pass.
 - Do not use `any` in TypeScript. Use schema types, explicit narrowing, or reusable aliases.
 - Use generated OpenAPI schema types directly from `src/services/kroger/*.js`; do not infer types from `openapi-fetch` method return signatures.
 - If a change touches views, run `pnpm build:views` or `pnpm build`.
@@ -276,10 +277,11 @@ Example local proxy configuration:
 
 Before handing back code changes:
 
-1. Run the narrowest relevant test or build while iterating.
-2. Run `pnpm build` for TypeScript, Biome, and view compilation when practical.
-3. Run `pnpm test` when behavior, storage, OAuth, tools, or utilities changed.
-4. Mention any verification you could not run.
+1. Add or update tests covering the change (new tools, resources, handlers, branches, and bug fixes all need tests).
+2. Run the narrowest relevant test or build while iterating.
+3. Run `pnpm build` for TypeScript, Biome, and view compilation when practical.
+4. Always run `pnpm test` before handing back; never hand back with failing or missing tests.
+5. Mention any verification you could not run.
 
 ## Reference
 

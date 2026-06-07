@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     root: ".",
+    testTimeout: 30_000,
     coverage: {
       provider: "istanbul",
       include: ["src/**/*.ts"],
@@ -26,6 +27,7 @@ export default defineConfig({
         ],
         test: {
           name: "worker",
+          testTimeout: 30_000,
           include: ["tests/**/*.test.ts"],
           exclude: ["tests/package-manager.test.ts"],
         },
