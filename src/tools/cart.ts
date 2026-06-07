@@ -57,7 +57,7 @@ export function registerCartTools(ctx: ToolContext) {
     },
     async ({ items, locationId }) => {
       const props = getProps();
-      const result = safeResolveLocationId(ctx.storage, props.id, locationId).andThen(
+      const result = await safeResolveLocationId(ctx.storage, props.id, locationId).andThen(
         (resolved) => {
           const cartItems: CartItem[] = items.map((item) => ({
             upc: item.upc,
@@ -83,7 +83,7 @@ export function registerCartTools(ctx: ToolContext) {
         },
       );
 
-      return toMcpResponse(await result);
+      return toMcpResponse(result);
     },
   );
 }

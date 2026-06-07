@@ -159,7 +159,7 @@ export function registerLocationTools(ctx: ToolContext) {
     },
     async ({ locationId }) => {
       const props = getProps();
-      const result = fromApiResponse(
+      const result = await fromApiResponse(
         locationClient.GET("/v1/locations/{locationId}", {
           params: { path: { locationId } },
         }),
@@ -188,7 +188,7 @@ export function registerLocationTools(ctx: ToolContext) {
         );
       });
 
-      return toMcpResponse(await result);
+      return toMcpResponse(result);
     },
   );
 }

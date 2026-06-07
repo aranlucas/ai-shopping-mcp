@@ -55,12 +55,12 @@ export function registerOrderTools(ctx: ToolContext) {
         notes,
       };
 
-      const result = safeStorage(
+      const result = await safeStorage(
         () => ctx.storage.orderHistory.add(props.id, order),
         "record order",
       ).map(() => `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`);
 
-      return toMcpResponse(await result);
+      return toMcpResponse(result);
     },
   );
 }

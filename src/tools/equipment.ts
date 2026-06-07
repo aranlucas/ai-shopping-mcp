@@ -56,7 +56,7 @@ export function registerEquipmentTools(ctx: ToolContext) {
       const props = getProps();
       const { storage } = ctx;
 
-      const result = (() => {
+      const result = await (() => {
         switch (action) {
           case "add": {
             if (!items || items.length === 0) {
@@ -105,7 +105,7 @@ export function registerEquipmentTools(ctx: ToolContext) {
         }
       })();
 
-      return toMcpResponse(await result);
+      return toMcpResponse(result);
     },
   );
 }
