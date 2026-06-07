@@ -79,12 +79,14 @@ above while keeping the same intent:
   replaced by a single `getProps(): Props`. It reads `getMcpAuthContext()` and
   returns a non-null `Props`, throwing only if called outside an authenticated
   MCP request — a condition `OAuthProvider` (`server.ts` `apiHandlers`) makes
-  unreachable in production. The `Record<string, unknown>` concern from the
-  non-goals is contained to this one cast.
-- Tool handlers (`cart`, `location`, `pantry`, `equipment`, `orders`,
-  `recipes`, `shopping-list`) drop the `requireAuth(getAuthProps())` wrapper and
-  call `const props = getProps()` directly. Switch-based handlers wrap their
-  branches in an IIFE so the neverthrow chain is unchanged.
+  unreachable in production. The SDK types the context as
+  `{ props: Record<string, unknown> }`, so `getProps` validates the field types
+  and constructs a real `Props` rather than asserting `as Props`, resolving the
+  `Record<string, unknown>` concern from the non-goals without an unchecked cast.
+- Tool handlers (`cart`, `location`, `orders`, `recipes`, `shopping-list`) drop
+  the `requireAuth(getAuthProps())` wrapper and call `const props = getProps()`
+  directly. The `pantry`/`equipment` switch handlers return per-branch instead of
+  routing through a single `toMcpResponse`, keeping each neverthrow chain intact.
 - `src/tools/product.ts` and `src/tools/resources.ts` drop the `?.id` /
   null-guard branches (and the `unauthenticatedResource` helper) in favor of
   `getProps()`.
