@@ -9,7 +9,7 @@
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "build": {
-    "command": "npm run build:views",
+    "command": "pnpm build:views",
   },
   "assets": {
     "directory": "./dist/views",

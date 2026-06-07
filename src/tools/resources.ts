@@ -1,16 +1,17 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { encode } from "@toon-format/toon";
 
 import { fromApiResponse, getAuthProps, safeStorage } from "../utils/result.js";
 import { type ToolContext, getSessionScopedUserId } from "./types.js";
 
-function jsonResource(uri: string, data: unknown) {
+export function toonResource(uri: string, data: unknown) {
   return {
-    contents: [{ type: "text" as const, uri, text: JSON.stringify(data, null, 2) }],
+    contents: [{ type: "text" as const, uri, mimeType: "text/toon", text: encode(data) }],
   };
 }
 
 function unauthenticatedResource(uri: string) {
-  return jsonResource(uri, { error: "User not authenticated" });
+  return toonResource(uri, { error: "User not authenticated" });
 }
 
 export function registerResources(ctx: ToolContext) {
@@ -22,7 +23,7 @@ export function registerResources(ctx: ToolContext) {
     {
       description:
         "Items currently in the user's pantry. Use this to avoid suggesting duplicate purchases and to help with meal planning based on available ingredients.",
-      mimeType: "application/json",
+      mimeType: "text/toon",
     },
     async () => {
       const props = getAuthProps();
@@ -32,13 +33,13 @@ export function registerResources(ctx: ToolContext) {
 
       return result.match(
         (pantry) =>
-          jsonResource("shopping://user/pantry", {
+          toonResource("shopping://user/pantry", {
             itemCount: pantry.length,
             items: pantry,
             lastUpdated: new Date().toISOString(),
           }),
         () =>
-          jsonResource("shopping://user/pantry", {
+          toonResource("shopping://user/pantry", {
             error: "Failed to fetch pantry data",
           }),
       );
@@ -51,7 +52,7 @@ export function registerResources(ctx: ToolContext) {
     {
       description:
         "Kitchen equipment and tools the user owns. Use this to suggest recipes that match available equipment and to help with meal planning based on what tools are available.",
-      mimeType: "application/json",
+      mimeType: "text/toon",
     },
     async () => {
       const props = getAuthProps();
@@ -64,13 +65,13 @@ export function registerResources(ctx: ToolContext) {
 
       return result.match(
         (equipment) =>
-          jsonResource("shopping://user/equipment", {
+          toonResource("shopping://user/equipment", {
             itemCount: equipment.length,
             items: equipment,
             lastUpdated: new Date().toISOString(),
           }),
         () =>
-          jsonResource("shopping://user/equipment", {
+          toonResource("shopping://user/equipment", {
             error: "Failed to fetch equipment data",
           }),
       );
@@ -83,7 +84,7 @@ export function registerResources(ctx: ToolContext) {
     {
       description:
         "The user's preferred shopping location. Use this for product searches and availability checks when no location is explicitly specified. IMPORTANT: If no location is set, proactively ask the user for their zip code and help them find and set their preferred store using search_locations and set_preferred_location tools.",
-      mimeType: "application/json",
+      mimeType: "text/toon",
     },
     async () => {
       const props = getAuthProps();
@@ -97,16 +98,16 @@ export function registerResources(ctx: ToolContext) {
       return result.match(
         (location) => {
           if (!location) {
-            return jsonResource("shopping://user/location", {
+            return toonResource("shopping://user/location", {
               message: "No preferred location set",
               instruction:
                 "Ask the user for their zip code, then use search_locations to find nearby stores and set_preferred_location to save their choice.",
             });
           }
-          return jsonResource("shopping://user/location", location);
+          return toonResource("shopping://user/location", location);
         },
         () =>
-          jsonResource("shopping://user/location", {
+          toonResource("shopping://user/location", {
             error: "Failed to fetch location data",
           }),
       );
@@ -119,7 +120,7 @@ export function registerResources(ctx: ToolContext) {
     {
       description:
         "The user's past orders and purchase history. Use this to identify frequently purchased items, shopping patterns, and to make personalized recommendations.",
-      mimeType: "application/json",
+      mimeType: "text/toon",
     },
     async () => {
       const props = getAuthProps();
@@ -132,13 +133,13 @@ export function registerResources(ctx: ToolContext) {
 
       return result.match(
         (orders) =>
-          jsonResource("shopping://user/orders", {
+          toonResource("shopping://user/orders", {
             orderCount: orders.length,
             orders,
             lastUpdated: new Date().toISOString(),
           }),
         () =>
-          jsonResource("shopping://user/orders", {
+          toonResource("shopping://user/orders", {
             error: "Failed to fetch order data",
           }),
       );
@@ -151,7 +152,7 @@ export function registerResources(ctx: ToolContext) {
     {
       description:
         "The user's current shopping list of items they plan to buy. Items may have UPCs (ready for cart checkout) or just names (need product search). Use this to help users plan purchases, find products for items without UPCs, and coordinate checkout.",
-      mimeType: "application/json",
+      mimeType: "text/toon",
     },
     async () => {
       const props = getAuthProps();
@@ -169,7 +170,7 @@ export function registerResources(ctx: ToolContext) {
           const withUpc = unchecked.filter((i) => i.upc);
           const withoutUpc = unchecked.filter((i) => !i.upc);
 
-          return jsonResource("shopping://user/shopping-list", {
+          return toonResource("shopping://user/shopping-list", {
             totalItems: list.length,
             uncheckedCount: unchecked.length,
             readyForCheckout: withUpc.length,
@@ -179,7 +180,7 @@ export function registerResources(ctx: ToolContext) {
           });
         },
         () =>
-          jsonResource("shopping://user/shopping-list", {
+          toonResource("shopping://user/shopping-list", {
             error: "Failed to fetch shopping list data",
           }),
       );
@@ -234,12 +235,12 @@ export function registerResources(ctx: ToolContext) {
     {
       description:
         "Detailed information about a specific product by its ID (13-digit UPC). Includes pricing, availability, and location information.",
-      mimeType: "application/json",
+      mimeType: "text/toon",
     },
     async (uri: URL) => {
       const match = uri.href.match(/shopping:\/\/product\/([0-9]{13})/);
       if (!match) {
-        return jsonResource(uri.href, {
+        return toonResource(uri.href, {
           error: "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
         });
       }
@@ -277,14 +278,14 @@ export function registerResources(ctx: ToolContext) {
         (data) => {
           const product = data.data;
           if (!product) {
-            return jsonResource(uri.href, {
+            return toonResource(uri.href, {
               error: `No product found with ID: ${productId}`,
             });
           }
-          return jsonResource(uri.href, product);
+          return toonResource(uri.href, product);
         },
         (error) =>
-          jsonResource(uri.href, {
+          toonResource(uri.href, {
             error: `Failed to fetch product: ${error.message}`,
           }),
       );

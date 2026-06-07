@@ -9,37 +9,37 @@ This repository is a Cloudflare Worker MCP server for Kroger/QFC shopping workfl
 Run the project checks before making changes unless you are only reading files:
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 Use targeted tests while iterating, then run the relevant full check before handing work back:
 
 ```bash
-npm test
-npx vitest run path/to/test.ts
-npx vitest run -t "test name"
+pnpm test
+pnpm exec vitest run path/to/test.ts
+pnpm exec vitest run -t "test name"
 ```
 
 Other useful commands:
 
 ```bash
-npm run dev
-npm run deploy
-npm run lint
-npm run build:views
-npm run cf-typegen
-npm run generate:cart
-npm run generate:location
-npm run generate:product
-npm run generate:identity
+pnpm dev
+pnpm deploy
+pnpm lint
+pnpm build:views
+pnpm cf-typegen
+pnpm generate:cart
+pnpm generate:location
+pnpm generate:product
+pnpm generate:identity
 ```
 
 ## Non-Negotiable Rules
 
 - Do not use `any` in TypeScript. Use schema types, explicit narrowing, or reusable aliases.
 - Use generated OpenAPI schema types directly from `src/services/kroger/*.js`; do not infer types from `openapi-fetch` method return signatures.
-- If a change touches views, run `npm run build:views` or `npm run build`.
+- If a change touches views, run `pnpm build:views` or `pnpm build`.
 
 ## Architecture Map
 
@@ -81,7 +81,7 @@ Views:
 - `views/app/`: Vite React app rendered by MCP Apps.
 - `views/app/views/`: individual tool result views.
 - `views/shared/`: shared UI components.
-- `dist/views/`: generated view output from `npm run build:views`.
+- `dist/views/`: generated view output from `pnpm build:views`.
 
 ## OAuth And Tokens
 
@@ -255,7 +255,7 @@ When adding or changing a view:
 - Put view-specific code in `views/app/views/`.
 - Reuse shared UI from `views/shared/`.
 - Keep the structured content shape explicit and aligned with the tool response.
-- Run `npm run build:views` or `npm run build`.
+- Run `pnpm build:views` or `pnpm build`.
 
 ## MCP Client Connection
 
@@ -265,8 +265,8 @@ Example local proxy configuration:
 {
   "mcpServers": {
     "ai-shopping-list": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/sse"]
+      "command": "pnpm",
+      "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/sse"]
     }
   }
 }
@@ -277,8 +277,8 @@ Example local proxy configuration:
 Before handing back code changes:
 
 1. Run the narrowest relevant test or build while iterating.
-2. Run `npm run build` for TypeScript, Biome, and view compilation when practical.
-3. Run `npm test` when behavior, storage, OAuth, tools, or utilities changed.
+2. Run `pnpm build` for TypeScript, Biome, and view compilation when practical.
+3. Run `pnpm test` when behavior, storage, OAuth, tools, or utilities changed.
 4. Mention any verification you could not run.
 
 ## Reference
