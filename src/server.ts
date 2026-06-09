@@ -1,6 +1,6 @@
 import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createMcpHandler, getMcpAuthContext } from "agents/mcp";
+import { McpAgent, createMcpHandler, getMcpAuthContext } from "agents/mcp";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
 import type { KrogerTokenInfo } from "./services/kroger/client.js";
@@ -123,6 +123,19 @@ const mcpApiHandler = {
     return handler(request, env, ctx);
   },
 };
+
+/**
+ * Retained only to satisfy the `MCP_OBJECT` Durable Object binding. `/mcp` now
+ * routes through `mcpApiHandler` (stateless `createMcpHandler`), so this agent
+ * is never addressed. Removing it requires a `deleted_classes` migration that
+ * drops the live DO's stored data, which is deferred to a dedicated infra PR so
+ * the deletion can be validated against the deployed Worker.
+ */
+export class MyMCP extends McpAgent<Env, unknown, Props> {
+  server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
+
+  async init() {}
+}
 
 class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
   fetch() {

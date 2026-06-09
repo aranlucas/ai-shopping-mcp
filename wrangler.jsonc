@@ -20,13 +20,18 @@
       "new_sqlite_classes": ["MyMCP"],
       "tag": "v1",
     },
-    {
-      // MCP now runs through the stateless `createMcpHandler` (see src/server.ts),
-      // so the McpAgent Durable Object is no longer needed.
-      "deleted_classes": ["MyMCP"],
-      "tag": "v2",
-    },
   ],
+  // `/mcp` now runs through the stateless `createMcpHandler` (see src/server.ts),
+  // but the MyMCP Durable Object is kept (unused) to avoid a data-dropping
+  // `deleted_classes` migration here; removal is deferred to a dedicated PR.
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "MyMCP",
+        "name": "MCP_OBJECT",
+      },
+    ],
+  },
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
