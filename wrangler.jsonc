@@ -21,6 +21,9 @@
       "tag": "v1",
     },
   ],
+  // `/mcp` now runs through the stateless `createMcpHandler` (see src/server.ts),
+  // but the MyMCP Durable Object is kept (unused) to avoid a data-dropping
+  // `deleted_classes` migration here; removal is deferred to a dedicated PR.
   "durable_objects": {
     "bindings": [
       {

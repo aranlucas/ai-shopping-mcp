@@ -92,3 +92,24 @@ above while keeping the same intent:
   `getProps()`.
 - Tests that exercised the now-unreachable unauthenticated path assert that
   `getProps()` throws instead of returning a graceful auth error.
+
+## Follow-up (2026-06-09): complete the `createMcpHandler` switch
+
+The 2026-06-06 implementation moved `getProps()` onto `getMcpAuthContext()`, but
+`/mcp` was still wired to `MyMCP.serve("/mcp")` (the `McpAgent` Durable Object).
+`getMcpAuthContext()` reads an AsyncLocalStorage that is **only** populated by
+`createMcpHandler` (`runWithAuthContext`); the `McpAgent` path delivers auth as
+`this.props` and never sets that ALS. So every handler that actually reached
+`getProps()` threw "getProps() called outside an authenticated MCP request" in
+production. (The OAuth integration test missed it because it always passed an
+explicit `locationId`, the one branch that skips `getProps()`.)
+
+Fix: `/mcp` now runs through stateless `createMcpHandler` with a per-request
+`McpServer` factory (`buildServer`). Auth flows through `getMcpAuthContext()` as
+the design intended — no tool/`result.ts` changes needed. Session scoping is
+preserved by handing the transport a `storage` shim that rebuilds the minimal
+`TransportState` from the client's `Mcp-Session-Id` header, so non-initialize
+requests validate without server-side state. The `MyMCP` Durable Object (class,
+binding, `new_sqlite_classes` migration) is removed via a `deleted_classes`
+migration. The regression test exercises `getProps()` end-to-end (a tool call
+with no `locationId` plus a resource read).

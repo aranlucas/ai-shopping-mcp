@@ -247,4 +247,43 @@ describe("MCP client over Worker OAuth integration", () => {
       totalProducts: 1,
     });
   });
+
+  // Regression: exercises the auth-props path (`getProps()`) through the real
+  // MCP handler. Tool calls that omit locationId and resource reads both call
+  // `getProps()`, which reads `getMcpAuthContext()`. That context is only
+  // populated by `createMcpHandler` — under the old `McpAgent.serve()` wiring it
+  // was empty, so these threw "getProps() called outside an authenticated MCP
+  // request". The earlier test always passed an explicit locationId, so it never
+  // hit this path and the bug shipped.
+  it("resolves auth props for tool calls and resource reads (getProps path)", async () => {
+    const registeredClient = await registerClient();
+    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+    const client = await createAuthorizedMcpClient(token.access_token);
+
+    // No locationId → handler falls back to getProps().id to resolve the
+    // preferred location. This must not throw an auth error.
+    const toolResult = await client.callTool({
+      name: "search_products",
+      arguments: { terms: ["milk"] },
+    });
+
+    expect(toolResult.isError).toBeFalsy();
+    expect(toolResult.structuredContent).toMatchObject({
+      _view: "search_products",
+      totalProducts: 1,
+    });
+
+    // Resource reads call getProps() to scope the user's stored data.
+    const resourceResult = await client.readResource({
+      uri: "shopping://user/pantry",
+    });
+
+    expect(resourceResult.contents).toBeDefined();
+    expect(resourceResult.contents.length).toBeGreaterThan(0);
+    const pantryText = resourceResult.contents
+      .map((entry) => ("text" in entry && typeof entry.text === "string" ? entry.text : ""))
+      .join("");
+    expect(pantryText).not.toContain("outside an authenticated MCP request");
+  });
 });
