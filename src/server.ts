@@ -1,8 +1,9 @@
 import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { McpAgent } from "agents/mcp";
+import { createMcpHandler, getMcpAuthContext } from "agents/mcp";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
+import type { KrogerTokenInfo } from "./services/kroger/client.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 
 import { KrogerHandler } from "./kroger-handler.js";
@@ -43,43 +44,85 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
   registerResources,
 ];
 
-export class MyMCP extends McpAgent<Env, unknown, Props> {
-  server = new McpServer(
-    {
-      name: "kroger-ai-assistant",
-      version: "1.0.0",
-    },
-    {
-      instructions:
-        "AI shopping assistant for Kroger/QFC stores. Manage shopping lists, search products, find store locations, track pantry inventory, and plan meals. Use MCP Resources to read user context (pantry, equipment, shopping list, preferred location) before making suggestions.",
-    },
-  );
+const SERVER_INFO = { name: "kroger-ai-assistant", version: "1.0.0" } as const;
+const SERVER_OPTIONS = {
+  instructions:
+    "AI shopping assistant for Kroger/QFC stores. Manage shopping lists, search products, find store locations, track pantry inventory, and plan meals. Use MCP Resources to read user context (pantry, equipment, shopping list, preferred location) before making suggestions.",
+} as const;
 
-  private initialized = false;
+/**
+ * Builds a fresh `McpServer` with all tools/resources/prompts registered.
+ *
+ * `createMcpHandler` is stateless: a new server is created per request so
+ * responses cannot leak between clients. Auth `Props` are read lazily from
+ * `getMcpAuthContext()` (populated by `OAuthProvider` and wrapped in the
+ * handler's AsyncLocalStorage), so registration itself needs no auth context.
+ * `sessionId` is the per-request MCP session used to scope user storage.
+ */
+function buildServer(env: Env, sessionId: string): McpServer {
+  const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
 
-  async init() {
-    // Guard against duplicate registration on SSE reconnection
-    if (this.initialized) return;
-    this.initialized = true;
-    const clients = createKrogerClients(() => this.props ?? null);
-    const storage = createUserStorage(this.env.USER_DATA_KV);
+  const clients = createKrogerClients((): KrogerTokenInfo | null => {
+    const props = getMcpAuthContext()?.props;
+    if (
+      !props ||
+      typeof props.accessToken !== "string" ||
+      typeof props.tokenExpiresAt !== "number"
+    ) {
+      return null;
+    }
+    return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
+  });
 
-    const ctx: ToolContext = {
-      server: this.server,
-      clients,
-      storage,
-      getEnv: () => this.env,
-      getSessionId: () => this.getSessionId(),
-    };
+  const storage = createUserStorage(env.USER_DATA_KV);
 
-    // Register the single unified View resource (all app tools share this one UI)
-    registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
+  const ctx: ToolContext = {
+    server,
+    clients,
+    storage,
+    getEnv: () => env,
+    getSessionId: () => sessionId,
+  };
 
-    // Register all MCP features
-    registerPrompts(this.server);
-    for (const register of TOOL_REGISTRARS) register(ctx);
-  }
+  // Register the single unified View resource (all app tools share this one UI)
+  registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
+
+  // Register all MCP features
+  registerPrompts(server);
+  for (const register of TOOL_REGISTRARS) register(ctx);
+
+  return server;
 }
+
+/**
+ * Stateless MCP API handler.
+ *
+ * The MCP session id is carried by the client in the `Mcp-Session-Id` header
+ * after the server issues it on `initialize`. Because each request spins up a
+ * fresh `WorkerTransport`, we hand the transport a `storage` shim that rebuilds
+ * the minimal `TransportState` from that header — restoring `initialized`/
+ * `sessionId` so non-initialize requests validate, with no server-side state.
+ * The session id only namespaces the authenticated user's KV data (the user id
+ * comes from OAuth, not the header), so a client-supplied id is safe.
+ */
+const mcpApiHandler = {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const headerSessionId = request.headers.get("mcp-session-id") ?? undefined;
+    const sessionId = headerSessionId ?? crypto.randomUUID();
+
+    const handler = createMcpHandler(buildServer(env, sessionId), {
+      route: "/mcp",
+      sessionIdGenerator: () => sessionId,
+      storage: {
+        get: () =>
+          headerSessionId ? { sessionId: headerSessionId, initialized: true } : undefined,
+        set: () => {},
+      },
+    });
+
+    return handler(request, env, ctx);
+  },
+};
 
 class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
   fetch() {
@@ -92,7 +135,7 @@ class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
 
 export default new OAuthProvider({
   apiHandlers: {
-    "/mcp": withMcpOriginProtection(MyMCP.serve("/mcp")),
+    "/mcp": withMcpOriginProtection(mcpApiHandler),
     "/userinfo": UserInfoHandler,
   },
   // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
