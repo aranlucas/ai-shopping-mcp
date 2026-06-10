@@ -10,29 +10,27 @@ Run the project checks before making changes unless you are only reading files:
 
 ```bash
 pnpm install
-pnpm build
+pnpm build   # oxlint + view build + tsc --noEmit
 ```
 
-Use targeted tests while iterating, then run the relevant full check before handing work back:
+Use targeted tests while iterating, then run the relevant full check before handing work back. Tests live in `tests/`, mirroring `src/`:
 
 ```bash
 pnpm test
-pnpm exec vitest run path/to/test.ts
+pnpm exec vitest run tests/path/to/file.test.ts
 pnpm exec vitest run -t "test name"
 ```
 
 Other useful commands:
 
 ```bash
-pnpm dev
-pnpm deploy
-pnpm lint
-pnpm build:views
-pnpm cf-typegen
-pnpm generate:cart
-pnpm generate:location
-pnpm generate:product
-pnpm generate:identity
+pnpm dev            # vite watch + wrangler dev, concurrently
+pnpm deploy         # build views, then wrangler deploy
+pnpm lint           # oxlint (lint:fix to autofix)
+pnpm fmt            # oxfmt (fmt:check to verify)
+pnpm build:views    # vite build of views/mcp-app.html into dist/views/
+pnpm cf-typegen     # regenerate worker-configuration types
+pnpm generate:apis  # regenerate all Kroger OpenAPI types (or generate:cart|location|product|identity)
 ```
 
 ## Non-Negotiable Rules
@@ -46,7 +44,7 @@ pnpm generate:identity
 
 Core entry points:
 
-- `src/server.ts`: MCP server factory, OAuth provider configuration, client creation, tool/resource/prompt registration.
+- `src/server.ts`: `buildServer()` factory, stateless `/mcp` handler, `OAuthProvider` configuration, `MyMCP` Durable Object stub, tool/resource/prompt registration.
 - `src/kroger-handler.ts`: Kroger OAuth `/authorize` and `/callback` HTTP handlers.
 - `src/workers-oauth-utils.ts`: OAuth approval and client verification helpers.
 - `src/prompts.ts`: MCP prompt registrations.
@@ -64,25 +62,42 @@ Tooling and MCP surface:
 - `src/tools/shopping-list.ts`: `manage_shopping_list`, `checkout_shopping_list`
 - `src/tools/weekly-deals.ts`: `get_weekly_deals`
 - `src/tools/resources.ts`: read-only MCP resources
+- `src/tools/output-schemas.ts`: Zod output schemas for tools returning `structuredContent`; the `_view` discriminator drives client-side view routing.
 - `src/tools/types.ts`: shared tool context, auth helpers, response helpers, storage types
 - `src/tools/tool-types.ts`: Zod-inferred cross-module tool argument types
 
 Services and utilities:
 
 - `src/services/kroger/client.ts`: creates typed Kroger API clients and auth middleware.
-- `src/services/kroger/*.d.ts`: generated OpenAPI types.
+- `src/services/kroger/*.d.ts`: generated OpenAPI types (cart, location, product, identity, weekly-deals).
 - `src/services/qfc-weekly-deals.ts`: QFC weekly deals fetcher and Kroger Product API augmentation.
 - `src/utils/result.ts`: `neverthrow` bridge helpers.
 - `src/utils/user-storage.ts`: Cloudflare KV-backed user data storage.
 - `src/utils/format-response.ts`: user-facing formatting helpers.
 - `src/utils/view-resource.ts`: MCP Apps view resource registration.
+- `src/utils/mcp-security.ts`: `withMcpOriginProtection` origin allowlisting for `/mcp`.
 
 Views:
 
-- `views/app/`: Vite React app rendered by MCP Apps.
+- `views/mcp-app.html` + `views/App.tsx`: Vite entry for the single MCP Apps React app.
 - `views/app/views/`: individual tool result views.
-- `views/shared/`: shared UI components.
-- `dist/views/`: generated view output from `pnpm build:views`.
+- `views/shared/`: shared UI components, hooks, and the `_view` type union.
+- `views/dev/`: local dev harness with mock data.
+- `dist/views/`: generated output from `pnpm build:views`.
+
+Tests:
+
+- `tests/`: vitest suites (Workers pool), mirroring `src/` — `tests/tools/`, `tests/utils/`, `tests/services/`, `tests/integration/`.
+
+## Request And Server Lifecycle
+
+`/mcp` is stateless. Every request builds a fresh `McpServer` through `buildServer(env, sessionId)` and serves it with `createMcpHandler`, so state cannot leak between clients. Keep it that way:
+
+- The `Mcp-Session-Id` header carries the session id; a storage shim rebuilds minimal transport state from it. The session id only namespaces KV data — the user id comes from OAuth, not the header.
+- Auth `Props` are read lazily inside tool execution via `getMcpAuthContext()`. Tool registration must not require auth context.
+- There is no `requireAuth` wrapper; `OAuthProvider` enforces the auth invariant before requests reach `/mcp`. Do not reintroduce per-tool auth gating.
+- `/mcp` is wrapped in `withMcpOriginProtection`; keep origin checks intact when touching routing.
+- The `MyMCP` Durable Object in `src/server.ts` exists only to satisfy the `MCP_OBJECT` binding and is never addressed. Do not route through it or add logic to it; removing it requires a `deleted_classes` migration in a dedicated infra PR.
 
 ## OAuth And Tokens
 
@@ -146,6 +161,8 @@ Tools should follow MCP annotations consistently:
 - `destructiveHint`: true for clear/delete capabilities.
 - `idempotentHint`: true when repeating the same input has the same effect.
 - `openWorldHint`: true for external APIs, false for local-only storage.
+
+Tools that return `structuredContent` must declare a matching `outputSchema` from `src/tools/output-schemas.ts`. Keep nested API payload schemas loose (`z.looseObject`) so new Kroger fields pass through without validation churn.
 
 Current MCP tools:
 
@@ -249,13 +266,14 @@ Use `AppError` constructors from `src/errors.ts`; do not construct the union mem
 
 Tool responses can include rich UI by returning `structuredContent` and `_meta.ui.resourceUri`.
 
-Startup registers `ui://shopping-app` through `registerViewResource(ctx, APP_VIEW_URI, "app.html")`. The Vite React app receives tool results through `ontoolresult` and routes by `_view`.
+Startup registers the single shared view `ui://shopping-app` through `registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html")`. The Vite React app receives tool results through `ontoolresult` and routes by `_view` (typed in `views/shared/types.ts`).
 
 When adding or changing a view:
 
 - Put view-specific code in `views/app/views/`.
 - Reuse shared UI from `views/shared/`.
-- Keep the structured content shape explicit and aligned with the tool response.
+- Keep the structured content shape explicit and aligned with the tool's output schema in `src/tools/output-schemas.ts`.
+- Update the dev harness mocks in `views/dev/` when the structured content shape changes.
 - Run `pnpm build:views` or `pnpm build`.
 
 ## MCP Client Connection
@@ -267,7 +285,7 @@ Example local proxy configuration:
   "mcpServers": {
     "ai-shopping-list": {
       "command": "pnpm",
-      "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/sse"]
+      "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"]
     }
   }
 }
@@ -279,7 +297,7 @@ Before handing back code changes:
 
 1. Add or update tests covering the change (new tools, resources, handlers, branches, and bug fixes all need tests).
 2. Run the narrowest relevant test or build while iterating.
-3. Run `pnpm build` for TypeScript, Biome, and view compilation when practical.
+3. Run `pnpm build` (oxlint, view build, and `tsc --noEmit`) when practical.
 4. Always run `pnpm test` before handing back; never hand back with failing or missing tests.
 5. Mention any verification you could not run.
 
