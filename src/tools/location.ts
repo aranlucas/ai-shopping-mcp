@@ -29,7 +29,8 @@ export function registerLocationTools(ctx: ToolContext) {
     "search_locations",
     {
       title: "Search Store Locations",
-      description: "Searches for Kroger/QFC store locations by zip code and chain name.",
+      description:
+        "Finds Kroger or QFC store locations near a zip code. Returns store names, addresses, and location IDs. Use this to help the user set their preferred store or find a store to pick up an order.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,

@@ -2,32 +2,13 @@ import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react
 
 import { ReactNode, useState } from "react";
 
+import { Badge } from "@/shared/ui/badge.js";
+import { Button } from "@/shared/ui/button.js";
+import { Card, CardContent, CardFooter } from "@/shared/ui/card.js";
+
 import type { ProductData } from "./types.js";
 
-const badgeVariants = {
-  green: "bg-emerald-50 text-emerald-700",
-  red: "bg-red-50 text-red-600",
-  yellow: "bg-amber-50 text-amber-700",
-  blue: "bg-blue-50 text-blue-700",
-  gray: "bg-gray-100 text-gray-500",
-  purple: "bg-purple-50 text-purple-700",
-} as const;
-
-export function Badge({
-  variant,
-  children,
-}: {
-  variant: "green" | "red" | "yellow" | "blue" | "gray" | "purple";
-  children: ReactNode;
-}) {
-  return (
-    <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${badgeVariants[variant]}`}
-    >
-      {children}
-    </span>
-  );
-}
+export { Badge };
 
 export function SectionHeader({
   title,
@@ -70,14 +51,14 @@ export function DisplayModeToggle({
   const next = isFullscreen ? "inline" : "fullscreen";
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon-xs"
       onClick={() => {
         void app.requestDisplayMode({ mode: next });
       }}
       aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-      className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors bg-transparent border-0 cursor-pointer"
     >
       <svg
         aria-hidden="true"
@@ -101,7 +82,7 @@ export function DisplayModeToggle({
           />
         )}
       </svg>
-    </button>
+    </Button>
   );
 }
 
@@ -188,28 +169,30 @@ export function ActionButton({
           ? (failLabel ?? "Failed")
           : idleLabel;
 
-  const primaryCls =
+  const shadcnVariant =
     state === "done"
-      ? "bg-emerald-600 text-white"
+      ? ("secondary" as const)
       : state === "error"
-        ? "bg-red-500 text-white"
-        : "bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-active)] text-white";
-
-  const secondaryCls =
-    state === "done"
-      ? "border-emerald-300 text-emerald-700 bg-emerald-50"
-      : state === "error"
-        ? "border-red-200 text-red-600 bg-red-50"
-        : "border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 active:bg-gray-100";
+        ? ("destructive" as const)
+        : variant === "primary"
+          ? ("default" as const)
+          : ("outline" as const);
 
   return (
-    <button
-      type="button"
+    <Button
+      variant={shadcnVariant}
+      size="xs"
       disabled={disabled || state === "loading"}
-      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
-        variant === "primary" ? primaryCls : `border ${secondaryCls}`
-      } disabled:opacity-40 disabled:cursor-not-allowed`}
       onClick={onClick}
+      className={
+        state === "done" && variant === "primary"
+          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+          : state === "done" && variant === "secondary"
+            ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+            : variant === "primary" && state === "idle"
+              ? "bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white border-transparent"
+              : undefined
+      }
     >
       {icon && state === "idle" && <span className="shrink-0 w-3 h-3">{icon}</span>}
       {state === "loading" && (
@@ -235,7 +218,7 @@ export function ActionButton({
         </svg>
       )}
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -295,7 +278,7 @@ export function ProductActions({
   };
 
   return (
-    <div className="mt-2.5 pt-2.5 border-t border-[var(--app-border)]">
+    <div>
       <div className="flex gap-1.5">
         <ActionButton
           state={cartState}
@@ -349,6 +332,40 @@ export function ProductActions({
   );
 }
 
+function ProductImage({ product }: { product: ProductData }) {
+  const thumbnail = product.images
+    ?.find((img) => img.featured || img.perspective === "front")
+    ?.sizes?.find((s) => s.id === "thumbnail" || s.id === "small")?.url;
+
+  if (!thumbnail) {
+    const initials = (product.description ?? "?")
+      .split(" ")
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase();
+    return (
+      <div className="w-full aspect-square bg-gray-50 flex items-center justify-center">
+        <span className="text-xl font-bold text-gray-300">{initials}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full aspect-square bg-gray-50 overflow-hidden">
+      <img
+        src={thumbnail}
+        alt={product.description ?? "Product"}
+        className="w-full h-full object-contain p-2"
+        loading="lazy"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+        }}
+      />
+    </div>
+  );
+}
+
 export function ProductCard({
   product,
   canCallTools,
@@ -369,57 +386,59 @@ export function ProductCard({
     (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
 
   return (
-    <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 flex flex-col overflow-hidden">
-      <div className="p-3 flex-1">
-        <div className="flex items-start gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-[13px] text-gray-900 leading-snug">{name}</div>
-            {(brand || size) && (
-              <div className="text-[11px] text-gray-400 mt-0.5">
-                {brand}
-                {brand && size && " · "}
-                {size}
-              </div>
-            )}
-            {aisle && (
-              <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-0.5">
-                <svg
-                  aria-hidden="true"
-                  className="w-2.5 h-2.5 shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-                  />
-                </svg>
-                {aisle}
-              </div>
-            )}
+    <Card size="sm" className="hover:shadow-md transition-shadow duration-150">
+      <ProductImage product={product} />
+      <CardContent className="flex-1 pt-2">
+        <div className="font-medium text-[13px] text-gray-900 leading-snug line-clamp-2">
+          {name}
+        </div>
+        {(brand || size) && (
+          <div className="text-[11px] text-gray-400 mt-0.5">
+            {brand}
+            {brand && size && " · "}
+            {size}
           </div>
-          <div className="shrink-0">
-            <PriceDisplay product={product} />
+        )}
+        {aisle && (
+          <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-0.5">
+            <svg
+              aria-hidden="true"
+              className="w-2.5 h-2.5 shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+              />
+            </svg>
+            {aisle}
           </div>
+        )}
+        <div className="mt-1.5">
+          <PriceDisplay product={product} />
         </div>
         <FulfillmentTags product={product} />
-        {upc && <div className="text-[9px] text-gray-300 mt-1 font-mono">{upc}</div>}
-      </div>
-      <ProductActions
-        upc={upc}
-        name={name}
-        disabled={!canCallTools}
-        onAddToCart={onAddToCart}
-        onAddToList={onAddToList}
-      />
-    </div>
+      </CardContent>
+      {upc && (
+        <CardFooter className="pt-2">
+          <ProductActions
+            upc={upc}
+            name={name}
+            disabled={!canCallTools}
+            onAddToCart={onAddToCart}
+            onAddToList={onAddToList}
+          />
+        </CardFooter>
+      )}
+    </Card>
   );
 }

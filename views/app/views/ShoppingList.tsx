@@ -2,7 +2,10 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
+import { Badge } from "@/shared/ui/badge.js";
+import { Separator } from "@/shared/ui/separator.js";
+
+import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import {
   type AppData,
@@ -68,7 +71,6 @@ function ShoppingItem({
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className="text-[11px] text-gray-400 font-mono">×{item.quantity}</span>
-          {item.upc ? <Badge variant="green">UPC</Badge> : <Badge variant="yellow">No UPC</Badge>}
           {item.notes && (
             <span className="text-[11px] text-gray-400 italic truncate max-w-28">{item.notes}</span>
           )}
@@ -185,7 +187,7 @@ export function ShoppingListView({
         subtitle={actionDetail}
       />
 
-      {/* Status chips */}
+      {/* Status summary */}
       <div className="flex gap-1.5 mb-3 flex-wrap">
         <Badge variant="green">{withUpc.length} ready</Badge>
         {withoutUpc.length > 0 && <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>}
@@ -199,7 +201,7 @@ export function ShoppingListView({
             <button
               type="button"
               onClick={handleCheckout}
-              className="inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-active)] text-white border-0 cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white border-0 cursor-pointer transition-colors"
             >
               <svg
                 aria-hidden="true"
@@ -222,7 +224,7 @@ export function ShoppingListView({
             <button
               type="button"
               onClick={handleFindUpcs}
-              className="inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium border border-[var(--app-border)] text-gray-600 hover:bg-gray-50 hover:border-gray-300 bg-transparent cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-border text-gray-600 hover:bg-muted bg-transparent cursor-pointer transition-colors"
             >
               <svg
                 aria-hidden="true"
@@ -245,7 +247,7 @@ export function ShoppingListView({
       )}
 
       {/* Unchecked items */}
-      <div className="divide-y divide-[var(--app-border)]">
+      <div className="divide-y divide-border">
         {unchecked.map((item) => (
           <ShoppingItem
             key={item.productName}
@@ -258,11 +260,12 @@ export function ShoppingListView({
 
       {/* Checked items */}
       {checked.length > 0 && (
-        <div className="mt-5">
+        <div className="mt-4">
+          <Separator className="mb-3" />
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
             In Cart · {checked.length}
           </p>
-          <div className="divide-y divide-[var(--app-border)]">
+          <div className="divide-y divide-border">
             {checked.map((item) => (
               <ShoppingItem
                 key={item.productName}

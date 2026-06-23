@@ -10,6 +10,7 @@ import { createRoot } from "react-dom/client";
 
 import { LocationDetailView } from "./app/views/LocationDetail.js";
 import { LocationResultsView } from "./app/views/LocationResults.js";
+import { OrderHistoryView } from "./app/views/OrderHistory.js";
 import { PantryView } from "./app/views/Pantry.js";
 import { ProductDetailView } from "./app/views/ProductDetail.js";
 import { ProductSearchView } from "./app/views/ProductSearch.js";
@@ -17,7 +18,14 @@ import { RecipeResultsView } from "./app/views/RecipeResults.js";
 import { ShoppingListView } from "./app/views/ShoppingList.js";
 import { WeeklyDealsView } from "./app/views/WeeklyDeals.js";
 import { useResettableState } from "./shared/hooks.js";
-import { ErrorDisplay, Loading } from "./shared/status.js";
+import {
+  ErrorDisplay,
+  ListSkeleton,
+  Loading,
+  ProductSearchSkeleton,
+  RecipesSkeleton,
+  WeeklyDealsSkeleton,
+} from "./shared/status.js";
 import { parseStructuredContent } from "./shared/types.js";
 
 function ShoppingApp() {
@@ -135,8 +143,25 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
   const canCallTools = !!app.getHostCapabilities()?.serverTools;
 
   if (!data) {
-    const message = partialArgs ? getPartialLoadingMessage(toolName, partialArgs) : undefined;
-    return <Loading message={message} />;
+    if (partialArgs) {
+      switch (toolName) {
+        case "search_products":
+          return <ProductSearchSkeleton />;
+        case "get_weekly_deals":
+          return <WeeklyDealsSkeleton />;
+        case "search_recipes_from_web":
+          return <RecipesSkeleton />;
+        case "manage_shopping_list":
+        case "manage_pantry":
+        case "mark_order_placed":
+          return <ListSkeleton />;
+        default: {
+          const message = getPartialLoadingMessage(toolName, partialArgs);
+          return <Loading message={message} />;
+        }
+      }
+    }
+    return <Loading />;
   }
 
   switch (data._view) {
@@ -187,6 +212,8 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
           hostContext={hostContext}
         />
       );
+    case "mark_order_placed":
+      return <OrderHistoryView data={data} />;
     default:
       // `parseStructuredContent` only yields known views, so this is unreachable
       // — but it keeps the switch exhaustive and avoids a silent blank render.

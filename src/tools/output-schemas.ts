@@ -20,6 +20,23 @@ const productSchema = z.looseObject({
   aisleLocations: z
     .array(z.looseObject({ description: z.string().optional(), number: z.string().optional() }))
     .optional(),
+  images: z
+    .array(
+      z.looseObject({
+        perspective: z.string().optional(),
+        featured: z.boolean().optional(),
+        sizes: z
+          .array(
+            z.looseObject({
+              id: z.string().optional(),
+              size: z.string().optional(),
+              url: z.string().optional(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .optional(),
   items: z
     .array(
       z.looseObject({
@@ -162,4 +179,22 @@ export const getWeeklyDealsOutputSchema = z.object({
   validFrom: z.string().optional(),
   validTill: z.string().optional(),
   cache: z.looseObject({ state: z.enum(["miss", "fresh", "stale"]) }).optional(),
+});
+
+export const markOrderPlacedOutputSchema = z.object({
+  _view: z.literal("mark_order_placed"),
+  orderId: z.string(),
+  items: z.array(
+    z.looseObject({
+      productId: z.string(),
+      productName: z.string(),
+      quantity: z.number(),
+      price: z.number().optional(),
+    }),
+  ),
+  totalItems: z.number(),
+  estimatedTotal: z.number().optional(),
+  placedAt: z.string(),
+  locationId: z.string().optional(),
+  notes: z.string().optional(),
 });

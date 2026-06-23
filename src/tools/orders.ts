@@ -5,8 +5,9 @@ import type { OrderRecord } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
-import { getProps, safeStorage, toMcpResponse } from "../utils/result.js";
+import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { markOrderPlacedOutputSchema } from "./output-schemas.js";
 
 export function registerOrderTools(ctx: ToolContext) {
   registerAppTool(
@@ -35,6 +36,7 @@ export function registerOrderTools(ctx: ToolContext) {
         locationId: z.string().optional(),
         notes: z.string().max(500).optional(),
       }),
+      outputSchema: markOrderPlacedOutputSchema,
     },
     async ({ items, locationId, notes }) => {
       const props = getProps();
@@ -58,9 +60,27 @@ export function registerOrderTools(ctx: ToolContext) {
       const result = await safeStorage(
         () => ctx.storage.orderHistory.add(props.id, order),
         "record order",
-      ).map(() => `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`);
+      ).map(() => ({
+        content: [
+          {
+            type: "text" as const,
+            text: `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
+          },
+        ],
+        structuredContent: {
+          _view: "mark_order_placed" as const,
+          orderId: order.orderId,
+          items: order.items,
+          totalItems: order.totalItems,
+          estimatedTotal: order.estimatedTotal,
+          placedAt: order.placedAt,
+          locationId: order.locationId,
+          notes: order.notes,
+        },
+      }));
 
-      return toMcpResponse(result);
+      if (result.isErr()) return toMcpError(result.error);
+      return result.value;
     },
   );
 }
