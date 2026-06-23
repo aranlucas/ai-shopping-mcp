@@ -1,6 +1,12 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
-import { useRef } from "react";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/shared/ui/carousel.js";
 
 import { DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -21,73 +27,23 @@ function ProductCarousel({
   onAddToList: (name: string, upc: string) => Promise<void>;
   canCallTools: boolean;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const scroll = (dir: "left" | "right") => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir === "left" ? -220 : 220, behavior: "smooth" });
-  };
-
   return (
-    <div className="relative group">
-      <button
-        type="button"
-        onClick={() => scroll("left")}
-        aria-label="Scroll left"
-        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 z-10 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-500 hover:text-gray-800 hover:shadow-md transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
-      >
-        <svg
-          aria-hidden="true"
-          className="w-3 h-3"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={2.5}
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-        </svg>
-      </button>
-
-      <div
-        ref={scrollRef}
-        className="flex gap-2 overflow-x-auto pb-1 scroll-smooth"
-        style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
-      >
+    <Carousel opts={{ align: "start" }}>
+      <CarouselContent className="-ml-2">
         {products.map((product) => (
-          <div
-            key={product.upc ?? product.description}
-            className="shrink-0 w-52"
-            style={{ scrollSnapAlign: "start" }}
-          >
+          <CarouselItem key={product.upc ?? product.description} className="pl-2 basis-52">
             <ProductCard
               product={product}
               onAddToCart={onAddToCart}
               onAddToList={onAddToList}
               canCallTools={canCallTools}
             />
-          </div>
+          </CarouselItem>
         ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => scroll("right")}
-        aria-label="Scroll right"
-        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1 z-10 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-500 hover:text-gray-800 hover:shadow-md transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
-      >
-        <svg
-          aria-hidden="true"
-          className="w-3 h-3"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={2.5}
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-        </svg>
-      </button>
-    </div>
+      </CarouselContent>
+      <CarouselPrevious className="left-2 bg-white/90 hover:bg-white shadow-md border-gray-200" />
+      <CarouselNext className="right-2 bg-white/90 hover:bg-white shadow-md border-gray-200" />
+    </Carousel>
   );
 }
 

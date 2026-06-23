@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Badge } from "@/shared/ui/badge.js";
 import { Card, CardContent, CardFooter } from "@/shared/ui/card.js";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/collapsible.js";
 
 import { ActionButton, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState, Loading } from "../../shared/status.js";
@@ -36,7 +37,6 @@ function RecipeCard({
   app: App | null;
   onShopIngredients: (recipe: RecipeData) => void;
 }) {
-  const [showInstructions, setShowInstructions] = useState(false);
   const [shopState, setShopState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const time = recipe.totalTime ?? recipe.cookTime;
   const recipeUrl = `https://janella-cookbook.vercel.app/recipe/${recipe.slug}`;
@@ -125,15 +125,11 @@ function RecipeCard({
 
         {/* Instructions toggle */}
         {recipe.instructions && recipe.instructions.length > 0 && (
-          <div className="mt-2.5 pt-2.5 border-t border-border">
-            <button
-              type="button"
-              onClick={() => setShowInstructions((v) => !v)}
-              className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors select-none flex items-center gap-1 w-full text-left bg-transparent border-0 p-0 cursor-pointer"
-            >
+          <Collapsible className="mt-2.5 pt-2.5 border-t border-border">
+            <CollapsibleTrigger className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors select-none flex items-center gap-1 w-full text-left bg-transparent border-0 p-0 cursor-pointer [&[data-state=open]_svg]:rotate-90">
               <svg
                 aria-hidden="true"
-                className={`w-3 h-3 transition-transform ${showInstructions ? "rotate-90" : ""}`}
+                className="w-3 h-3 transition-transform"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2.5}
@@ -142,8 +138,8 @@ function RecipeCard({
                 <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
               </svg>
               Instructions · {recipe.instructions.length} steps
-            </button>
-            {showInstructions && (
+            </CollapsibleTrigger>
+            <CollapsibleContent>
               <div className="text-[11px] text-gray-600 mt-2 space-y-2">
                 {recipe.instructions.map((step) => (
                   <div key={step.stepNumber} className="flex gap-2">
@@ -154,8 +150,8 @@ function RecipeCard({
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
         )}
       </CardContent>
 
