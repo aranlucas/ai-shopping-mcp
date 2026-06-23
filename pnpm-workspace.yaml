@@ -1,6 +1,10 @@
 allowBuilds:
   "@modelcontextprotocol/ext-apps": true
+  "@mongodb-js/zstd": true
   core-js-pure: true
   esbuild: true
+  node-liblzma: true
   sharp: true
   workerd: true
+minimumReleaseAgeExclude:
+  - lint-staged@17.0.8

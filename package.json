@@ -29,42 +29,42 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@cloudflare/workers-oauth-provider": "^0.6.0",
+    "@cloudflare/workers-oauth-provider": "^0.8.1",
     "@mcp-ui/server": "^6.1.0",
-    "@modelcontextprotocol/ext-apps": "^1.7.2",
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@modelcontextprotocol/sdk": "1.29.0",
-    "@tailwindcss/vite": "^4.3.0",
+    "@tailwindcss/vite": "^4.3.1",
     "@toon-format/toon": "^2.3.0",
-    "agents": "^0.13.0",
-    "hono": "^4.12.21",
+    "agents": "^0.16.2",
+    "hono": "^4.12.26",
     "neverthrow": "^8.2.0",
     "openapi-fetch": "^0.17.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "tailwindcss": "^4.3.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwindcss": "^4.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.16.13",
-    "@types/node": "^25.9.1",
-    "@types/react": "^19.2.15",
+    "@cloudflare/vitest-pool-workers": "^0.16.18",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
-    "@vitest/coverage-istanbul": "^4.1.8",
-    "concurrently": "^9.2.1",
-    "eslint-plugin-perfectionist": "^5.9.0",
+    "@vitest/coverage-istanbul": "^4.1.9",
+    "concurrently": "^10.0.3",
+    "eslint-plugin-perfectionist": "^5.9.1",
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.5",
+    "lint-staged": "^17.0.8",
     "openapi-typescript": "^7.13.0",
-    "oxfmt": "^0.51.0",
-    "oxlint": "^1.66.0",
+    "oxfmt": "^0.56.0",
+    "oxlint": "^1.71.0",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "vite": "^8.0.13",
+    "vite": "^8.0.16",
     "vite-plugin-singlefile": "^2.3.3",
-    "vitest": "^4.1.6",
-    "wrangler": "^4.93.0"
+    "vitest": "^4.1.9",
+    "wrangler": "^4.103.0"
   },
   "overrides": {
     "@modelcontextprotocol/sdk": "1.29.0",
@@ -76,5 +76,5 @@
   "engines": {
     "node": ">=24.13.0"
   },
-  "packageManager": "pnpm@11.3.0"
+  "packageManager": "pnpm@11.8.0"
 }
