@@ -333,9 +333,12 @@ export function ProductActions({
 }
 
 function ProductImage({ product }: { product: ProductData }) {
-  const thumbnail = product.images
-    ?.find((img) => img.featured || img.perspective === "front")
-    ?.sizes?.find((s) => s.id === "thumbnail" || s.id === "small")?.url;
+  const frontImage = product.images?.find(
+    (img) => (img as { default?: boolean }).default || img.perspective === "front",
+  );
+  const sizes = frontImage?.sizes ?? product.images?.[0]?.sizes;
+  const thumbnail =
+    sizes?.find((s) => s.size === "thumbnail" || s.size === "small")?.url ?? sizes?.[0]?.url;
 
   if (!thumbnail) {
     const initials = (product.description ?? "?")
@@ -386,43 +389,45 @@ export function ProductCard({
     (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
 
   return (
-    <Card size="sm" className="hover:shadow-md transition-shadow duration-150">
+    <Card size="sm" className="h-full hover:shadow-md transition-shadow duration-150">
       <ProductImage product={product} />
-      <CardContent className="flex-1 pt-2">
-        <div className="font-medium text-[13px] text-gray-900 leading-snug line-clamp-2">
-          {name}
+      <CardContent className="flex flex-col flex-1 pt-2">
+        <div className="flex-1">
+          <div className="font-medium text-[13px] text-gray-900 leading-snug line-clamp-2">
+            {name}
+          </div>
+          {(brand || size) && (
+            <div className="text-[11px] text-gray-400 mt-0.5">
+              {brand}
+              {brand && size && " · "}
+              {size}
+            </div>
+          )}
+          {aisle && (
+            <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-0.5">
+              <svg
+                aria-hidden="true"
+                className="w-2.5 h-2.5 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+                />
+              </svg>
+              {aisle}
+            </div>
+          )}
         </div>
-        {(brand || size) && (
-          <div className="text-[11px] text-gray-400 mt-0.5">
-            {brand}
-            {brand && size && " · "}
-            {size}
-          </div>
-        )}
-        {aisle && (
-          <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-0.5">
-            <svg
-              aria-hidden="true"
-              className="w-2.5 h-2.5 shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-              />
-            </svg>
-            {aisle}
-          </div>
-        )}
         <div className="mt-1.5">
           <PriceDisplay product={product} />
         </div>
