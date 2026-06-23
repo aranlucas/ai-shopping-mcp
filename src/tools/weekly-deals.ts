@@ -8,8 +8,8 @@ import type { ToolContext } from "./types.js";
 
 import { networkError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
-import { formatWeeklyDealsListCompact } from "../utils/format-response.js";
 import { toMcpError } from "../utils/result.js";
+import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getWeeklyDealsOutputSchema } from "./output-schemas.js";
 
@@ -271,15 +271,6 @@ export function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,
   cacheState: "miss" | "fresh" | "stale",
 ) {
-  const formattedDeals = formatWeeklyDealsListCompact(
-    result.deals.map((deal) => ({
-      product: deal.title,
-      details: deal.details,
-      price: deal.price || "See weekly ad",
-      savings: deal.savings,
-    })),
-  );
-
   const validFrom =
     result.printCircular?.eventStartDate ??
     result.shoppableCircular?.eventStartDate ??
@@ -289,30 +280,25 @@ export function formatWeeklyDealsToolResponse(
     result.shoppableCircular?.eventEndDate ??
     result.deals.find((d) => d.validTill)?.validTill;
 
-  const headerLines: string[] = [];
-  if (validFrom && validTill) headerLines.push(`Valid: ${validFrom} – ${validTill}`);
-  if (result.warnings.length > 0) headerLines.push(`Warnings: ${result.warnings.join(" | ")}`);
-
-  const text =
-    headerLines.length > 0 ? `${headerLines.join("\n")}\n\n${formattedDeals}` : formattedDeals;
+  const deals = result.deals.map((deal) => ({
+    title: deal.title,
+    details: deal.details,
+    price: deal.price,
+    savings: deal.savings,
+    validFrom: deal.validFrom,
+    validTill: deal.validTill,
+  }));
 
   return {
-    content: [
-      {
-        type: "text" as const,
-        text,
-      },
-    ],
+    ...toonResult({
+      ...(validFrom && validTill ? { validFrom, validTill } : {}),
+      ...(result.warnings.length > 0 ? { warnings: result.warnings } : {}),
+      dealCount: deals.length,
+      deals,
+    }),
     structuredContent: {
       _view: "get_weekly_deals",
-      deals: result.deals.map((deal) => ({
-        title: deal.title,
-        details: deal.details,
-        price: deal.price,
-        savings: deal.savings,
-        validFrom: deal.validFrom,
-        validTill: deal.validTill,
-      })),
+      deals,
       validFrom,
       validTill,
       cache: { state: cacheState },

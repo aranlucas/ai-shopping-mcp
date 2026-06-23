@@ -213,31 +213,38 @@ describe("addCacheWarning", () => {
 // ---------------------------------------------------------------------------
 
 describe("formatWeeklyDealsToolResponse", () => {
-  it("returns plain deals list when no dates and no warnings", async () => {
+  it("returns TOON-encoded deals when no dates and no warnings", async () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Bananas", price: "$0.59/lb", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toBe("1. Bananas | $0.59/lb");
+    expect(text).toContain("Bananas");
+    expect(text).toContain("dealCount: 1");
+    // top-level validFrom: field absent (column headers contain "validFrom" without ": ")
+    expect(text).not.toContain("validFrom: ");
+    expect(text).not.toContain("warnings");
   });
 
-  it("prepends valid date range when both printCircular dates are present", async () => {
+  it("includes validFrom and validTill from printCircular", async () => {
     const result = makeMinimalResult({
       printCircular: makeCircular("2025-01-07T00:00:00Z", "2025-01-01T00:00:00Z"),
       deals: [{ id: "1", title: "Apples", price: "$1.99/lb", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("Valid: 2025-01-01T00:00:00Z – 2025-01-07T00:00:00Z");
-    expect(text).toContain("1. Apples | $1.99/lb");
+    expect(text).toContain("validFrom:");
+    expect(text).toContain("validTill:");
+    expect(text).toContain("Apples");
   });
 
-  it("prepends valid date range from shoppableCircular when no printCircular", async () => {
+  it("includes validFrom and validTill from shoppableCircular when no printCircular", async () => {
     const result = makeMinimalResult({
       shoppableCircular: makeCircular("2025-01-08T00:00:00Z", "2025-01-02T00:00:00Z"),
       deals: [{ id: "1", title: "Milk", price: "$3.49", source: "search_api" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("Valid: 2025-01-02T00:00:00Z – 2025-01-08T00:00:00Z");
+    expect(text).toContain("validFrom:");
+    expect(text).toContain("2025-01-02T00:00:00Z");
+    expect(text).toContain("2025-01-08T00:00:00Z");
   });
 
   it("falls back to deal-level dates when no circular dates present", async () => {
@@ -254,10 +261,11 @@ describe("formatWeeklyDealsToolResponse", () => {
       ],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("Valid: 2025-01-01 – 2025-01-07");
+    expect(text).toContain("2025-01-01");
+    expect(text).toContain("2025-01-07");
   });
 
-  it("omits date line when only one date is available", async () => {
+  it("omits date fields when only one date is available", async () => {
     const result = makeMinimalResult({
       deals: [
         {
@@ -270,29 +278,31 @@ describe("formatWeeklyDealsToolResponse", () => {
       ],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).not.toContain("Valid:");
+    // top-level date keys absent (column headers have "validFrom" without the ": " suffix)
+    expect(text).not.toContain("validFrom: ");
+    expect(text).not.toContain("validTill: ");
   });
 
-  it("includes warnings in header when present", async () => {
+  it("includes warnings array when present", async () => {
     const result = makeMinimalResult({
       warnings: ["Print-ad parsing failed", "Using fallback"],
       deals: [{ id: "1", title: "Chicken", price: "$4.99", source: "search_api" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("Warnings: Print-ad parsing failed | Using fallback");
+    expect(text).toContain("Print-ad parsing failed");
+    expect(text).toContain("Using fallback");
+    expect(text).toContain("warnings");
   });
 
-  it("includes both dates and warnings separated by newline", async () => {
+  it("includes both date fields and warnings", async () => {
     const result = makeMinimalResult({
       printCircular: makeCircular("2025-01-07T00:00:00Z", "2025-01-01T00:00:00Z"),
       warnings: ["Some warning"],
       deals: [{ id: "1", title: "Beef", price: "$5.99", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    const lines = text.split("\n");
-    expect(lines[0]).toContain("Valid:");
-    expect(lines[1]).toContain("Warnings:");
-    expect(text).toContain("\n\n"); // blank line separates header from deals
+    expect(text).toContain("validFrom:");
+    expect(text).toContain("Some warning");
   });
 
   it("does not include source label in output", async () => {
@@ -344,7 +354,7 @@ describe("formatWeeklyDealsToolResponse", () => {
     expect((response.structuredContent as { cache: { state: string } }).cache.state).toBe("fresh");
   });
 
-  it("includes deal details and savings in compact format", async () => {
+  it("includes deal title, details, price, and savings in TOON row", async () => {
     const result = makeMinimalResult({
       deals: [
         {
@@ -358,20 +368,87 @@ describe("formatWeeklyDealsToolResponse", () => {
       ],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toBe("1. Ground Beef | 80% Lean | $3.99/lb (Save $2.00)");
+    expect(text).toContain("Ground Beef");
+    expect(text).toContain("80% Lean");
+    expect(text).toContain("$3.99/lb");
+    expect(text).toContain("Save $2.00");
   });
 
-  it("shows 'See weekly ad' when deal has no price", async () => {
+  it("includes deal title when deal has no price", async () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Special Item", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("See weekly ad");
+    expect(text).toContain("Special Item");
+    expect(text).not.toContain("See weekly ad");
   });
 
-  it("returns empty deals message when no deals", async () => {
+  it("shows dealCount: 0 when no deals", async () => {
     const result = makeMinimalResult({ deals: [] });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toBe("No weekly deals found.");
+    expect(text).toContain("dealCount: 0");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TOON compaction vs JSON
+// ---------------------------------------------------------------------------
+
+function makeDeals(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `deal-${i}`,
+    title: `Organic Valley Whole Milk 64oz`,
+    details: "2% Reduced Fat, Grade A",
+    price: `$${(3 + i * 0.25).toFixed(2)}`,
+    savings: `Save $1.${i % 10}0`,
+    source: "print" as const,
+    validFrom: "2025-01-01",
+    validTill: "2025-01-07",
+  }));
+}
+
+describe("TOON compaction vs JSON", () => {
+  it("TOON is shorter than JSON for a realistic deals list (10 items)", () => {
+    const result = makeMinimalResult({ deals: makeDeals(10) });
+    const toonText = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
+    const jsonText = JSON.stringify(result.deals);
+    const savings = ((1 - toonText.length / jsonText.length) * 100).toFixed(1);
+    console.log(
+      `10 deals — TOON: ${toonText.length} chars, JSON: ${jsonText.length} chars (${savings}% smaller)`,
+    );
+    expect(toonText.length).toBeLessThan(jsonText.length);
+  });
+
+  it("TOON is shorter than JSON for a larger deals list (50 items)", () => {
+    const result = makeMinimalResult({ deals: makeDeals(50) });
+    const toonText = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
+    const jsonText = JSON.stringify(result.deals);
+    const savings = ((1 - toonText.length / jsonText.length) * 100).toFixed(1);
+    console.log(
+      `50 deals — TOON: ${toonText.length} chars, JSON: ${jsonText.length} chars (${savings}% smaller)`,
+    );
+    expect(toonText.length).toBeLessThan(jsonText.length);
+  });
+
+  it("savings grow with array size — 50-item list saves more than 10-item list", () => {
+    const result10 = makeMinimalResult({ deals: makeDeals(10) });
+    const result50 = makeMinimalResult({ deals: makeDeals(50) });
+    const toon10 = getTextContent(formatWeeklyDealsToolResponse(result10, "miss")).length;
+    const json10 = JSON.stringify(result10.deals).length;
+    const toon50 = getTextContent(formatWeeklyDealsToolResponse(result50, "miss")).length;
+    const json50 = JSON.stringify(result50.deals).length;
+    const savings10 = 1 - toon10 / json10;
+    const savings50 = 1 - toon50 / json50;
+    console.log(
+      `Savings ratio — 10 items: ${(savings10 * 100).toFixed(1)}%, 50 items: ${(savings50 * 100).toFixed(1)}%`,
+    );
+    expect(savings50).toBeGreaterThan(savings10);
+  });
+
+  it("TOON output is valid text with TOON field-header syntax for uniform arrays", () => {
+    const result = makeMinimalResult({ deals: makeDeals(5) });
+    const toonText = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
+    // TOON tabular arrays declare length and fields in a header like: deals[N]{field1,field2,...}:
+    expect(toonText).toMatch(/deals\[\d+\]\{[^}]+\}:/);
   });
 });

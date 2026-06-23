@@ -1,14 +1,8 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { encode } from "@toon-format/toon";
 
 import { fromApiResponse, getProps, safeStorage } from "../utils/result.js";
+import { toonResource } from "../utils/toon.js";
 import { type ToolContext, getSessionScopedUserId } from "./types.js";
-
-export function toonResource(uri: string, data: unknown) {
-  return {
-    contents: [{ type: "text" as const, uri, mimeType: "text/toon", text: encode(data) }],
-  };
-}
 
 export function registerResources(ctx: ToolContext) {
   const { productClient } = ctx.clients;

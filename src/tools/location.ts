@@ -6,11 +6,7 @@ import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 import { notFoundError } from "../errors.js";
-import {
-  formatLocation,
-  formatLocationListCompact,
-  formatPreferredLocationCompact,
-} from "../utils/format-response.js";
+import { formatPreferredLocationCompact } from "../utils/format-response.js";
 import {
   fromApiResponse,
   getProps,
@@ -18,6 +14,7 @@ import {
   toMcpError,
   toMcpResponse,
 } from "../utils/result.js";
+import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getLocationDetailsOutputSchema, searchLocationsOutputSchema } from "./output-schemas.js";
 
@@ -66,22 +63,16 @@ export function registerLocationTools(ctx: ToolContext) {
           params: { query: queryParams },
         }),
         "search locations",
-      ).map((data) => {
-        const locations = data?.data || [];
-        return {
-          locations,
-          text: `Found ${locations.length} location(s):\n${formatLocationListCompact(locations)}`,
-        };
-      });
+      ).map((data) => data?.data || []);
 
       if (result.isErr()) {
         return toMcpError(result.error);
       }
 
-      const { locations, text } = result.value;
+      const locations = result.value;
 
       return {
-        content: [{ type: "text" as const, text }],
+        ...toonResult({ count: locations.length, locations }),
         structuredContent: { _view: "search_locations", locations },
       };
     },
@@ -129,12 +120,7 @@ export function registerLocationTools(ctx: ToolContext) {
       const location = result.value;
 
       return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Location Details:\n\n${formatLocation(location)}`,
-          },
-        ],
+        ...toonResult(location),
         structuredContent: { _view: "get_location_details", location },
       };
     },

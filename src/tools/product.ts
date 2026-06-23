@@ -5,8 +5,8 @@ import * as z from "zod/v4";
 import type { AppError } from "../errors.js";
 
 import { notFoundError } from "../errors.js";
-import { formatProductCompact, formatProductList } from "../utils/format-response.js";
 import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
@@ -133,39 +133,23 @@ export function registerProductTools(ctx: ToolContext) {
         );
       }
 
-      const formattedSections = results.map((result) => {
-        if (result.failed) {
-          return `**${result.term}** — search failed`;
+      for (const result of results) {
+        if (!result.failed && result.count > 0) {
+          result.products.sort((a, b) => {
+            const aItem = a.items?.[0];
+            const bItem = b.items?.[0];
+            const aPickup = aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
+            const bPickup = bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
+
+            if (aPickup && !bPickup) return -1;
+            if (!aPickup && bPickup) return 1;
+            return 0;
+          });
         }
-        if (result.count === 0) {
-          return `**${result.term}** (0 items)\nNo products found.`;
-        }
-
-        result.products.sort((a, b) => {
-          const aItem = a.items?.[0];
-          const bItem = b.items?.[0];
-          const aPickup = aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
-          const bPickup = bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
-
-          if (aPickup && !bPickup) return -1;
-          if (!aPickup && bPickup) return 1;
-          return 0;
-        });
-
-        const productsFormatted = result.products
-          .map((product, index) => `  ${index + 1}. ${formatProductCompact(product)}`)
-          .join("\n");
-
-        return `**${result.term}** (${result.count} items)\n${productsFormatted}`;
-      });
+      }
 
       return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Bulk search completed (${terms.length} search terms, ${totalProducts} total products):\n\n${formattedSections.join("\n\n")}`,
-          },
-        ],
+        ...toonResult({ termCount: terms.length, totalProducts, results }),
         structuredContent: { _view: "search_products", results, totalProducts },
       };
     },
@@ -226,12 +210,7 @@ export function registerProductTools(ctx: ToolContext) {
       const product = result.value;
 
       return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Product Details:\n\n${formatProductList([product])}`,
-          },
-        ],
+        ...toonResult(product),
         structuredContent: { _view: "get_product_details", product },
       };
     },
