@@ -24,7 +24,7 @@ const productSchema = z.looseObject({
     .array(
       z.looseObject({
         perspective: z.string().optional(),
-        featured: z.boolean().optional(),
+        default: z.boolean().optional(),
         sizes: z
           .array(
             z.looseObject({
