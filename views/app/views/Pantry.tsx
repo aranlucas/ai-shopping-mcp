@@ -2,7 +2,10 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { ActionButton, Badge, SectionHeader } from "../../shared/components.js";
+import { Badge } from "@/shared/ui/badge.js";
+import { Separator } from "@/shared/ui/separator.js";
+
+import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import {
   type AppData,
@@ -172,6 +175,7 @@ export function PantryView({
     const d = Math.floor((new Date(i.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24));
     return d >= 0 && d <= 3;
   });
+  const nonExpiring = items.filter((i) => !expiring.includes(i));
 
   const handleSuggestRecipes = () => {
     const focus = expiring.length > 0 ? " Prioritize what's expiring soon." : "";
@@ -188,28 +192,6 @@ export function PantryView({
         badge={<span className="text-[11px] text-gray-400 font-mono">{items.length} items</span>}
         subtitle={actionDetail}
       />
-
-      {expiring.length > 0 && (
-        <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 flex items-center gap-2">
-          <svg
-            aria-hidden="true"
-            className="w-3.5 h-3.5 text-amber-500 shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-            />
-          </svg>
-          <span className="text-xs font-medium text-amber-700 flex-1">
-            {expiring.length} item{expiring.length !== 1 ? "s" : ""} expiring soon
-          </span>
-        </div>
-      )}
 
       {items.length >= 3 && (
         <div className="mb-3 flex justify-end">
@@ -237,16 +219,55 @@ export function PantryView({
         </div>
       )}
 
-      <div className="divide-y divide-[var(--app-border)]">
-        {items.map((item) => (
-          <PantryItemRow
-            key={item.productName}
-            item={item}
-            canCallTools={canCallTools}
-            onRemove={handleRemove}
-          />
-        ))}
-      </div>
+      {/* Expiring items pinned at top */}
+      {expiring.length > 0 && (
+        <>
+          <div className="mb-1 flex items-center gap-2">
+            <svg
+              aria-hidden="true"
+              className="w-3.5 h-3.5 text-amber-500 shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+              />
+            </svg>
+            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">
+              Use soon · {expiring.length}
+            </span>
+          </div>
+          <div className="divide-y divide-border">
+            {expiring.map((item) => (
+              <PantryItemRow
+                key={item.productName}
+                item={item}
+                canCallTools={canCallTools}
+                onRemove={handleRemove}
+              />
+            ))}
+          </div>
+          {nonExpiring.length > 0 && <Separator className="my-3" />}
+        </>
+      )}
+
+      {/* Rest of pantry */}
+      {nonExpiring.length > 0 && (
+        <div className="divide-y divide-border">
+          {nonExpiring.map((item) => (
+            <PantryItemRow
+              key={item.productName}
+              item={item}
+              canCallTools={canCallTools}
+              onRemove={handleRemove}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

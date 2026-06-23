@@ -2,7 +2,10 @@ import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react
 
 import { useState } from "react";
 
-import { Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
+import { Badge } from "@/shared/ui/badge.js";
+import { Card, CardContent, CardFooter } from "@/shared/ui/card.js";
+
+import { ActionButton, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState, Loading } from "../../shared/status.js";
 import {
   type ProductSearchResultsContent,
@@ -34,12 +37,18 @@ function RecipeCard({
   onShopIngredients: (recipe: RecipeData) => void;
 }) {
   const [showInstructions, setShowInstructions] = useState(false);
+  const [shopState, setShopState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const time = recipe.totalTime ?? recipe.cookTime;
   const recipeUrl = `https://janella-cookbook.vercel.app/recipe/${recipe.slug}`;
 
+  const handleShop = () => {
+    setShopState("loading");
+    onShopIngredients(recipe);
+  };
+
   return (
-    <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 overflow-hidden flex flex-col">
-      <div className="p-3">
+    <Card size="sm" className="hover:shadow-md transition-shadow duration-150 flex flex-col">
+      <CardContent className="pt-3 flex-1">
         <h3 className="font-semibold text-[13px] text-gray-900 leading-snug">{recipe.title}</h3>
         {recipe.description && (
           <p className="text-[11px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">
@@ -86,72 +95,72 @@ function RecipeCard({
             <span className="text-[11px] text-gray-400">{recipe.servings} servings</span>
           )}
         </div>
-      </div>
 
-      {/* Ingredients */}
-      {recipe.ingredients && recipe.ingredients.length > 0 && (
-        <div className="px-3 pb-3 border-t border-[var(--app-border)]">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-2.5 mb-1.5">
-            Ingredients · {recipe.ingredients.length}
-          </p>
-          <div className="text-[11px] text-gray-600 space-y-0.5">
-            {recipe.ingredients.slice(0, 6).map((ing) => {
-              const amount = [ing.quantity, ing.unit].filter(Boolean).join(" ");
-              return (
-                <div key={`${ing.name}-${ing.quantity}`} className="flex gap-1.5 items-baseline">
-                  <span className="text-gray-300 shrink-0">·</span>
-                  <span>
-                    {amount && <span className="text-gray-400 mr-0.5">{amount}</span>}
-                    <span className="font-medium text-gray-700">{ing.name}</span>
-                    {ing.notes && <span className="text-gray-400 ml-0.5">({ing.notes})</span>}
-                  </span>
-                </div>
-              );
-            })}
-            {recipe.ingredients.length > 6 && (
-              <p className="text-gray-400 pl-3">+{recipe.ingredients.length - 6} more</p>
+        {/* Ingredients */}
+        {recipe.ingredients && recipe.ingredients.length > 0 && (
+          <div className="mt-2.5 pt-2.5 border-t border-border">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              Ingredients · {recipe.ingredients.length}
+            </p>
+            <div className="text-[11px] text-gray-600 space-y-0.5">
+              {recipe.ingredients.slice(0, 6).map((ing) => {
+                const amount = [ing.quantity, ing.unit].filter(Boolean).join(" ");
+                return (
+                  <div key={`${ing.name}-${ing.quantity}`} className="flex gap-1.5 items-baseline">
+                    <span className="text-gray-300 shrink-0">·</span>
+                    <span>
+                      {amount && <span className="text-gray-400 mr-0.5">{amount}</span>}
+                      <span className="font-medium text-gray-700">{ing.name}</span>
+                      {ing.notes && <span className="text-gray-400 ml-0.5">({ing.notes})</span>}
+                    </span>
+                  </div>
+                );
+              })}
+              {recipe.ingredients.length > 6 && (
+                <p className="text-gray-400 pl-3">+{recipe.ingredients.length - 6} more</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Instructions toggle */}
+        {recipe.instructions && recipe.instructions.length > 0 && (
+          <div className="mt-2.5 pt-2.5 border-t border-border">
+            <button
+              type="button"
+              onClick={() => setShowInstructions((v) => !v)}
+              className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors select-none flex items-center gap-1 w-full text-left bg-transparent border-0 p-0 cursor-pointer"
+            >
+              <svg
+                aria-hidden="true"
+                className={`w-3 h-3 transition-transform ${showInstructions ? "rotate-90" : ""}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+              Instructions · {recipe.instructions.length} steps
+            </button>
+            {showInstructions && (
+              <div className="text-[11px] text-gray-600 mt-2 space-y-2">
+                {recipe.instructions.map((step) => (
+                  <div key={step.stepNumber} className="flex gap-2">
+                    <span className="shrink-0 w-4 h-4 rounded-sm bg-gray-100 text-gray-500 text-[9px] font-bold flex items-center justify-center">
+                      {step.stepNumber}
+                    </span>
+                    <span className="pt-0.5 leading-relaxed">{step.instruction}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Instructions toggle */}
-      {recipe.instructions && recipe.instructions.length > 0 && (
-        <div className="px-3 pb-3 border-t border-[var(--app-border)]">
-          <button
-            type="button"
-            onClick={() => setShowInstructions((v) => !v)}
-            className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors select-none mt-2.5 flex items-center gap-1 w-full text-left bg-transparent border-0 p-0 cursor-pointer"
-          >
-            <svg
-              aria-hidden="true"
-              className={`w-3 h-3 transition-transform ${showInstructions ? "rotate-90" : ""}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2.5}
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-            </svg>
-            Instructions · {recipe.instructions.length} steps
-          </button>
-          {showInstructions && (
-            <div className="text-[11px] text-gray-600 mt-2 space-y-2">
-              {recipe.instructions.map((step) => (
-                <div key={step.stepNumber} className="flex gap-2">
-                  <span className="shrink-0 w-4 h-4 rounded-sm bg-gray-100 text-gray-500 text-[9px] font-bold flex items-center justify-center">
-                    {step.stepNumber}
-                  </span>
-                  <span className="pt-0.5 leading-relaxed">{step.instruction}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </CardContent>
 
       {/* Footer */}
-      <div className="px-3 py-2.5 mt-auto border-t border-[var(--app-border)] bg-gray-50/50 flex items-center gap-2">
+      <CardFooter className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -176,30 +185,35 @@ function RecipeCard({
           </svg>
         </button>
         {recipe.ingredients && recipe.ingredients.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onShopIngredients(recipe)}
-            className="ml-auto inline-flex items-center gap-1 rounded-full border border-[var(--app-accent-text)] px-3 py-1 text-[11px] font-medium text-[var(--app-accent-text)] hover:bg-[var(--app-accent-text)]/5 transition-colors bg-transparent cursor-pointer"
-          >
-            <svg
-              aria-hidden="true"
-              className="w-3 h-3"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-              />
-            </svg>
-            Shop Ingredients
-          </button>
+          <div className="ml-auto">
+            <ActionButton
+              state={shopState}
+              onClick={handleShop}
+              idleLabel="Shop Ingredients"
+              loadingLabel="Searching..."
+              doneLabel="Found!"
+              failLabel="Failed"
+              variant="secondary"
+              icon={
+                <svg
+                  aria-hidden="true"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+                  />
+                </svg>
+              }
+            />
+          </div>
         )}
-      </div>
-    </div>
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -234,7 +248,6 @@ export function RecipeResultsView({
         setViewMode({ mode: "shopping", recipe, results: null, loading: false, error: msg });
         return;
       }
-      // `structuredContent` is present on CallToolResult in this SDK — same access as App.tsx line 127
       const parsed = parseStructuredContent(result?.structuredContent);
       if (parsed?._view === "search_products") {
         setViewMode({ mode: "shopping", recipe, results: parsed, loading: false, error: null });
@@ -283,7 +296,7 @@ export function RecipeResultsView({
             type="button"
             onClick={() => handleShopIngredients(viewMode.recipe)}
             disabled={viewMode.loading}
-            className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer bg-transparent disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-border text-gray-600 hover:bg-muted cursor-pointer bg-transparent disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Try again
           </button>

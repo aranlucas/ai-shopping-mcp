@@ -17,6 +17,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@views": path.resolve(__dirname, "./views"),
+      "@": path.resolve(__dirname, "views"),
     },
   },
   build: {

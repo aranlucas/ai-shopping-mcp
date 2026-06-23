@@ -2,7 +2,10 @@ import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react
 
 import { useEffect, useState } from "react";
 
-import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
+import { Badge } from "@/shared/ui/badge.js";
+import { Card, CardContent, CardFooter } from "@/shared/ui/card.js";
+
+import { ActionButton, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import {
   type DealData,
@@ -37,8 +40,8 @@ function DealCard({
   };
 
   return (
-    <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 p-3 flex flex-col">
-      <div className="flex-1">
+    <Card size="sm" className="hover:shadow-md transition-shadow duration-150 flex flex-col">
+      <CardContent className="flex-1 pt-3">
         <div className="font-medium text-[13px] text-gray-900 leading-snug">{deal.title}</div>
         {deal.details && (
           <div className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{deal.details}</div>
@@ -49,8 +52,8 @@ function DealCard({
           </span>
           {deal.savings && <Badge variant="red">{deal.savings}</Badge>}
         </div>
-      </div>
-      <div className="mt-2.5 pt-2.5 border-t border-[var(--app-border)] flex gap-1.5">
+      </CardContent>
+      <CardFooter className="flex gap-1.5">
         <ActionButton
           state={searchState}
           onClick={handleSearch}
@@ -79,7 +82,7 @@ function DealCard({
         <button
           type="button"
           onClick={() => onPlanMeal(deal.title)}
-          className="inline-flex items-center gap-1 rounded border border-[var(--app-border)] px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors bg-transparent cursor-pointer"
+          className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-medium text-gray-600 hover:bg-muted transition-colors bg-transparent cursor-pointer"
           title="Ask the assistant to plan a meal using this deal"
         >
           <svg
@@ -98,8 +101,8 @@ function DealCard({
           </svg>
           Plan a meal
         </button>
-      </div>
-    </div>
+      </CardFooter>
+    </Card>
   );
 }
 

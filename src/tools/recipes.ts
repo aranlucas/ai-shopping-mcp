@@ -15,7 +15,7 @@ export function registerRecipeTools(ctx: ToolContext) {
     {
       title: "Search Recipes",
       description:
-        "Searches for recipes from Janella's Cookbook API. Returns detailed recipe information including ingredients, instructions, and metadata.",
+        "Searches for recipes by name or ingredient. Returns recipes with ingredients, step-by-step instructions, cuisine, difficulty, and cook time. Use when the user wants meal ideas, a specific recipe, or wants to plan what to cook.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,

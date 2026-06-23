@@ -14,6 +14,7 @@ import type {
   getWeeklyDealsOutputSchema,
   managePantryOutputSchema,
   manageShoppingListOutputSchema,
+  markOrderPlacedOutputSchema,
   searchLocationsOutputSchema,
   searchProductsOutputSchema,
   searchRecipesOutputSchema,
@@ -82,6 +83,7 @@ export type ProductDetailContent = z.infer<typeof getProductDetailsOutputSchema>
 export type PantryListContent = z.infer<typeof managePantryOutputSchema>;
 export type ShoppingListContent = z.infer<typeof manageShoppingListOutputSchema>;
 export type RecipeResultsContent = z.infer<typeof searchRecipesOutputSchema>;
+export type OrderHistoryContent = z.infer<typeof markOrderPlacedOutputSchema>;
 
 /** Element/sub-shapes, indexed out of the inferred content types above. */
 export type DealData = WeeklyDealsContent["deals"][number];
@@ -90,6 +92,7 @@ export type ProductData = ProductDetailContent["product"];
 export type PantryItemData = PantryListContent["items"][number];
 export type ShoppingListItemData = ShoppingListContent["items"][number];
 export type RecipeData = RecipeResultsContent["recipes"][number];
+export type OrderItemData = OrderHistoryContent["items"][number];
 
 /**
  * Discriminated union of all possible tool `structuredContent` shapes.
@@ -104,7 +107,8 @@ export type AppData =
   | ShoppingListContent
   | PantryListContent
   | RecipeResultsContent
-  | WeeklyDealsContent;
+  | WeeklyDealsContent
+  | OrderHistoryContent;
 
 /**
  * Exhaustive map of the `_view` discriminators we know how to render. Typing it
@@ -121,6 +125,7 @@ const VIEW_NAMES: Record<AppData["_view"], true> = {
   manage_pantry: true,
   search_recipes_from_web: true,
   get_weekly_deals: true,
+  mark_order_placed: true,
 };
 
 /** The set of `_view` discriminators we know how to render. */

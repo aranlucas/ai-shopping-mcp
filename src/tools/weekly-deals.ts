@@ -157,7 +157,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
     {
       title: "Get Weekly Deals",
       description:
-        "Fetches current QFC/Kroger weekly deals from the print ad (DACS), then augments each deal with real pricing from the Kroger Product Search API. Falls back to search-API-only deal discovery if print-ad parsing fails.",
+        "Fetches this week's QFC/Kroger sale items and promotions. Returns deal titles, prices, and savings. Use this when the user wants to know what's on sale or wants to plan meals around current discounts.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
