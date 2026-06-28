@@ -148,8 +148,15 @@ export function registerProductTools(ctx: ToolContext) {
         }
       }
 
+      // Strip images from the model context — long CDN URLs the model doesn't
+      // use. Images are preserved in structuredContent for the React UI.
+      const resultsForContent = results.map((r) => ({
+        ...r,
+        products: r.products.map(({ images: _images, ...rest }) => rest),
+      }));
+
       return {
-        ...toonResult({ termCount: terms.length, totalProducts, results }),
+        ...toonResult({ termCount: terms.length, totalProducts, results: resultsForContent }),
         structuredContent: { _view: "search_products", results, totalProducts },
       };
     },
@@ -209,8 +216,11 @@ export function registerProductTools(ctx: ToolContext) {
 
       const product = result.value;
 
+      // Strip images from model context; keep in structuredContent for UI.
+      const { images: _images, ...productForContent } = product;
+
       return {
-        ...toonResult(product),
+        ...toonResult(productForContent),
         structuredContent: { _view: "get_product_details", product },
       };
     },

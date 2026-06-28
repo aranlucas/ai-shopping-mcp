@@ -163,7 +163,9 @@ describe("recipe tools", () => {
       expect(text).toContain("American • easy • 30min total • 24 cookies");
       expect(text).toContain("2 cups flour");
       expect(text).toContain("chocolate chips (semi-sweet)");
-      expect(text).toContain("1. Mix dry ingredients");
+      // Instructions are omitted from text content (too large); summarised as step count
+      expect(text).toContain("2 steps");
+      expect(text).not.toContain("Mix dry ingredients");
       expect(text).toContain("chocolate-chip-cookies");
 
       expect(result).toMatchObject({

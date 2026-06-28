@@ -113,7 +113,7 @@ export function registerResources(ctx: ToolContext) {
       const props = getProps();
 
       const result = await safeStorage(
-        () => ctx.storage.orderHistory.getRecent(props.id, 20),
+        () => ctx.storage.orderHistory.getRecent(props.id, 10),
         "fetch order history",
       );
 

@@ -129,16 +129,13 @@ export function registerRecipeTools(ctx: ToolContext) {
                 }
               }
 
+              // Omit full instructions from model context — full steps are
+              // in structuredContent for the UI. Just summarise the count.
               if (recipe.instructions && recipe.instructions.length > 0) {
-                parts.push("\n**Instructions:**");
-                for (const step of recipe.instructions) {
-                  parts.push(`${step.stepNumber}. ${step.instruction}`);
-                }
+                parts.push(`\n${recipe.instructions.length} steps — view full recipe below`);
               }
 
-              parts.push(
-                `\n*View online: https://janella-cookbook.vercel.app/recipe/${recipe.slug}*`,
-              );
+              parts.push(`*https://janella-cookbook.vercel.app/recipe/${recipe.slug}*`);
 
               return parts.join("\n");
             })
