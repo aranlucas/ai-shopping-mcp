@@ -595,10 +595,10 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
             
             <p>This MCP Client is requesting to be authorized on ${serverName}. If you approve, you will be redirected to complete authentication.</p>
             
-            <form method="post" action="${new URL(request.url).pathname}">
+            <form method="post" action="${new URL(request.url).pathname}" onsubmit="this.querySelector('button[type=submit]').disabled=true">
               <input type="hidden" name="state" value="${encodedState}">
               <input type="hidden" name="csrf_token" value="${csrf.token}">
-              
+
               <div class="actions">
                 <a href="/" class="button button-secondary">Cancel</a>
                 <button type="submit" class="button button-primary">Approve</button>
@@ -613,7 +613,7 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
   return new Response(htmlContent, {
     headers: {
       "Content-Security-Policy":
-        "default-src 'none'; style-src 'unsafe-inline'; img-src https:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+        "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src https:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
       "Content-Type": "text/html; charset=utf-8",
       "Set-Cookie": csrf.setCookie,
       "X-Frame-Options": "DENY",
