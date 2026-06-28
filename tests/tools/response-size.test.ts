@@ -11,7 +11,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ToolContext, UserStorage } from "../../src/tools/types.js";
+import type { ToolContext } from "../../src/tools/types.js";
+
+import { createKrogerClients } from "../../src/services/kroger/client.js";
+import { createUserStorage } from "../../src/utils/user-storage.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
@@ -49,6 +52,29 @@ function getTool(name: string): ToolHandler {
   const tool = testState.capturedTools.find((t) => t.name === name);
   if (!tool) throw new Error(`Tool ${name} not registered`);
   return tool.handler;
+}
+
+/**
+ * Minimal in-memory KV stub — same pattern as tests/utils/user-storage.test.ts.
+ * KVNamespace has ~10 method signatures; the stub implements only what these
+ * tests exercise, and `as unknown as KVNamespace` is the established project
+ * idiom for partial KV mocks.
+ */
+function createMockKV(): KVNamespace {
+  const store = new Map<string, string>();
+  return {
+    get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
+    put: vi.fn((key: string, value: string) => {
+      store.set(key, value);
+      return Promise.resolve();
+    }),
+    delete: vi.fn((key: string) => {
+      store.delete(key);
+      return Promise.resolve();
+    }),
+    list: vi.fn(),
+    getWithMetadata: vi.fn(),
+  } as unknown as KVNamespace;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,27 +165,32 @@ describe("search_products content size", () => {
     const terms = ["milk", "eggs", "bread", "butter", "cheese"];
     const productsPerTerm = 10;
 
-    // Build a fake openapi-fetch client that returns products with images.
-    // fromApiResponse expects { data, error, response } where response.ok=true.
-    const mockProductClient = {
-      GET: vi.fn(async (_path: string, options: { params: { query: Record<string, unknown> } }) => {
-        const term = String(options.params.query["filter.term"]);
-        const data = Array.from({ length: productsPerTerm }, (_, i) =>
-          makeProduct(String(10000000000000 + i).slice(0, 13), term),
-        );
-        return { data: { data }, error: undefined, response: { ok: true, status: 200 } };
-      }),
-    };
+    // Use real createKrogerClients so clients is properly typed as KrogerClients.
+    // Spy on productClient.GET to intercept the openapi-fetch call without network.
+    const clients = createKrogerClients(() => null);
+    vi.spyOn(clients.productClient, "GET").mockImplementation(async (_path, options) => {
+      const query = (options as { params?: { query?: Record<string, unknown> } })?.params?.query;
+      const term = String(query?.["filter.term"] ?? "");
+      const data = Array.from({ length: productsPerTerm }, (_, i) =>
+        makeProduct(String(10000000000000 + i).slice(0, 13), term),
+      );
+      // Cast only the return value — the mock data shape is a superset of what
+      // fromApiResponse reads, but doesn't satisfy the strict OpenAPI schema type.
+      return {
+        data: { data },
+        error: undefined,
+        response: new Response("", { status: 200 }),
+      } as Awaited<ReturnType<typeof clients.productClient.GET>>;
+    });
 
-    const mockStorage = {
-      preferredLocation: { get: async () => null },
-    };
+    // Use real createUserStorage so storage is properly typed as UserStorage.
+    const storage = createUserStorage(createMockKV());
 
     const { registerProductTools } = await import("../../src/tools/product.js");
     registerProductTools({
       server: {} as unknown as ToolContext["server"],
-      clients: { productClient: mockProductClient } as unknown as ToolContext["clients"],
-      storage: mockStorage as unknown as UserStorage,
+      clients,
+      storage,
       getEnv: () => ({}) as Env,
       getSessionId: () => "session-size",
     });
@@ -225,11 +256,15 @@ describe("search_recipes_from_web content size", () => {
       ),
     );
 
+    // search_recipes_from_web doesn't use clients or storage — pass real empty instances.
+    const clients = createKrogerClients(() => null);
+    const storage = createUserStorage(createMockKV());
+
     const { registerRecipeTools } = await import("../../src/tools/recipes.js");
     registerRecipeTools({
       server: {} as unknown as ToolContext["server"],
-      clients: {} as unknown as ToolContext["clients"],
-      storage: {} as unknown as UserStorage,
+      clients,
+      storage,
       getEnv: () => ({}) as Env,
       getSessionId: () => "session-size",
     });
