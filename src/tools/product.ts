@@ -29,7 +29,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Search Products",
       description:
-        "Searches for Kroger products using multiple search terms in parallel. Each term returns up to 10 items with pricing and availability. Results sorted by pickup availability.",
+        "Searches for Kroger products using multiple search terms in parallel. Accepts 1–25 terms. Each term returns up to 10 items with pricing and availability. Results sorted by pickup availability.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -41,7 +41,7 @@ export function registerProductTools(ctx: ToolContext) {
         terms: z
           .array(z.string().max(100))
           .min(1, { message: "At least one search term is required" })
-          .max(10, { message: "Maximum 10 search terms allowed" })
+          .max(25, { message: "Maximum 25 search terms allowed" })
           .describe("Array of search terms for products (e.g., ['milk', 'bread', 'eggs'])"),
         locationId: z
           .string()
