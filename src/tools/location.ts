@@ -2,8 +2,51 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
+import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
+
+type Location = LocationComponents["schemas"]["locations.location"];
+
+function compactLocationForContent(location: Location) {
+  const days = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ] as const;
+  return {
+    locationId: location.locationId,
+    name: location.name,
+    chain: location.chain,
+    address: location.address
+      ? {
+          addressLine1: location.address.addressLine1,
+          city: location.address.city,
+          state: location.address.state,
+          zipCode: location.address.zipCode,
+        }
+      : undefined,
+    phone: location.phone,
+    hours: location.hours
+      ? {
+          timezone: location.hours.timezone,
+          ...Object.fromEntries(
+            days
+              .map((day) => {
+                const h = location.hours?.[day];
+                return h ? [day, { open: h.open, close: h.close }] : null;
+              })
+              .filter((e) => e !== null),
+          ),
+        }
+      : undefined,
+    departments: location.departments?.map((d) => d.name).filter((n): n is string => n != null),
+  };
+}
 
 import { notFoundError } from "../errors.js";
 import { formatPreferredLocationCompact } from "../utils/format-response.js";
@@ -72,7 +115,10 @@ export function registerLocationTools(ctx: ToolContext) {
       const locations = result.value;
 
       return {
-        ...toonResult({ count: locations.length, locations }),
+        ...toonResult({
+          count: locations.length,
+          locations: locations.map(compactLocationForContent),
+        }),
         structuredContent: { _view: "search_locations", locations },
       };
     },
@@ -120,7 +166,7 @@ export function registerLocationTools(ctx: ToolContext) {
       const location = result.value;
 
       return {
-        ...toonResult(location),
+        ...toonResult(compactLocationForContent(location)),
         structuredContent: { _view: "get_location_details", location },
       };
     },
