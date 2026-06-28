@@ -11,6 +11,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ToolContext, UserStorage } from "../../src/tools/types.js";
+
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
 
@@ -155,14 +157,9 @@ describe("search_products content size", () => {
 
     const { registerProductTools } = await import("../../src/tools/product.js");
     registerProductTools({
-      server: {} as never,
-      clients: {
-        productClient: mockProductClient as never,
-        locationClient: {} as never,
-        cartClient: {} as never,
-        identityClient: {} as never,
-      },
-      storage: mockStorage as never,
+      server: {} as unknown as ToolContext["server"],
+      clients: { productClient: mockProductClient } as unknown as ToolContext["clients"],
+      storage: mockStorage as unknown as UserStorage,
       getEnv: () => ({}) as Env,
       getSessionId: () => "session-size",
     });
@@ -230,14 +227,9 @@ describe("search_recipes_from_web content size", () => {
 
     const { registerRecipeTools } = await import("../../src/tools/recipes.js");
     registerRecipeTools({
-      server: {} as never,
-      clients: {
-        productClient: {} as never,
-        locationClient: {} as never,
-        cartClient: {} as never,
-        identityClient: {} as never,
-      },
-      storage: {} as never,
+      server: {} as unknown as ToolContext["server"],
+      clients: {} as unknown as ToolContext["clients"],
+      storage: {} as unknown as UserStorage,
       getEnv: () => ({}) as Env,
       getSessionId: () => "session-size",
     });
