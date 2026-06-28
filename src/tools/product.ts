@@ -148,11 +148,35 @@ export function registerProductTools(ctx: ToolContext) {
         }
       }
 
-      // Strip images from the model context — long CDN URLs the model doesn't
-      // use. Images are preserved in structuredContent for the React UI.
+      // Only pass the fields the model needs — omit images, nutrition, allergens,
+      // declarations, and other bulk fields. Full data is in structuredContent for the UI.
       const resultsForContent = results.map((r) => ({
-        ...r,
-        products: r.products.map(({ images: _images, ...rest }) => rest),
+        term: r.term,
+        failed: r.failed,
+        count: r.count,
+        products: r.products.map((p) => ({
+          upc: p.upc,
+          description: p.description,
+          brand: p.brand,
+          categories: p.categories,
+          aisleLocations: p.aisleLocations?.map((a) => ({
+            description: a.description,
+            number: a.number,
+          })),
+          items: p.items?.map((item) => ({
+            size: item.size,
+            soldBy: item.soldBy,
+            price: item.price
+              ? { regular: item.price.regular, promo: item.price.promo }
+              : undefined,
+            fulfillment: item.fulfillment
+              ? { instore: item.fulfillment.instore, curbside: item.fulfillment.curbside }
+              : undefined,
+            inventory: item.inventory?.stockLevel
+              ? { stockLevel: item.inventory.stockLevel }
+              : undefined,
+          })),
+        })),
       }));
 
       return {
