@@ -161,12 +161,9 @@ describe("search_products content size", () => {
     authenticate();
   });
 
-  it("stays under 80 KB for 5 terms × 10 products with images", async () => {
-    const terms = ["milk", "eggs", "bread", "butter", "cheese"];
-    const productsPerTerm = 10;
+  async function runSearch(terms: string[], productsPerTerm: number) {
+    testState.capturedTools.length = 0;
 
-    // Use real createKrogerClients so clients is properly typed as KrogerClients.
-    // Spy on productClient.GET to intercept the openapi-fetch call without network.
     const clients = createKrogerClients(() => null);
     vi.spyOn(clients.productClient, "GET").mockImplementation(async (_path, options) => {
       const query = (options as { params?: { query?: Record<string, unknown> } })?.params?.query;
@@ -174,8 +171,6 @@ describe("search_products content size", () => {
       const data = Array.from({ length: productsPerTerm }, (_, i) =>
         makeProduct(String(10000000000000 + i).slice(0, 13), term),
       );
-      // Cast only the return value — the mock data shape is a superset of what
-      // fromApiResponse reads, but doesn't satisfy the strict OpenAPI schema type.
       return {
         data: { data },
         error: undefined,
@@ -183,9 +178,7 @@ describe("search_products content size", () => {
       } as Awaited<ReturnType<typeof clients.productClient.GET>>;
     });
 
-    // Use real createUserStorage so storage is properly typed as UserStorage.
     const storage = createUserStorage(createMockKV());
-
     const { registerProductTools } = await import("../../src/tools/product.js");
     registerProductTools({
       server: {} as unknown as ToolContext["server"],
@@ -195,20 +188,35 @@ describe("search_products content size", () => {
       getSessionId: () => "session-size",
     });
 
-    const result = await getTool("search_products")({ terms });
+    return getTool("search_products")({ terms });
+  }
+
+  it("stays under 15 KB for 5 terms × 10 products", async () => {
+    const terms = ["milk", "eggs", "bread", "butter", "cheese"];
+    const result = await runSearch(terms, 10);
     const chars = measureContentChars(result);
 
-    // With images stripped the content should be well under 80 KB.
-    // Without stripping this would be 200–400 KB.
-    expect(chars).toBeLessThan(80_000);
+    // Compact items array (images/categories/itemId stripped) stays under 15 KB.
+    // The previous image-only stripping produced up to 80 KB.
+    expect(chars).toBeLessThan(15_000);
 
-    // Structured content still carries images (for UI)
+    // Structured content still carries full product data including images (for UI)
     const sc = (
       result as {
         structuredContent?: { results?: Array<{ products: Array<{ images?: unknown }> }> };
       }
     ).structuredContent;
     expect(sc?.results?.[0]?.products?.[0]?.images).toBeDefined();
+  });
+
+  it("stays under 60 KB for 25 terms × 10 products (worst-case bulk search)", async () => {
+    const terms = Array.from({ length: 25 }, (_, i) => `item${i + 1}`);
+    const result = await runSearch(terms, 10);
+    const chars = measureContentChars(result);
+
+    // 25 terms × 10 products with compact items array should stay well under 60 KB.
+    // Without flat compaction this would exceed the 262 K-token context limit.
+    expect(chars).toBeLessThan(60_000);
   });
 });
 
