@@ -3,6 +3,7 @@ import { ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
+import type { components as ProductComponents } from "../services/kroger/product.js";
 
 import { notFoundError } from "../errors.js";
 import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
@@ -10,6 +11,29 @@ import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
+
+type Product = ProductComponents["schemas"]["products.productModel"];
+
+// Compact representation for toon encoding of bulk search results.
+// Strips images, categories, extra aisle locations, itemId, shiptohome,
+// and inventory detail — the full data lives in structuredContent for the
+// React UI. Retains all size/price variants so the agent can present options.
+function compactProductForContent(product: Product) {
+  return {
+    upc: product.upc,
+    description: product.description,
+    brand: product.brand,
+    aisle: product.aisleLocations?.[0]?.description,
+    items: product.items?.map(({ itemId: _itemId, ...item }) => ({
+      size: item.size,
+      price: item.price?.promo ?? item.price?.regular,
+      ...(item.price?.promo != null && item.price.promo !== item.price?.regular
+        ? { was: item.price?.regular }
+        : {}),
+      pickup: !!(item.fulfillment?.curbside || item.fulfillment?.instore),
+    })),
+  };
+}
 
 export function logProductSearchError(term: string, error: AppError) {
   if (error.type === "AUTH_ERROR") {
@@ -148,35 +172,12 @@ export function registerProductTools(ctx: ToolContext) {
         }
       }
 
-      // Only pass the fields the model needs — omit images, nutrition, allergens,
-      // declarations, and other bulk fields. Full data is in structuredContent for the UI.
+      // Strip images, categories, extra aisle locations, and item IDs from the
+      // model context. Full product data is preserved in structuredContent for
+      // the React UI.
       const resultsForContent = results.map((r) => ({
-        term: r.term,
-        failed: r.failed,
-        count: r.count,
-        products: r.products.map((p) => ({
-          upc: p.upc,
-          description: p.description,
-          brand: p.brand,
-          categories: p.categories,
-          aisleLocations: p.aisleLocations?.map((a) => ({
-            description: a.description,
-            number: a.number,
-          })),
-          items: p.items?.map((item) => ({
-            size: item.size,
-            soldBy: item.soldBy,
-            price: item.price
-              ? { regular: item.price.regular, promo: item.price.promo }
-              : undefined,
-            fulfillment: item.fulfillment
-              ? { instore: item.fulfillment.instore, curbside: item.fulfillment.curbside }
-              : undefined,
-            inventory: item.inventory?.stockLevel
-              ? { stockLevel: item.inventory.stockLevel }
-              : undefined,
-          })),
-        })),
+        ...r,
+        products: r.products.map((product) => compactProductForContent(product)),
       }));
 
       return {
