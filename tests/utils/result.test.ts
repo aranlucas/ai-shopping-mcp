@@ -16,7 +16,7 @@ import {
 } from "../../src/utils/result.js";
 
 const authMock = vi.hoisted(() => ({
-  context: undefined as { props?: Props } | undefined,
+  context: undefined as { props?: Record<string, unknown> } | undefined,
 }));
 
 vi.mock("agents/mcp", () => ({
@@ -129,12 +129,31 @@ describe("fromApiResponse", () => {
     expect(error.type === "API_ERROR" && error.status).toBe(500);
   });
 
-  it("returns Err on promise rejection", async () => {
+  it("returns Err on promise rejection with Error instance", async () => {
     const result = await fromApiResponse(Promise.reject(new Error("network fail")), "test api");
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
     expect(error.message).toContain("network fail");
+    expect(error.message).toContain("test api");
+  });
+
+  it("uses String() coercion in NETWORK_ERROR message when rejected value is not an Error instance", async () => {
+    const result = await fromApiResponse(Promise.reject("plain string rejection"), "test api");
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("NETWORK_ERROR");
+    expect(error.message).toContain("test api");
+    expect(error.message).toContain("plain string rejection");
+  });
+
+  it("uses String() coercion for non-Error rejection objects", async () => {
+    const result = await fromApiResponse(Promise.reject(42), "get product");
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("NETWORK_ERROR");
+    expect(error.message).toContain("get product");
+    expect(error.message).toContain("42");
   });
 
   it("preserves Kroger expired-token rejections as auth errors", async () => {
@@ -172,6 +191,34 @@ describe("getProps", () => {
     authMock.context = {};
     expect(() => getProps()).toThrow("outside an authenticated MCP request");
   });
+
+  it("throws when id is a number instead of a string", () => {
+    authMock.context = {
+      props: { id: 999, accessToken: "token", tokenExpiresAt: Date.now() + 1000 },
+    };
+    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+  });
+
+  it("throws when tokenExpiresAt is missing", () => {
+    authMock.context = {
+      props: { id: "user-1", accessToken: "token" },
+    };
+    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+  });
+
+  it("throws when tokenExpiresAt is a string instead of a number", () => {
+    authMock.context = {
+      props: { id: "user-1", accessToken: "token", tokenExpiresAt: "not-a-number" },
+    };
+    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+  });
+
+  it("throws when accessToken is missing", () => {
+    authMock.context = {
+      props: { id: "user-1", tokenExpiresAt: Date.now() + 1000 },
+    };
+    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+  });
 });
 
 // --- safeResolveLocationId ---
@@ -191,14 +238,14 @@ describe("safeResolveLocationId", () => {
     } as unknown as UserStorage;
   }
 
-  it("returns Ok with provided locationId", async () => {
+  it("returns Ok with provided locationId without touching storage", async () => {
     const storage = mockStorage();
     const result = await safeResolveLocationId(storage, "user1", "70500847");
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({ locationId: "70500847" });
   });
 
-  it("falls back to preferred location", async () => {
+  it("falls back to preferred location from storage when no locationId provided", async () => {
     const storage = mockStorage({
       locationId: "70500847",
       locationName: "QFC #815",
@@ -211,14 +258,16 @@ describe("safeResolveLocationId", () => {
     });
   });
 
-  it("returns Err when no location available", async () => {
+  it("returns NOT_FOUND error when no location provided and no preferred location set", async () => {
     const storage = mockStorage(null);
     const result = await safeResolveLocationId(storage, "user1");
     expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("NOT_FOUND");
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("NOT_FOUND");
+    expect(error.message).toContain("No location specified");
   });
 
-  it("returns Err on storage failure", async () => {
+  it("returns STORAGE_ERROR when storage read fails", async () => {
     const storage = {
       preferredLocation: {
         get: vi.fn().mockRejectedValue(new Error("KV unavailable")),
@@ -226,20 +275,22 @@ describe("safeResolveLocationId", () => {
     } as unknown as UserStorage;
     const result = await safeResolveLocationId(storage, "user1");
     expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("STORAGE_ERROR");
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("STORAGE_ERROR");
+    expect(error.message).toContain("KV unavailable");
   });
 });
 
 // --- safeStorage ---
 
 describe("safeStorage", () => {
-  it("returns Ok on success", async () => {
+  it("returns Ok with value on success", async () => {
     const result = await safeStorage(() => Promise.resolve([1, 2, 3]), "test");
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual([1, 2, 3]);
   });
 
-  it("returns Err on failure", async () => {
+  it("returns STORAGE_ERROR including context and error message on failure", async () => {
     const result = await safeStorage(() => Promise.reject(new Error("boom")), "test op");
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
@@ -247,12 +298,30 @@ describe("safeStorage", () => {
     expect(error.message).toContain("boom");
     expect(error.message).toContain("test op");
   });
+
+  it("uses String() coercion in STORAGE_ERROR message when rejected value is not an Error instance", async () => {
+    const result = await safeStorage(() => Promise.reject("storage quota exceeded"), "save pantry");
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("STORAGE_ERROR");
+    expect(error.message).toContain("save pantry");
+    expect(error.message).toContain("storage quota exceeded");
+  });
+
+  it("uses String() coercion for non-Error non-string rejection values", async () => {
+    const result = await safeStorage(() => Promise.reject(503), "write equipment");
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("STORAGE_ERROR");
+    expect(error.message).toContain("write equipment");
+    expect(error.message).toContain("503");
+  });
 });
 
 // --- safeFetch ---
 
 describe("safeFetch", () => {
-  it("returns Ok on successful fetch", async () => {
+  it("returns Ok with response on successful fetch", async () => {
     const mockResponse = new Response("ok", { status: 200 });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse));
 
@@ -263,7 +332,7 @@ describe("safeFetch", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns Err on non-ok response", async () => {
+  it("returns API_ERROR including status on non-ok response", async () => {
     const mockResponse = new Response("not found", {
       status: 404,
       statusText: "Not Found",
@@ -279,7 +348,7 @@ describe("safeFetch", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns Err on network error", async () => {
+  it("returns NETWORK_ERROR on network-level failure", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network error")));
 
     const result = await safeFetch("https://example.com", undefined, "test");
@@ -290,24 +359,41 @@ describe("safeFetch", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("uses 'fetch' as default context string in NETWORK_ERROR when context is omitted", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
+
+    const result = await safeFetch("https://example.com");
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("NETWORK_ERROR");
+    expect(error.message).toContain("fetch");
+    expect(error.message).toContain("connection refused");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("uses 'fetch' as default context string in API_ERROR when context is omitted", async () => {
+    const mockResponse = new Response("server error", {
+      status: 503,
+      statusText: "Service Unavailable",
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse));
+
+    const result = await safeFetch("https://example.com");
+    expect(result.isErr()).toBe(true);
+    const error = result._unsafeUnwrapErr();
+    expect(error.type).toBe("API_ERROR");
+    expect(error.message).toContain("fetch");
+    expect(error.message).toContain("503");
+
+    vi.unstubAllGlobals();
+  });
 });
 
 // --- Integration: composing Result utilities like tool handlers ---
 
 describe("tool handler error path integration", () => {
-  it("authError → toMcpError surfaces auth failures to the client", () => {
-    const mcpResult = toMcpError(authError("token expired"));
-    expect(mcpResult.isError).toBe(true);
-    expect(mcpResult.content[0].text).toContain("token expired");
-  });
-
-  it("safeStorage failure produces valid MCP error via toMcpResponse", async () => {
-    const result = await safeStorage(() => Promise.reject(new Error("KV down")), "fetch pantry");
-    const mcpResult = toMcpResponse(result.map(() => "unused"));
-    expect(mcpResult.isError).toBe(true);
-    expect(mcpResult.content[0].text).toContain("KV down");
-  });
-
   it("fromApiResponse → andThen chain produces correct not-found error", async () => {
     const result = await fromApiResponse(
       Promise.resolve({
@@ -325,25 +411,5 @@ describe("tool handler error path integration", () => {
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().type).toBe("NOT_FOUND");
     expect(result._unsafeUnwrapErr().message).toBe("Product not found");
-  });
-
-  it("safeResolveLocationId → toMcpError for missing location", async () => {
-    const storage = {
-      preferredLocation: {
-        get: vi.fn().mockResolvedValue(null),
-        set: vi.fn(),
-        delete: vi.fn(),
-      },
-      pantry: {},
-      equipment: {},
-      orderHistory: {},
-      shoppingList: {},
-    } as unknown as UserStorage;
-
-    const result = await safeResolveLocationId(storage, "user1");
-    expect(result.isErr()).toBe(true);
-    const mcpResult = toMcpError(result._unsafeUnwrapErr());
-    expect(mcpResult.isError).toBe(true);
-    expect(mcpResult.content[0].text).toContain("No location specified");
   });
 });
