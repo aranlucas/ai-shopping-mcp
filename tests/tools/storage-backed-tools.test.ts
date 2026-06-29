@@ -9,6 +9,12 @@ import type {
   ShoppingListItem,
 } from "../../src/utils/user-storage.js";
 
+import { registerEquipmentTools } from "../../src/tools/equipment.js";
+import { registerLocationTools } from "../../src/tools/location.js";
+import { registerOrderTools } from "../../src/tools/orders.js";
+import { registerPantryTools } from "../../src/tools/pantry.js";
+import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
+
 type AuthContext = {
   props?: {
     id: string;
@@ -24,6 +30,8 @@ type CapturedTool = {
   config: unknown;
   handler: ToolHandler;
 };
+
+type ElicitResult = { action: "accept" | "decline" | "cancel"; content?: { confirm?: boolean } };
 
 const testState = vi.hoisted(() => ({
   authContext: undefined as AuthContext | undefined,
@@ -165,6 +173,41 @@ function makeContext(storage = makeStorage()): ToolContext {
   };
 }
 
+/** Build a context with a custom elicitation outcome and optional cart PUT result. */
+function makeContextWithElicit(
+  storage: UserStorage,
+  elicitResult: ElicitResult,
+  cartStatus = 204,
+): ToolContext {
+  return {
+    server: {
+      server: {
+        elicitInput: async () => elicitResult,
+      },
+    } as unknown as ToolContext["server"],
+    clients: {
+      cartClient: {
+        PUT: async () => ({
+          data: undefined,
+          response: new Response(null, { status: cartStatus }),
+        }),
+      },
+    } as unknown as ToolContext["clients"],
+    storage,
+    getEnv: () => ({}) as Env,
+    getSessionId: () => "session-1",
+  };
+}
+
+function makeStorageWithLocation(location: PreferredLocation): UserStorage {
+  return makeStorage({
+    preferredLocation: {
+      get: async () => location,
+      set: async () => {},
+    } as unknown as UserStorage["preferredLocation"],
+  });
+}
+
 function getCapturedHandler(name: string): ToolHandler {
   const tool = testState.capturedTools.find((captured) => captured.name === name);
   expect(tool).toBeDefined();
@@ -182,8 +225,11 @@ describe("storage-backed tools", () => {
     authenticate();
   });
 
+  // ---------------------------------------------------------------------------
+  // manage_pantry
+  // ---------------------------------------------------------------------------
+
   it("adds pantry items and returns structured view content", async () => {
-    const { registerPantryTools } = await import("../../src/tools/pantry.js");
     registerPantryTools(makeContext());
 
     const result = await getCapturedHandler("manage_pantry")({
@@ -207,7 +253,6 @@ describe("storage-backed tools", () => {
   });
 
   it("rejects pantry add without items before touching storage", async () => {
-    const { registerPantryTools } = await import("../../src/tools/pantry.js");
     registerPantryTools(makeContext());
 
     const result = await getCapturedHandler("manage_pantry")({ action: "add" });
@@ -216,9 +261,17 @@ describe("storage-backed tools", () => {
     expect(textFromResult(result)).toContain("'items' array is required");
   });
 
+  it("rejects pantry remove without items before touching storage", async () => {
+    registerPantryTools(makeContext());
+
+    const result = await getCapturedHandler("manage_pantry")({ action: "remove" });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("'items' array is required");
+  });
+
   it("removes and clears pantry items", async () => {
     const storage = makeStorage();
-    const { registerPantryTools } = await import("../../src/tools/pantry.js");
     registerPantryTools(makeContext(storage));
     const handler = getCapturedHandler("manage_pantry");
 
@@ -249,7 +302,6 @@ describe("storage-backed tools", () => {
 
   it("throws when pantry is used outside an authenticated request", async () => {
     unauthenticate();
-    const { registerPantryTools } = await import("../../src/tools/pantry.js");
     registerPantryTools(makeContext());
 
     await expect(getCapturedHandler("manage_pantry")({ action: "clear" })).rejects.toThrow(
@@ -257,8 +309,11 @@ describe("storage-backed tools", () => {
     );
   });
 
+  // ---------------------------------------------------------------------------
+  // manage_equipment
+  // ---------------------------------------------------------------------------
+
   it("adds, removes, and clears kitchen equipment", async () => {
-    const { registerEquipmentTools } = await import("../../src/tools/equipment.js");
     registerEquipmentTools(makeContext());
     const handler = getCapturedHandler("manage_equipment");
 
@@ -280,7 +335,6 @@ describe("storage-backed tools", () => {
   });
 
   it("validates equipment mutation arguments", async () => {
-    const { registerEquipmentTools } = await import("../../src/tools/equipment.js");
     registerEquipmentTools(makeContext());
     const handler = getCapturedHandler("manage_equipment");
 
@@ -293,6 +347,10 @@ describe("storage-backed tools", () => {
     expect(textFromResult(removeResult)).toContain("'equipmentName' is required");
   });
 
+  // ---------------------------------------------------------------------------
+  // mark_order_placed
+  // ---------------------------------------------------------------------------
+
   it("records order totals and optional metadata", async () => {
     const storedOrders: OrderRecord[] = [];
     const storage = makeStorage({
@@ -303,7 +361,6 @@ describe("storage-backed tools", () => {
         getAll: async () => storedOrders,
       } as unknown as UserStorage["orderHistory"],
     });
-    const { registerOrderTools } = await import("../../src/tools/orders.js");
     registerOrderTools(makeContext(storage));
 
     const result = await getCapturedHandler("mark_order_placed")({
@@ -326,8 +383,57 @@ describe("storage-backed tools", () => {
     expect(storedOrders[0]?.orderId).toMatch(/^ORD-/);
   });
 
+  it("returns structured content with _view: 'mark_order_placed' and all order fields", async () => {
+    registerOrderTools(makeContext());
+
+    const result = await getCapturedHandler("mark_order_placed")({
+      items: [{ productId: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
+      locationId: "70500847",
+      notes: "Test note",
+    });
+
+    expect(result).toMatchObject({
+      structuredContent: {
+        _view: "mark_order_placed",
+        items: [{ productId: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
+        totalItems: 2,
+        estimatedTotal: 3,
+        locationId: "70500847",
+        notes: "Test note",
+      },
+    });
+    const sc = (result as { structuredContent: { orderId: string; placedAt: string } })
+      .structuredContent;
+    expect(sc.orderId).toMatch(/^ORD-/);
+    expect(sc.placedAt).toMatch(/^\d{4}-/); // ISO date string
+  });
+
+  it("sets estimatedTotal to undefined when no items carry a price", async () => {
+    registerOrderTools(makeContext());
+
+    const result = await getCapturedHandler("mark_order_placed")({
+      items: [
+        { productId: "0000000000001", productName: "Apples", quantity: 2 },
+        { productId: "0000000000002", productName: "Bananas", quantity: 3 },
+      ],
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    const sc = (
+      result as {
+        structuredContent: { _view: string; estimatedTotal?: number; totalItems: number };
+      }
+    ).structuredContent;
+    expect(sc._view).toBe("mark_order_placed");
+    expect(sc.totalItems).toBe(5);
+    expect(sc.estimatedTotal).toBeUndefined();
+  });
+
+  // ---------------------------------------------------------------------------
+  // manage_shopping_list
+  // ---------------------------------------------------------------------------
+
   it("adds, updates, removes, and clears shopping list items", async () => {
-    const { registerShoppingListTools } = await import("../../src/tools/shopping-list.js");
     registerShoppingListTools(makeContext());
     const handler = getCapturedHandler("manage_shopping_list");
 
@@ -393,7 +499,6 @@ describe("storage-backed tools", () => {
   });
 
   it("validates shopping list mutation arguments", async () => {
-    const { registerShoppingListTools } = await import("../../src/tools/shopping-list.js");
     registerShoppingListTools(makeContext());
     const handler = getCapturedHandler("manage_shopping_list");
 
@@ -408,6 +513,10 @@ describe("storage-backed tools", () => {
     expect(isErrorResult(updateResult)).toBe(true);
     expect(textFromResult(updateResult)).toContain("'productName' is required");
   });
+
+  // ---------------------------------------------------------------------------
+  // checkout_shopping_list
+  // ---------------------------------------------------------------------------
 
   it("checks out UPC-backed shopping list items and reports items missing UPCs", async () => {
     const putCalls: unknown[] = [];
@@ -434,7 +543,6 @@ describe("storage-backed tools", () => {
       },
     } as unknown as ToolContext["clients"];
 
-    const { registerShoppingListTools } = await import("../../src/tools/shopping-list.js");
     registerShoppingListTools(context);
     const manageHandler = getCapturedHandler("manage_shopping_list");
     const checkoutHandler = getCapturedHandler("checkout_shopping_list");
@@ -469,13 +577,171 @@ describe("storage-backed tools", () => {
   });
 
   it("returns a checkout message when there are no unchecked shopping list items", async () => {
-    const { registerShoppingListTools } = await import("../../src/tools/shopping-list.js");
     registerShoppingListTools(makeContext());
 
     const result = await getCapturedHandler("checkout_shopping_list")({ modality: "PICKUP" });
 
     expect(textFromResult(result)).toBe("No unchecked items on your shopping list to checkout.");
   });
+
+  it("returns only 'Added N item(s) to cart' when all unchecked items have UPCs", async () => {
+    const storage = makeStorageWithLocation({
+      locationId: "70500847",
+      locationName: "QFC Broadway",
+      address: "500 Broadway E",
+      chain: "QFC",
+      setAt: new Date().toISOString(),
+    });
+    const context = makeContext(storage);
+
+    registerShoppingListTools(context);
+    const manageHandler = getCapturedHandler("manage_shopping_list");
+    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
+
+    await manageHandler({
+      action: "add",
+      items: [
+        { productName: "Milk", upc: "0000000000001", quantity: 1 },
+        { productName: "Eggs", upc: "0000000000002", quantity: 2 },
+      ],
+    });
+
+    const result = await checkoutHandler({ modality: "PICKUP" });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(textFromResult(result)).toContain("Added 2 item(s) to cart");
+    expect(textFromResult(result)).not.toContain("need a UPC");
+  });
+
+  it("returns an error when no preferred location is set and no locationId is supplied", async () => {
+    // Default makeStorage returns null from preferredLocation.get — no preferred location set.
+    const context = makeContext();
+
+    registerShoppingListTools(context);
+    const manageHandler = getCapturedHandler("manage_shopping_list");
+    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
+
+    await manageHandler({
+      action: "add",
+      items: [{ productName: "Milk", upc: "0000000000001", quantity: 1 }],
+    });
+
+    const result = await checkoutHandler({ modality: "PICKUP" });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("No location specified and no preferred location set");
+  });
+
+  it("returns an error when the user declines the checkout confirmation", async () => {
+    const storage = makeStorageWithLocation({
+      locationId: "70500847",
+      locationName: "QFC Broadway",
+      address: "500 Broadway E",
+      chain: "QFC",
+      setAt: new Date().toISOString(),
+    });
+    const context = makeContextWithElicit(storage, { action: "decline" });
+
+    registerShoppingListTools(context);
+    const manageHandler = getCapturedHandler("manage_shopping_list");
+    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
+
+    await manageHandler({
+      action: "add",
+      items: [{ productName: "Milk", upc: "0000000000001", quantity: 1 }],
+    });
+
+    const result = await checkoutHandler({ modality: "PICKUP" });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("Checkout cancelled");
+  });
+
+  it("returns an error when the user cancels the checkout confirmation", async () => {
+    const storage = makeStorageWithLocation({
+      locationId: "70500847",
+      locationName: "QFC Broadway",
+      address: "500 Broadway E",
+      chain: "QFC",
+      setAt: new Date().toISOString(),
+    });
+    const context = makeContextWithElicit(storage, { action: "cancel" });
+
+    registerShoppingListTools(context);
+    const manageHandler = getCapturedHandler("manage_shopping_list");
+    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
+
+    await manageHandler({
+      action: "add",
+      items: [{ productName: "Eggs", upc: "0000000000003", quantity: 1 }],
+    });
+
+    const result = await checkoutHandler({ modality: "PICKUP" });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("Checkout cancelled");
+  });
+
+  it("returns an error when the user accepts but sets confirm to false", async () => {
+    const storage = makeStorageWithLocation({
+      locationId: "70500847",
+      locationName: "QFC Broadway",
+      address: "500 Broadway E",
+      chain: "QFC",
+      setAt: new Date().toISOString(),
+    });
+    const context = makeContextWithElicit(storage, {
+      action: "accept",
+      content: { confirm: false },
+    });
+
+    registerShoppingListTools(context);
+    const manageHandler = getCapturedHandler("manage_shopping_list");
+    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
+
+    await manageHandler({
+      action: "add",
+      items: [{ productName: "Bread", upc: "0000000000004", quantity: 1 }],
+    });
+
+    const result = await checkoutHandler({ modality: "PICKUP" });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("Checkout cancelled");
+  });
+
+  it("returns an error when the Kroger cart PUT API fails", async () => {
+    const storage = makeStorageWithLocation({
+      locationId: "70500847",
+      locationName: "QFC Broadway",
+      address: "500 Broadway E",
+      chain: "QFC",
+      setAt: new Date().toISOString(),
+    });
+    const context = makeContextWithElicit(
+      storage,
+      { action: "accept", content: { confirm: true } },
+      500,
+    );
+
+    registerShoppingListTools(context);
+    const manageHandler = getCapturedHandler("manage_shopping_list");
+    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
+
+    await manageHandler({
+      action: "add",
+      items: [{ productName: "Milk", upc: "0000000000001", quantity: 1 }],
+    });
+
+    const result = await checkoutHandler({ modality: "PICKUP" });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("Failed to add shopping list items to cart");
+  });
+
+  // ---------------------------------------------------------------------------
+  // search_locations
+  // ---------------------------------------------------------------------------
 
   it("searches locations with query filters and returns structured locations", async () => {
     const getCalls: unknown[] = [];
@@ -502,7 +768,6 @@ describe("storage-backed tools", () => {
         },
       },
     } as unknown as ToolContext["clients"];
-    const { registerLocationTools } = await import("../../src/tools/location.js");
     registerLocationTools(context);
 
     const result = await getCapturedHandler("search_locations")({
@@ -511,7 +776,7 @@ describe("storage-backed tools", () => {
       chain: "QFC",
     });
 
-    expect(textFromResult(result)).toContain("Found 1 location(s)");
+    expect(textFromResult(result)).toContain("count: 1");
     expect(result).toMatchObject({
       structuredContent: {
         _view: "search_locations",
@@ -529,6 +794,52 @@ describe("storage-backed tools", () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // get_location_details
+  // ---------------------------------------------------------------------------
+
+  it("returns structured location details for a valid location ID", async () => {
+    const location = {
+      locationId: "70500847",
+      name: "QFC Broadway",
+      chain: "QFC",
+      phone: "206-555-1234",
+      address: {
+        addressLine1: "500 Broadway E",
+        city: "Seattle",
+        state: "WA",
+        zipCode: "98102",
+      },
+    };
+    const context = makeContext();
+    context.clients = {
+      locationClient: {
+        GET: async () => ({
+          data: { data: location },
+          response: new Response(null, { status: 200 }),
+        }),
+      },
+    } as unknown as ToolContext["clients"];
+    registerLocationTools(context);
+
+    const result = await getCapturedHandler("get_location_details")({
+      locationId: "70500847",
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(result).toMatchObject({
+      structuredContent: {
+        _view: "get_location_details",
+        location: {
+          locationId: "70500847",
+          name: "QFC Broadway",
+          chain: "QFC",
+          phone: "206-555-1234",
+        },
+      },
+    });
+  });
+
   it("returns an error when location details are missing", async () => {
     const context = makeContext();
     context.clients = {
@@ -539,7 +850,6 @@ describe("storage-backed tools", () => {
         }),
       },
     } as unknown as ToolContext["clients"];
-    const { registerLocationTools } = await import("../../src/tools/location.js");
     registerLocationTools(context);
 
     const result = await getCapturedHandler("get_location_details")({
@@ -549,6 +859,10 @@ describe("storage-backed tools", () => {
     expect(isErrorResult(result)).toBe(true);
     expect(textFromResult(result)).toContain("No information found for location ID: 70500847");
   });
+
+  // ---------------------------------------------------------------------------
+  // set_preferred_location
+  // ---------------------------------------------------------------------------
 
   it("saves preferred location details for the authenticated user", async () => {
     const savedLocations: PreferredLocation[] = [];
@@ -582,7 +896,6 @@ describe("storage-backed tools", () => {
         }),
       },
     } as unknown as ToolContext["clients"];
-    const { registerLocationTools } = await import("../../src/tools/location.js");
     registerLocationTools(context);
 
     const result = await getCapturedHandler("set_preferred_location")({
@@ -598,5 +911,25 @@ describe("storage-backed tools", () => {
         chain: "QFC",
       },
     ]);
+  });
+
+  it("returns an error when the API returns no data for the given location ID", async () => {
+    const context = makeContext();
+    context.clients = {
+      locationClient: {
+        GET: async () => ({
+          data: {},
+          response: new Response(null, { status: 200 }),
+        }),
+      },
+    } as unknown as ToolContext["clients"];
+    registerLocationTools(context);
+
+    const result = await getCapturedHandler("set_preferred_location")({
+      locationId: "70500847",
+    });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("No information found for location ID: 70500847");
   });
 });

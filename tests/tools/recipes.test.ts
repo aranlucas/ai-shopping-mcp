@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { EquipmentItem, OrderRecord, PantryItem } from "../../src/utils/user-storage.js";
 
+import { registerRecipeTools } from "../../src/tools/recipes.js";
+
 type AuthContext = {
   props?: {
     id: string;
@@ -62,15 +64,21 @@ function makeStorage(
     pantry?: PantryItem[];
     equipment?: EquipmentItem[];
     orders?: OrderRecord[];
+    /** When set, pantry.getAll rejects with this error. */
+    pantryError?: Error;
   } = {},
 ): UserStorage {
   const pantryItems = seed.pantry ?? [];
   const equipmentItems = seed.equipment ?? [];
   const orders = seed.orders ?? [];
+  const pantryError = seed.pantryError;
 
   return {
     pantry: {
-      getAll: async () => pantryItems,
+      getAll: async () => {
+        if (pantryError) throw pantryError;
+        return pantryItems;
+      },
     },
     equipment: {
       getAll: async () => equipmentItems,
@@ -150,7 +158,6 @@ describe("recipe tools", () => {
         ),
       );
 
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext());
 
       const result = await getCapturedHandler("search_recipes_from_web")({
@@ -197,7 +204,6 @@ describe("recipe tools", () => {
         ),
       );
 
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext());
 
       const result = await getCapturedHandler("search_recipes_from_web")({
@@ -213,7 +219,6 @@ describe("recipe tools", () => {
         vi.fn(async () => Response.json({ success: true, data: { results: [] } })),
       );
 
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext());
 
       const result = await getCapturedHandler("search_recipes_from_web")({
@@ -226,13 +231,12 @@ describe("recipe tools", () => {
       });
     });
 
-    it("returns an error when the API reports failure", async () => {
+    it("returns an error when the API reports failure with an error message", async () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async () => Response.json({ success: false, error: { message: "rate limited" } })),
       );
 
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext());
 
       const result = await getCapturedHandler("search_recipes_from_web")({
@@ -243,6 +247,45 @@ describe("recipe tools", () => {
       expect(textFromResult(result)).toContain("rate limited");
     });
 
+    it("falls back to 'No results returned from API' when success is false with no error message", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => Response.json({ success: false })),
+      );
+
+      registerRecipeTools(makeContext());
+
+      const result = await getCapturedHandler("search_recipes_from_web")({
+        searchQuery: "anything",
+      });
+
+      expect(isErrorResult(result)).toBe(true);
+      expect(textFromResult(result)).toContain("No results returned from API");
+    });
+
+    it("returns an error containing 'Failed to parse recipe response' when response JSON parsing fails", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: async (): Promise<never> => {
+            throw new SyntaxError("Unexpected token");
+          },
+        })),
+      );
+
+      registerRecipeTools(makeContext());
+
+      const result = await getCapturedHandler("search_recipes_from_web")({
+        searchQuery: "cookies",
+      });
+
+      expect(isErrorResult(result)).toBe(true);
+      expect(textFromResult(result)).toContain("Failed to parse recipe response");
+    });
+
     it("returns an error when the network request fails", async () => {
       vi.stubGlobal(
         "fetch",
@@ -251,7 +294,6 @@ describe("recipe tools", () => {
         }),
       );
 
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext());
 
       const result = await getCapturedHandler("search_recipes_from_web")({
@@ -264,7 +306,6 @@ describe("recipe tools", () => {
 
   describe("plan_meals", () => {
     it("returns guidance when the pantry is empty", async () => {
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext(makeStorage({ pantry: [] })));
 
       const result = await getCapturedHandler("plan_meals")({});
@@ -321,7 +362,6 @@ describe("recipe tools", () => {
         ],
       });
 
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext(storage));
 
       const result = await getCapturedHandler("plan_meals")({
@@ -358,7 +398,6 @@ describe("recipe tools", () => {
         ],
       });
 
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext(storage));
 
       const result = await getCapturedHandler("plan_meals")({
@@ -373,9 +412,64 @@ describe("recipe tools", () => {
       expect(text).toContain("Sugar x1");
     });
 
+    it("returns an isError response when pantry storage rejects", async () => {
+      const storage = makeStorage({
+        pantryError: new Error("KV unavailable"),
+      });
+
+      registerRecipeTools(makeContext(storage));
+
+      const result = await getCapturedHandler("plan_meals")({});
+
+      expect(isErrorResult(result)).toBe(true);
+    });
+
+    it("omits the 'Expiring Soon' section when prioritizeExpiring is false", async () => {
+      const storage = makeStorage({
+        pantry: [
+          {
+            productName: "Spinach",
+            quantity: 1,
+            addedAt: isoDaysFromNow(-1),
+            expiresAt: isoDaysFromNow(1),
+          },
+          { productName: "Pasta", quantity: 2, addedAt: isoDaysFromNow(-1) },
+        ],
+      });
+
+      registerRecipeTools(makeContext(storage));
+
+      const result = await getCapturedHandler("plan_meals")({
+        numberOfMeals: 2,
+        mealType: "any",
+        prioritizeExpiring: false,
+      });
+
+      const text = textFromResult(result);
+      expect(isErrorResult(result)).toBe(false);
+      expect(text).not.toContain("Expiring Soon");
+      expect(text).toContain("Spinach x1");
+    });
+
+    it("uses singular 'meal' in the header when numberOfMeals is 1", async () => {
+      const storage = makeStorage({
+        pantry: [{ productName: "Pasta", quantity: 1, addedAt: isoDaysFromNow(-1) }],
+      });
+
+      registerRecipeTools(makeContext(storage));
+
+      const result = await getCapturedHandler("plan_meals")({
+        numberOfMeals: 1,
+        mealType: "any",
+      });
+
+      const text = textFromResult(result);
+      expect(text).toContain("**Meal Plan** (1 meal)");
+      expect(text).not.toContain("1 meals");
+    });
+
     it("throws when planning meals outside an authenticated request", async () => {
       unauthenticate();
-      const { registerRecipeTools } = await import("../../src/tools/recipes.js");
       registerRecipeTools(makeContext());
 
       await expect(getCapturedHandler("plan_meals")({})).rejects.toThrow(

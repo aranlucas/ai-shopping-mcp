@@ -11,9 +11,10 @@ import {
 
 /**
  * Creates a mock KVNamespace with in-memory storage for testing.
+ * Accepts optional initial data to pre-seed the store (e.g., with corrupted JSON).
  */
-function createMockKV(): KVNamespace {
-  const store = new Map<string, string>();
+function createMockKV(initialData: Record<string, string> = {}): KVNamespace {
+  const store = new Map<string, string>(Object.entries(initialData));
 
   return {
     get: vi.fn((key: string) => {
@@ -31,6 +32,45 @@ function createMockKV(): KVNamespace {
     getWithMetadata: vi.fn(),
   } as unknown as KVNamespace;
 }
+
+// ----- parseJson fallback on corrupted KV data -----
+
+describe("parseJson fallback on corrupted KV data", () => {
+  it("PreferredLocationStorage.get returns null for invalid JSON", async () => {
+    const kv = createMockKV({ "user:user1:preferred_location": "{ not valid json }" });
+    const storage = new PreferredLocationStorage(kv);
+    const result = await storage.get("user1");
+    expect(result).toBeNull();
+  });
+
+  it("PantryStorage.getAll returns empty array for invalid JSON", async () => {
+    const kv = createMockKV({ "user:user1:pantry": "][" });
+    const storage = new PantryStorage(kv);
+    const result = await storage.getAll("user1");
+    expect(result).toEqual([]);
+  });
+
+  it("EquipmentStorage.getAll returns empty array for invalid JSON", async () => {
+    const kv = createMockKV({ "user:user1:equipment": "{unclosed" });
+    const storage = new EquipmentStorage(kv);
+    const result = await storage.getAll("user1");
+    expect(result).toEqual([]);
+  });
+
+  it("ShoppingListStorage.getAll returns empty array for invalid JSON", async () => {
+    const kv = createMockKV({ "user:user1:shopping_list": "not-json-at-all" });
+    const storage = new ShoppingListStorage(kv);
+    const result = await storage.getAll("user1");
+    expect(result).toEqual([]);
+  });
+
+  it("OrderHistoryStorage.getAll returns empty array for invalid JSON", async () => {
+    const kv = createMockKV({ "user:user1:order_history": "{{bad}}" });
+    const storage = new OrderHistoryStorage(kv);
+    const result = await storage.getAll("user1");
+    expect(result).toEqual([]);
+  });
+});
 
 // ----- PreferredLocationStorage -----
 
@@ -166,6 +206,20 @@ describe("PantryStorage", () => {
     expect(result[0].quantity).toBe(5);
   });
 
+  it("updateQuantity returns pantry unchanged when product name does not match", async () => {
+    await storage.add("user1", {
+      productName: "Eggs",
+      quantity: 6,
+      addedAt: "2025-01-15T00:00:00Z",
+    });
+
+    const result = await storage.updateQuantity("user1", "Milk", 99);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].productName).toBe("Eggs");
+    expect(result[0].quantity).toBe(6);
+  });
+
   it("clears all pantry items", async () => {
     await storage.add("user1", {
       productName: "A",
@@ -181,6 +235,27 @@ describe("PantryStorage", () => {
     await storage.clear("user1");
     const result = await storage.getAll("user1");
     expect(result).toEqual([]);
+  });
+
+  it("isolates pantry data between users", async () => {
+    await storage.add("user1", {
+      productName: "Milk",
+      quantity: 2,
+      addedAt: "2025-01-01T00:00:00Z",
+    });
+    await storage.add("user2", {
+      productName: "Eggs",
+      quantity: 12,
+      addedAt: "2025-01-01T00:00:00Z",
+    });
+
+    const user1Items = await storage.getAll("user1");
+    const user2Items = await storage.getAll("user2");
+
+    expect(user1Items).toHaveLength(1);
+    expect(user1Items[0].productName).toBe("Milk");
+    expect(user2Items).toHaveLength(1);
+    expect(user2Items[0].productName).toBe("Eggs");
   });
 });
 
@@ -226,6 +301,21 @@ describe("EquipmentStorage", () => {
     expect(result[0].category).toBe("Baking");
   });
 
+  it("preserves existing category when duplicate item has no category", async () => {
+    await storage.add("user1", {
+      equipmentName: "Blender",
+      category: "Appliances",
+      addedAt: "2025-01-01T00:00:00Z",
+    });
+    const result = await storage.add("user1", {
+      equipmentName: "blender",
+      addedAt: "2025-01-02T00:00:00Z",
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].category).toBe("Appliances");
+  });
+
   it("removes equipment by name (case-insensitive)", async () => {
     await storage.add("user1", {
       equipmentName: "Knife",
@@ -242,6 +332,27 @@ describe("EquipmentStorage", () => {
     });
     await storage.clear("user1");
     expect(await storage.getAll("user1")).toEqual([]);
+  });
+
+  it("isolates equipment data between users", async () => {
+    await storage.add("user1", {
+      equipmentName: "Stand Mixer",
+      category: "Baking",
+      addedAt: "2025-01-01T00:00:00Z",
+    });
+    await storage.add("user2", {
+      equipmentName: "Wok",
+      category: "Cooking",
+      addedAt: "2025-01-01T00:00:00Z",
+    });
+
+    const user1Items = await storage.getAll("user1");
+    const user2Items = await storage.getAll("user2");
+
+    expect(user1Items).toHaveLength(1);
+    expect(user1Items[0].equipmentName).toBe("Stand Mixer");
+    expect(user2Items).toHaveLength(1);
+    expect(user2Items[0].equipmentName).toBe("Wok");
   });
 });
 
@@ -293,6 +404,25 @@ describe("ShoppingListStorage", () => {
     expect(result[0].notes).toBe("2%");
   });
 
+  it("preserves existing UPC when duplicate item has no UPC", async () => {
+    await storage.add("user1", {
+      productName: "Whole Milk",
+      upc: "0001111042010",
+      quantity: 1,
+      addedAt: "2025-01-01T00:00:00Z",
+      checked: false,
+    });
+    const result = await storage.add("user1", {
+      productName: "Whole Milk",
+      quantity: 1,
+      addedAt: "2025-01-02T00:00:00Z",
+      checked: false,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].upc).toBe("0001111042010");
+  });
+
   it("removes item by name (case-insensitive)", async () => {
     await storage.add("user1", {
       productName: "Eggs",
@@ -322,6 +452,25 @@ describe("ShoppingListStorage", () => {
     expect(items[0].quantity).toBe(3);
     expect(items[0].checked).toBe(true);
     expect(items[0].notes).toBe("salted");
+  });
+
+  it("updateItem returns list unchanged when product name does not match", async () => {
+    await storage.add("user1", {
+      productName: "Butter",
+      quantity: 1,
+      addedAt: "2025-01-01T00:00:00Z",
+      checked: false,
+    });
+
+    const result = await storage.updateItem("user1", "Cheese", {
+      quantity: 99,
+      checked: true,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].productName).toBe("Butter");
+    expect(result[0].quantity).toBe(1);
+    expect(result[0].checked).toBe(false);
   });
 
   it("returns only unchecked items", async () => {
@@ -370,6 +519,29 @@ describe("ShoppingListStorage", () => {
     });
     await storage.clear("user1");
     expect(await storage.getAll("user1")).toEqual([]);
+  });
+
+  it("isolates shopping list data between users", async () => {
+    await storage.add("user1", {
+      productName: "Bread",
+      quantity: 1,
+      addedAt: "2025-01-01T00:00:00Z",
+      checked: false,
+    });
+    await storage.add("user2", {
+      productName: "Cheese",
+      quantity: 2,
+      addedAt: "2025-01-01T00:00:00Z",
+      checked: false,
+    });
+
+    const user1List = await storage.getAll("user1");
+    const user2List = await storage.getAll("user2");
+
+    expect(user1List).toHaveLength(1);
+    expect(user1List[0].productName).toBe("Bread");
+    expect(user2List).toHaveLength(1);
+    expect(user2List[0].productName).toBe("Cheese");
   });
 });
 
@@ -425,7 +597,7 @@ describe("OrderHistoryStorage", () => {
     expect(result).toHaveLength(50);
   });
 
-  it("gets recent orders with limit", async () => {
+  it("gets recent orders with an explicit limit", async () => {
     for (let i = 0; i < 10; i++) {
       await storage.add("user1", {
         orderId: `order-${i}`,
@@ -439,6 +611,20 @@ describe("OrderHistoryStorage", () => {
     expect(recent).toHaveLength(3);
   });
 
+  it("getRecent uses default limit of 10 when no limit is provided", async () => {
+    for (let i = 0; i < 15; i++) {
+      await storage.add("user1", {
+        orderId: `order-${i}`,
+        items: [],
+        totalItems: 1,
+        placedAt: "2025-01-01T00:00:00Z",
+      });
+    }
+
+    const recent = await storage.getRecent("user1");
+    expect(recent).toHaveLength(10);
+  });
+
   it("clears order history", async () => {
     await storage.add("user1", {
       orderId: "order-1",
@@ -448,6 +634,29 @@ describe("OrderHistoryStorage", () => {
     });
     await storage.clear("user1");
     expect(await storage.getAll("user1")).toEqual([]);
+  });
+
+  it("isolates order history between users", async () => {
+    await storage.add("user1", {
+      orderId: "order-A",
+      items: [],
+      totalItems: 1,
+      placedAt: "2025-01-01T00:00:00Z",
+    });
+    await storage.add("user2", {
+      orderId: "order-B",
+      items: [],
+      totalItems: 2,
+      placedAt: "2025-01-01T00:00:00Z",
+    });
+
+    const user1Orders = await storage.getAll("user1");
+    const user2Orders = await storage.getAll("user2");
+
+    expect(user1Orders).toHaveLength(1);
+    expect(user1Orders[0].orderId).toBe("order-A");
+    expect(user2Orders).toHaveLength(1);
+    expect(user2Orders[0].orderId).toBe("order-B");
   });
 });
 

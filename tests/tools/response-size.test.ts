@@ -14,6 +14,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "../../src/tools/types.js";
 
 import { createKrogerClients } from "../../src/services/kroger/client.js";
+import { registerProductTools } from "../../src/tools/product.js";
+import { registerRecipeTools } from "../../src/tools/recipes.js";
 import { createUserStorage } from "../../src/utils/user-storage.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
@@ -179,7 +181,6 @@ describe("search_products content size", () => {
     });
 
     const storage = createUserStorage(createMockKV());
-    const { registerProductTools } = await import("../../src/tools/product.js");
     registerProductTools({
       server: {} as unknown as ToolContext["server"],
       clients,
@@ -268,7 +269,6 @@ describe("search_recipes_from_web content size", () => {
     const clients = createKrogerClients(() => null);
     const storage = createUserStorage(createMockKV());
 
-    const { registerRecipeTools } = await import("../../src/tools/recipes.js");
     registerRecipeTools({
       server: {} as unknown as ToolContext["server"],
       clients,

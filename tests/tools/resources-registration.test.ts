@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 
+import { registerResources } from "../../src/tools/resources.js";
+
 type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
 };
@@ -131,7 +133,6 @@ describe("registerResources", () => {
   });
 
   it("returns pantry inventory for an authenticated user", async () => {
-    const { registerResources } = await import("../../src/tools/resources.js");
     registerResources(
       makeContext(
         makeStorage({
@@ -146,7 +147,6 @@ describe("registerResources", () => {
 
   it("throws when reading pantry outside an authenticated request", async () => {
     unauthenticate();
-    const { registerResources } = await import("../../src/tools/resources.js");
     registerResources(makeContext(makeStorage()));
 
     await expect(callResource("Pantry Inventory")).rejects.toThrow(
@@ -155,7 +155,6 @@ describe("registerResources", () => {
   });
 
   it("returns a fetch error when pantry storage throws", async () => {
-    const { registerResources } = await import("../../src/tools/resources.js");
     registerResources(makeContext(makeStorage({ pantryThrows: true })));
 
     const decoded = decodeResource(await callResource("Pantry Inventory"));
@@ -163,8 +162,6 @@ describe("registerResources", () => {
   });
 
   it("returns equipment inventory and handles storage failures", async () => {
-    const { registerResources } = await import("../../src/tools/resources.js");
-
     registerResources(
       makeContext(makeStorage({ equipment: [{ equipmentName: "Oven", addedAt: "x" }] })),
     );
@@ -185,8 +182,6 @@ describe("registerResources", () => {
   });
 
   it("returns the preferred location, a prompt when unset, and errors", async () => {
-    const { registerResources } = await import("../../src/tools/resources.js");
-
     registerResources(
       makeContext(
         makeStorage({
@@ -223,8 +218,6 @@ describe("registerResources", () => {
   });
 
   it("returns order history and handles failures", async () => {
-    const { registerResources } = await import("../../src/tools/resources.js");
-
     registerResources(
       makeContext(
         makeStorage({
@@ -249,8 +242,6 @@ describe("registerResources", () => {
   });
 
   it("summarizes the shopping list and handles failures", async () => {
-    const { registerResources } = await import("../../src/tools/resources.js");
-
     registerResources(
       makeContext(
         makeStorage({
@@ -311,7 +302,6 @@ describe("registerResources", () => {
     }
 
     it("rejects an invalid product URI", async () => {
-      const { registerResources } = await import("../../src/tools/resources.js");
       registerResources(makeContext(makeStorage(), makeProductClient()));
 
       const decoded = decodeResource(
@@ -321,7 +311,6 @@ describe("registerResources", () => {
     });
 
     it("fetches product details using the preferred location filter", async () => {
-      const { registerResources } = await import("../../src/tools/resources.js");
       registerResources(
         makeContext(
           makeStorage({
@@ -343,8 +332,23 @@ describe("registerResources", () => {
       expect(decoded.description).toBe("Whole Milk");
     });
 
+    it("returns product data when no preferred location is configured", async () => {
+      // When location is null the API call should still succeed without filter.locationId.
+      registerResources(
+        makeContext(
+          makeStorage({ location: null }),
+          makeProductClient({ product: { upc: "0001112223334", description: "Organic Milk" } }),
+        ),
+      );
+
+      const decoded = decodeResource(
+        await callResource("Product Details", "shopping://product/0001112223334"),
+      );
+      expect(decoded.description).toBe("Organic Milk");
+      expect(decoded.error).toBeUndefined();
+    });
+
     it("returns a not-found message when the product is missing", async () => {
-      const { registerResources } = await import("../../src/tools/resources.js");
       registerResources(makeContext(makeStorage(), makeProductClient({ product: null })));
 
       const decoded = decodeResource(
@@ -354,7 +358,6 @@ describe("registerResources", () => {
     });
 
     it("returns an error when the product API fails", async () => {
-      const { registerResources } = await import("../../src/tools/resources.js");
       registerResources(makeContext(makeStorage(), makeProductClient({ error: true })));
 
       const decoded = decodeResource(
@@ -364,7 +367,6 @@ describe("registerResources", () => {
     });
 
     it("suggests UPC completions from shopping list and orders", async () => {
-      const { registerResources } = await import("../../src/tools/resources.js");
       registerResources(
         makeContext(
           makeStorage({
@@ -403,8 +405,86 @@ describe("registerResources", () => {
       expect(prefixed).toEqual(["1111111111111"]);
     });
 
+    it("deduplicates UPCs that appear in both shopping list and order history", async () => {
+      // The same UPC in both sources should appear exactly once in completions.
+      registerResources(
+        makeContext(
+          makeStorage({
+            shoppingList: [
+              {
+                productName: "Milk",
+                upc: "3333333333333",
+                quantity: 1,
+                addedAt: "x",
+                checked: false,
+              },
+            ],
+            orders: [
+              {
+                orderId: "o1",
+                items: [{ productId: "3333333333333", productName: "Milk", quantity: 1 }],
+                totalItems: 1,
+                placedAt: "x",
+              },
+            ],
+          }),
+        ),
+      );
+
+      const complete = getCompleteFn("Product Details", "productId");
+      const all = await complete("");
+      const occurrences = all.filter((upc) => upc === "3333333333333").length;
+      expect(occurrences).toBe(1);
+    });
+
+    it("returns completions from orders when shopping list storage fails", async () => {
+      // Partial failure: shopping list throws, but order history succeeds.
+      registerResources(
+        makeContext(
+          makeStorage({
+            shoppingListThrows: true,
+            orders: [
+              {
+                orderId: "o1",
+                items: [{ productId: "4444444444444", productName: "Cheese", quantity: 1 }],
+                totalItems: 1,
+                placedAt: "x",
+              },
+            ],
+          }),
+        ),
+      );
+
+      const complete = getCompleteFn("Product Details", "productId");
+      const all = await complete("");
+      expect(all).toContain("4444444444444");
+    });
+
+    it("returns completions from shopping list when order history storage fails", async () => {
+      // Partial failure: order history throws, but shopping list succeeds.
+      registerResources(
+        makeContext(
+          makeStorage({
+            shoppingList: [
+              {
+                productName: "Yogurt",
+                upc: "5555555555555",
+                quantity: 1,
+                addedAt: "x",
+                checked: false,
+              },
+            ],
+            ordersThrows: true,
+          }),
+        ),
+      );
+
+      const complete = getCompleteFn("Product Details", "productId");
+      const all = await complete("");
+      expect(all).toContain("5555555555555");
+    });
+
     it("throws when completing outside an authenticated request", async () => {
-      const { registerResources } = await import("../../src/tools/resources.js");
       registerResources(makeContext(makeStorage()));
       unauthenticate();
 
