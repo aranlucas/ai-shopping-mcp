@@ -462,12 +462,7 @@ describe("TOON compaction vs JSON", () => {
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
 
-const mockGetQfcWeeklyDeals = vi.hoisted(() =>
-  vi.fn<
-    Parameters<typeof import("../../src/services/qfc-weekly-deals.js").getQfcWeeklyDeals>,
-    ReturnType<typeof import("../../src/services/qfc-weekly-deals.js").getQfcWeeklyDeals>
-  >(),
-);
+const mockGetQfcWeeklyDeals = vi.hoisted(() => vi.fn());
 
 vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
   getQfcWeeklyDeals: mockGetQfcWeeklyDeals,
