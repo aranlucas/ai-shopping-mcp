@@ -14,7 +14,6 @@ import { OrderHistoryView } from "./app/views/OrderHistory.js";
 import { PantryView } from "./app/views/Pantry.js";
 import { ProductDetailView } from "./app/views/ProductDetail.js";
 import { ProductSearchView } from "./app/views/ProductSearch.js";
-import { RecipeResultsView } from "./app/views/RecipeResults.js";
 import { ShoppingListView } from "./app/views/ShoppingList.js";
 import { WeeklyDealsView } from "./app/views/WeeklyDeals.js";
 import { useResettableState } from "./shared/hooks.js";
@@ -23,7 +22,6 @@ import {
   ListSkeleton,
   Loading,
   ProductSearchSkeleton,
-  RecipesSkeleton,
   WeeklyDealsSkeleton,
 } from "./shared/status.js";
 import { parseStructuredContent } from "./shared/types.js";
@@ -123,8 +121,6 @@ function getPartialLoadingMessage(viewKey: string | null, args: Record<string, u
     }
     case "get_weekly_deals":
       return "Fetching weekly deals…";
-    case "search_recipes_from_web":
-      return "Searching recipes…";
     default:
       return "Loading…";
   }
@@ -149,8 +145,6 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
           return <ProductSearchSkeleton />;
         case "get_weekly_deals":
           return <WeeklyDealsSkeleton />;
-        case "search_recipes_from_web":
-          return <RecipesSkeleton />;
         case "manage_shopping_list":
         case "manage_pantry":
         case "mark_order_placed":
@@ -194,15 +188,6 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
       );
     case "manage_pantry":
       return <PantryView data={data} setData={setData} app={app} canCallTools={canCallTools} />;
-    case "search_recipes_from_web":
-      return (
-        <RecipeResultsView
-          data={data}
-          app={app}
-          canCallTools={canCallTools}
-          hostContext={hostContext}
-        />
-      );
     case "get_weekly_deals":
       return (
         <WeeklyDealsView

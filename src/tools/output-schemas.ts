@@ -93,31 +93,6 @@ const shoppingListItemSchema = z.looseObject({
   checked: z.boolean(),
 });
 
-const recipeSchema = z.looseObject({
-  title: z.string(),
-  description: z.string().optional(),
-  cuisine: z.string().optional(),
-  difficulty: z.string().optional(),
-  prepTime: z.number().optional(),
-  cookTime: z.number().optional(),
-  totalTime: z.number().optional(),
-  servings: z.string().optional(),
-  slug: z.string(),
-  ingredients: z
-    .array(
-      z.looseObject({
-        quantity: z.string().optional(),
-        unit: z.string().optional(),
-        name: z.string(),
-        notes: z.string().optional(),
-      }),
-    )
-    .optional(),
-  instructions: z
-    .array(z.looseObject({ stepNumber: z.number(), instruction: z.string() }))
-    .optional(),
-});
-
 const dealSchema = z.looseObject({
   title: z.string(),
   details: z.string().optional(),
@@ -165,12 +140,6 @@ export const manageShoppingListOutputSchema = z.object({
   _view: z.literal("manage_shopping_list"),
   items: z.array(shoppingListItemSchema),
   actionDetail: z.string().optional(),
-});
-
-export const searchRecipesOutputSchema = z.object({
-  _view: z.literal("search_recipes_from_web"),
-  recipes: z.array(recipeSchema),
-  searchQuery: z.string(),
 });
 
 export const getWeeklyDealsOutputSchema = z.object({

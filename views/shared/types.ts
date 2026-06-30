@@ -17,7 +17,6 @@ import type {
   markOrderPlacedOutputSchema,
   searchLocationsOutputSchema,
   searchProductsOutputSchema,
-  searchRecipesOutputSchema,
 } from "../../src/tools/output-schemas.js";
 import type {
   AddToCartArgs,
@@ -82,7 +81,6 @@ export type ProductSearchResultsContent = z.infer<typeof searchProductsOutputSch
 export type ProductDetailContent = z.infer<typeof getProductDetailsOutputSchema>;
 export type PantryListContent = z.infer<typeof managePantryOutputSchema>;
 export type ShoppingListContent = z.infer<typeof manageShoppingListOutputSchema>;
-export type RecipeResultsContent = z.infer<typeof searchRecipesOutputSchema>;
 export type OrderHistoryContent = z.infer<typeof markOrderPlacedOutputSchema>;
 
 /** Element/sub-shapes, indexed out of the inferred content types above. */
@@ -91,7 +89,6 @@ export type LocationData = LocationDetailContent["location"];
 export type ProductData = ProductDetailContent["product"];
 export type PantryItemData = PantryListContent["items"][number];
 export type ShoppingListItemData = ShoppingListContent["items"][number];
-export type RecipeData = RecipeResultsContent["recipes"][number];
 export type OrderItemData = OrderHistoryContent["items"][number];
 
 /**
@@ -106,7 +103,6 @@ export type AppData =
   | LocationDetailContent
   | ShoppingListContent
   | PantryListContent
-  | RecipeResultsContent
   | WeeklyDealsContent
   | OrderHistoryContent;
 
@@ -123,7 +119,6 @@ const VIEW_NAMES: Record<AppData["_view"], true> = {
   get_location_details: true,
   manage_shopping_list: true,
   manage_pantry: true,
-  search_recipes_from_web: true,
   get_weekly_deals: true,
   mark_order_placed: true,
 };

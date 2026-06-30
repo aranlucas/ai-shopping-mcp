@@ -15,7 +15,6 @@ import type { ToolContext } from "../../src/tools/types.js";
 
 import { createKrogerClients } from "../../src/services/kroger/client.js";
 import { registerProductTools } from "../../src/tools/product.js";
-import { registerRecipeTools } from "../../src/tools/recipes.js";
 import { createUserStorage } from "../../src/utils/user-storage.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
@@ -218,74 +217,5 @@ describe("search_products content size", () => {
     // 25 terms × 10 products with compact items array should stay well under 60 KB.
     // Without flat compaction this would exceed the 262 K-token context limit.
     expect(chars).toBeLessThan(60_000);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// search_recipes_from_web: worst-case multi-recipe with long instructions
-// ---------------------------------------------------------------------------
-
-describe("search_recipes_from_web content size", () => {
-  beforeEach(() => {
-    testState.capturedTools.length = 0;
-    authenticate();
-  });
-
-  it("stays under 15 KB for 5 recipes with 15 ingredients and 12 steps each", async () => {
-    const makeRecipe = (n: number) => ({
-      recipe: {
-        title: `Recipe ${n}: Delicious Dish with a Long Title`,
-        description:
-          "A wonderfully complex dish that takes skill and patience to prepare perfectly.",
-        cuisine: "Mediterranean",
-        difficulty: "INTERMEDIATE",
-        totalTime: 75,
-        servings: "4 servings",
-        slug: `recipe-${n}`,
-        ingredients: Array.from({ length: 15 }, (_, i) => ({
-          quantity: String(i + 1),
-          unit: "cups",
-          name: `Ingredient ${i + 1} with a descriptive name`,
-          notes: i % 3 === 0 ? "finely chopped" : undefined,
-        })),
-        instructions: Array.from({ length: 12 }, (_, i) => ({
-          stepNumber: i + 1,
-          instruction: `Step ${i + 1}: Perform this detailed cooking action carefully to ensure the best possible result for this dish.`,
-        })),
-      },
-    });
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json({
-          success: true,
-          data: { results: Array.from({ length: 5 }, (_, i) => makeRecipe(i + 1)) },
-        }),
-      ),
-    );
-
-    // search_recipes_from_web doesn't use clients or storage — pass real empty instances.
-    const clients = createKrogerClients(() => null);
-    const storage = createUserStorage(createMockKV());
-
-    registerRecipeTools({
-      server: {} as unknown as ToolContext["server"],
-      clients,
-      storage,
-      getEnv: () => ({}) as Env,
-      getSessionId: () => "session-size",
-    });
-
-    const result = await getTool("search_recipes_from_web")({ searchQuery: "dinner" });
-    const chars = measureContentChars(result);
-
-    // Without instruction compaction this would be 25–40 KB; with it <15 KB.
-    expect(chars).toBeLessThan(15_000);
-
-    // Full instructions should still be in structuredContent for the UI
-    const sc = (result as { structuredContent?: { recipes?: Array<{ instructions?: unknown[] }> } })
-      .structuredContent;
-    expect(sc?.recipes?.[0]?.instructions).toHaveLength(12);
   });
 });

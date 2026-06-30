@@ -4,7 +4,6 @@ import type {
   PantryListContent,
   ProductDetailContent,
   ProductSearchResultsContent,
-  RecipeResultsContent,
   ShoppingListContent,
   WeeklyDealsContent,
 } from "../shared/types.js";
@@ -213,38 +212,4 @@ export const mockShoppingList: ShoppingListContent = {
     },
   ],
   actionDetail: "3 unchecked items",
-};
-
-export const mockRecipes: RecipeResultsContent = {
-  _view: "search_recipes_from_web",
-  searchQuery: "pasta carbonara",
-  recipes: [
-    {
-      title: "Classic Pasta Carbonara",
-      description: "A traditional Roman pasta dish with eggs, cheese, and guanciale.",
-      cuisine: "Italian",
-      difficulty: "Medium",
-      totalTime: 30,
-      cookTime: 20,
-      servings: "4",
-      slug: "classic-pasta-carbonara",
-      ingredients: [
-        { quantity: "400", unit: "g", name: "spaghetti" },
-        { quantity: "200", unit: "g", name: "guanciale or pancetta" },
-        { quantity: "4", name: "egg yolks" },
-        { quantity: "1", name: "whole egg" },
-        { quantity: "100", unit: "g", name: "Pecorino Romano", notes: "finely grated" },
-        { name: "black pepper", notes: "freshly ground, to taste" },
-      ],
-      instructions: [
-        { stepNumber: 1, instruction: "Cook pasta in salted boiling water until al dente." },
-        { stepNumber: 2, instruction: "Fry guanciale in a pan until crispy. Remove from heat." },
-        { stepNumber: 3, instruction: "Whisk egg yolks, whole egg, and cheese together." },
-        {
-          stepNumber: 4,
-          instruction: "Add hot pasta to the pan, then egg mixture off-heat. Toss quickly.",
-        },
-      ],
-    },
-  ],
 };

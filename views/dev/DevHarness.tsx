@@ -7,7 +7,6 @@ import { LocationResultsView } from "../app/views/LocationResults.js";
 import { PantryView } from "../app/views/Pantry.js";
 import { ProductDetailView } from "../app/views/ProductDetail.js";
 import { ProductSearchView } from "../app/views/ProductSearch.js";
-import { RecipeResultsView } from "../app/views/RecipeResults.js";
 import { ShoppingListView } from "../app/views/ShoppingList.js";
 import { WeeklyDealsView } from "../app/views/WeeklyDeals.js";
 import {
@@ -16,7 +15,6 @@ import {
   mockPantry,
   mockProductDetail,
   mockProductSearch,
-  mockRecipes,
   mockShoppingList,
   mockWeeklyDeals,
 } from "./mockData.js";
@@ -29,7 +27,6 @@ const VIEWS = [
   "get_location_details",
   "manage_shopping_list",
   "manage_pantry",
-  "search_recipes_from_web",
 ] as const;
 
 type ViewName = (typeof VIEWS)[number];
@@ -42,7 +39,6 @@ const LABELS: Record<ViewName, string> = {
   get_location_details: "Location Detail",
   manage_shopping_list: "Shopping List",
   manage_pantry: "Pantry",
-  search_recipes_from_web: "Recipes",
 };
 
 // Mock App instance — buttons disabled (canCallTools=false), so this is never called.
@@ -89,8 +85,6 @@ export function DevHarness() {
             canCallTools={false}
           />
         );
-      case "search_recipes_from_web":
-        return <RecipeResultsView data={mockRecipes} app={mockApp} canCallTools={false} />;
     }
   }
 
