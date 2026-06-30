@@ -33,24 +33,6 @@ export const addToCartInputSchema = z.object({
   modality: z.enum(["DELIVERY", "PICKUP"]).default("PICKUP"),
 });
 
-export const addToCartOutputSchema = z.object({
-  _view: z.literal("add_to_cart"),
-  shopping_list_id: z.string().describe("The shopping list id that was added to the cart."),
-  name: z.string().describe("The label of the shopping list."),
-  items: z.array(
-    z.looseObject({
-      upc: z.string(),
-      quantity: z.number(),
-      modality: z.enum(["PICKUP", "DELIVERY"]),
-      productName: z.string().optional(),
-    }),
-  ),
-  needsUpc: z
-    .array(z.looseObject({ productName: z.string(), quantity: z.number() }))
-    .describe("Items on the list without a UPC; search for them first."),
-  actionDetail: z.string().optional(),
-});
-
 export function registerCartTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
@@ -69,7 +51,6 @@ export function registerCartTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: addToCartInputSchema,
-      outputSchema: addToCartOutputSchema,
     },
     async ({ shopping_list_id, locationId, modality }) => {
       const props = getProps();

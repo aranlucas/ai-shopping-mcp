@@ -29,19 +29,6 @@ export const managePantryInputSchema = z.object({
     .describe("Items to add or remove (required for 'add' and 'remove' actions)"),
 });
 
-const pantryItemSchema = z.looseObject({
-  productName: z.string(),
-  quantity: z.number(),
-  addedAt: z.string().optional(),
-  expiresAt: z.string().optional(),
-});
-
-export const managePantryOutputSchema = z.object({
-  _view: z.literal("manage_pantry"),
-  items: z.array(pantryItemSchema),
-  actionDetail: z.string().optional(),
-});
-
 export function registerPantryTools(ctx: ToolContext) {
   registerAppTool(
     ctx.server,
@@ -58,7 +45,6 @@ export function registerPantryTools(ctx: ToolContext) {
         openWorldHint: false,
       },
       inputSchema: managePantryInputSchema,
-      outputSchema: managePantryOutputSchema,
     },
     async ({ action, items }) => {
       const props = getProps();

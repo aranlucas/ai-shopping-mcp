@@ -8,24 +8,6 @@ import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 
-export const markOrderPlacedOutputSchema = z.object({
-  _view: z.literal("mark_order_placed"),
-  orderId: z.string(),
-  items: z.array(
-    z.looseObject({
-      productId: z.string(),
-      productName: z.string(),
-      quantity: z.number(),
-      price: z.number().optional(),
-    }),
-  ),
-  totalItems: z.number(),
-  estimatedTotal: z.number().optional(),
-  placedAt: z.string(),
-  locationId: z.string().optional(),
-  notes: z.string().optional(),
-});
-
 export function registerOrderTools(ctx: ToolContext) {
   registerAppTool(
     ctx.server,
@@ -53,7 +35,6 @@ export function registerOrderTools(ctx: ToolContext) {
         locationId: z.string().optional(),
         notes: z.string().max(500).optional(),
       }),
-      outputSchema: markOrderPlacedOutputSchema,
     },
     async ({ items, locationId, notes }) => {
       const props = getProps();

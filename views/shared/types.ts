@@ -1,25 +1,11 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type * as z from "zod/v4";
 
-import type { addToCartOutputSchema } from "../../src/tools/cart.js";
-import type {
-  getLocationDetailsOutputSchema,
-  searchLocationsOutputSchema,
-} from "../../src/tools/location.js";
-import type { markOrderPlacedOutputSchema } from "../../src/tools/orders.js";
-import type { managePantryOutputSchema } from "../../src/tools/pantry.js";
-import type {
-  getProductDetailsOutputSchema,
-  searchProductsOutputSchema,
-} from "../../src/tools/product.js";
-import type { createShoppingListOutputSchema } from "../../src/tools/shopping-list.js";
 import type {
   AddToCartArgs,
   CreateShoppingListArgs,
   ManagePantryArgs,
 } from "../../src/tools/tool-types.js";
-import type { getWeeklyDealsOutputSchema } from "../../src/tools/weekly-deals.js";
 
 export type { AddToCartArgs, CreateShoppingListArgs, ManagePantryArgs };
 
@@ -63,38 +49,152 @@ export function sendUserMessage(app: App | null | undefined, text: string): void
   });
 }
 
-/**
- * View content types.
- *
- * These are inferred directly from the server's Zod output schemas
- * in each owning `src/tools/*.ts` module — the single source of truth for the
- * `structuredContent` contract. Inferring them here keeps the client in
- * lockstep with the server: any schema change flows through automatically,
- * so the two halves can't drift. The imports above are `import type` only,
- * so no Zod runtime is pulled into the views bundle.
- */
-export type WeeklyDealsContent = z.infer<typeof getWeeklyDealsOutputSchema>;
-export type LocationResultsContent = z.infer<typeof searchLocationsOutputSchema>;
-export type LocationDetailContent = z.infer<typeof getLocationDetailsOutputSchema>;
-export type ProductSearchResultsContent = z.infer<typeof searchProductsOutputSchema>;
-export type ProductDetailContent = z.infer<typeof getProductDetailsOutputSchema>;
-export type PantryListContent = z.infer<typeof managePantryOutputSchema>;
-export type ShoppingListContent = z.infer<typeof createShoppingListOutputSchema>;
-export type AddToCartContent = z.infer<typeof addToCartOutputSchema>;
-export type OrderHistoryContent = z.infer<typeof markOrderPlacedOutputSchema>;
+export type DealData = {
+  title: string;
+  details?: string;
+  price?: string;
+  savings?: string | null;
+  validFrom?: string;
+  validTill?: string;
+};
 
-/** Element/sub-shapes, indexed out of the inferred content types above. */
-export type DealData = WeeklyDealsContent["deals"][number];
-export type LocationData = LocationDetailContent["location"];
-export type ProductData = ProductDetailContent["product"];
-export type PantryItemData = PantryListContent["items"][number];
-export type ShoppingListItemData = ShoppingListContent["items"][number];
-export type OrderItemData = OrderHistoryContent["items"][number];
+export type WeeklyDealsContent = {
+  _view: "get_weekly_deals";
+  deals: DealData[];
+  validFrom?: string;
+  validTill?: string;
+  cache?: { state: "miss" | "fresh" | "stale" };
+};
+
+export type LocationData = {
+  locationId?: string;
+  name?: string;
+  chain?: string;
+  address?: {
+    addressLine1?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+  };
+  phone?: string;
+  departments?: Array<{ name?: string; phone?: string }>;
+};
+
+export type LocationResultsContent = {
+  _view: "search_locations";
+  locations: LocationData[];
+};
+
+export type LocationDetailContent = {
+  _view: "get_location_details";
+  location: LocationData;
+};
+
+export type ProductData = {
+  upc?: string;
+  description?: string;
+  brand?: string;
+  categories?: string[];
+  aisleLocations?: Array<{ description?: string; number?: string }>;
+  images?: Array<{
+    perspective?: string;
+    default?: boolean;
+    sizes?: Array<{ id?: string; size?: string; url?: string }>;
+  }>;
+  items?: Array<{
+    itemId?: string;
+    size?: string;
+    price?: { regular?: number; promo?: number };
+    fulfillment?: {
+      curbside?: boolean;
+      delivery?: boolean;
+      instore?: boolean;
+      shiptohome?: boolean;
+    };
+    inventory?: { stockLevel?: string };
+  }>;
+};
+
+export type ProductSearchResultsContent = {
+  _view: "search_products";
+  results: Array<{
+    term: string;
+    products: ProductData[];
+    count?: number;
+    failed: boolean;
+  }>;
+  totalProducts: number;
+};
+
+export type ProductDetailContent = {
+  _view: "get_product_details";
+  product: ProductData;
+};
+
+export type PantryItemData = {
+  productName: string;
+  quantity: number;
+  addedAt?: string;
+  expiresAt?: string;
+};
+
+export type PantryListContent = {
+  _view: "manage_pantry";
+  items: PantryItemData[];
+  actionDetail?: string;
+};
+
+export type ShoppingListItemData = {
+  productName: string;
+  upc?: string;
+  quantity: number;
+  notes?: string;
+};
+
+export type ShoppingListContent = {
+  _view: "create_shopping_list";
+  shopping_list_id: string;
+  name: string;
+  items: ShoppingListItemData[];
+  actionDetail?: string;
+};
+
+export type AddToCartContent = {
+  _view: "add_to_cart";
+  shopping_list_id: string;
+  name: string;
+  items: Array<{
+    upc: string;
+    quantity: number;
+    modality: "PICKUP" | "DELIVERY";
+    productName?: string;
+  }>;
+  needsUpc: Array<{ productName: string; quantity: number }>;
+  actionDetail?: string;
+};
+
+export type OrderItemData = {
+  productId: string;
+  productName: string;
+  quantity: number;
+  price?: number;
+};
+
+export type OrderHistoryContent = {
+  _view: "mark_order_placed";
+  orderId: string;
+  items: OrderItemData[];
+  totalItems: number;
+  estimatedTotal?: number;
+  placedAt: string;
+  locationId?: string;
+  notes?: string;
+};
 
 /**
  * Discriminated union of all possible tool `structuredContent` shapes.
- * Each member already carries its `_view` literal from the schema, so this
- * narrows cleanly on `data._view`.
+ * Each member carries its `_view` literal, so this narrows cleanly on
+ * `data._view`.
  */
 export type AppData =
   | ProductSearchResultsContent
@@ -109,9 +209,9 @@ export type AppData =
 
 /**
  * Exhaustive map of the `_view` discriminators we know how to render. Typing it
- * as `Record<AppData["_view"], true>` makes it a compile error to add a view to
- * `AppData` (i.e. a new tool output schema) without registering it here — so the
- * runtime `KNOWN_VIEWS` set below can't silently drift from the type.
+ * as `Record<AppData["_view"], true>` makes it a compile error to add a view
+ * to `AppData` without registering it here, so the runtime `KNOWN_VIEWS` set
+ * below can't silently drift from the type.
  */
 const VIEW_NAMES: Record<AppData["_view"], true> = {
   search_products: true,

@@ -32,15 +32,6 @@ const WEEKLY_DEALS_CACHE_VERSION = 1;
 const FRESH_CACHE_MS = 6 * 60 * 60 * 1000;
 const STALE_GRACE_MS = 48 * 60 * 60 * 1000;
 
-const dealSchema = z.looseObject({
-  title: z.string(),
-  details: z.string().optional(),
-  price: z.string().optional(),
-  savings: z.string().nullable().optional(),
-  validFrom: z.string().optional(),
-  validTill: z.string().optional(),
-});
-
 const weeklyDealsCacheDataSchema = z
   .looseObject({
     sourceMode: z.enum(["search_api", "print_fallback"]),
@@ -74,14 +65,6 @@ const weeklyDealsCacheEntrySchema = z
       data: entry.data,
     }),
   );
-
-export const getWeeklyDealsOutputSchema = z.object({
-  _view: z.literal("get_weekly_deals"),
-  deals: z.array(dealSchema),
-  validFrom: z.string().optional(),
-  validTill: z.string().optional(),
-  cache: z.looseObject({ state: z.enum(["miss", "fresh", "stale"]) }).optional(),
-});
 
 export function isKvLike(value: unknown): value is KvLike {
   return !!value && typeof value === "object" && "get" in value && "put" in value;
@@ -229,7 +212,6 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           .default(2)
           .describe("Print-ad fallback only: number of ad pages to parse"),
       }),
-      outputSchema: getWeeklyDealsOutputSchema,
     },
     async ({ locationId, limit, pageLimit }) => {
       const kv = getCacheKv(ctx);

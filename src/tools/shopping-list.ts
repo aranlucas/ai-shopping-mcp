@@ -110,25 +110,6 @@ export const createShoppingListInputSchema = z.object({
     .describe("Items to add to this shopping list"),
 });
 
-const shoppingListItemSchema = z.looseObject({
-  productName: z.string(),
-  upc: z.string().optional(),
-  quantity: z.number(),
-  notes: z.string().optional(),
-});
-
-export const createShoppingListOutputSchema = z.object({
-  _view: z.literal("create_shopping_list"),
-  shopping_list_id: z
-    .string()
-    .describe(
-      "Stable id of this shopping list. Pass it to add_to_cart to add the list to the Kroger cart.",
-    ),
-  name: z.string().describe("The label the agent supplied when creating the list."),
-  items: z.array(shoppingListItemSchema),
-  actionDetail: z.string().optional(),
-});
-
 export function registerShoppingListTools(ctx: ToolContext) {
   registerAppTool(
     ctx.server,
@@ -145,7 +126,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
         openWorldHint: false,
       },
       inputSchema: createShoppingListInputSchema,
-      outputSchema: createShoppingListOutputSchema,
     },
     async ({ name, items }) => {
       const props = getProps();

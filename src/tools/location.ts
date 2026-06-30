@@ -60,34 +60,6 @@ import {
 import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 
-const locationSchema = z.looseObject({
-  locationId: z.string().optional(),
-  name: z.string().optional(),
-  chain: z.string().optional(),
-  address: z
-    .looseObject({
-      addressLine1: z.string().optional(),
-      city: z.string().optional(),
-      state: z.string().optional(),
-      zipCode: z.string().optional(),
-    })
-    .optional(),
-  phone: z.string().optional(),
-  departments: z
-    .array(z.looseObject({ name: z.string().optional(), phone: z.string().optional() }))
-    .optional(),
-});
-
-export const searchLocationsOutputSchema = z.object({
-  _view: z.literal("search_locations"),
-  locations: z.array(locationSchema),
-});
-
-export const getLocationDetailsOutputSchema = z.object({
-  _view: z.literal("get_location_details"),
-  location: locationSchema,
-});
-
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
 
@@ -113,7 +85,6 @@ export function registerLocationTools(ctx: ToolContext) {
         limit: z.number().min(1).max(200).optional().default(1),
         chain: z.string().optional().default("QFC"),
       }),
-      outputSchema: searchLocationsOutputSchema,
     },
     async ({ zipCodeNear, limit, chain }) => {
       const queryParams: Record<string, string | number> = {};
@@ -167,7 +138,6 @@ export function registerLocationTools(ctx: ToolContext) {
           message: "Location ID must be exactly 8 characters long",
         }),
       }),
-      outputSchema: getLocationDetailsOutputSchema,
     },
     async ({ locationId }) => {
       const result = await fromApiResponse(
