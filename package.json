@@ -8,11 +8,12 @@
   "author": "",
   "type": "module",
   "scripts": {
-    "build": "pnpm lint && pnpm build:views && tsc --noEmit",
+    "build": "pnpm lint && pnpm build:views && tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "build:views": "INPUT=mcp-app.html vite build",
     "watch": "NODE_ENV=development INPUT=mcp-app.html vite build --watch",
     "serve": "wrangler dev",
     "test": "vitest run",
+    "eval:mcp": "vitest run tests/evals",
     "deploy": "pnpm build:views && wrangler deploy",
     "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm serve\"",
     "start": "wrangler dev",

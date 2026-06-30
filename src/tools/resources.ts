@@ -2,7 +2,7 @@ import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { fromApiResponse, getProps, safeStorage } from "../utils/result.js";
 import { toonResource } from "../utils/toon.js";
-import { type ToolContext, getSessionScopedUserId } from "./types.js";
+import { type ToolContext } from "./types.js";
 
 export function registerResources(ctx: ToolContext) {
   const { productClient } = ctx.clients;
@@ -133,74 +133,24 @@ export function registerResources(ctx: ToolContext) {
   );
 
   ctx.server.registerResource(
-    "Shopping List",
-    "shopping://user/shopping-list",
-    {
-      description:
-        "The user's current shopping list of items they plan to buy. Items may have UPCs (ready for cart checkout) or just names (need product search). Use this to help users plan purchases, find products for items without UPCs, and coordinate checkout.",
-      mimeType: "text/toon",
-    },
-    async () => {
-      const props = getProps();
-
-      const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
-      const result = await safeStorage(
-        () => ctx.storage.shoppingList.getAll(scopedId),
-        "fetch shopping list",
-      );
-
-      return result.match(
-        (list) => {
-          const unchecked = list.filter((i) => !i.checked);
-          const withUpc = unchecked.filter((i) => i.upc);
-          const withoutUpc = unchecked.filter((i) => !i.upc);
-
-          return toonResource("shopping://user/shopping-list", {
-            totalItems: list.length,
-            uncheckedCount: unchecked.length,
-            readyForCheckout: withUpc.length,
-            needsUpc: withoutUpc.length,
-            items: list,
-            lastUpdated: new Date().toISOString(),
-          });
-        },
-        () =>
-          toonResource("shopping://user/shopping-list", {
-            error: "Failed to fetch shopping list data",
-          }),
-      );
-    },
-  );
-
-  ctx.server.registerResource(
     "Product Details",
     new ResourceTemplate("shopping://product/{productId}", {
       list: undefined,
       complete: {
         productId: async (value) => {
-          // Suggest 13-digit UPCs the user has interacted with: shopping list first,
-          // then recent orders. Filter by the in-flight prefix so completions stay focused.
+          // Suggest 13-digit UPCs from the user's recent orders, filtered by
+          // the in-flight prefix. The shopping list is no longer a source:
+          // lists are now request-scoped via create_shopping_list, not a
+          // session-persistent document.
           const props = getProps();
           const prefix = value.trim();
 
-          const scopedId = getSessionScopedUserId(props.id, ctx.getSessionId());
-          const [listResult, ordersResult] = await Promise.all([
-            safeStorage(
-              () => ctx.storage.shoppingList.getAll(scopedId),
-              "fetch shopping list for completion",
-            ),
-            safeStorage(
-              () => ctx.storage.orderHistory.getRecent(props.id, 20),
-              "fetch orders for completion",
-            ),
-          ]);
+          const ordersResult = await safeStorage(
+            () => ctx.storage.orderHistory.getRecent(props.id, 20),
+            "fetch orders for completion",
+          );
 
           const upcs = new Set<string>();
-          listResult.map((list) => {
-            for (const item of list) {
-              if (item.upc && /^\d{13}$/.test(item.upc)) upcs.add(item.upc);
-            }
-          });
           ordersResult.map((orders) => {
             for (const order of orders) {
               for (const item of order.items) {
@@ -237,9 +187,10 @@ export function registerResources(ctx: ToolContext) {
           () => ctx.storage.preferredLocation.get(props.id),
           "fetch preferred location",
         )
-      )
-        .map((loc) => loc?.locationId)
-        .unwrapOr(undefined);
+      ).match(
+        (location) => location?.locationId,
+        () => undefined,
+      );
 
       const queryParams: Record<string, string> = {};
       if (locationId) {

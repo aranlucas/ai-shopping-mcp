@@ -7,7 +7,24 @@ import type { ToolContext } from "./types.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { markOrderPlacedOutputSchema } from "./output-schemas.js";
+
+export const markOrderPlacedOutputSchema = z.object({
+  _view: z.literal("mark_order_placed"),
+  orderId: z.string(),
+  items: z.array(
+    z.looseObject({
+      productId: z.string(),
+      productName: z.string(),
+      quantity: z.number(),
+      price: z.number().optional(),
+    }),
+  ),
+  totalItems: z.number(),
+  estimatedTotal: z.number().optional(),
+  placedAt: z.string(),
+  locationId: z.string().optional(),
+  notes: z.string().optional(),
+});
 
 export function registerOrderTools(ctx: ToolContext) {
   registerAppTool(
@@ -79,8 +96,7 @@ export function registerOrderTools(ctx: ToolContext) {
         },
       }));
 
-      if (result.isErr()) return toMcpError(result.error);
-      return result.value;
+      return result.match((response) => response, toMcpError);
     },
   );
 }

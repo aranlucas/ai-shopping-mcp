@@ -9,10 +9,74 @@ import { notFoundError } from "../errors.js";
 import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { getProductDetailsOutputSchema, searchProductsOutputSchema } from "./output-schemas.js";
 import { type ToolContext, textResult } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+
+const productSchema = z.looseObject({
+  upc: z.string().optional(),
+  description: z.string().optional(),
+  brand: z.string().optional(),
+  categories: z.array(z.string()).optional(),
+  aisleLocations: z
+    .array(z.looseObject({ description: z.string().optional(), number: z.string().optional() }))
+    .optional(),
+  images: z
+    .array(
+      z.looseObject({
+        perspective: z.string().optional(),
+        default: z.boolean().optional(),
+        sizes: z
+          .array(
+            z.looseObject({
+              id: z.string().optional(),
+              size: z.string().optional(),
+              url: z.string().optional(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .optional(),
+  items: z
+    .array(
+      z.looseObject({
+        itemId: z.string().optional(),
+        size: z.string().optional(),
+        price: z
+          .looseObject({ regular: z.number().optional(), promo: z.number().optional() })
+          .optional(),
+        fulfillment: z
+          .looseObject({
+            curbside: z.boolean().optional(),
+            delivery: z.boolean().optional(),
+            instore: z.boolean().optional(),
+            shiptohome: z.boolean().optional(),
+          })
+          .optional(),
+        inventory: z.looseObject({ stockLevel: z.string().optional() }).optional(),
+      }),
+    )
+    .optional(),
+});
+
+export const searchProductsOutputSchema = z.object({
+  _view: z.literal("search_products"),
+  results: z.array(
+    z.looseObject({
+      term: z.string(),
+      products: z.array(productSchema),
+      count: z.number().optional(),
+      failed: z.boolean(),
+    }),
+  ),
+  totalProducts: z.number(),
+});
+
+export const getProductDetailsOutputSchema = z.object({
+  _view: z.literal("get_product_details"),
+  product: productSchema,
+});
 
 // Compact representation for toon encoding of bulk search results.
 // Strips images, categories, extra aisle locations, itemId, shiptohome,
@@ -84,9 +148,12 @@ export function registerProductTools(ctx: ToolContext) {
       let resolvedLocationId: string | undefined = locationId;
       if (!resolvedLocationId) {
         const resolved = await safeResolveLocationId(ctx.storage, getProps().id, undefined);
-        if (resolved.isOk()) {
-          resolvedLocationId = resolved.value.locationId;
-        }
+        resolved.match(
+          (location) => {
+            resolvedLocationId = location.locationId;
+          },
+          () => undefined,
+        );
       }
 
       let completedSearches = 0;
@@ -135,12 +202,15 @@ export function registerProductTools(ctx: ToolContext) {
             };
           })
           .orTee((error) => logProductSearchError(term, error))
-          .unwrapOr({
-            term,
-            products: [] as never[],
-            count: 0,
-            failed: true as const,
-          });
+          .match(
+            (result) => result,
+            () => ({
+              term,
+              products: [] as never[],
+              count: 0,
+              failed: true as const,
+            }),
+          );
       });
 
       const results = await Promise.all(searchPromises);
@@ -235,19 +305,15 @@ export function registerProductTools(ctx: ToolContext) {
         return ok(product);
       });
 
-      if (result.isErr()) {
-        return toMcpError(result.error);
-      }
+      return result.match((product) => {
+        // Strip images from model context; keep in structuredContent for UI.
+        const { images: _images, ...productForContent } = product;
 
-      const product = result.value;
-
-      // Strip images from model context; keep in structuredContent for UI.
-      const { images: _images, ...productForContent } = product;
-
-      return {
-        ...toonResult(productForContent),
-        structuredContent: { _view: "get_product_details", product },
-      };
+        return {
+          ...toonResult(productForContent),
+          structuredContent: { _view: "get_product_details", product },
+        };
+      }, toMcpError);
     },
   );
 }

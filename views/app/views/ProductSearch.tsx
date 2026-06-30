@@ -10,11 +10,8 @@ import {
 
 import { DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import {
-  type ProductData,
-  type ProductSearchResultsContent,
-  callTool,
-} from "../../shared/types.js";
+import { type ProductData, type ProductSearchResultsContent } from "../../shared/types.js";
+import { addProductToCart, saveProductToList } from "../tool-calls.js";
 
 function ProductCarousel({
   products,
@@ -23,7 +20,7 @@ function ProductCarousel({
   canCallTools,
 }: {
   products: ProductData[];
-  onAddToCart: (upc: string, qty: number) => Promise<void>;
+  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
   onAddToList: (name: string, upc: string) => Promise<void>;
   canCallTools: boolean;
 }) {
@@ -60,37 +57,21 @@ export function ProductSearchView({
 }) {
   const { results, totalProducts } = data;
 
-  const handleAddToCart = async (upc: string, qty: number) => {
-    const result = await callTool(app, {
-      name: "add_to_cart",
-      arguments: { items: [{ upc, quantity: qty, modality: "PICKUP" }] },
+  const handleAddToCart = async (name: string, upc: string, qty: number) => {
+    await addProductToCart(app, {
+      listName: `Cart: ${name}`,
+      productName: name,
+      quantity: qty,
+      upc,
     });
-    if (result?.isError) {
-      const msg =
-        result.content
-          ?.map((c) => ("text" in c ? c.text : ""))
-          .filter(Boolean)
-          .join(" ") || "Failed to add to cart";
-      throw new Error(msg);
-    }
   };
 
   const handleAddToList = async (name: string, upc: string) => {
-    const result = await callTool(app, {
-      name: "manage_shopping_list",
-      arguments: {
-        action: "add",
-        items: [{ productName: name, upc, quantity: 1 }],
-      },
+    await saveProductToList(app, {
+      productName: name,
+      quantity: 1,
+      upc,
     });
-    if (result?.isError) {
-      const msg =
-        result.content
-          ?.map((c) => ("text" in c ? c.text : ""))
-          .filter(Boolean)
-          .join(" ") || "Failed to add to list";
-      throw new Error(msg);
-    }
   };
 
   const hasResults = results.some((r) => !r.failed && r.products.length > 0);

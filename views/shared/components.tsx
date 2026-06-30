@@ -232,7 +232,7 @@ export function ProductActions({
   upc: string | undefined;
   name: string;
   disabled?: boolean;
-  onAddToCart: (upc: string, qty: number) => Promise<void>;
+  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
   onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
   const [cartState, setCartState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -245,7 +245,7 @@ export function ProductActions({
     setCartState("loading");
     setErrorMsg(null);
     try {
-      await onAddToCart(upc, 1);
+      await onAddToCart(name, upc, 1);
       setCartState("done");
       setTimeout(() => setCartState("idle"), 2000);
     } catch (e) {
@@ -377,7 +377,7 @@ export function ProductCard({
 }: {
   product: ProductData;
   canCallTools: boolean;
-  onAddToCart: (upc: string, qty: number) => Promise<void>;
+  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
   onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
   const name = product.description || "Unknown Product";

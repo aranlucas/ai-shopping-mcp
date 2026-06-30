@@ -34,14 +34,6 @@ export default defineConfig({
           name: "worker",
           testTimeout: 30_000,
           include: ["tests/**/*.test.ts"],
-          exclude: ["tests/package-manager.test.ts"],
-        },
-      },
-      {
-        test: {
-          name: "node",
-          environment: "node",
-          include: ["tests/package-manager.test.ts"],
         },
       },
     ],

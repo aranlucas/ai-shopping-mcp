@@ -16,6 +16,7 @@ import {
   notFoundError,
   storageError,
 } from "../errors.js";
+export { safeJsonParse, safeJsonParseWithSchema } from "./json.js";
 
 // --- MCP Response Bridge ---
 

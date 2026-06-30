@@ -66,8 +66,6 @@ type StorageSeed = {
   locationThrows?: boolean;
   orders?: unknown[];
   ordersThrows?: boolean;
-  shoppingList?: unknown[];
-  shoppingListThrows?: boolean;
 };
 
 function makeStorage(seed: StorageSeed = {}): UserStorage {
@@ -84,9 +82,6 @@ function makeStorage(seed: StorageSeed = {}): UserStorage {
     },
     orderHistory: {
       getRecent: seed.ordersThrows ? reject : async () => seed.orders ?? [],
-    },
-    shoppingList: {
-      getAll: seed.shoppingListThrows ? reject : async () => seed.shoppingList ?? [],
     },
   } as unknown as UserStorage;
 }
@@ -241,41 +236,11 @@ describe("registerResources", () => {
     );
   });
 
-  it("summarizes the shopping list and handles failures", async () => {
-    registerResources(
-      makeContext(
-        makeStorage({
-          shoppingList: [
-            {
-              productName: "Milk",
-              upc: "0001112223334",
-              quantity: 1,
-              addedAt: "x",
-              checked: false,
-            },
-            { productName: "Bread", quantity: 1, addedAt: "x", checked: false },
-            { productName: "Eggs", quantity: 1, addedAt: "x", checked: true },
-          ],
-        }),
-      ),
-    );
-    const decoded = decodeResource(await callResource("Shopping List"));
-    expect(decoded.totalItems).toBe(3);
-    expect(decoded.uncheckedCount).toBe(2);
-    expect(decoded.readyForCheckout).toBe(1);
-    expect(decoded.needsUpc).toBe(1);
-
-    testState.capturedResources.length = 0;
-    registerResources(makeContext(makeStorage({ shoppingListThrows: true })));
-    expect(decodeResource(await callResource("Shopping List")).error).toContain(
-      "Failed to fetch shopping list data",
-    );
-
-    testState.capturedResources.length = 0;
-    unauthenticate();
+  it("does not register a session shopping list resource", () => {
     registerResources(makeContext(makeStorage()));
-    await expect(callResource("Shopping List")).rejects.toThrow(
-      "outside an authenticated MCP request",
+
+    expect(testState.capturedResources.map((resource) => resource.name)).not.toContain(
+      "Shopping List",
     );
   });
 
@@ -366,20 +331,10 @@ describe("registerResources", () => {
       expect(decoded.error).toContain("Failed to fetch product");
     });
 
-    it("suggests UPC completions from shopping list and orders", async () => {
+    it("suggests UPC completions from recent orders", async () => {
       registerResources(
         makeContext(
           makeStorage({
-            shoppingList: [
-              {
-                productName: "Milk",
-                upc: "1111111111111",
-                quantity: 1,
-                addedAt: "x",
-                checked: false,
-              },
-              { productName: "NoUpc", quantity: 1, addedAt: "x", checked: false },
-            ],
             orders: [
               {
                 orderId: "o1",
@@ -397,31 +352,26 @@ describe("registerResources", () => {
 
       const complete = getCompleteFn("Product Details", "productId");
       const all = await complete("");
-      expect(all).toContain("1111111111111");
       expect(all).toContain("2222222222222");
       expect(all).not.toContain("short");
 
-      const prefixed = await complete("1111");
-      expect(prefixed).toEqual(["1111111111111"]);
+      const prefixed = await complete("2222");
+      expect(prefixed).toEqual(["2222222222222"]);
     });
 
-    it("deduplicates UPCs that appear in both shopping list and order history", async () => {
-      // The same UPC in both sources should appear exactly once in completions.
+    it("deduplicates UPCs that appear more than once in order history", async () => {
       registerResources(
         makeContext(
           makeStorage({
-            shoppingList: [
-              {
-                productName: "Milk",
-                upc: "3333333333333",
-                quantity: 1,
-                addedAt: "x",
-                checked: false,
-              },
-            ],
             orders: [
               {
                 orderId: "o1",
+                items: [{ productId: "3333333333333", productName: "Milk", quantity: 1 }],
+                totalItems: 1,
+                placedAt: "x",
+              },
+              {
+                orderId: "o2",
                 items: [{ productId: "3333333333333", productName: "Milk", quantity: 1 }],
                 totalItems: 1,
                 placedAt: "x",
@@ -437,43 +387,10 @@ describe("registerResources", () => {
       expect(occurrences).toBe(1);
     });
 
-    it("returns completions from orders when shopping list storage fails", async () => {
-      // Partial failure: shopping list throws, but order history succeeds.
+    it("returns empty completions when order history storage fails", async () => {
       registerResources(
         makeContext(
           makeStorage({
-            shoppingListThrows: true,
-            orders: [
-              {
-                orderId: "o1",
-                items: [{ productId: "4444444444444", productName: "Cheese", quantity: 1 }],
-                totalItems: 1,
-                placedAt: "x",
-              },
-            ],
-          }),
-        ),
-      );
-
-      const complete = getCompleteFn("Product Details", "productId");
-      const all = await complete("");
-      expect(all).toContain("4444444444444");
-    });
-
-    it("returns completions from shopping list when order history storage fails", async () => {
-      // Partial failure: order history throws, but shopping list succeeds.
-      registerResources(
-        makeContext(
-          makeStorage({
-            shoppingList: [
-              {
-                productName: "Yogurt",
-                upc: "5555555555555",
-                quantity: 1,
-                addedAt: "x",
-                checked: false,
-              },
-            ],
             ordersThrows: true,
           }),
         ),
@@ -481,7 +398,7 @@ describe("registerResources", () => {
 
       const complete = getCompleteFn("Product Details", "productId");
       const all = await complete("");
-      expect(all).toContain("5555555555555");
+      expect(all).toEqual([]);
     });
 
     it("throws when completing outside an authenticated request", async () => {

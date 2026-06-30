@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CartSnapshotStorage,
   EquipmentStorage,
   OrderHistoryStorage,
   PantryStorage,
@@ -50,6 +51,13 @@ describe("parseJson fallback on corrupted KV data", () => {
     expect(result).toEqual([]);
   });
 
+  it("PantryStorage.getAll returns empty array for valid JSON with the wrong shape", async () => {
+    const kv = createMockKV({ "user:user1:pantry": JSON.stringify({ productName: "Milk" }) });
+    const storage = new PantryStorage(kv);
+    const result = await storage.getAll("user1");
+    expect(result).toEqual([]);
+  });
+
   it("EquipmentStorage.getAll returns empty array for invalid JSON", async () => {
     const kv = createMockKV({ "user:user1:equipment": "{unclosed" });
     const storage = new EquipmentStorage(kv);
@@ -57,11 +65,11 @@ describe("parseJson fallback on corrupted KV data", () => {
     expect(result).toEqual([]);
   });
 
-  it("ShoppingListStorage.getAll returns empty array for invalid JSON", async () => {
-    const kv = createMockKV({ "user:user1:shopping_list": "not-json-at-all" });
+  it("ShoppingListStorage.get returns null for invalid JSON", async () => {
+    const kv = createMockKV({ "shopping_list:user1:list:abc": "not-json-at-all" });
     const storage = new ShoppingListStorage(kv);
-    const result = await storage.getAll("user1");
-    expect(result).toEqual([]);
+    const result = await storage.get("user1:list:abc");
+    expect(result).toBeNull();
   });
 
   it("OrderHistoryStorage.getAll returns empty array for invalid JSON", async () => {
@@ -358,6 +366,8 @@ describe("EquipmentStorage", () => {
 
 // ----- ShoppingListStorage -----
 
+// ----- ShoppingListStorage -----
+
 describe("ShoppingListStorage", () => {
   let kv: KVNamespace;
   let storage: ShoppingListStorage;
@@ -367,181 +377,89 @@ describe("ShoppingListStorage", () => {
     storage = new ShoppingListStorage(kv);
   });
 
-  it("returns empty array for no items", async () => {
-    expect(await storage.getAll("user1")).toEqual([]);
+  it("create persists the list under its id and returns it", async () => {
+    const items = [{ productName: "Milk", quantity: 1 }];
+    const list = await storage.create("user1:list:abc", "Tuesday", items);
+
+    expect(list.id).toBe("user1:list:abc");
+    expect(list.name).toBe("Tuesday");
+    expect(list.items).toBe(items);
+    expect(typeof list.createdAt).toBe("string");
+
+    const stored = await storage.get("user1:list:abc");
+    expect(stored).toEqual(list);
   });
 
-  it("adds items to shopping list", async () => {
-    const item = {
-      productName: "Bread",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    };
-    const result = await storage.add("user1", item);
-    expect(result).toHaveLength(1);
+  it("get returns null when no list exists for the id", async () => {
+    expect(await storage.get("user1:list:missing")).toBeNull();
   });
 
-  it("deduplicates by name and adds quantities", async () => {
-    await storage.add("user1", {
-      productName: "Milk",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-    const result = await storage.add("user1", {
-      productName: "milk",
-      quantity: 2,
-      upc: "0001111042010",
-      notes: "2%",
-      addedAt: "2025-01-02T00:00:00Z",
-      checked: false,
-    });
-
-    expect(result).toHaveLength(1);
-    expect(result[0].quantity).toBe(3);
-    expect(result[0].upc).toBe("0001111042010");
-    expect(result[0].notes).toBe("2%");
+  it("get returns null for corrupted JSON entry", async () => {
+    const kvBad = createMockKV({ "shopping_list:user1:list:x": "{ broken" });
+    const s = new ShoppingListStorage(kvBad);
+    expect(await s.get("user1:list:x")).toBeNull();
   });
 
-  it("preserves existing UPC when duplicate item has no UPC", async () => {
-    await storage.add("user1", {
-      productName: "Whole Milk",
-      upc: "0001111042010",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-    const result = await storage.add("user1", {
-      productName: "Whole Milk",
-      quantity: 1,
-      addedAt: "2025-01-02T00:00:00Z",
-      checked: false,
-    });
-
-    expect(result).toHaveLength(1);
-    expect(result[0].upc).toBe("0001111042010");
+  it("clear removes the stored list", async () => {
+    await storage.create("user1:list:abc", "Tuesday", [{ productName: "Milk", quantity: 1 }]);
+    await storage.clear("user1:list:abc");
+    expect(await storage.get("user1:list:abc")).toBeNull();
   });
 
-  it("removes item by name (case-insensitive)", async () => {
-    await storage.add("user1", {
-      productName: "Eggs",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-    const result = await storage.remove("user1", "EGGS");
-    expect(result).toHaveLength(0);
+  it("isolates lists by id", async () => {
+    await storage.create("user1:list:a", "A", [{ productName: "Bread", quantity: 1 }]);
+    await storage.create("user2:list:b", "B", [{ productName: "Cheese", quantity: 2 }]);
+
+    expect((await storage.get("user1:list:a"))?.items[0].productName).toBe("Bread");
+    expect((await storage.get("user2:list:b"))?.items[0].productName).toBe("Cheese");
+    expect(await storage.get("user1:list:b")).toBeNull();
   });
 
-  it("updates item fields", async () => {
-    await storage.add("user1", {
-      productName: "Butter",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
+  it("creating with the same id overwrites the previous list", async () => {
+    await storage.create("user1:list:abc", "First", [{ productName: "A", quantity: 1 }]);
+    await storage.create("user1:list:abc", "Second", [{ productName: "B", quantity: 2 }]);
 
-    await storage.updateItem("user1", "butter", {
-      quantity: 3,
-      checked: true,
-      notes: "salted",
-    });
+    const stored = await storage.get("user1:list:abc");
+    expect(stored?.name).toBe("Second");
+    expect(stored?.items).toEqual([{ productName: "B", quantity: 2 }]);
+  });
+});
 
-    const items = await storage.getAll("user1");
-    expect(items[0].quantity).toBe(3);
-    expect(items[0].checked).toBe(true);
-    expect(items[0].notes).toBe("salted");
+// ----- CartSnapshotStorage -----
+
+describe("CartSnapshotStorage", () => {
+  let kv: KVNamespace;
+  let storage: CartSnapshotStorage;
+
+  beforeEach(() => {
+    kv = createMockKV();
+    storage = new CartSnapshotStorage(kv);
   });
 
-  it("updateItem returns list unchanged when product name does not match", async () => {
-    await storage.add("user1", {
-      productName: "Butter",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-
-    const result = await storage.updateItem("user1", "Cheese", {
-      quantity: 99,
-      checked: true,
-    });
-
-    expect(result).toHaveLength(1);
-    expect(result[0].productName).toBe("Butter");
-    expect(result[0].quantity).toBe(1);
-    expect(result[0].checked).toBe(false);
+  it("set then get round-trips the cart snapshot", async () => {
+    const items = [
+      { upc: "0001111042578", quantity: 2, modality: "PICKUP" as const, productName: "Milk" },
+    ];
+    await storage.set("user1:list:abc", items);
+    expect(await storage.get("user1:list:abc")).toEqual(items);
   });
 
-  it("returns only unchecked items", async () => {
-    await storage.add("user1", {
-      productName: "A",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-    await storage.add("user1", {
-      productName: "B",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: true,
-    });
-
-    const unchecked = await storage.getUnchecked("user1");
-    expect(unchecked).toHaveLength(1);
-    expect(unchecked[0].productName).toBe("A");
+  it("get returns null when no snapshot exists", async () => {
+    expect(await storage.get("user1:list:none")).toBeNull();
   });
 
-  it("marks all items as checked", async () => {
-    await storage.add("user1", {
-      productName: "A",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-    await storage.add("user1", {
-      productName: "B",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-
-    const result = await storage.markAllChecked("user1");
-    expect(result.every((i) => i.checked)).toBe(true);
+  it("get returns null for corrupted JSON entry", async () => {
+    const kvBad = createMockKV({ "user1:list:abc:cart_snapshot": "not-json" });
+    const s = new CartSnapshotStorage(kvBad);
+    expect(await s.get("user1:list:abc")).toBeNull();
   });
 
-  it("clears the shopping list", async () => {
-    await storage.add("user1", {
-      productName: "X",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-    await storage.clear("user1");
-    expect(await storage.getAll("user1")).toEqual([]);
-  });
-
-  it("isolates shopping list data between users", async () => {
-    await storage.add("user1", {
-      productName: "Bread",
-      quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-    await storage.add("user2", {
-      productName: "Cheese",
-      quantity: 2,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
-    });
-
-    const user1List = await storage.getAll("user1");
-    const user2List = await storage.getAll("user2");
-
-    expect(user1List).toHaveLength(1);
-    expect(user1List[0].productName).toBe("Bread");
-    expect(user2List).toHaveLength(1);
-    expect(user2List[0].productName).toBe("Cheese");
+  it("clear removes the snapshot", async () => {
+    await storage.set("user1:list:abc", [
+      { upc: "0001111042578", quantity: 1, modality: "PICKUP" },
+    ]);
+    await storage.clear("user1:list:abc");
+    expect(await storage.get("user1:list:abc")).toBeNull();
   });
 });
 
@@ -672,5 +590,7 @@ describe("createUserStorage", () => {
     expect(storage.equipment).toBeInstanceOf(EquipmentStorage);
     expect(storage.orderHistory).toBeInstanceOf(OrderHistoryStorage);
     expect(storage.shoppingList).toBeInstanceOf(ShoppingListStorage);
+    expect(storage.cartSnapshot).toBeInstanceOf(CartSnapshotStorage);
+    expect(storage.shoppingList).not.toBe(storage.cartSnapshot);
   });
 });

@@ -62,7 +62,7 @@ Tooling and MCP surface:
 - `src/tools/shopping-list.ts`: `manage_shopping_list`, `checkout_shopping_list`
 - `src/tools/weekly-deals.ts`: `get_weekly_deals`
 - `src/tools/resources.ts`: read-only MCP resources
-- `src/tools/output-schemas.ts`: Zod output schemas for tools returning `structuredContent`; the `_view` discriminator drives client-side view routing.
+- Tool-local output schemas: Zod output schemas for tools returning `structuredContent` live in the owning `src/tools/*.ts` module; the `_view` discriminator drives client-side view routing.
 - `src/tools/types.ts`: shared tool context, auth helpers, response helpers, storage types
 - `src/tools/tool-types.ts`: Zod-inferred cross-module tool argument types
 
@@ -162,7 +162,7 @@ Tools should follow MCP annotations consistently:
 - `idempotentHint`: true when repeating the same input has the same effect.
 - `openWorldHint`: true for external APIs, false for local-only storage.
 
-Tools that return `structuredContent` must declare a matching `outputSchema` from `src/tools/output-schemas.ts`. Keep nested API payload schemas loose (`z.looseObject`) so new Kroger fields pass through without validation churn.
+Tools that return `structuredContent` must declare a matching tool-local `outputSchema`. Keep nested API payload schemas loose (`z.looseObject`) so new Kroger fields pass through without validation churn.
 
 Current MCP tools:
 
@@ -272,7 +272,7 @@ When adding or changing a view:
 
 - Put view-specific code in `views/app/views/`.
 - Reuse shared UI from `views/shared/`.
-- Keep the structured content shape explicit and aligned with the tool's output schema in `src/tools/output-schemas.ts`.
+- Keep the structured content shape explicit and aligned with the tool-local output schema.
 - Update the dev harness mocks in `views/dev/` when the structured content shape changes.
 - Run `pnpm build:views` or `pnpm build`.
 

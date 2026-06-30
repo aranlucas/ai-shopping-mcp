@@ -237,26 +237,22 @@ describe("formatPreferredLocationCompact", () => {
 // ----- Shopping List Item Compact -----
 
 describe("formatShoppingListItemCompact", () => {
-  it("formats unchecked item as '[ ] Name xQty'", () => {
+  it("formats item without UPC or notes as 'Name xQty'", () => {
     const item: ShoppingListItem = {
       productName: "Butter",
       quantity: 1,
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: false,
     };
-    expect(formatShoppingListItemCompact(item)).toBe("[ ] Butter x1");
+    expect(formatShoppingListItemCompact(item)).toBe("Butter x1");
   });
 
-  it("formats checked item with UPC and notes including all fields", () => {
+  it("formats item with UPC and notes including all fields", () => {
     const item: ShoppingListItem = {
       productName: "Eggs",
       quantity: 12,
       upc: "0001111042010",
       notes: "large",
-      addedAt: "2025-01-01T00:00:00Z",
-      checked: true,
     };
-    expect(formatShoppingListItemCompact(item)).toBe("[x] Eggs x12 | 0001111042010 | large");
+    expect(formatShoppingListItemCompact(item)).toBe("Eggs x12 | 0001111042010 | large");
   });
 });
 
@@ -267,13 +263,13 @@ describe("formatShoppingListCompact", () => {
     expect(formatShoppingListCompact([])).toBe("Shopping list empty.");
   });
 
-  it("formats non-empty list as numbered items for both checked and unchecked", () => {
+  it("formats non-empty list as numbered items", () => {
     const items: ShoppingListItem[] = [
-      { productName: "Bread", quantity: 1, addedAt: "2025-01-15T00:00:00Z", checked: false },
-      { productName: "Milk", quantity: 2, addedAt: "2025-01-15T00:00:00Z", checked: true },
+      { productName: "Bread", quantity: 1 },
+      { productName: "Milk", quantity: 2 },
     ];
     const result = formatShoppingListCompact(items);
-    expect(result).toContain("1. [ ] Bread x1");
-    expect(result).toContain("2. [x] Milk x2");
+    expect(result).toContain("1. Bread x1");
+    expect(result).toContain("2. Milk x2");
   });
 });

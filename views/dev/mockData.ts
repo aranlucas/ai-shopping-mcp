@@ -1,4 +1,5 @@
 import type {
+  AddToCartContent,
   LocationDetailContent,
   LocationResultsContent,
   PantryListContent,
@@ -7,6 +8,28 @@ import type {
   ShoppingListContent,
   WeeklyDealsContent,
 } from "../shared/types.js";
+
+export const mockAddToCart: AddToCartContent = {
+  _view: "add_to_cart",
+  shopping_list_id: "user-123:session:dev-session:list:abc12345",
+  name: "Tuesday Dinner",
+  items: [
+    {
+      upc: "0001111042578",
+      quantity: 2,
+      modality: "PICKUP",
+      productName: "Organic Whole Milk",
+    },
+    {
+      upc: "0002100062282",
+      quantity: 1,
+      modality: "PICKUP",
+      productName: "Chicken Breast",
+    },
+  ],
+  needsUpc: [{ productName: "Strawberries", quantity: 2 }],
+  actionDetail: 'Added 2 item(s) from list "Tuesday Dinner" to cart',
+};
 
 export const mockWeeklyDeals: WeeklyDealsContent = {
   _view: "get_weekly_deals",
@@ -180,36 +203,30 @@ export const mockPantry: PantryListContent = {
 };
 
 export const mockShoppingList: ShoppingListContent = {
-  _view: "manage_shopping_list",
+  _view: "create_shopping_list",
+  shopping_list_id: "user-123:session:dev-session:list:abc12345",
+  name: "Tuesday Dinner",
   items: [
     {
       productName: "Organic Whole Milk",
       upc: "0001111042578",
       quantity: 2,
       notes: "1 gallon",
-      checked: false,
-      addedAt: "2026-03-22",
     },
     {
       productName: "Sourdough Bread",
       quantity: 1,
-      checked: true,
-      addedAt: "2026-03-21",
     },
     {
       productName: "Chicken Breast",
       upc: "0002100062282",
       quantity: 1,
       notes: "family pack",
-      checked: false,
-      addedAt: "2026-03-22",
     },
     {
       productName: "Strawberries",
       quantity: 2,
-      checked: false,
-      addedAt: "2026-03-22",
     },
   ],
-  actionDetail: "3 unchecked items",
+  actionDetail: "4 items",
 };

@@ -235,6 +235,11 @@ describe("MCP client over Worker OAuth integration", () => {
     for (const tool of tools.tools) {
       expect(tool._meta?.ui).toBeDefined();
     }
+    expect(client.getInstructions()).toContain("create_shopping_list");
+    expect(client.getInstructions()).toContain("shopping_list_id");
+    expect(client.getInstructions()).not.toContain(
+      "pantry, equipment, shopping list, preferred location",
+    );
 
     const result = await client.callTool({
       name: "search_products",

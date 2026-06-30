@@ -1,5 +1,9 @@
+import * as z from "zod/v4";
+
 import type { components as ProductComponents } from "./kroger/product.js";
 import type { Circular, CircularsResponse } from "./kroger/weekly-deals.js";
+
+import { safeJsonParse, safeJsonParseWithSchema } from "../utils/json.js";
 
 const QFC_WEEKLY_AD_BASE = "https://www.qfc.com";
 const KROGER_DIGITAL_ADS_BASE = "https://api.kroger.com";
@@ -91,6 +95,15 @@ interface ParsedDacsOffer {
   imageUrl?: string;
 }
 
+const dacsMapConfigSchema = z.looseObject({
+  content: z.looseObject({
+    id: z.number(),
+    headline: z.string(),
+    bodyCopy: z.string().nullable().optional(),
+    imageURL: z.string().nullable().optional(),
+  }),
+});
+
 function getDefaultLocationId(locationId?: string): string {
   return locationId || DEFAULT_QFC_LOCATION_ID;
 }
@@ -117,12 +130,16 @@ async function fetchJson<T>(
 ): Promise<{ data: T; response: Response }> {
   const response = await fetch(url, init);
   const text = await response.text();
-  let parsed: unknown;
-  try {
-    parsed = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`Invalid JSON from ${url} (status ${response.status}): ${text.slice(0, 200)}`);
-  }
+  const parsed = text
+    ? safeJsonParse(text).match(
+        (value) => value,
+        () => {
+          throw new Error(
+            `Invalid JSON from ${url} (status ${response.status}): ${text.slice(0, 200)}`,
+          );
+        },
+      )
+    : {};
 
   if (!response.ok) {
     const errorText =
@@ -320,35 +337,27 @@ async function fetchPrintAdPage(params: {
 }
 
 function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null {
-  try {
-    const parsed = JSON.parse(mapConfig) as JsonRecord;
-    const content = parsed.content as JsonRecord | undefined;
-    if (!content) return null;
+  const parsed = safeJsonParseWithSchema(mapConfig, dacsMapConfigSchema).match(
+    (value) => value,
+    () => null,
+  );
+  if (!parsed) return null;
 
-    const id = content.id;
-    const title = content.headline;
-    if (typeof id !== "number" || typeof title !== "string" || !title.trim()) {
-      return null;
-    }
+  const { content } = parsed;
+  const title = content.headline.trim();
+  if (!title) return null;
 
-    const bodyCopy =
-      typeof content.bodyCopy === "string" && content.bodyCopy.trim()
-        ? content.bodyCopy
-        : undefined;
-    const imageURL =
-      typeof content.imageURL === "string" && content.imageURL.trim()
-        ? content.imageURL
-        : undefined;
+  const bodyCopy =
+    typeof content.bodyCopy === "string" && content.bodyCopy.trim() ? content.bodyCopy : undefined;
+  const imageURL =
+    typeof content.imageURL === "string" && content.imageURL.trim() ? content.imageURL : undefined;
 
-    return {
-      id: String(id),
-      title: title.trim(),
-      details: bodyCopy,
-      imageUrl: imageURL,
-    };
-  } catch {
-    return null;
-  }
+  return {
+    id: String(content.id),
+    title,
+    details: bodyCopy,
+    imageUrl: imageURL,
+  };
 }
 
 function dedupeDealsById<T extends { id: string }>(deals: T[]): T[] {

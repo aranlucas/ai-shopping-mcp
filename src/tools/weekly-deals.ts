@@ -8,10 +8,10 @@ import type { ToolContext } from "./types.js";
 
 import { networkError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
+import { safeJsonParseWithSchema } from "../utils/json.js";
 import { toMcpError } from "../utils/result.js";
 import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { getWeeklyDealsOutputSchema } from "./output-schemas.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
 
@@ -32,6 +32,57 @@ const WEEKLY_DEALS_CACHE_VERSION = 1;
 const FRESH_CACHE_MS = 6 * 60 * 60 * 1000;
 const STALE_GRACE_MS = 48 * 60 * 60 * 1000;
 
+const dealSchema = z.looseObject({
+  title: z.string(),
+  details: z.string().optional(),
+  price: z.string().optional(),
+  savings: z.string().nullable().optional(),
+  validFrom: z.string().optional(),
+  validTill: z.string().optional(),
+});
+
+const weeklyDealsCacheDataSchema = z
+  .looseObject({
+    sourceMode: z.enum(["search_api", "print_fallback"]),
+    locationId: z.string(),
+    divisionCode: z.string(),
+    warnings: z.array(z.string()),
+    deals: z.array(
+      z.looseObject({
+        id: z.string(),
+        title: z.string(),
+        source: z.enum(["search_api", "print"]),
+      }),
+    ),
+  })
+  .transform((data): QfcDealsApiResponse => data as QfcDealsApiResponse);
+
+const weeklyDealsCacheEntrySchema = z
+  .looseObject({
+    version: z.literal(1),
+    createdAt: z.number(),
+    freshUntil: z.number(),
+    staleUntil: z.number(),
+    data: weeklyDealsCacheDataSchema,
+  })
+  .transform(
+    (entry): WeeklyDealsCacheEntry => ({
+      version: entry.version,
+      createdAt: entry.createdAt,
+      freshUntil: entry.freshUntil,
+      staleUntil: entry.staleUntil,
+      data: entry.data,
+    }),
+  );
+
+export const getWeeklyDealsOutputSchema = z.object({
+  _view: z.literal("get_weekly_deals"),
+  deals: z.array(dealSchema),
+  validFrom: z.string().optional(),
+  validTill: z.string().optional(),
+  cache: z.looseObject({ state: z.enum(["miss", "fresh", "stale"]) }).optional(),
+});
+
 export function isKvLike(value: unknown): value is KvLike {
   return !!value && typeof value === "object" && "get" in value && "put" in value;
 }
@@ -45,7 +96,10 @@ const safeGetCacheKv = fromThrowable(
 );
 
 function getCacheKv(ctx: ToolContext): KvLike | null {
-  return safeGetCacheKv(ctx).unwrapOr(null);
+  return safeGetCacheKv(ctx).match(
+    (kv) => kv,
+    () => null,
+  );
 }
 
 export function buildWeeklyDealsCacheKey(params: {
@@ -64,27 +118,12 @@ export function buildWeeklyDealsCacheKey(params: {
   ].join("|");
 }
 
-const safeJsonParse = fromThrowable(
-  (raw: string) => JSON.parse(raw) as WeeklyDealsCacheEntry,
-  () => null,
-);
-
 export function parseCacheEntry(raw: string | null): WeeklyDealsCacheEntry | null {
   if (!raw) return null;
-  return safeJsonParse(raw)
-    .map((parsed) => {
-      if (
-        !parsed ||
-        parsed.version !== 1 ||
-        typeof parsed.freshUntil !== "number" ||
-        typeof parsed.staleUntil !== "number" ||
-        !parsed.data
-      ) {
-        return null;
-      }
-      return parsed;
-    })
-    .unwrapOr(null);
+  return safeJsonParseWithSchema(raw, weeklyDealsCacheEntrySchema).match(
+    (entry) => entry,
+    () => null,
+  );
 }
 
 function readWeeklyDealsCacheSafe(
@@ -205,8 +244,11 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
 
       let staleEntry: WeeklyDealsCacheEntry | null = null;
 
-      if (cacheResult.isOk()) {
-        const cached = cacheResult.value;
+      const cached = cacheResult.match(
+        (value) => value,
+        () => null,
+      );
+      if (cached) {
         if (cached.kind === "fresh") {
           const result = addCacheWarning(cached.entry.data, "Served from KV cache.");
           return formatWeeklyDealsToolResponse(result, "fresh");
@@ -250,19 +292,19 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           ),
       );
 
-      if (liveResult.isOk()) {
-        return formatWeeklyDealsToolResponse(liveResult.value, "miss");
-      }
-
-      if (staleEntry) {
-        const staleData = addCacheWarning(
-          staleEntry.data,
-          `Live refresh failed; served stale KV cache. (${liveResult.error.message})`,
-        );
-        return formatWeeklyDealsToolResponse(staleData, "stale");
-      }
-
-      return toMcpError(liveResult.error);
+      return liveResult.match(
+        (liveData) => formatWeeklyDealsToolResponse(liveData, "miss"),
+        (error) => {
+          if (staleEntry) {
+            const staleData = addCacheWarning(
+              staleEntry.data,
+              `Live refresh failed; served stale KV cache. (${error.message})`,
+            );
+            return formatWeeklyDealsToolResponse(staleData, "stale");
+          }
+          return toMcpError(error);
+        },
+      );
     },
   );
 }

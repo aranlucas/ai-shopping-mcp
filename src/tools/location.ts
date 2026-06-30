@@ -59,7 +59,34 @@ import {
 } from "../utils/result.js";
 import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { getLocationDetailsOutputSchema, searchLocationsOutputSchema } from "./output-schemas.js";
+
+const locationSchema = z.looseObject({
+  locationId: z.string().optional(),
+  name: z.string().optional(),
+  chain: z.string().optional(),
+  address: z
+    .looseObject({
+      addressLine1: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zipCode: z.string().optional(),
+    })
+    .optional(),
+  phone: z.string().optional(),
+  departments: z
+    .array(z.looseObject({ name: z.string().optional(), phone: z.string().optional() }))
+    .optional(),
+});
+
+export const searchLocationsOutputSchema = z.object({
+  _view: z.literal("search_locations"),
+  locations: z.array(locationSchema),
+});
+
+export const getLocationDetailsOutputSchema = z.object({
+  _view: z.literal("get_location_details"),
+  location: locationSchema,
+});
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
@@ -108,19 +135,16 @@ export function registerLocationTools(ctx: ToolContext) {
         "search locations",
       ).map((data) => data?.data || []);
 
-      if (result.isErr()) {
-        return toMcpError(result.error);
-      }
-
-      const locations = result.value;
-
-      return {
-        ...toonResult({
-          count: locations.length,
-          locations: locations.map(compactLocationForContent),
+      return result.match(
+        (locations) => ({
+          ...toonResult({
+            count: locations.length,
+            locations: locations.map(compactLocationForContent),
+          }),
+          structuredContent: { _view: "search_locations", locations },
         }),
-        structuredContent: { _view: "search_locations", locations },
-      };
+        toMcpError,
+      );
     },
   );
 
@@ -159,16 +183,13 @@ export function registerLocationTools(ctx: ToolContext) {
         return ok(location);
       });
 
-      if (result.isErr()) {
-        return toMcpError(result.error);
-      }
-
-      const location = result.value;
-
-      return {
-        ...toonResult(compactLocationForContent(location)),
-        structuredContent: { _view: "get_location_details", location },
-      };
+      return result.match(
+        (location) => ({
+          ...toonResult(compactLocationForContent(location)),
+          structuredContent: { _view: "get_location_details", location },
+        }),
+        toMcpError,
+      );
     },
   );
 

@@ -1,9 +1,8 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 
-import { useState } from "react";
-
-import { ActionButton, Badge, FulfillmentTags, PriceDisplay } from "../../shared/components.js";
-import { type ProductDetailContent, callTool } from "../../shared/types.js";
+import { Badge, FulfillmentTags, PriceDisplay, ProductActions } from "../../shared/components.js";
+import { type ProductDetailContent } from "../../shared/types.js";
+import { addProductToCart, saveProductToList } from "../tool-calls.js";
 
 function StockBadge({ level }: { level: string | undefined }) {
   if (!level) return null;
@@ -21,49 +20,26 @@ export function ProductDetailView({
   app: App | null;
   canCallTools: boolean;
 }) {
-  const [cartState, setCartState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [listState, setListState] = useState<"idle" | "loading" | "done" | "error">("idle");
-
   const { product } = data;
   const name = product.description || "Unknown Product";
   const brand = product.brand;
   const upc = product.upc;
 
-  const handleAddToCart = async () => {
-    if (!upc) return;
-    setCartState("loading");
-    try {
-      const result = await callTool(app, {
-        name: "add_to_cart",
-        arguments: { items: [{ upc, quantity: 1, modality: "PICKUP" }] },
-      });
-      if (result?.isError) throw new Error("Failed");
-      setCartState("done");
-      setTimeout(() => setCartState("idle"), 2000);
-    } catch {
-      setCartState("error");
-      setTimeout(() => setCartState("idle"), 2000);
-    }
+  const handleAddToCart = async (productName: string, productUpc: string, quantity: number) => {
+    await addProductToCart(app, {
+      listName: `Cart: ${productName}`,
+      productName,
+      quantity,
+      upc: productUpc,
+    });
   };
 
-  const handleAddToList = async () => {
-    if (!upc) return;
-    setListState("loading");
-    try {
-      const result = await callTool(app, {
-        name: "manage_shopping_list",
-        arguments: {
-          action: "add",
-          items: [{ productName: name, upc, quantity: 1 }],
-        },
-      });
-      if (result?.isError) throw new Error("Failed");
-      setListState("done");
-      setTimeout(() => setListState("idle"), 2000);
-    } catch {
-      setListState("error");
-      setTimeout(() => setListState("idle"), 2000);
-    }
+  const handleAddToList = async (productName: string, productUpc: string) => {
+    await saveProductToList(app, {
+      productName,
+      quantity: 1,
+      upc: productUpc,
+    });
   };
 
   return (
@@ -82,51 +58,12 @@ export function ProductDetailView({
         {/* Actions */}
         {upc && (
           <div className="px-4 py-3 border-b border-[var(--app-border)] flex gap-1.5">
-            <ActionButton
-              state={cartState}
-              onClick={handleAddToCart}
+            <ProductActions
+              upc={upc}
+              name={name}
               disabled={!canCallTools}
-              idleLabel="Add to Cart"
-              loadingLabel="Adding..."
-              doneLabel="Added!"
-              failLabel="Failed"
-              variant="primary"
-              icon={
-                <svg
-                  aria-hidden="true"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-                  />
-                </svg>
-              }
-            />
-            <ActionButton
-              state={listState}
-              onClick={handleAddToList}
-              disabled={!canCallTools}
-              idleLabel="Save to List"
-              loadingLabel="Saving..."
-              doneLabel="Saved!"
-              failLabel="Failed"
-              variant="secondary"
-              icon={
-                <svg
-                  aria-hidden="true"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              }
+              onAddToCart={handleAddToCart}
+              onAddToList={handleAddToList}
             />
           </div>
         )}

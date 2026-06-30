@@ -129,6 +129,11 @@ describe("parseCacheEntry", () => {
     expect(parseCacheEntry(JSON.stringify(entry))).toBeNull();
   });
 
+  it("returns null when data has the wrong shape", () => {
+    const entry = { ...makeCacheEntry(), data: { warnings: "not-an-array" } };
+    expect(parseCacheEntry(JSON.stringify(entry))).toBeNull();
+  });
+
   it("returns valid entry for a correct structure", () => {
     const entry = makeCacheEntry();
     const result = parseCacheEntry(JSON.stringify(entry));

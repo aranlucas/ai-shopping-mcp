@@ -2,32 +2,31 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type * as z from "zod/v4";
 
-export type {
-  AddToCartArgs,
-  ManagePantryArgs,
-  ManageShoppingListArgs,
-} from "../../src/tools/tool-types.js";
-
+import type { addToCartOutputSchema } from "../../src/tools/cart.js";
 import type {
   getLocationDetailsOutputSchema,
-  getProductDetailsOutputSchema,
-  getWeeklyDealsOutputSchema,
-  managePantryOutputSchema,
-  manageShoppingListOutputSchema,
-  markOrderPlacedOutputSchema,
   searchLocationsOutputSchema,
+} from "../../src/tools/location.js";
+import type { markOrderPlacedOutputSchema } from "../../src/tools/orders.js";
+import type { managePantryOutputSchema } from "../../src/tools/pantry.js";
+import type {
+  getProductDetailsOutputSchema,
   searchProductsOutputSchema,
-} from "../../src/tools/output-schemas.js";
+} from "../../src/tools/product.js";
+import type { createShoppingListOutputSchema } from "../../src/tools/shopping-list.js";
 import type {
   AddToCartArgs,
+  CreateShoppingListArgs,
   ManagePantryArgs,
-  ManageShoppingListArgs,
 } from "../../src/tools/tool-types.js";
+import type { getWeeklyDealsOutputSchema } from "../../src/tools/weekly-deals.js";
+
+export type { AddToCartArgs, CreateShoppingListArgs, ManagePantryArgs };
 
 /** Discriminated union of all callable tools — enables type-safe callTool(). */
 export type ToolCall =
   | { name: "add_to_cart"; arguments: AddToCartArgs }
-  | { name: "manage_shopping_list"; arguments: ManageShoppingListArgs }
+  | { name: "create_shopping_list"; arguments: CreateShoppingListArgs }
   | { name: "manage_pantry"; arguments: ManagePantryArgs }
   | { name: "set_preferred_location"; arguments: { locationId: string } }
   | { name: "get_location_details"; arguments: { locationId: string } }
@@ -68,7 +67,7 @@ export function sendUserMessage(app: App | null | undefined, text: string): void
  * View content types.
  *
  * These are inferred directly from the server's Zod output schemas
- * (`src/tools/output-schemas.ts`) — the single source of truth for the
+ * in each owning `src/tools/*.ts` module — the single source of truth for the
  * `structuredContent` contract. Inferring them here keeps the client in
  * lockstep with the server: any schema change flows through automatically,
  * so the two halves can't drift. The imports above are `import type` only,
@@ -80,7 +79,8 @@ export type LocationDetailContent = z.infer<typeof getLocationDetailsOutputSchem
 export type ProductSearchResultsContent = z.infer<typeof searchProductsOutputSchema>;
 export type ProductDetailContent = z.infer<typeof getProductDetailsOutputSchema>;
 export type PantryListContent = z.infer<typeof managePantryOutputSchema>;
-export type ShoppingListContent = z.infer<typeof manageShoppingListOutputSchema>;
+export type ShoppingListContent = z.infer<typeof createShoppingListOutputSchema>;
+export type AddToCartContent = z.infer<typeof addToCartOutputSchema>;
 export type OrderHistoryContent = z.infer<typeof markOrderPlacedOutputSchema>;
 
 /** Element/sub-shapes, indexed out of the inferred content types above. */
@@ -104,7 +104,8 @@ export type AppData =
   | ShoppingListContent
   | PantryListContent
   | WeeklyDealsContent
-  | OrderHistoryContent;
+  | OrderHistoryContent
+  | AddToCartContent;
 
 /**
  * Exhaustive map of the `_view` discriminators we know how to render. Typing it
@@ -117,10 +118,11 @@ const VIEW_NAMES: Record<AppData["_view"], true> = {
   get_product_details: true,
   search_locations: true,
   get_location_details: true,
-  manage_shopping_list: true,
+  create_shopping_list: true,
   manage_pantry: true,
   get_weekly_deals: true,
   mark_order_placed: true,
+  add_to_cart: true,
 };
 
 /** The set of `_view` discriminators we know how to render. */

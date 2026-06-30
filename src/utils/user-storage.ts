@@ -2,6 +2,9 @@
  * User data storage utilities using Cloudflare KV
  * Manages persistent user data including preferred location, pantry items, and order history
  */
+import * as z from "zod/v4";
+
+import { safeJsonParseWithSchema } from "./json.js";
 
 // Type definitions for stored user data
 export interface PantryItem {
@@ -45,9 +48,71 @@ export interface ShoppingListItem {
   upc?: string; // 13-digit UPC for adding to Kroger cart
   quantity: number;
   notes?: string; // Optional notes (e.g., "get organic if available")
-  addedAt: string; // ISO timestamp
-  checked: boolean; // Whether item has been checked off / added to cart
 }
+
+/**
+ * A shopping list is an immutable snapshot created by `create_shopping_list`.
+ * Lists are keyed by `id` (returned to the agent as `shopping_list_id`) and
+ * never mutated in place — refining the list means creating a new one.
+ */
+export interface ShoppingList {
+  id: string;
+  name: string;
+  items: ShoppingListItem[];
+  createdAt: string; // ISO timestamp
+}
+
+const pantryItemSchema = z.looseObject({
+  productName: z.string(),
+  quantity: z.number(),
+  addedAt: z.string(),
+  expiresAt: z.string().optional(),
+});
+
+const orderRecordSchema = z.looseObject({
+  orderId: z.string(),
+  items: z.array(
+    z.looseObject({
+      productId: z.string(),
+      productName: z.string(),
+      quantity: z.number(),
+      price: z.number().optional(),
+    }),
+  ),
+  totalItems: z.number(),
+  estimatedTotal: z.number().optional(),
+  placedAt: z.string(),
+  locationId: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const preferredLocationSchema = z.looseObject({
+  locationId: z.string(),
+  locationName: z.string(),
+  address: z.string(),
+  chain: z.string(),
+  setAt: z.string(),
+});
+
+const equipmentItemSchema = z.looseObject({
+  equipmentName: z.string(),
+  category: z.string().optional(),
+  addedAt: z.string(),
+});
+
+const shoppingListItemSchema = z.looseObject({
+  productName: z.string(),
+  upc: z.string().optional(),
+  quantity: z.number(),
+  notes: z.string().optional(),
+});
+
+const shoppingListSchema = z.looseObject({
+  id: z.string(),
+  name: z.string(),
+  items: z.array(shoppingListItemSchema),
+  createdAt: z.string(),
+});
 
 /**
  * Storage keys are namespaced by user ID for data isolation
@@ -62,14 +127,20 @@ const getKey = (userId: string, dataType: string): string => {
  * older shape, so a corrupted entry should degrade to the default rather than
  * throw and break the whole read.
  */
-function parseJson<T>(value: string | null, fallback: T): T {
+function parseJson<TSchema extends z.ZodType>(
+  value: string | null,
+  schema: TSchema,
+  fallback: z.output<TSchema>,
+): z.output<TSchema> {
   if (value == null) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch (error) {
-    console.warn("Discarding corrupted KV entry:", error);
-    return fallback;
-  }
+  const result = safeJsonParseWithSchema(value, schema);
+  return result.match(
+    (parsed) => parsed,
+    (error) => {
+      console.warn("Discarding corrupted KV entry:", error);
+      return fallback;
+    },
+  );
 }
 
 /**
@@ -86,7 +157,7 @@ export class PreferredLocationStorage {
   async get(userId: string): Promise<PreferredLocation | null> {
     const key = getKey(userId, "preferred_location");
     const value = await this.kv.get(key);
-    return parseJson<PreferredLocation | null>(value, null);
+    return parseJson(value, preferredLocationSchema.nullable(), null);
   }
 
   async delete(userId: string): Promise<void> {
@@ -104,7 +175,7 @@ export class PantryStorage {
   async getAll(userId: string): Promise<PantryItem[]> {
     const key = getKey(userId, "pantry");
     const value = await this.kv.get(key);
-    return parseJson<PantryItem[]>(value, []);
+    return parseJson(value, z.array(pantryItemSchema), []);
   }
 
   async add(userId: string, item: PantryItem): Promise<PantryItem[]> {
@@ -172,7 +243,7 @@ export class EquipmentStorage {
   async getAll(userId: string): Promise<EquipmentItem[]> {
     const key = getKey(userId, "equipment");
     const value = await this.kv.get(key);
-    return parseJson<EquipmentItem[]>(value, []);
+    return parseJson(value, z.array(equipmentItemSchema), []);
   }
 
   async add(userId: string, item: EquipmentItem): Promise<EquipmentItem[]> {
@@ -214,96 +285,91 @@ export class EquipmentStorage {
 }
 
 /**
- * Shopping List Storage - manages items the user plans to buy
+ * Shopping List Storage - persists named, id-keyed shopping lists created by
+ * `create_shopping_list`. Lists are immutable snapshots: the agent creates a
+ * fresh list to refine, never mutates an existing one. `add_to_cart` reads a
+ * list back by id to send its items to the Kroger cart.
+ *
+ * Entries auto-expire from KV after `LIST_TTL_SECONDS` (7 days) so dead lists
+ * from abandoned conversations don't accumulate.
  */
+const SHOPPING_LIST_KEY = (id: string) => `shopping_list:${id}`;
+const LIST_TTL_SECONDS = 60 * 60 * 24 * 7;
+
 export class ShoppingListStorage {
   constructor(private kv: KVNamespace) {}
 
-  async getAll(userId: string): Promise<ShoppingListItem[]> {
-    const key = getKey(userId, "shopping_list");
+  /**
+   * Create and persist a new shopping list under the supplied id. The caller
+   * (the create tool) is responsible for namespacing the id with the user id
+   * and session so a later `add_to_cart` can read it back safely.
+   */
+  async create(id: string, name: string, items: ShoppingListItem[]): Promise<ShoppingList> {
+    const list: ShoppingList = {
+      id,
+      name,
+      items,
+      createdAt: new Date().toISOString(),
+    };
+    await this.kv.put(SHOPPING_LIST_KEY(id), JSON.stringify(list), {
+      expirationTtl: LIST_TTL_SECONDS,
+    });
+    return list;
+  }
+
+  async get(id: string): Promise<ShoppingList | null> {
+    const value = await this.kv.get(SHOPPING_LIST_KEY(id));
+    return parseJson(value, shoppingListSchema.nullable(), null);
+  }
+
+  async clear(id: string): Promise<void> {
+    await this.kv.delete(SHOPPING_LIST_KEY(id));
+  }
+}
+
+/**
+ * Cart Snapshot Storage - persists the Kroger cart contents that resulted
+ * from adding a shopping list to the user's cart, keyed by the shopping
+ * list id. This is the `shopping_list_id -> CartItem[]` mapping the agent
+ * uses to recall which shopping list produced which cart.
+ *
+ * Entries auto-expire from KV after `SNAPSHOT_TTL_SECONDS` (7 days) alongside
+ * the shopping list itself.
+ */
+const SNAPSHOT_TTL_SECONDS = 60 * 60 * 24 * 7;
+
+export type CartSnapshotItem = {
+  upc: string;
+  quantity: number;
+  modality: "PICKUP" | "DELIVERY";
+  productName?: string;
+};
+
+const cartSnapshotItemSchema = z.looseObject({
+  upc: z.string(),
+  quantity: z.number(),
+  modality: z.enum(["PICKUP", "DELIVERY"]),
+  productName: z.string().optional(),
+});
+
+export class CartSnapshotStorage {
+  constructor(private kv: KVNamespace) {}
+
+  async get(shoppingListId: string): Promise<CartSnapshotItem[] | null> {
+    const key = getKey(shoppingListId, "cart_snapshot");
     const value = await this.kv.get(key);
-    return parseJson<ShoppingListItem[]>(value, []);
+    return parseJson(value, z.array(cartSnapshotItemSchema).nullable(), null);
   }
 
-  async add(userId: string, item: ShoppingListItem): Promise<ShoppingListItem[]> {
-    const list = await this.getAll(userId);
-
-    // Check if item already exists by name (case-insensitive) and update quantity
-    const existingIndex = list.findIndex(
-      (i: ShoppingListItem) => i.productName.toLowerCase() === item.productName.toLowerCase(),
-    );
-
-    if (existingIndex >= 0) {
-      list[existingIndex].quantity += item.quantity;
-      list[existingIndex].addedAt = item.addedAt;
-      // Update UPC if provided and not already set
-      if (item.upc) {
-        list[existingIndex].upc = item.upc;
-      }
-      // Update notes if provided
-      if (item.notes) {
-        list[existingIndex].notes = item.notes;
-      }
-    } else {
-      list.push(item);
-    }
-
-    const key = getKey(userId, "shopping_list");
-    await this.kv.put(key, JSON.stringify(list));
-    return list;
+  async set(shoppingListId: string, items: CartSnapshotItem[]): Promise<void> {
+    const key = getKey(shoppingListId, "cart_snapshot");
+    await this.kv.put(key, JSON.stringify(items), {
+      expirationTtl: SNAPSHOT_TTL_SECONDS,
+    });
   }
 
-  async remove(userId: string, productName: string): Promise<ShoppingListItem[]> {
-    const list = await this.getAll(userId);
-    const filtered = list.filter(
-      (item: ShoppingListItem) => item.productName.toLowerCase() !== productName.toLowerCase(),
-    );
-
-    const key = getKey(userId, "shopping_list");
-    await this.kv.put(key, JSON.stringify(filtered));
-    return filtered;
-  }
-
-  async updateItem(
-    userId: string,
-    productName: string,
-    updates: Partial<Pick<ShoppingListItem, "quantity" | "upc" | "notes" | "checked">>,
-  ): Promise<ShoppingListItem[]> {
-    const list = await this.getAll(userId);
-    const item = list.find(
-      (i: ShoppingListItem) => i.productName.toLowerCase() === productName.toLowerCase(),
-    );
-
-    if (item) {
-      if (updates.quantity !== undefined) item.quantity = updates.quantity;
-      if (updates.upc !== undefined) item.upc = updates.upc;
-      if (updates.notes !== undefined) item.notes = updates.notes;
-      if (updates.checked !== undefined) item.checked = updates.checked;
-
-      const key = getKey(userId, "shopping_list");
-      await this.kv.put(key, JSON.stringify(list));
-    }
-
-    return list;
-  }
-
-  async getUnchecked(userId: string): Promise<ShoppingListItem[]> {
-    const list = await this.getAll(userId);
-    return list.filter((item: ShoppingListItem) => !item.checked);
-  }
-
-  async markAllChecked(userId: string): Promise<ShoppingListItem[]> {
-    const list = await this.getAll(userId);
-    for (const item of list) {
-      item.checked = true;
-    }
-    const key = getKey(userId, "shopping_list");
-    await this.kv.put(key, JSON.stringify(list));
-    return list;
-  }
-
-  async clear(userId: string): Promise<void> {
-    const key = getKey(userId, "shopping_list");
+  async clear(shoppingListId: string): Promise<void> {
+    const key = getKey(shoppingListId, "cart_snapshot");
     await this.kv.delete(key);
   }
 }
@@ -317,7 +383,7 @@ export class OrderHistoryStorage {
   async getAll(userId: string): Promise<OrderRecord[]> {
     const key = getKey(userId, "order_history");
     const value = await this.kv.get(key);
-    return parseJson<OrderRecord[]>(value, []);
+    return parseJson(value, z.array(orderRecordSchema), []);
   }
 
   async add(userId: string, order: OrderRecord): Promise<OrderRecord[]> {
@@ -353,5 +419,6 @@ export function createUserStorage(kv: KVNamespace) {
     equipment: new EquipmentStorage(kv),
     orderHistory: new OrderHistoryStorage(kv),
     shoppingList: new ShoppingListStorage(kv),
+    cartSnapshot: new CartSnapshotStorage(kv),
   };
 }

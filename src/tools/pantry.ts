@@ -8,7 +8,6 @@ import { validationError } from "../errors.js";
 import { formatPantryListCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { managePantryOutputSchema } from "./output-schemas.js";
 
 /** Input schema for the `manage_pantry` tool. Exported so the client can infer
  *  its argument type (see `tool-types.ts`) for type-safe `callTool()` calls. */
@@ -28,6 +27,19 @@ export const managePantryInputSchema = z.object({
     )
     .optional()
     .describe("Items to add or remove (required for 'add' and 'remove' actions)"),
+});
+
+const pantryItemSchema = z.looseObject({
+  productName: z.string(),
+  quantity: z.number(),
+  addedAt: z.string().optional(),
+  expiresAt: z.string().optional(),
+});
+
+export const managePantryOutputSchema = z.object({
+  _view: z.literal("manage_pantry"),
+  items: z.array(pantryItemSchema),
+  actionDetail: z.string().optional(),
 });
 
 export function registerPantryTools(ctx: ToolContext) {
@@ -85,8 +97,7 @@ export function registerPantryTools(ctx: ToolContext) {
               actionDetail: `Added ${items.length} item(s)`,
             },
           }));
-          if (result.isErr()) return toMcpError(result.error);
-          return result.value;
+          return result.match((response) => response, toMcpError);
         }
 
         case "remove": {
@@ -114,8 +125,7 @@ export function registerPantryTools(ctx: ToolContext) {
               actionDetail: `Removed ${items.length} item(s)`,
             },
           }));
-          if (result.isErr()) return toMcpError(result.error);
-          return result.value;
+          return result.match((response) => response, toMcpError);
         }
 
         case "clear": {
@@ -130,8 +140,7 @@ export function registerPantryTools(ctx: ToolContext) {
               actionDetail: "Pantry cleared",
             },
           }));
-          if (result.isErr()) return toMcpError(result.error);
-          return result.value;
+          return result.match((response) => response, toMcpError);
         }
       }
     },

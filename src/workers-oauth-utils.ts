@@ -1,5 +1,7 @@
 import type { ClientInfo } from "@cloudflare/workers-oauth-provider"; // Adjust path if necessary
 
+import { safeJsonParse } from "./utils/json.js";
+
 const COOKIE_NAME = "__Host-mcp-approved-clients";
 const CSRF_COOKIE_NAME = "__Host-CSRF_TOKEN";
 const ONE_YEAR_IN_SECONDS = 31536000;
@@ -71,7 +73,12 @@ function approvalRecordsMatch(a: ApprovedClientRecord, b: ApprovedClientRecord):
 function decodeState<T = unknown>(encoded: string): T {
   try {
     const jsonString = atob(encoded);
-    return JSON.parse(jsonString);
+    return safeJsonParse(jsonString).match(
+      (state) => state as T,
+      (error) => {
+        throw error;
+      },
+    );
   } catch (e) {
     console.error("Error decoding state:", e);
     throw new Error("Could not decode state");
@@ -174,12 +181,13 @@ export async function parseSignedCookiePayload<T>(
     return null;
   }
 
-  try {
-    return JSON.parse(payload) as T;
-  } catch (e) {
-    console.error("Error parsing cookie payload:", e);
-    return null;
-  }
+  return safeJsonParse(payload).match(
+    (parsed) => parsed as T,
+    (error) => {
+      console.error("Error parsing cookie payload:", error);
+      return null;
+    },
+  );
 }
 
 /**

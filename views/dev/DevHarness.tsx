@@ -2,6 +2,7 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
+import { AddToCartView } from "../app/views/AddToCart.js";
 import { LocationDetailView } from "../app/views/LocationDetail.js";
 import { LocationResultsView } from "../app/views/LocationResults.js";
 import { PantryView } from "../app/views/Pantry.js";
@@ -10,6 +11,7 @@ import { ProductSearchView } from "../app/views/ProductSearch.js";
 import { ShoppingListView } from "../app/views/ShoppingList.js";
 import { WeeklyDealsView } from "../app/views/WeeklyDeals.js";
 import {
+  mockAddToCart,
   mockLocationDetail,
   mockLocationResults,
   mockPantry,
@@ -25,7 +27,8 @@ const VIEWS = [
   "get_product_details",
   "search_locations",
   "get_location_details",
-  "manage_shopping_list",
+  "create_shopping_list",
+  "add_to_cart",
   "manage_pantry",
 ] as const;
 
@@ -37,7 +40,8 @@ const LABELS: Record<ViewName, string> = {
   get_product_details: "Product Detail",
   search_locations: "Location Results",
   get_location_details: "Location Detail",
-  manage_shopping_list: "Shopping List",
+  create_shopping_list: "Shopping List",
+  add_to_cart: "Cart",
   manage_pantry: "Pantry",
 };
 
@@ -67,15 +71,16 @@ export function DevHarness() {
         );
       case "get_location_details":
         return <LocationDetailView data={mockLocationDetail} app={mockApp} canCallTools={false} />;
-      case "manage_shopping_list":
+      case "create_shopping_list":
         return (
           <ShoppingListView
             data={(data as typeof mockShoppingList) ?? mockShoppingList}
-            setData={setData}
             app={mockApp}
             canCallTools={false}
           />
         );
+      case "add_to_cart":
+        return <AddToCartView data={mockAddToCart} />;
       case "manage_pantry":
         return (
           <PantryView

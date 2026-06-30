@@ -8,6 +8,7 @@ import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+import { AddToCartView } from "./app/views/AddToCart.js";
 import { LocationDetailView } from "./app/views/LocationDetail.js";
 import { LocationResultsView } from "./app/views/LocationResults.js";
 import { OrderHistoryView } from "./app/views/OrderHistory.js";
@@ -102,16 +103,10 @@ function getPartialLoadingMessage(viewKey: string | null, args: Record<string, u
       return "Searching locations…";
     case "get_location_details":
       return "Loading location…";
-    case "manage_shopping_list": {
-      const action = args.action as string | undefined;
-      if (action === "add") return "Adding to shopping list…";
-      if (action === "remove") return "Removing from shopping list…";
-      if (action === "clear") return "Clearing shopping list…";
-      if (action === "update") return "Updating shopping list…";
-      return "Updating shopping list…";
-    }
-    case "checkout_shopping_list":
-      return "Checking out…";
+    case "create_shopping_list":
+      return "Creating shopping list…";
+    case "add_to_cart":
+      return "Adding to cart…";
     case "manage_pantry": {
       const action = args.action as string | undefined;
       if (action === "add") return "Adding to pantry…";
@@ -145,7 +140,7 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
           return <ProductSearchSkeleton />;
         case "get_weekly_deals":
           return <WeeklyDealsSkeleton />;
-        case "manage_shopping_list":
+        case "create_shopping_list":
         case "manage_pantry":
         case "mark_order_placed":
           return <ListSkeleton />;
@@ -182,10 +177,10 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
       );
     case "get_location_details":
       return <LocationDetailView data={data} app={app} canCallTools={canCallTools} />;
-    case "manage_shopping_list":
-      return (
-        <ShoppingListView data={data} setData={setData} app={app} canCallTools={canCallTools} />
-      );
+    case "create_shopping_list":
+      return <ShoppingListView data={data} app={app} canCallTools={canCallTools} />;
+    case "add_to_cart":
+      return <AddToCartView data={data} />;
     case "manage_pantry":
       return <PantryView data={data} setData={setData} app={app} canCallTools={canCallTools} />;
     case "get_weekly_deals":

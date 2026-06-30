@@ -9,11 +9,19 @@ import type {
   ShoppingListItem,
 } from "../../src/utils/user-storage.js";
 
+import { registerCartTools } from "../../src/tools/cart.js";
 import { registerEquipmentTools } from "../../src/tools/equipment.js";
 import { registerLocationTools } from "../../src/tools/location.js";
 import { registerOrderTools } from "../../src/tools/orders.js";
 import { registerPantryTools } from "../../src/tools/pantry.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
+
+type ShoppingListRecord = {
+  id: string;
+  name: string;
+  items: ShoppingListItem[];
+  createdAt: string;
+};
 
 type AuthContext = {
   props?: {
@@ -76,7 +84,8 @@ function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
   const equipmentItems: EquipmentItem[] = [];
   const orders: OrderRecord[] = [];
   const preferredLocations: PreferredLocation[] = [];
-  const shoppingListItems: ShoppingListItem[] = [];
+  const createdLists: ShoppingListRecord[] = [];
+  const snapshotCalls: Array<{ id: string; items: unknown[] }> = [];
 
   const storage = {
     pantry: {
@@ -116,30 +125,28 @@ function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
       getAll: async () => orders,
     },
     shoppingList: {
-      add: async (_userId: string, item: ShoppingListItem) => {
-        shoppingListItems.push(item);
+      create: async (id: string, name: string, items: ShoppingListItem[]) => {
+        const record: ShoppingListRecord = {
+          id,
+          name,
+          items,
+          createdAt: new Date().toISOString(),
+        };
+        createdLists.push(record);
+        return record;
       },
-      remove: async (_userId: string, productName: string) => {
-        const index = shoppingListItems.findIndex((item) => item.productName === productName);
-        if (index >= 0) {
-          shoppingListItems.splice(index, 1);
-        }
+      get: async (id: string) => createdLists.find((l) => l.id === id) ?? null,
+      clear: async (id: string) => {
+        const idx = createdLists.findIndex((l) => l.id === id);
+        if (idx >= 0) createdLists.splice(idx, 1);
       },
-      updateItem: async (
-        _userId: string,
-        productName: string,
-        updates: Partial<Pick<ShoppingListItem, "checked" | "notes" | "quantity" | "upc">>,
-      ) => {
-        const item = shoppingListItems.find((candidate) => candidate.productName === productName);
-        if (item) {
-          Object.assign(item, updates);
-        }
+    },
+    cartSnapshot: {
+      get: async () => null,
+      set: async (id: string, items: unknown[]) => {
+        snapshotCalls.push({ id, items });
       },
-      clear: async () => {
-        shoppingListItems.length = 0;
-      },
-      getAll: async () => shoppingListItems,
-      getUnchecked: async () => shoppingListItems.filter((item) => !item.checked),
+      clear: async () => {},
     },
     preferredLocation: {
       set: async (_userId: string, location: PreferredLocation) => {
@@ -199,15 +206,6 @@ function makeContextWithElicit(
   };
 }
 
-function makeStorageWithLocation(location: PreferredLocation): UserStorage {
-  return makeStorage({
-    preferredLocation: {
-      get: async () => location,
-      set: async () => {},
-    } as unknown as UserStorage["preferredLocation"],
-  });
-}
-
 function getCapturedHandler(name: string): ToolHandler {
   const tool = testState.capturedTools.find((captured) => captured.name === name);
   expect(tool).toBeDefined();
@@ -224,10 +222,6 @@ describe("storage-backed tools", () => {
     testState.capturedTools.length = 0;
     authenticate();
   });
-
-  // ---------------------------------------------------------------------------
-  // manage_pantry
-  // ---------------------------------------------------------------------------
 
   it("adds pantry items and returns structured view content", async () => {
     registerPantryTools(makeContext());
@@ -309,10 +303,6 @@ describe("storage-backed tools", () => {
     );
   });
 
-  // ---------------------------------------------------------------------------
-  // manage_equipment
-  // ---------------------------------------------------------------------------
-
   it("adds, removes, and clears kitchen equipment", async () => {
     registerEquipmentTools(makeContext());
     const handler = getCapturedHandler("manage_equipment");
@@ -346,10 +336,6 @@ describe("storage-backed tools", () => {
     expect(isErrorResult(removeResult)).toBe(true);
     expect(textFromResult(removeResult)).toContain("'equipmentName' is required");
   });
-
-  // ---------------------------------------------------------------------------
-  // mark_order_placed
-  // ---------------------------------------------------------------------------
 
   it("records order totals and optional metadata", async () => {
     const storedOrders: OrderRecord[] = [];
@@ -429,319 +415,181 @@ describe("storage-backed tools", () => {
     expect(sc.estimatedTotal).toBeUndefined();
   });
 
-  // ---------------------------------------------------------------------------
-  // manage_shopping_list
-  // ---------------------------------------------------------------------------
-
-  it("adds, updates, removes, and clears shopping list items", async () => {
+  it("creates a shopping list and returns its id, name, and items", async () => {
     registerShoppingListTools(makeContext());
-    const handler = getCapturedHandler("manage_shopping_list");
+    const handler = getCapturedHandler("create_shopping_list");
 
-    const addResult = await handler({
-      action: "add",
+    const result = await handler({
+      name: "Tuesday Dinner",
       items: [
-        {
-          productName: "Milk",
-          upc: "0000000000001",
-          quantity: 1,
-          notes: "whole",
-        },
-        {
-          productName: "Eggs",
-          quantity: 2,
-        },
+        { productName: "Milk", upc: "0001111042578", quantity: 2 },
+        { productName: "Bread", quantity: 1 },
       ],
     });
-
-    expect(textFromResult(addResult)).toContain("Added 2 item(s) to shopping list");
-    expect(addResult).toMatchObject({
-      structuredContent: {
-        _view: "manage_shopping_list",
-        actionDetail: "Added 2 item(s)",
-      },
-    });
-
-    const updateResult = await handler({
-      action: "update",
-      productName: "Eggs",
-      quantity: 3,
-      upc: "0000000000002",
-      notes: "large",
-    });
-    expect(updateResult).toMatchObject({
-      structuredContent: {
-        actionDetail: 'Updated "Eggs"',
-        items: [
-          { productName: "Milk", quantity: 1 },
-          {
-            productName: "Eggs",
-            quantity: 3,
-            upc: "0000000000002",
-            notes: "large",
-          },
-        ],
-      },
-    });
-
-    const removeResult = await handler({
-      action: "remove",
-      productName: "Milk",
-    });
-    expect(textFromResult(removeResult)).toContain('Removed "Milk" from shopping list');
-
-    const clearResult = await handler({ action: "clear" });
-    expect(clearResult).toMatchObject({
-      structuredContent: {
-        actionDetail: "List cleared",
-        items: [],
-      },
-    });
-  });
-
-  it("validates shopping list mutation arguments", async () => {
-    registerShoppingListTools(makeContext());
-    const handler = getCapturedHandler("manage_shopping_list");
-
-    const addResult = await handler({ action: "add" });
-    const removeResult = await handler({ action: "remove" });
-    const updateResult = await handler({ action: "update" });
-
-    expect(isErrorResult(addResult)).toBe(true);
-    expect(textFromResult(addResult)).toContain("'items' array is required");
-    expect(isErrorResult(removeResult)).toBe(true);
-    expect(textFromResult(removeResult)).toContain("'productName' is required");
-    expect(isErrorResult(updateResult)).toBe(true);
-    expect(textFromResult(updateResult)).toContain("'productName' is required");
-  });
-
-  // ---------------------------------------------------------------------------
-  // checkout_shopping_list
-  // ---------------------------------------------------------------------------
-
-  it("checks out UPC-backed shopping list items and reports items missing UPCs", async () => {
-    const putCalls: unknown[] = [];
-    const storage = makeStorage({
-      preferredLocation: {
-        get: async () => ({
-          locationId: "70500847",
-          locationName: "QFC Broadway",
-          address: "500 Broadway E",
-          chain: "QFC",
-        }),
-      } as unknown as UserStorage["preferredLocation"],
-    });
-    const context = makeContext(storage);
-    context.clients = {
-      cartClient: {
-        PUT: async (_path: string, request: unknown) => {
-          putCalls.push(request);
-          return {
-            data: undefined,
-            response: new Response(null, { status: 204 }),
-          };
-        },
-      },
-    } as unknown as ToolContext["clients"];
-
-    registerShoppingListTools(context);
-    const manageHandler = getCapturedHandler("manage_shopping_list");
-    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
-
-    await manageHandler({
-      action: "add",
-      items: [
-        { productName: "Apples", upc: "0000000000001", quantity: 2 },
-        { productName: "Bananas", quantity: 3 },
-      ],
-    });
-
-    const result = await checkoutHandler({ modality: "PICKUP" });
-
-    expect(textFromResult(result)).toContain("Added 1 item(s) to cart at QFC Broadway");
-    expect(textFromResult(result)).toContain("1 item(s) need a UPC before checkout");
-    expect(putCalls).toHaveLength(1);
-    expect(putCalls[0]).toMatchObject({
-      body: {
-        items: [{ upc: "0000000000001", quantity: 2, modality: "PICKUP" }],
-      },
-    });
-    expect(result).toMatchObject({
-      structuredContent: {
-        actionDetail: "Checkout complete: 1 item(s) added to cart",
-        items: [
-          { productName: "Apples", checked: true },
-          { productName: "Bananas", checked: false },
-        ],
-      },
-    });
-  });
-
-  it("returns a checkout message when there are no unchecked shopping list items", async () => {
-    registerShoppingListTools(makeContext());
-
-    const result = await getCapturedHandler("checkout_shopping_list")({ modality: "PICKUP" });
-
-    expect(textFromResult(result)).toBe("No unchecked items on your shopping list to checkout.");
-  });
-
-  it("returns only 'Added N item(s) to cart' when all unchecked items have UPCs", async () => {
-    const storage = makeStorageWithLocation({
-      locationId: "70500847",
-      locationName: "QFC Broadway",
-      address: "500 Broadway E",
-      chain: "QFC",
-      setAt: new Date().toISOString(),
-    });
-    const context = makeContext(storage);
-
-    registerShoppingListTools(context);
-    const manageHandler = getCapturedHandler("manage_shopping_list");
-    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
-
-    await manageHandler({
-      action: "add",
-      items: [
-        { productName: "Milk", upc: "0000000000001", quantity: 1 },
-        { productName: "Eggs", upc: "0000000000002", quantity: 2 },
-      ],
-    });
-
-    const result = await checkoutHandler({ modality: "PICKUP" });
 
     expect(isErrorResult(result)).toBe(false);
-    expect(textFromResult(result)).toContain("Added 2 item(s) to cart");
-    expect(textFromResult(result)).not.toContain("need a UPC");
+    const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+    expect(sc["_view"]).toBe("create_shopping_list");
+    expect(typeof sc["shopping_list_id"]).toBe("string");
+    expect(sc["shopping_list_id"]).toContain("user-123:session:session-1:list:");
+    expect(sc["name"]).toBe("Tuesday Dinner");
+    expect((sc["items"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
+      "Milk",
+      "Bread",
+    ]);
   });
 
-  it("returns an error when no preferred location is set and no locationId is supplied", async () => {
-    // Default makeStorage returns null from preferredLocation.get — no preferred location set.
-    const context = makeContext();
+  it("rejects shopping list creation with empty items before touching storage", async () => {
+    const storage = makeStorage();
+    registerShoppingListTools(makeContext(storage));
+    const handler = getCapturedHandler("create_shopping_list");
 
-    registerShoppingListTools(context);
-    const manageHandler = getCapturedHandler("manage_shopping_list");
-    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
+    const result = await handler({ name: "Empty", items: [] });
 
-    await manageHandler({
-      action: "add",
-      items: [{ productName: "Milk", upc: "0000000000001", quantity: 1 }],
-    });
-
-    const result = await checkoutHandler({ modality: "PICKUP" });
-
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("No location specified and no preferred location set");
+    expect(isErrorResult(result)).toBe(false);
   });
 
-  it("returns an error when the user declines the checkout confirmation", async () => {
-    const storage = makeStorageWithLocation({
-      locationId: "70500847",
-      locationName: "QFC Broadway",
-      address: "500 Broadway E",
-      chain: "QFC",
-      setAt: new Date().toISOString(),
+  it("returns a fresh shopping_list_id on each call so lists don't collide", async () => {
+    registerShoppingListTools(makeContext());
+    const handler = getCapturedHandler("create_shopping_list");
+
+    const first = await handler({
+      name: "First",
+      items: [{ productName: "A", quantity: 1 }],
     });
-    const context = makeContextWithElicit(storage, { action: "decline" });
-
-    registerShoppingListTools(context);
-    const manageHandler = getCapturedHandler("manage_shopping_list");
-    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
-
-    await manageHandler({
-      action: "add",
-      items: [{ productName: "Milk", upc: "0000000000001", quantity: 1 }],
+    const second = await handler({
+      name: "Second",
+      items: [{ productName: "B", quantity: 2 }],
     });
 
-    const result = await checkoutHandler({ modality: "PICKUP" });
-
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("Checkout cancelled");
+    const firstId = (first as { structuredContent: { shopping_list_id: string } }).structuredContent
+      .shopping_list_id;
+    const secondId = (second as { structuredContent: { shopping_list_id: string } })
+      .structuredContent.shopping_list_id;
+    expect(firstId).not.toBe(secondId);
+    expect((first as { structuredContent: { name: string } }).structuredContent.name).toBe("First");
+    expect((second as { structuredContent: { name: string } }).structuredContent.name).toBe(
+      "Second",
+    );
   });
 
-  it("returns an error when the user cancels the checkout confirmation", async () => {
-    const storage = makeStorageWithLocation({
-      locationId: "70500847",
-      locationName: "QFC Broadway",
-      address: "500 Broadway E",
-      chain: "QFC",
-      setAt: new Date().toISOString(),
-    });
-    const context = makeContextWithElicit(storage, { action: "cancel" });
-
-    registerShoppingListTools(context);
-    const manageHandler = getCapturedHandler("manage_shopping_list");
-    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
-
-    await manageHandler({
-      action: "add",
-      items: [{ productName: "Eggs", upc: "0000000000003", quantity: 1 }],
-    });
-
-    const result = await checkoutHandler({ modality: "PICKUP" });
-
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("Checkout cancelled");
-  });
-
-  it("returns an error when the user accepts but sets confirm to false", async () => {
-    const storage = makeStorageWithLocation({
-      locationId: "70500847",
-      locationName: "QFC Broadway",
-      address: "500 Broadway E",
-      chain: "QFC",
-      setAt: new Date().toISOString(),
-    });
-    const context = makeContextWithElicit(storage, {
-      action: "accept",
-      content: { confirm: false },
-    });
-
-    registerShoppingListTools(context);
-    const manageHandler = getCapturedHandler("manage_shopping_list");
-    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
-
-    await manageHandler({
-      action: "add",
-      items: [{ productName: "Bread", upc: "0000000000004", quantity: 1 }],
-    });
-
-    const result = await checkoutHandler({ modality: "PICKUP" });
-
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("Checkout cancelled");
-  });
-
-  it("returns an error when the Kroger cart PUT API fails", async () => {
-    const storage = makeStorageWithLocation({
-      locationId: "70500847",
-      locationName: "QFC Broadway",
-      address: "500 Broadway E",
-      chain: "QFC",
-      setAt: new Date().toISOString(),
-    });
-    const context = makeContextWithElicit(
+  it("adds items from a persisted shopping list to the Kroger cart", async () => {
+    const storage = makeStorage();
+    const ctx = makeContextWithElicit(
       storage,
       { action: "accept", content: { confirm: true } },
-      500,
+      204,
     );
 
-    registerShoppingListTools(context);
-    const manageHandler = getCapturedHandler("manage_shopping_list");
-    const checkoutHandler = getCapturedHandler("checkout_shopping_list");
-
-    await manageHandler({
-      action: "add",
-      items: [{ productName: "Milk", upc: "0000000000001", quantity: 1 }],
+    registerShoppingListTools(ctx);
+    const createHandler = getCapturedHandler("create_shopping_list");
+    const createResult = await createHandler({
+      name: "Dinner",
+      items: [{ productName: "Milk", upc: "0001111042578", quantity: 2 }],
     });
+    const shoppingListId = (createResult as { structuredContent: { shopping_list_id: string } })
+      .structuredContent.shopping_list_id;
 
-    const result = await checkoutHandler({ modality: "PICKUP" });
+    const location: PreferredLocation = {
+      locationId: "70500847",
+      locationName: "QFC Broadway",
+      address: "500 Broadway E",
+      chain: "QFC",
+      setAt: new Date().toISOString(),
+    };
 
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("Failed to add shopping list items to cart");
+    const finalStorage = makeStorage();
+    await finalStorage.shoppingList.create(shoppingListId, "Dinner", [
+      { productName: "Milk", upc: "0001111042578", quantity: 2 },
+    ]);
+    finalStorage.preferredLocation = {
+      get: async () => location,
+      set: async () => {},
+    } as unknown as UserStorage["preferredLocation"];
+
+    const finalCtx = makeContextWithElicit(
+      finalStorage,
+      { action: "accept", content: { confirm: true } },
+      204,
+    );
+    registerCartTools(finalCtx);
+    const addHandler = getCapturedHandler("add_to_cart");
+
+    const result = await addHandler({ shopping_list_id: shoppingListId });
+
+    expect(isErrorResult(result)).toBe(false);
+    const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+    expect(sc["_view"]).toBe("add_to_cart");
+    expect(sc["shopping_list_id"]).toBe(shoppingListId);
+    expect(sc["name"]).toBe("Dinner");
+    expect((sc["items"] as unknown[]).length).toBe(1);
+    expect(textFromResult(result)).toContain("at QFC Broadway");
   });
 
-  // ---------------------------------------------------------------------------
-  // search_locations
-  // ---------------------------------------------------------------------------
+  it("bails when the shopping list has no items with UPCs", async () => {
+    const storage = makeStorage();
+    const listId = `${"user-123:session:session-1"}:list:abc`;
+    await storage.shoppingList.create(listId, "No UPCs", [
+      { productName: "Strawberries", quantity: 2 },
+    ]);
+    storage.preferredLocation = {
+      get: async () => null,
+      set: async () => {},
+    } as unknown as UserStorage["preferredLocation"];
+
+    const ctx = makeContextWithElicit(storage, { action: "accept" });
+    registerCartTools(ctx);
+    const handler = getCapturedHandler("add_to_cart");
+
+    const result = await handler({
+      shopping_list_id: listId,
+      locationId: "70500847",
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+    expect((sc["items"] as unknown[]).length).toBe(0);
+    expect((sc["needsUpc"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
+      "Strawberries",
+    ]);
+    expect(textFromResult(result)).toContain("no items with a UPC");
+  });
+
+  it("refuses when the shopping_list_id doesn't belong to the user", async () => {
+    const ctx = makeContextWithElicit(makeStorage(), { action: "accept" });
+    registerCartTools(ctx);
+    const handler = getCapturedHandler("add_to_cart");
+
+    const result = await handler({ shopping_list_id: "user-999:session:x:list:abc" });
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("does not belong");
+  });
+
+  it("aborts add_to_cart when the user declines elicitation", async () => {
+    const storage = makeStorage();
+    const listId = `${"user-123:session:session-1"}:list:abc`;
+    await storage.shoppingList.create(listId, "Dinner", [
+      { productName: "Milk", upc: "0001111042578", quantity: 2 },
+    ]);
+
+    const ctx = makeContextWithElicit(storage, { action: "decline" }, 204);
+    registerCartTools(ctx);
+    storage.preferredLocation = {
+      get: async () => ({
+        locationId: "70500847",
+        locationName: "QFC",
+        address: "",
+        chain: "QFC",
+        setAt: new Date().toISOString(),
+      }),
+      set: async () => {},
+    } as unknown as UserStorage["preferredLocation"];
+
+    const handler = getCapturedHandler("add_to_cart");
+    const result = await handler({ shopping_list_id: listId });
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("cancelled");
+  });
 
   it("searches locations with query filters and returns structured locations", async () => {
     const getCalls: unknown[] = [];
@@ -793,10 +641,6 @@ describe("storage-backed tools", () => {
       },
     });
   });
-
-  // ---------------------------------------------------------------------------
-  // get_location_details
-  // ---------------------------------------------------------------------------
 
   it("returns structured location details for a valid location ID", async () => {
     const location = {
@@ -859,10 +703,6 @@ describe("storage-backed tools", () => {
     expect(isErrorResult(result)).toBe(true);
     expect(textFromResult(result)).toContain("No information found for location ID: 70500847");
   });
-
-  // ---------------------------------------------------------------------------
-  // set_preferred_location
-  // ---------------------------------------------------------------------------
 
   it("saves preferred location details for the authenticated user", async () => {
     const savedLocations: PreferredLocation[] = [];

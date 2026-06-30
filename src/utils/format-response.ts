@@ -714,8 +714,7 @@ export function formatPreferredLocationCompact(location: PreferredLocation): str
 export function formatShoppingListItem(item: ShoppingListItem): string {
   const lines: string[] = [];
 
-  const checkbox = item.checked ? "[x]" : "[ ]";
-  lines.push(`${checkbox} **${item.productName}**`);
+  lines.push(`**${item.productName}**`);
   lines.push(`Quantity: ${item.quantity}`);
 
   if (item.upc) {
@@ -726,8 +725,6 @@ export function formatShoppingListItem(item: ShoppingListItem): string {
     lines.push(`Notes: ${item.notes}`);
   }
 
-  lines.push(`Added: ${new Date(item.addedAt).toLocaleDateString()}`);
-
   return lines.join("\n");
 }
 
@@ -736,39 +733,22 @@ export function formatShoppingList(items: ShoppingListItem[]): string {
     return "Your shopping list is empty.";
   }
 
-  const unchecked = items.filter((i) => !i.checked);
-  const checked = items.filter((i) => i.checked);
-
-  const sections: string[] = [];
-
-  if (unchecked.length > 0) {
-    const formatted = unchecked.map((item, index) => {
+  return items
+    .map((item, index) => {
       const itemText = formatShoppingListItem(item);
       return `${index + 1}. ${itemText.replace(/\n/g, "\n   ")}`;
-    });
-    sections.push(formatted.join("\n\n"));
-  }
-
-  if (checked.length > 0) {
-    const formatted = checked.map((item, index) => {
-      const itemText = formatShoppingListItem(item);
-      return `${unchecked.length + index + 1}. ${itemText.replace(/\n/g, "\n   ")}`;
-    });
-    sections.push(`**Already in cart:**\n${formatted.join("\n\n")}`);
-  }
-
-  return sections.join("\n\n");
+    })
+    .join("\n\n");
 }
 
 /**
  * COMPACT: Token-efficient shopping list item formatting
- * Format: [x]/[ ] Name x qty | UPC | Notes
+ * Format: Name x qty | UPC | Notes
  */
 export function formatShoppingListItemCompact(item: ShoppingListItem): string {
   const parts: string[] = [];
 
-  const checkbox = item.checked ? "[x]" : "[ ]";
-  parts.push(`${checkbox} ${item.productName} x${item.quantity}`);
+  parts.push(`${item.productName} x${item.quantity}`);
 
   if (item.upc) {
     parts.push(item.upc);

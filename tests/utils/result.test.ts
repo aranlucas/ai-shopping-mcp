@@ -1,5 +1,6 @@
 import { err, ok } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
+import * as z from "zod/v4";
 
 import type { Props, UserStorage } from "../../src/tools/types.js";
 
@@ -9,6 +10,8 @@ import {
   fromApiResponse,
   getProps,
   safeFetch,
+  safeJsonParse,
+  safeJsonParseWithSchema,
   safeResolveLocationId,
   safeStorage,
   toMcpError,
@@ -66,6 +69,54 @@ describe("toMcpError", () => {
       content: [{ type: "text", text: 'request failed: {"status":400}' }],
       isError: true,
     });
+  });
+});
+
+// --- safeJsonParse ---
+
+describe("safeJsonParse", () => {
+  it("returns parsed JSON", () => {
+    const result = safeJsonParse('{"name":"milk","quantity":2}');
+
+    expect(result.isOk()).toBe(true);
+    expect(result._unsafeUnwrap()).toEqual({ name: "milk", quantity: 2 });
+  });
+
+  it("returns a SyntaxError for malformed JSON", () => {
+    const result = safeJsonParse('{"name":');
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr()).toBeInstanceOf(SyntaxError);
+  });
+});
+
+// --- safeJsonParseWithSchema ---
+
+describe("safeJsonParseWithSchema", () => {
+  const schema = z.object({
+    name: z.string(),
+    quantity: z.number().int().positive(),
+  });
+
+  it("returns validated data for valid JSON matching the schema", () => {
+    const result = safeJsonParseWithSchema('{"name":"milk","quantity":2}', schema);
+
+    expect(result.isOk()).toBe(true);
+    expect(result._unsafeUnwrap()).toEqual({ name: "milk", quantity: 2 });
+  });
+
+  it("returns a SyntaxError for malformed JSON", () => {
+    const result = safeJsonParseWithSchema('{"name":', schema);
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr()).toBeInstanceOf(SyntaxError);
+  });
+
+  it("returns a ZodError for JSON that does not match the schema", () => {
+    const result = safeJsonParseWithSchema('{"name":"milk","quantity":0}', schema);
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr()).toBeInstanceOf(z.ZodError);
   });
 });
 
