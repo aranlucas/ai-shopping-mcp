@@ -2,16 +2,18 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { AddToCartView } from "../app/views/AddToCart.js";
-import { LocationDetailView } from "../app/views/LocationDetail.js";
-import { LocationResultsView } from "../app/views/LocationResults.js";
-import { PantryView } from "../app/views/Pantry.js";
-import { ProductDetailView } from "../app/views/ProductDetail.js";
-import { ProductSearchView } from "../app/views/ProductSearch.js";
-import { ShoppingListView } from "../app/views/ShoppingList.js";
-import { WeeklyDealsView } from "../app/views/WeeklyDeals.js";
+import { AddToCartView } from "../app/views/add-to-cart.js";
+import { KitchenEquipmentView } from "../app/views/kitchen-equipment.js";
+import { LocationDetailView } from "../app/views/location-detail.js";
+import { LocationResultsView } from "../app/views/location-results.js";
+import { PantryView } from "../app/views/pantry.js";
+import { ProductDetailView } from "../app/views/product-detail.js";
+import { ProductSearchView } from "../app/views/product-search.js";
+import { ShoppingListView } from "../app/views/shopping-list.js";
+import { WeeklyDealsView } from "../app/views/weekly-deals.js";
 import {
   mockAddToCart,
+  mockKitchenEquipment,
   mockLocationDetail,
   mockLocationResults,
   mockPantry,
@@ -19,17 +21,18 @@ import {
   mockProductSearch,
   mockShoppingList,
   mockWeeklyDeals,
-} from "./mockData.js";
+} from "./mock-data.js";
 
 const VIEWS = [
   "weekly_deals",
   "search_products",
-  "get_product_details",
-  "search_locations",
-  "get_location_details",
+  "get_product",
+  "search_stores",
+  "get_store",
   "create_shopping_list",
-  "add_to_cart",
-  "manage_pantry",
+  "add_shopping_list_to_cart",
+  "pantry",
+  "kitchen_equipment",
 ] as const;
 
 type ViewName = (typeof VIEWS)[number];
@@ -37,12 +40,13 @@ type ViewName = (typeof VIEWS)[number];
 const LABELS: Record<ViewName, string> = {
   weekly_deals: "Weekly Deals",
   search_products: "Product Search",
-  get_product_details: "Product Detail",
-  search_locations: "Location Results",
-  get_location_details: "Location Detail",
+  get_product: "Product Detail",
+  search_stores: "Store Results",
+  get_store: "Store Detail",
   create_shopping_list: "Shopping List",
-  add_to_cart: "Cart",
-  manage_pantry: "Pantry",
+  add_shopping_list_to_cart: "Cart",
+  pantry: "Pantry",
+  kitchen_equipment: "Equipment",
 };
 
 // Mock App instance — buttons disabled (canCallTools=false), so this is never called.
@@ -58,9 +62,9 @@ export function DevHarness() {
         return <WeeklyDealsView data={mockWeeklyDeals} app={mockApp} canCallTools={false} />;
       case "search_products":
         return <ProductSearchView data={mockProductSearch} app={mockApp} canCallTools={false} />;
-      case "get_product_details":
+      case "get_product":
         return <ProductDetailView data={mockProductDetail} app={mockApp} canCallTools={false} />;
-      case "search_locations":
+      case "search_stores":
         return (
           <LocationResultsView
             data={mockLocationResults}
@@ -69,7 +73,7 @@ export function DevHarness() {
             canCallTools={false}
           />
         );
-      case "get_location_details":
+      case "get_store":
         return <LocationDetailView data={mockLocationDetail} app={mockApp} canCallTools={false} />;
       case "create_shopping_list":
         return (
@@ -79,12 +83,21 @@ export function DevHarness() {
             canCallTools={false}
           />
         );
-      case "add_to_cart":
+      case "add_shopping_list_to_cart":
         return <AddToCartView data={mockAddToCart} />;
-      case "manage_pantry":
+      case "pantry":
         return (
           <PantryView
             data={(data as typeof mockPantry) ?? mockPantry}
+            setData={setData}
+            app={mockApp}
+            canCallTools={false}
+          />
+        );
+      case "kitchen_equipment":
+        return (
+          <KitchenEquipmentView
+            data={(data as typeof mockKitchenEquipment) ?? mockKitchenEquipment}
             setData={setData}
             app={mockApp}
             canCallTools={false}

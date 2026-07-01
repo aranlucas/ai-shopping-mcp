@@ -57,20 +57,23 @@ describe("registerPrompts", () => {
     registerPrompts(makeServer());
   });
 
-  it("registers exactly 3 prompts", () => {
-    expect(capturedPrompts).toHaveLength(3);
+  it("registers exactly 4 prompts", () => {
+    expect(capturedPrompts).toHaveLength(4);
   });
 
-  it("registers grocery-list-store_path, set_preferred_store, and add_recipe_to_cart", () => {
+  it("registers the workflow-first prompt names", () => {
     const names = capturedPrompts.map((p) => p.name);
-    expect(names).toContain("grocery-list-store_path");
-    expect(names).toContain("set_preferred_store");
-    expect(names).toContain("add_recipe_to_cart");
+    expect(names).toEqual([
+      "plan_shopping_route",
+      "set_preferred_store",
+      "shop_recipe_ingredients",
+      "plan_meals_from_pantry",
+    ]);
   });
 
-  describe("grocery-list-store_path", () => {
+  describe("plan_shopping_route", () => {
     it("includes the grocery list text when grocery_list is provided", async () => {
-      const result = await callPrompt("grocery-list-store_path", {
+      const result = await callPrompt("plan_shopping_route", {
         grocery_list: "Milk, Eggs, Bread",
       });
       const text = getText(result);
@@ -78,7 +81,7 @@ describe("registerPrompts", () => {
     });
 
     it("includes the DO NOT add items instruction when grocery_list is provided", async () => {
-      const result = await callPrompt("grocery-list-store_path", {
+      const result = await callPrompt("plan_shopping_route", {
         grocery_list: "Apples",
       });
       const text = getText(result);
@@ -86,20 +89,20 @@ describe("registerPrompts", () => {
     });
 
     it("returns fallback message about checking pantry/order history when grocery_list is omitted", async () => {
-      const result = await callPrompt("grocery-list-store_path", {});
+      const result = await callPrompt("plan_shopping_route", {});
       const text = getText(result);
       expect(text).toContain("check my pantry, order history");
       expect(text).not.toContain("I have the following grocery list");
     });
 
     it("fallback message also includes the DO NOT add items instruction", async () => {
-      const result = await callPrompt("grocery-list-store_path", {});
+      const result = await callPrompt("plan_shopping_route", {});
       const text = getText(result);
       expect(text).toContain("DO NOT add items to my cart");
     });
 
     it("returns a single user message", async () => {
-      const result = await callPrompt("grocery-list-store_path", {});
+      const result = await callPrompt("plan_shopping_route", {});
       expect(result.messages).toHaveLength(1);
       expect(result.messages[0]?.role).toBe("user");
       expect(result.messages[0]?.content.type).toBe("text");
@@ -140,16 +143,20 @@ describe("registerPrompts", () => {
     });
   });
 
-  describe("add_recipe_to_cart", () => {
+  describe("shop_recipe_ingredients", () => {
     it("interpolates the recipe type into the message twice when recipe_type is provided", async () => {
-      const result = await callPrompt("add_recipe_to_cart", { recipe_type: "chocolate cake" });
+      const result = await callPrompt("shop_recipe_ingredients", {
+        recipe_type: "chocolate cake",
+      });
       const text = getText(result);
       const occurrences = text.split("chocolate cake").length - 1;
       expect(occurrences).toBeGreaterThanOrEqual(2);
+      expect(text).toContain("add_shopping_list_to_cart");
+      expect(text).not.toContain("add_to_cart");
     });
 
     it("argsSchema defaults recipe_type to 'classic apple pie' when not provided", () => {
-      const prompt = getPrompt("add_recipe_to_cart");
+      const prompt = getPrompt("shop_recipe_ingredients");
       const schema = prompt.config.argsSchema as Record<string, { parse: (v: unknown) => string }>;
       // The Zod schema carries the default; the MCP framework applies it before invoking the handler.
       const applied = schema.recipe_type.parse(undefined);
@@ -157,13 +164,32 @@ describe("registerPrompts", () => {
     });
 
     it("uses 'classic apple pie' in message when handler receives the schema-applied default", async () => {
-      const result = await callPrompt("add_recipe_to_cart", { recipe_type: "classic apple pie" });
+      const result = await callPrompt("shop_recipe_ingredients", {
+        recipe_type: "classic apple pie",
+      });
       const text = getText(result);
       expect(text).toContain("classic apple pie");
     });
 
     it("returns a single user message", async () => {
-      const result = await callPrompt("add_recipe_to_cart", { recipe_type: "lasagna" });
+      const result = await callPrompt("shop_recipe_ingredients", { recipe_type: "lasagna" });
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0]?.role).toBe("user");
+      expect(result.messages[0]?.content.type).toBe("text");
+    });
+  });
+
+  describe("plan_meals_from_pantry", () => {
+    it("directs the host model to fetch meal planning context", async () => {
+      const result = await callPrompt("plan_meals_from_pantry", { meal_count: "4" });
+      const text = getText(result);
+      expect(text).toContain("get_meal_planning_context");
+      expect(text).toContain("numberOfMeals: 4");
+      expect(text).toContain("create_shopping_list");
+    });
+
+    it("returns a single user message", async () => {
+      const result = await callPrompt("plan_meals_from_pantry", {});
       expect(result.messages).toHaveLength(1);
       expect(result.messages[0]?.role).toBe("user");
       expect(result.messages[0]?.content.type).toBe("text");

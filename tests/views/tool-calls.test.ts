@@ -42,9 +42,9 @@ describe("view tool call helpers", () => {
     });
   });
 
-  it("creates an add_to_cart call using shopping_list_id", () => {
+  it("creates an add_shopping_list_to_cart call using shopping_list_id", () => {
     expect(addShoppingListToCartCall("user-123:session:s1:list:abc12345")).toEqual({
-      name: "add_to_cart",
+      name: "add_shopping_list_to_cart",
       arguments: {
         shopping_list_id: "user-123:session:s1:list:abc12345",
         modality: "PICKUP",
@@ -101,7 +101,7 @@ describe("view tool call helpers", () => {
         },
       },
       {
-        name: "add_to_cart",
+        name: "add_shopping_list_to_cart",
         arguments: {
           shopping_list_id: "user-123:session:s1:list:abc12345",
           modality: "PICKUP",

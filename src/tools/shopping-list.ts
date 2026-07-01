@@ -107,6 +107,7 @@ export const createShoppingListInputSchema = z.object({
           .describe("Optional notes (e.g., 'get organic if available')"),
       }),
     )
+    .min(1, { message: "Shopping list must include at least one item" })
     .describe("Items to add to this shopping list"),
 });
 
@@ -117,7 +118,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Create Shopping List",
       description:
-        "Build a named shopping list of products the user plans to buy. Returns a `shopping_list_id` to pass to `add_to_cart`. Each call creates a fresh list; to refine, call this again with the updated items. Pass `name` to label the list in the UI.",
+        "Build a named immutable shopping list snapshot containing at least one product the user plans to buy. Returns a `shopping_list_id` to pass to `add_shopping_list_to_cart`; create a fresh list when refining items.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -130,8 +131,12 @@ export function registerShoppingListTools(ctx: ToolContext) {
     async ({ name, items }) => {
       const props = getProps();
 
+      if (items.length === 0) {
+        return toMcpError(validationError("Shopping list must include at least one item."));
+      }
+
       // The list id is a short random token namespaced under the authenticated
-      // user and session; `add_to_cart` reads the list back by this id.
+      // user and session; `add_shopping_list_to_cart` reads the list back by this id.
       // Including the user id in the key prevents a forged id from reaching
       // another user's list.
       const shortId = crypto.randomUUID().slice(0, 8);

@@ -133,7 +133,7 @@ export function safeResolveLocationId(
     if (!preferredLocation) {
       return err(
         notFoundError(
-          "No location specified and no preferred location set. Please provide a locationId or set your preferred location using set_preferred_location.",
+          "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
         ),
       );
     }

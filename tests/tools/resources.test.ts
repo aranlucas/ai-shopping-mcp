@@ -97,7 +97,7 @@ describe("toonResult", () => {
       ],
     };
 
-    const resourceResult = toonResource("shopping://user/shopping-list", data);
+    const resourceResult = toonResource("shopping://user/pantry", data);
     const toolResult = toonResult(data);
 
     expect(toolResult.content[0]?.text).toBe(resourceResult.contents[0]?.text);

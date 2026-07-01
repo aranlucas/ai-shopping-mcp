@@ -36,8 +36,8 @@ export function registerResources(ctx: ToolContext) {
   );
 
   ctx.server.registerResource(
-    "Equipment Inventory",
-    "shopping://user/equipment",
+    "Kitchen Equipment",
+    "shopping://user/kitchen-equipment",
     {
       description:
         "Kitchen equipment and tools the user owns. Use this to suggest recipes that match available equipment and to help with meal planning based on what tools are available.",
@@ -53,13 +53,13 @@ export function registerResources(ctx: ToolContext) {
 
       return result.match(
         (equipment) =>
-          toonResource("shopping://user/equipment", {
+          toonResource("shopping://user/kitchen-equipment", {
             itemCount: equipment.length,
             items: equipment,
             lastUpdated: new Date().toISOString(),
           }),
         () =>
-          toonResource("shopping://user/equipment", {
+          toonResource("shopping://user/kitchen-equipment", {
             error: "Failed to fetch equipment data",
           }),
       );
@@ -67,11 +67,11 @@ export function registerResources(ctx: ToolContext) {
   );
 
   ctx.server.registerResource(
-    "Preferred Store Location",
-    "shopping://user/location",
+    "Preferred Store",
+    "shopping://user/preferred-store",
     {
       description:
-        "The user's preferred shopping location. Use this for product searches and availability checks when no location is explicitly specified. IMPORTANT: If no location is set, proactively ask the user for their zip code and help them find and set their preferred store using search_locations and set_preferred_location tools.",
+        "The user's preferred Kroger/QFC store. Use this for product searches, weekly deals, and cart operations when no location is explicitly specified. If unset, ask for a zip code and use search_stores followed by set_preferred_store.",
       mimeType: "text/toon",
     },
     async () => {
@@ -85,17 +85,17 @@ export function registerResources(ctx: ToolContext) {
       return result.match(
         (location) => {
           if (!location) {
-            return toonResource("shopping://user/location", {
-              message: "No preferred location set",
+            return toonResource("shopping://user/preferred-store", {
+              message: "No preferred store set",
               instruction:
-                "Ask the user for their zip code, then use search_locations to find nearby stores and set_preferred_location to save their choice.",
+                "Ask the user for their zip code, then use search_stores to find nearby stores and set_preferred_store to save their choice.",
             });
           }
-          return toonResource("shopping://user/location", location);
+          return toonResource("shopping://user/preferred-store", location);
         },
         () =>
-          toonResource("shopping://user/location", {
-            error: "Failed to fetch location data",
+          toonResource("shopping://user/preferred-store", {
+            error: "Failed to fetch preferred store data",
           }),
       );
     },
@@ -103,7 +103,7 @@ export function registerResources(ctx: ToolContext) {
 
   ctx.server.registerResource(
     "Order History",
-    "shopping://user/orders",
+    "shopping://user/order-history",
     {
       description:
         "The user's past orders and purchase history. Use this to identify frequently purchased items, shopping patterns, and to make personalized recommendations.",
@@ -119,13 +119,13 @@ export function registerResources(ctx: ToolContext) {
 
       return result.match(
         (orders) =>
-          toonResource("shopping://user/orders", {
+          toonResource("shopping://user/order-history", {
             orderCount: orders.length,
             orders,
             lastUpdated: new Date().toISOString(),
           }),
         () =>
-          toonResource("shopping://user/orders", {
+          toonResource("shopping://user/order-history", {
             error: "Failed to fetch order data",
           }),
       );
@@ -134,10 +134,10 @@ export function registerResources(ctx: ToolContext) {
 
   ctx.server.registerResource(
     "Product Details",
-    new ResourceTemplate("shopping://product/{productId}", {
+    new ResourceTemplate("shopping://product/{upc}", {
       list: undefined,
       complete: {
-        productId: async (value) => {
+        upc: async (value) => {
           // Suggest 13-digit UPCs from the user's recent orders, filtered by
           // the in-flight prefix. The shopping list is no longer a source:
           // lists are now request-scoped via create_shopping_list, not a
@@ -168,7 +168,7 @@ export function registerResources(ctx: ToolContext) {
     }),
     {
       description:
-        "Detailed information about a specific product by its ID (13-digit UPC). Includes pricing, availability, and location information.",
+        "Detailed information about a specific product by 13-digit UPC. Includes pricing, availability, and location information.",
       mimeType: "text/toon",
     },
     async (uri: URL) => {
@@ -179,7 +179,7 @@ export function registerResources(ctx: ToolContext) {
         });
       }
 
-      const productId = match[1];
+      const upc = match[1];
 
       const props = getProps();
       const locationId = (
@@ -200,7 +200,7 @@ export function registerResources(ctx: ToolContext) {
       const result = await fromApiResponse(
         productClient.GET("/v1/products/{id}", {
           params: {
-            path: { id: productId },
+            path: { id: upc },
             query: queryParams,
           },
         }),
@@ -212,7 +212,7 @@ export function registerResources(ctx: ToolContext) {
           const product = data.data;
           if (!product) {
             return toonResource(uri.href, {
-              error: `No product found with ID: ${productId}`,
+              error: `No product found with UPC: ${upc}`,
             });
           }
           return toonResource(uri.href, product);

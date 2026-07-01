@@ -6,5 +6,5 @@ allowBuilds:
   node-liblzma: true
   sharp: true
   workerd: true
-minimumReleaseAgeExclude:
-  - lint-staged@17.0.8
+
+minimumReleaseAge: 0

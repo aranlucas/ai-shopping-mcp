@@ -3,19 +3,19 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 
 import { ActionButton, Badge } from "../../shared/components.js";
-import { type LocationDetailContent, callTool, openExternalLink } from "../../shared/types.js";
+import { type StoreDetailContent, callTool, openExternalLink } from "../../shared/types.js";
 
 export function LocationDetailView({
   data,
   app,
   canCallTools,
 }: {
-  data: LocationDetailContent;
+  data: StoreDetailContent;
   app: App | null;
   canCallTools: boolean;
 }) {
   const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const { location } = data;
+  const { store: location } = data;
   const id = location.locationId || "";
   const mapsUrl = (() => {
     const a = location.address;
@@ -28,7 +28,7 @@ export function LocationDetailView({
     setPrefState("loading");
     try {
       const result = await callTool(app, {
-        name: "set_preferred_location",
+        name: "set_preferred_store",
         arguments: { locationId: id },
       });
       if (result?.isError) throw new Error("Failed");

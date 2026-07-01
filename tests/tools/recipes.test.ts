@@ -17,7 +17,7 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
 type CapturedTool = {
   name: string;
-  config: unknown;
+  config: { _meta?: { ui?: { resourceUri?: string } }; [key: string]: unknown };
   handler: ToolHandler;
 };
 
@@ -31,7 +31,12 @@ vi.mock("agents/mcp", () => ({
 }));
 
 vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
+  registerAppTool: (
+    _server: unknown,
+    name: string,
+    config: CapturedTool["config"],
+    handler: ToolHandler,
+  ) => {
     testState.capturedTools.push({ name, config, handler });
   },
 }));
@@ -91,7 +96,11 @@ function makeStorage(
 
 function makeContext(storage = makeStorage()): ToolContext {
   return {
-    server: {} as unknown as ToolContext["server"],
+    server: {
+      registerTool: (name: string, config: CapturedTool["config"], handler: ToolHandler) => {
+        testState.capturedTools.push({ name, config, handler });
+      },
+    } as unknown as ToolContext["server"],
     clients: {} as unknown as ToolContext["clients"],
     storage,
     getEnv: () => ({}) as Env,
@@ -128,15 +137,23 @@ describe("recipe tools", () => {
     it("does not register the removed web recipe search tool", () => {
       registerRecipeTools(makeContext());
 
-      expect(testState.capturedTools.map((tool) => tool.name)).toEqual(["plan_meals"]);
+      expect(testState.capturedTools.map((tool) => tool.name)).toEqual([
+        "get_meal_planning_context",
+      ]);
+    });
+
+    it("registers meal planning context as text-only without app UI metadata", () => {
+      registerRecipeTools(makeContext());
+
+      expect(testState.capturedTools[0]?.config._meta?.ui?.resourceUri).toBeUndefined();
     });
   });
 
-  describe("plan_meals", () => {
+  describe("get_meal_planning_context", () => {
     it("returns guidance when the pantry is empty", async () => {
       registerRecipeTools(makeContext(makeStorage({ pantry: [] })));
 
-      const result = await getCapturedHandler("plan_meals")({});
+      const result = await getCapturedHandler("get_meal_planning_context")({});
 
       expect(textFromResult(result)).toContain("Your pantry is empty");
     });
@@ -192,7 +209,7 @@ describe("recipe tools", () => {
 
       registerRecipeTools(makeContext(storage));
 
-      const result = await getCapturedHandler("plan_meals")({
+      const result = await getCapturedHandler("get_meal_planning_context")({
         numberOfMeals: 2,
         mealType: "dinner",
         dietaryPreferences: "vegetarian",
@@ -200,6 +217,14 @@ describe("recipe tools", () => {
       });
 
       const text = textFromResult(result);
+      expect((result as { structuredContent?: unknown }).structuredContent).toMatchObject({
+        request: {
+          numberOfMeals: 2,
+          mealType: "dinner",
+          dietaryPreferences: "vegetarian",
+          prioritizeExpiring: true,
+        },
+      });
       expect(text).toContain("**Meal Plan** (2 meals - dinner)");
       expect(text).toContain("1 expired item(s) excluded: Old Yogurt");
       expect(text).toContain("Dietary preferences: vegetarian");
@@ -228,7 +253,7 @@ describe("recipe tools", () => {
 
       registerRecipeTools(makeContext(storage));
 
-      const result = await getCapturedHandler("plan_meals")({
+      const result = await getCapturedHandler("get_meal_planning_context")({
         numberOfMeals: 3,
         mealType: "any",
         prioritizeExpiring: false,
@@ -247,7 +272,7 @@ describe("recipe tools", () => {
 
       registerRecipeTools(makeContext(storage));
 
-      const result = await getCapturedHandler("plan_meals")({});
+      const result = await getCapturedHandler("get_meal_planning_context")({});
 
       expect(isErrorResult(result)).toBe(true);
     });
@@ -267,7 +292,7 @@ describe("recipe tools", () => {
 
       registerRecipeTools(makeContext(storage));
 
-      const result = await getCapturedHandler("plan_meals")({
+      const result = await getCapturedHandler("get_meal_planning_context")({
         numberOfMeals: 2,
         mealType: "any",
         prioritizeExpiring: false,
@@ -286,7 +311,7 @@ describe("recipe tools", () => {
 
       registerRecipeTools(makeContext(storage));
 
-      const result = await getCapturedHandler("plan_meals")({
+      const result = await getCapturedHandler("get_meal_planning_context")({
         numberOfMeals: 1,
         mealType: "any",
       });
@@ -300,7 +325,7 @@ describe("recipe tools", () => {
       unauthenticate();
       registerRecipeTools(makeContext());
 
-      await expect(getCapturedHandler("plan_meals")({})).rejects.toThrow(
+      await expect(getCapturedHandler("get_meal_planning_context")({})).rejects.toThrow(
         "outside an authenticated MCP request",
       );
     });

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
 
-import { addToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
+import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
 
 type AuthContext = {
   props?: {
@@ -166,7 +166,7 @@ function getCapturedHandler(name: string): ToolHandler {
   );
 }
 
-describe("add_to_cart tool", () => {
+describe("add_shopping_list_to_cart tool", () => {
   beforeEach(() => {
     testState.capturedTools.length = 0;
     authenticate();
@@ -176,7 +176,7 @@ describe("add_to_cart tool", () => {
     it("adds items with a UPC from the shopping list and reports the list name", async () => {
       const { context, putCalls, snapshotSetCalls } = makeContext();
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
         shopping_list_id: SHOPPING_LIST_ID,
@@ -190,7 +190,7 @@ describe("add_to_cart tool", () => {
       expect(putCalls[0]?.path).toBe("/v1/cart/add");
 
       const sc = structuredContent(result);
-      expect(sc["_view"]).toBe("add_to_cart");
+      expect(sc["_view"]).toBe("add_shopping_list_to_cart");
       expect(sc["shopping_list_id"]).toBe(SHOPPING_LIST_ID);
       expect(sc["name"]).toBe("Tuesday Dinner");
       expect(sc["actionDetail"]).toContain("Tuesday Dinner");
@@ -212,7 +212,7 @@ describe("add_to_cart tool", () => {
       );
       const { context } = makeContext(storage);
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({ shopping_list_id: SHOPPING_LIST_ID });
 
@@ -223,7 +223,7 @@ describe("add_to_cart tool", () => {
     it("forwards DELIVERY modality to the cart API body", async () => {
       const { context, putCalls } = makeContext();
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       await handler({
         shopping_list_id: SHOPPING_LIST_ID,
@@ -243,9 +243,9 @@ describe("add_to_cart tool", () => {
     it("defaults to PICKUP modality when modality is omitted", async () => {
       const { context, putCalls } = makeContext();
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      const parsed = addToCartInputSchema.parse({
+      const parsed = addShoppingListToCartInputSchema.parse({
         shopping_list_id: SHOPPING_LIST_ID,
         locationId: LOCATION_ID,
       });
@@ -263,7 +263,7 @@ describe("add_to_cart tool", () => {
     it("lists items without a UPC in needsUpc rather than adding them", async () => {
       const { context, putCalls } = makeContext();
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
         shopping_list_id: SHOPPING_LIST_ID,
@@ -283,7 +283,7 @@ describe("add_to_cart tool", () => {
     it("returns an error when the shopping_list_id does not match the user", async () => {
       const { context } = makeContext();
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({ shopping_list_id: "user-999:session:x:list:abc" });
 
@@ -295,7 +295,7 @@ describe("add_to_cart tool", () => {
       const storage = makeStorage(null);
       const { context } = makeContext(storage);
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({ shopping_list_id: SHOPPING_LIST_ID });
 
@@ -309,7 +309,7 @@ describe("add_to_cart tool", () => {
       const storage = makeStorage(listFixture(), null);
       const { context } = makeContext(storage);
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({ shopping_list_id: SHOPPING_LIST_ID });
 
@@ -322,7 +322,7 @@ describe("add_to_cart tool", () => {
     it("returns an API error when cartClient.PUT returns a 400 response", async () => {
       const { context } = makeContext(undefined, { status: 400 });
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
         shopping_list_id: SHOPPING_LIST_ID,
@@ -336,7 +336,7 @@ describe("add_to_cart tool", () => {
     it("returns a network error when cartClient.PUT throws", async () => {
       const { context } = makeContext(undefined, { status: 204, throws: true });
       registerCartTools(context);
-      const handler = getCapturedHandler("add_to_cart");
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
         shopping_list_id: SHOPPING_LIST_ID,
@@ -355,7 +355,7 @@ describe("add_to_cart tool", () => {
       registerCartTools(context);
 
       await expect(
-        getCapturedHandler("add_to_cart")({
+        getCapturedHandler("add_shopping_list_to_cart")({
           shopping_list_id: SHOPPING_LIST_ID,
           locationId: LOCATION_ID,
         }),
@@ -364,15 +364,15 @@ describe("add_to_cart tool", () => {
   });
 });
 
-describe("addToCartInputSchema", () => {
+describe("addShoppingListToCartInputSchema", () => {
   describe("shopping_list_id validation", () => {
     it("rejects an empty shopping_list_id", () => {
-      const result = addToCartInputSchema.safeParse({ shopping_list_id: "" });
+      const result = addShoppingListToCartInputSchema.safeParse({ shopping_list_id: "" });
       expect(result.success).toBe(false);
     });
 
     it("accepts a non-empty shopping_list_id", () => {
-      const result = addToCartInputSchema.safeParse({
+      const result = addShoppingListToCartInputSchema.safeParse({
         shopping_list_id: SHOPPING_LIST_ID,
       });
       expect(result.success).toBe(true);
@@ -381,7 +381,7 @@ describe("addToCartInputSchema", () => {
 
   describe("locationId validation", () => {
     it("rejects a locationId shorter than 8 characters", () => {
-      const result = addToCartInputSchema.safeParse({
+      const result = addShoppingListToCartInputSchema.safeParse({
         shopping_list_id: SHOPPING_LIST_ID,
         locationId: "7050084",
       });
@@ -389,7 +389,7 @@ describe("addToCartInputSchema", () => {
     });
 
     it("rejects a locationId longer than 8 characters", () => {
-      const result = addToCartInputSchema.safeParse({
+      const result = addShoppingListToCartInputSchema.safeParse({
         shopping_list_id: SHOPPING_LIST_ID,
         locationId: "705008470",
       });
@@ -397,7 +397,7 @@ describe("addToCartInputSchema", () => {
     });
 
     it("accepts a locationId that is exactly 8 characters", () => {
-      const result = addToCartInputSchema.safeParse({
+      const result = addShoppingListToCartInputSchema.safeParse({
         shopping_list_id: SHOPPING_LIST_ID,
         locationId: LOCATION_ID,
       });
@@ -405,7 +405,7 @@ describe("addToCartInputSchema", () => {
     });
 
     it("accepts input when locationId is omitted", () => {
-      const result = addToCartInputSchema.safeParse({
+      const result = addShoppingListToCartInputSchema.safeParse({
         shopping_list_id: SHOPPING_LIST_ID,
       });
       expect(result.success).toBe(true);

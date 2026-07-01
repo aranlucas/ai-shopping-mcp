@@ -232,14 +232,22 @@ describe("MCP client over Worker OAuth integration", () => {
     const toolNames = tools.tools.map((tool) => tool.name);
 
     expect(toolNames).toContain("search_products");
+    expect(toolNames).toContain("get_meal_planning_context");
     for (const tool of tools.tools) {
-      expect(tool._meta?.ui).toBeDefined();
+      if (tool.name === "get_meal_planning_context") {
+        expect(tool._meta?.ui).toBeUndefined();
+      } else {
+        expect(tool._meta?.ui).toBeDefined();
+      }
     }
     expect(client.getInstructions()).toContain("create_shopping_list");
+    expect(client.getInstructions()).toContain("add_shopping_list_to_cart");
     expect(client.getInstructions()).toContain("shopping_list_id");
+    expect(client.getInstructions()).toContain("shopping://user/kitchen-equipment");
     expect(client.getInstructions()).not.toContain(
       "pantry, equipment, shopping list, preferred location",
     );
+    expect(client.getInstructions()).not.toContain("add_to_cart");
 
     const result = await client.callTool({
       name: "search_products",

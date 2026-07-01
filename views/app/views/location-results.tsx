@@ -7,7 +7,7 @@ import { EmptyState } from "../../shared/status.js";
 import {
   type AppData,
   type LocationData,
-  type LocationResultsContent,
+  type StoreResultsContent,
   callTool,
   openExternalLink,
   parseStructuredContent,
@@ -216,17 +216,17 @@ export function LocationResultsView({
   canCallTools,
   hostContext,
 }: {
-  data: LocationResultsContent;
+  data: StoreResultsContent;
   setData: (data: AppData | null) => void;
   app: App | null;
   canCallTools: boolean;
   hostContext?: McpUiHostContext;
 }) {
-  const { locations } = data;
+  const { stores } = data;
 
   const handleSetPreferred = async (id: string) => {
     const result = await callTool(app, {
-      name: "set_preferred_location",
+      name: "set_preferred_store",
       arguments: { locationId: id },
     });
     if (result?.isError) throw new Error("Failed to set preferred location");
@@ -234,7 +234,7 @@ export function LocationResultsView({
 
   const handleViewDetails = async (id: string) => {
     const result = await callTool(app, {
-      name: "get_location_details",
+      name: "get_store",
       arguments: { locationId: id },
     });
     if (result?.isError) throw new Error("Failed to load details");
@@ -242,7 +242,7 @@ export function LocationResultsView({
     if (parsed) setData(parsed);
   };
 
-  if (locations.length === 0) {
+  if (stores.length === 0) {
     return (
       <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
         <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">Store Locations</h1>
@@ -279,13 +279,11 @@ export function LocationResultsView({
     <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
       <SectionHeader
         title="Store Locations"
-        badge={
-          <span className="text-[11px] text-gray-400 font-mono">{locations.length} found</span>
-        }
+        badge={<span className="text-[11px] text-gray-400 font-mono">{stores.length} found</span>}
         trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {locations.map((loc) => (
+        {stores.map((loc) => (
           <LocationCard
             key={loc.locationId}
             location={loc}
