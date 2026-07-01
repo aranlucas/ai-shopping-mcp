@@ -771,3 +771,201 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
     .map((item, index) => `${index + 1}. ${formatShoppingListItemCompact(item)}`)
     .join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// MARKDOWN: model-facing formatters for small-model reliability.
+//
+// These replace TOON in `content[0].text` for tools whose output an LLM must
+// parse and act on directly (e.g., copying a upc into another tool call).
+// TOON is unfamiliar to small models; plain markdown lines with explicit
+// `key=value` labels for the fields the model must transcribe are more
+// reliable. `structuredContent` is untouched — the React views keep reading
+// full data from there.
+// ---------------------------------------------------------------------------
+
+/** One markdown line summarizing a single product for search_products output. */
+export function formatProductSearchLineMarkdown(product: Product): string {
+  const item = product.items?.[0];
+  const parts: string[] = [
+    `upc=${product.upc ?? "unknown"}`,
+    product.description || "Unknown product",
+  ];
+
+  if (product.brand) parts.push(product.brand);
+  if (item?.size) parts.push(item.size);
+
+  if (item?.price) {
+    const { regular, promo } = item.price;
+    if (promo != null && promo !== regular) {
+      parts.push(`$${promo} (was $${regular})`);
+    } else if (regular != null) {
+      parts.push(`$${regular}`);
+    }
+  }
+
+  const pickup = Boolean(item?.fulfillment?.curbside || item?.fulfillment?.instore);
+  parts.push(`pickup: ${pickup ? "yes" : "no"}`);
+
+  const aisle = product.aisleLocations?.[0]?.number;
+  if (aisle) parts.push(`aisle: ${aisle}`);
+
+  return `- ${parts.join(" | ")}`;
+}
+
+/** Markdown for search_products: one heading + product lines per search term. */
+export function formatSearchProductsMarkdown(
+  results: Array<{ term: string; products: Product[]; count: number; failed: boolean }>,
+): string {
+  const lines: string[] = [];
+
+  for (const result of results) {
+    lines.push(`## ${result.term}`);
+    if (result.failed) {
+      lines.push("Search failed for this term.");
+    } else if (result.products.length === 0) {
+      lines.push("No results.");
+    } else {
+      for (const product of result.products) {
+        lines.push(formatProductSearchLineMarkdown(product));
+      }
+    }
+  }
+
+  lines.push("", "To buy items, pass the exact upc values above to create_shopping_list.");
+  return lines.join("\n");
+}
+
+/** Markdown key/value lines for get_product: no images. */
+export function formatProductDetailMarkdown(product: Product): string {
+  const lines: string[] = [
+    `upc: ${product.upc ?? "unknown"}`,
+    `description: ${product.description ?? "unknown"}`,
+  ];
+
+  if (product.brand) lines.push(`brand: ${product.brand}`);
+
+  if (product.items && product.items.length > 0) {
+    lines.push("variants:");
+    for (const item of product.items) {
+      const parts: string[] = [];
+      if (item.size) parts.push(item.size);
+
+      if (item.price) {
+        const { regular, promo } = item.price;
+        parts.push(
+          promo != null && promo !== regular ? `$${promo} (was $${regular})` : `$${regular ?? "?"}`,
+        );
+      }
+
+      const pickup = Boolean(item.fulfillment?.curbside || item.fulfillment?.instore);
+      parts.push(`pickup: ${pickup ? "yes" : "no"}`);
+      if (item.inventory?.stockLevel) parts.push(`stock: ${item.inventory.stockLevel}`);
+
+      lines.push(`- ${parts.join(" | ")}`);
+    }
+  }
+
+  if (product.aisleLocations && product.aisleLocations.length > 0) {
+    const aisle = product.aisleLocations[0];
+    lines.push(`aisle: ${[aisle.description, aisle.number].filter(Boolean).join(" ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+/** One markdown line for a store: storeId, name, address, phone. */
+export function formatStoreLineMarkdown(location: Location): string {
+  const parts: string[] = [
+    `storeId=${location.locationId ?? "unknown"}`,
+    location.name || "Unknown store",
+  ];
+
+  if (location.address) {
+    const { addressLine1, city, state, zipCode } = location.address;
+    const cityStateZip = [[city, state].filter(Boolean).join(" "), zipCode]
+      .filter(Boolean)
+      .join(" ");
+    const full = [addressLine1, cityStateZip].filter(Boolean).join(", ");
+    if (full) parts.push(full);
+  }
+
+  if (location.phone) parts.push(`phone ${location.phone}`);
+
+  return `- ${parts.join(" | ")}`;
+}
+
+/** Markdown for search_stores: one line per store. */
+export function formatStoreListMarkdown(stores: Location[]): string {
+  if (stores.length === 0) return "No stores found.";
+  return stores.map(formatStoreLineMarkdown).join("\n");
+}
+
+/** Markdown hours block for get_store. */
+export function formatStoreHoursMarkdown(location: Location): string {
+  if (!location.hours) return "";
+
+  const days = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ] as const;
+
+  const lines = ["hours:"];
+  for (const day of days) {
+    const hours = location.hours[day];
+    if (hours) lines.push(`- ${day}: ${hours.open ?? "?"}-${hours.close ?? "?"}`);
+  }
+
+  return lines.length > 1 ? lines.join("\n") : "";
+}
+
+/** Markdown for get_store: the store line plus hours. */
+export function formatStoreDetailMarkdown(location: Location): string {
+  const lines = [formatStoreLineMarkdown(location)];
+  const hours = formatStoreHoursMarkdown(location);
+  if (hours) lines.push(hours);
+  return lines.join("\n");
+}
+
+/** Minimal shape formatWeeklyDealsMarkdown needs — matches QfcDealsApiResponse deal entries. */
+export type WeeklyDealMarkdownItem = {
+  title: string;
+  details?: string;
+  price?: string;
+  savings?: string | null;
+};
+
+/** One markdown line for a weekly deal: title, details, price, savings. */
+export function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
+  const parts: string[] = [deal.title];
+  if (deal.details) parts.push(deal.details);
+  if (deal.price) parts.push(deal.price);
+  if (deal.savings) parts.push(deal.savings);
+  return `- ${parts.join(" | ")}`;
+}
+
+/** Markdown for get_weekly_deals: header with validity window and deal count, then lines. */
+export function formatWeeklyDealsMarkdown(
+  deals: WeeklyDealMarkdownItem[],
+  validFrom?: string,
+  validTill?: string,
+  warnings?: string[],
+): string {
+  const lines: string[] = [
+    validFrom && validTill
+      ? `Deals valid ${validFrom} to ${validTill}. dealCount: ${deals.length}`
+      : `dealCount: ${deals.length}`,
+  ];
+
+  if (warnings && warnings.length > 0) {
+    lines.push(`warnings: ${warnings.join("; ")}`);
+  }
+
+  if (deals.length === 0) return lines.join("\n");
+
+  return [...lines, ...deals.map(formatWeeklyDealLineMarkdown)].join("\n");
+}

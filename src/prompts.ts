@@ -74,7 +74,7 @@ ${zip_code ? `Search for stores near zip code: ${zip_code}` : "Search for stores
 
 Please:
 1. Use search_stores to find nearby Kroger/QFC locations
-2. Show me the options with their addresses and location IDs
+2. Show me the options with their addresses and store IDs
 3. Use set_preferred_store after I choose a store
 
 This will make future shopping and product searches more convenient.`,

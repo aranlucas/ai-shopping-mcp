@@ -12,7 +12,7 @@ import type {
 
 export const mockAddToCart: AddShoppingListToCartContent = {
   _view: "add_shopping_list_to_cart",
-  shopping_list_id: "user-123:session:dev-session:list:abc12345",
+  listId: "list_abc12345",
   name: "Tuesday Dinner",
   items: [
     {
@@ -215,7 +215,7 @@ export const mockKitchenEquipment: KitchenEquipmentContent = {
 
 export const mockShoppingList: ShoppingListContent = {
   _view: "create_shopping_list",
-  shopping_list_id: "user-123:session:dev-session:list:abc12345",
+  listId: "list_abc12345",
   name: "Tuesday Dinner",
   items: [
     {

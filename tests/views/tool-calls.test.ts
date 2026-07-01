@@ -42,26 +42,26 @@ describe("view tool call helpers", () => {
     });
   });
 
-  it("creates an add_shopping_list_to_cart call using shopping_list_id", () => {
-    expect(addShoppingListToCartCall("user-123:session:s1:list:abc12345")).toEqual({
+  it("creates an add_shopping_list_to_cart call using listId", () => {
+    expect(addShoppingListToCartCall("list_abc12345")).toEqual({
       name: "add_shopping_list_to_cart",
       arguments: {
-        shopping_list_id: "user-123:session:s1:list:abc12345",
+        listId: "list_abc12345",
         modality: "PICKUP",
       },
     });
   });
 
-  it("reads shopping_list_id from create_shopping_list structured content", () => {
+  it("reads listId from create_shopping_list structured content", () => {
     expect(
       shoppingListIdFromResult({
         content: [],
-        structuredContent: { shopping_list_id: "list-123" },
+        structuredContent: { listId: "list-123" },
       }),
     ).toBe("list-123");
   });
 
-  it("throws when create_shopping_list did not return a shopping_list_id", () => {
+  it("throws when create_shopping_list did not return a listId", () => {
     expect(() => shoppingListIdFromResult({ content: [], structuredContent: {} })).toThrow(
       "Shopping list id missing",
     );
@@ -79,9 +79,9 @@ describe("view tool call helpers", () => {
     ).toBe("No shopping list found");
   });
 
-  it("adds a selected product to cart through a shopping_list_id", async () => {
+  it("adds a selected product to cart through a listId", async () => {
     const { app, calls } = makeToolCallingApp([
-      { structuredContent: { shopping_list_id: "user-123:session:s1:list:abc12345" } },
+      { structuredContent: { listId: "list_abc12345" } },
       {},
     ]);
 
@@ -103,7 +103,7 @@ describe("view tool call helpers", () => {
       {
         name: "add_shopping_list_to_cart",
         arguments: {
-          shopping_list_id: "user-123:session:s1:list:abc12345",
+          listId: "list_abc12345",
           modality: "PICKUP",
         },
       },
@@ -111,9 +111,7 @@ describe("view tool call helpers", () => {
   });
 
   it("saves a selected product by creating a shopping list without cart checkout", async () => {
-    const { app, calls } = makeToolCallingApp([
-      { structuredContent: { shopping_list_id: "user-123:session:s1:list:def67890" } },
-    ]);
+    const { app, calls } = makeToolCallingApp([{ structuredContent: { listId: "list_def67890" } }]);
 
     await saveProductToList(app, {
       productName: "Sourdough Bread",
@@ -132,7 +130,7 @@ describe("view tool call helpers", () => {
     ]);
   });
 
-  it("fails list saves when create_shopping_list does not return a shopping_list_id", async () => {
+  it("fails list saves when create_shopping_list does not return a listId", async () => {
     const { app } = makeToolCallingApp([{ structuredContent: {} }]);
 
     await expect(

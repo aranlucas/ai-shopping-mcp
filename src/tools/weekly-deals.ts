@@ -6,12 +6,13 @@ import type { AppError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import type { ToolContext } from "./types.js";
 
-import { networkError, storageError } from "../errors.js";
+import { networkError, notFoundError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
+import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 import { safeJsonParseWithSchema } from "../utils/json.js";
-import { toMcpError } from "../utils/result.js";
-import { toonResult } from "../utils/toon.js";
+import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { storeIdSchema } from "./schemas.js";
 
 type KvLike = Pick<KVNamespace, "get" | "put">;
 
@@ -188,14 +189,12 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: z.object({
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" })
+        storeId: storeIdSchema
           .optional()
           .describe(
-            "QFC/Kroger location ID (8 digits). Defaults to a QFC Seattle store if omitted.",
+            "8-character storeId from search_stores. Uses your preferred store if omitted.",
           ),
-        limit: z
+        limit: z.coerce
           .number()
           .int()
           .min(1)
@@ -203,7 +202,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           .optional()
           .default(50)
           .describe("Maximum number of deals to return"),
-        pageLimit: z
+        pageLimit: z.coerce
           .number()
           .int()
           .min(1)
@@ -213,10 +212,23 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           .describe("Print-ad fallback only: number of ad pages to parse"),
       }),
     },
-    async ({ locationId, limit, pageLimit }) => {
+    async ({ storeId, limit, pageLimit }) => {
+      let resolvedStoreId = storeId;
+      if (!resolvedStoreId) {
+        const resolved = await safeResolveLocationId(ctx.storage, getProps().id, undefined);
+        if (resolved.isErr()) {
+          return toMcpError(
+            notFoundError(
+              "No store set. Use search_stores then set_preferred_store, or pass storeId.",
+            ),
+          );
+        }
+        resolvedStoreId = resolved.value.locationId;
+      }
+
       const kv = getCacheKv(ctx);
       const cacheKey = buildWeeklyDealsCacheKey({
-        locationId,
+        locationId: resolvedStoreId,
         limit,
         pageLimit,
       });
@@ -245,7 +257,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         (async () => {
           const { productClient } = ctx.clients;
           const result = await getQfcWeeklyDeals({
-            locationId,
+            locationId: resolvedStoreId,
             limit,
             pageLimit,
             searchProducts: async (term, locId, searchLimit) => {
@@ -314,12 +326,12 @@ export function formatWeeklyDealsToolResponse(
   }));
 
   return {
-    ...toonResult({
-      ...(validFrom && validTill ? { validFrom, validTill } : {}),
-      ...(result.warnings.length > 0 ? { warnings: result.warnings } : {}),
-      dealCount: deals.length,
-      deals,
-    }),
+    content: [
+      {
+        type: "text" as const,
+        text: formatWeeklyDealsMarkdown(deals, validFrom, validTill, result.warnings),
+      },
+    ],
     structuredContent: {
       _view: "get_weekly_deals",
       deals,

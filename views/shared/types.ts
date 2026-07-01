@@ -2,30 +2,28 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import type {
-  AddPantryItemsArgs,
   AddShoppingListToCartArgs,
+  AddToInventoryArgs,
   CreateShoppingListArgs,
-  RemovePantryItemsArgs,
+  RemoveFromInventoryArgs,
 } from "../../src/tools/tool-types.js";
 
 export type {
-  AddPantryItemsArgs,
   AddShoppingListToCartArgs,
+  AddToInventoryArgs,
   CreateShoppingListArgs,
-  RemovePantryItemsArgs,
+  RemoveFromInventoryArgs,
 };
 
 /** Discriminated union of callable tools used by the app UI. */
 export type ToolCall =
   | { name: "add_shopping_list_to_cart"; arguments: AddShoppingListToCartArgs }
   | { name: "create_shopping_list"; arguments: CreateShoppingListArgs }
-  | { name: "add_pantry_items"; arguments: AddPantryItemsArgs }
-  | { name: "remove_pantry_items"; arguments: RemovePantryItemsArgs }
-  | { name: "clear_pantry"; arguments: Record<string, never> }
-  | { name: "remove_kitchen_equipment"; arguments: { equipmentName: string } }
-  | { name: "set_preferred_store"; arguments: { locationId: string } }
-  | { name: "get_store"; arguments: { locationId: string } }
-  | { name: "search_products"; arguments: { terms: string[]; locationId?: string } };
+  | { name: "add_to_inventory"; arguments: AddToInventoryArgs }
+  | { name: "remove_from_inventory"; arguments: RemoveFromInventoryArgs }
+  | { name: "set_preferred_store"; arguments: { storeId: string } }
+  | { name: "get_store"; arguments: { storeId: string } }
+  | { name: "search_products"; arguments: { terms: string[]; storeId?: string } };
 
 /** Timeout for app-initiated callServerTool() calls (ms). */
 export const TOOL_CALL_TIMEOUT_MS = 15_000;
@@ -169,7 +167,7 @@ export type ShoppingListItemData = {
 
 export type ShoppingListContent = {
   _view: "create_shopping_list";
-  shopping_list_id: string;
+  listId: string;
   name: string;
   items: ShoppingListItemData[];
   actionDetail?: string;
@@ -177,7 +175,8 @@ export type ShoppingListContent = {
 
 export type AddShoppingListToCartContent = {
   _view: "add_shopping_list_to_cart";
-  shopping_list_id: string;
+  /** Absent when items were added inline (no listId). */
+  listId?: string;
   name: string;
   items: Array<{
     upc: string;

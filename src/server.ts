@@ -14,13 +14,13 @@ import {
   refreshKrogerToken,
 } from "./services/kroger/client.js";
 import { registerCartTools } from "./tools/cart.js";
-import { registerEquipmentTools } from "./tools/equipment.js";
+import { registerInventoryTools } from "./tools/inventory.js";
 import { registerLocationTools } from "./tools/location.js";
 import { registerOrderTools } from "./tools/orders.js";
-import { registerPantryTools } from "./tools/pantry.js";
 import { registerProductTools } from "./tools/product.js";
 import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
+import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { createUserStorage } from "./utils/user-storage.js";
@@ -34,11 +34,11 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
   registerCartTools,
   registerLocationTools,
   registerProductTools,
-  registerPantryTools,
-  registerEquipmentTools,
+  registerInventoryTools,
   registerOrderTools,
   registerRecipeTools,
   registerShoppingListTools,
+  registerShopTools,
   registerWeeklyDealsTools,
   registerResources,
 ];
@@ -46,7 +46,7 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
 const SERVER_INFO = { name: "kroger-ai-assistant", version: "1.0.0" } as const;
 const SERVER_OPTIONS = {
   instructions:
-    "AI shopping assistant for Kroger/QFC stores. Search stores and products, manage pantry and kitchen equipment, create shopping lists, add shopping lists to the Kroger cart, record completed orders, and gather meal-planning context. Read MCP resources such as shopping://user/pantry, shopping://user/kitchen-equipment, shopping://user/preferred-store, and shopping://user/order-history before making personalized suggestions. Create shopping lists with create_shopping_list and pass the returned shopping_list_id to add_shopping_list_to_cart.",
+    "AI shopping assistant for Kroger/QFC stores. Golden path: call shop_for_items with a list of item names for one-shot shopping-list creation, OR search_products then create_shopping_list for more control — then add_shopping_list_to_cart with the returned listId to add items to the Kroger cart. Call get_shopping_profile before personalized suggestions to read the user's preferred store, pantry, kitchen equipment, and frequently purchased items. Other tools: search_stores/get_store/set_preferred_store for store lookup, add_to_inventory/remove_from_inventory for pantry and kitchen equipment, record_order to log completed purchases, get_weekly_deals for current sales, and get_meal_planning_context for recipe suggestions from pantry contents.",
 } as const;
 
 /**

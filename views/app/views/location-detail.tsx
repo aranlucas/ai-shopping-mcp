@@ -29,7 +29,7 @@ export function LocationDetailView({
     try {
       const result = await callTool(app, {
         name: "set_preferred_store",
-        arguments: { locationId: id },
+        arguments: { storeId: id },
       });
       if (result?.isError) throw new Error("Failed");
       setPrefState("done");

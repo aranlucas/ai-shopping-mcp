@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
-import type { PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
+import type {
+  CartSnapshotItem,
+  PreferredLocation,
+  ShoppingList,
+} from "../../src/utils/user-storage.js";
 
 import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
+import { getSessionScopedUserId } from "../../src/tools/types.js";
 
 type AuthContext = {
   props?: {
@@ -39,8 +44,10 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
 // --- Helpers ---
 
 const USER_ID = "user-123";
-const SCOPED_ID = "user-123:session:session-1";
-const SHOPPING_LIST_ID = `${SCOPED_ID}:list:abc12345`;
+const SESSION_ID = "session-1";
+const SCOPED_ID = getSessionScopedUserId(USER_ID, SESSION_ID);
+const SHORT_LIST_ID = "list_abc12345";
+const SHOPPING_LIST_STORAGE_KEY = `${SCOPED_ID}:list:${SHORT_LIST_ID}`;
 const LOCATION_ID = "70500847";
 
 function authenticate(userId = USER_ID) {
@@ -72,7 +79,7 @@ function structuredContent(result: unknown): Record<string, unknown> {
 
 function listFixture(overrides: Partial<ShoppingList> = {}): ShoppingList {
   return {
-    id: SHOPPING_LIST_ID,
+    id: SHOPPING_LIST_STORAGE_KEY,
     name: "Tuesday Dinner",
     createdAt: new Date().toISOString(),
     items: [
@@ -97,6 +104,7 @@ function makeStorage(
   storedList: ShoppingList | null = null,
   storedLocation: PreferredLocation | null = null,
   snapshotSetCalls: unknown[][] = [],
+  existingSnapshot: CartSnapshotItem[] | null = null,
 ): UserStorage {
   return {
     pantry: {} as UserStorage["pantry"],
@@ -112,7 +120,7 @@ function makeStorage(
       clear: async () => {},
     } as unknown as UserStorage["shoppingList"],
     cartSnapshot: {
-      get: async () => null,
+      get: async () => existingSnapshot,
       set: async (_id: string, items: unknown[]) => {
         snapshotSetCalls.push([_id, items]);
       },
@@ -149,7 +157,7 @@ function makeContext(
     } as unknown as ToolContext["clients"],
     storage: actualStorage,
     getEnv: () => ({}) as Env,
-    getSessionId: () => "session-1",
+    getSessionId: () => SESSION_ID,
   };
 
   return { context, putCalls, snapshotSetCalls };
@@ -172,15 +180,15 @@ describe("add_shopping_list_to_cart tool", () => {
     authenticate();
   });
 
-  describe("happy path", () => {
+  describe("listId happy path", () => {
     it("adds items with a UPC from the shopping list and reports the list name", async () => {
       const { context, putCalls, snapshotSetCalls } = makeContext();
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: LOCATION_ID,
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
       });
 
       expect(isErrorResult(result)).toBe(false);
@@ -191,14 +199,14 @@ describe("add_shopping_list_to_cart tool", () => {
 
       const sc = structuredContent(result);
       expect(sc["_view"]).toBe("add_shopping_list_to_cart");
-      expect(sc["shopping_list_id"]).toBe(SHOPPING_LIST_ID);
+      expect(sc["listId"]).toBe(SHORT_LIST_ID);
       expect(sc["name"]).toBe("Tuesday Dinner");
       expect(sc["actionDetail"]).toContain("Tuesday Dinner");
       expect(snapshotSetCalls).toHaveLength(1);
-      expect(snapshotSetCalls[0]?.[0]).toBe(SHOPPING_LIST_ID);
+      expect(snapshotSetCalls[0]?.[0]).toBe(SHOPPING_LIST_STORAGE_KEY);
     });
 
-    it("uses preferred location from storage when locationId is omitted", async () => {
+    it("uses preferred location from storage when storeId is omitted", async () => {
       const storage = makeStorage(
         listFixture(),
         {
@@ -214,7 +222,7 @@ describe("add_shopping_list_to_cart tool", () => {
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      const result = await handler({ shopping_list_id: SHOPPING_LIST_ID });
+      const result = await handler({ listId: SHORT_LIST_ID });
 
       expect(isErrorResult(result)).toBe(false);
       expect(textFromResult(result)).toContain("at QFC Broadway");
@@ -226,10 +234,31 @@ describe("add_shopping_list_to_cart tool", () => {
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       await handler({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: LOCATION_ID,
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
         modality: "DELIVERY",
       });
+
+      expect(putCalls[0]).toMatchObject({
+        options: {
+          body: {
+            items: [{ upc: "0001111042578", quantity: 2, modality: "DELIVERY" }],
+          },
+        },
+      });
+    });
+
+    it("accepts lowercase modality via the case-insensitive schema", async () => {
+      const { context, putCalls } = makeContext();
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+
+      const parsed = addShoppingListToCartInputSchema.parse({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+        modality: "delivery",
+      });
+      await handler(parsed as unknown as Record<string, unknown>);
 
       expect(putCalls[0]).toMatchObject({
         options: {
@@ -246,8 +275,8 @@ describe("add_shopping_list_to_cart tool", () => {
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const parsed = addShoppingListToCartInputSchema.parse({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: LOCATION_ID,
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
       });
       await handler(parsed as unknown as Record<string, unknown>);
 
@@ -266,8 +295,8 @@ describe("add_shopping_list_to_cart tool", () => {
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: LOCATION_ID,
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
       });
 
       const sc = structuredContent(result);
@@ -279,25 +308,77 @@ describe("add_shopping_list_to_cart tool", () => {
     });
   });
 
-  describe("shopping list resolution errors", () => {
-    it("returns an error when the shopping_list_id does not match the user", async () => {
-      const { context } = makeContext();
+  describe("retry short-circuit", () => {
+    it("returns a success-style message and skips the PUT when a snapshot already exists for this listId", async () => {
+      const existingSnapshot: CartSnapshotItem[] = [
+        {
+          upc: "0001111042578",
+          quantity: 2,
+          modality: "PICKUP",
+          productName: "Organic Whole Milk",
+        },
+      ];
+      const storage = makeStorage(listFixture(), null, [], existingSnapshot);
+      const { context, putCalls } = makeContext(storage);
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      const result = await handler({ shopping_list_id: "user-999:session:x:list:abc" });
+      const result = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
 
-      expect(isErrorResult(result)).toBe(true);
-      expect(textFromResult(result)).toContain("does not belong");
+      expect(isErrorResult(result)).toBe(false);
+      expect(putCalls).toHaveLength(0);
+      expect(textFromResult(result)).toContain("already added to your cart from this list");
+      expect(structuredContent(result)["items"]).toEqual(existingSnapshot);
+    });
+  });
+
+  describe("inline items path", () => {
+    it("adds inline upc/quantity items directly without a listId", async () => {
+      const storage = makeStorage(null, {
+        locationId: LOCATION_ID,
+        locationName: "QFC Broadway",
+        address: "500 Broadway E",
+        chain: "QFC",
+        setAt: new Date().toISOString(),
+      });
+      const { context, putCalls } = makeContext(storage);
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+
+      const parsed = addShoppingListToCartInputSchema.parse({
+        items: [{ upc: "0001111042578", quantity: 3 }],
+      });
+      const result = await handler(parsed as unknown as Record<string, unknown>);
+
+      expect(isErrorResult(result)).toBe(false);
+      expect(putCalls).toHaveLength(1);
+      expect(putCalls[0]).toMatchObject({
+        options: {
+          body: { items: [{ upc: "0001111042578", quantity: 3, modality: "PICKUP" }] },
+        },
+      });
+      const sc = structuredContent(result);
+      expect(sc["_view"]).toBe("add_shopping_list_to_cart");
+      expect(sc["listId"]).toBeUndefined();
+      expect(textFromResult(result)).toContain("at QFC Broadway");
     });
 
-    it("returns an error when the shopping list does not exist", async () => {
+    it("pads a short UPC to 13 digits via the shared upc schema", () => {
+      const parsed = addShoppingListToCartInputSchema.parse({
+        items: [{ upc: "1111042578" }],
+      });
+      expect(parsed.items?.[0]?.upc).toBe("0001111042578");
+    });
+  });
+
+  describe("shopping list resolution errors", () => {
+    it("returns an error when the shopping list is not found for the listId", async () => {
       const storage = makeStorage(null);
       const { context } = makeContext(storage);
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      const result = await handler({ shopping_list_id: SHOPPING_LIST_ID });
+      const result = await handler({ listId: SHORT_LIST_ID });
 
       expect(isErrorResult(result)).toBe(true);
       expect(textFromResult(result)).toContain("No shopping list found");
@@ -305,13 +386,13 @@ describe("add_shopping_list_to_cart tool", () => {
   });
 
   describe("location resolution errors", () => {
-    it("returns a not-found error when no locationId is provided and no preferred location is set", async () => {
+    it("returns a not-found error when no storeId is provided and no preferred location is set", async () => {
       const storage = makeStorage(listFixture(), null);
       const { context } = makeContext(storage);
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      const result = await handler({ shopping_list_id: SHOPPING_LIST_ID });
+      const result = await handler({ listId: SHORT_LIST_ID });
 
       expect(isErrorResult(result)).toBe(true);
       expect(textFromResult(result)).toContain("No location specified");
@@ -325,8 +406,8 @@ describe("add_shopping_list_to_cart tool", () => {
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: LOCATION_ID,
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
       });
 
       expect(isErrorResult(result)).toBe(true);
@@ -339,8 +420,8 @@ describe("add_shopping_list_to_cart tool", () => {
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: LOCATION_ID,
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
       });
 
       expect(isErrorResult(result)).toBe(true);
@@ -356,8 +437,8 @@ describe("add_shopping_list_to_cart tool", () => {
 
       await expect(
         getCapturedHandler("add_shopping_list_to_cart")({
-          shopping_list_id: SHOPPING_LIST_ID,
-          locationId: LOCATION_ID,
+          listId: SHORT_LIST_ID,
+          storeId: LOCATION_ID,
         }),
       ).rejects.toThrow("outside an authenticated MCP request");
     });
@@ -365,48 +446,69 @@ describe("add_shopping_list_to_cart tool", () => {
 });
 
 describe("addShoppingListToCartInputSchema", () => {
-  describe("shopping_list_id validation", () => {
-    it("rejects an empty shopping_list_id", () => {
-      const result = addShoppingListToCartInputSchema.safeParse({ shopping_list_id: "" });
+  describe("listId / items mutual exclusivity", () => {
+    it("rejects when neither listId nor items is provided", () => {
+      const result = addShoppingListToCartInputSchema.safeParse({});
       expect(result.success).toBe(false);
     });
 
-    it("accepts a non-empty shopping_list_id", () => {
+    it("rejects when both listId and items are provided", () => {
       const result = addShoppingListToCartInputSchema.safeParse({
-        shopping_list_id: SHOPPING_LIST_ID,
+        listId: SHORT_LIST_ID,
+        items: [{ upc: "0001111042578" }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("accepts listId alone", () => {
+      const result = addShoppingListToCartInputSchema.safeParse({ listId: SHORT_LIST_ID });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts items alone", () => {
+      const result = addShoppingListToCartInputSchema.safeParse({
+        items: [{ upc: "0001111042578", quantity: 2 }],
       });
       expect(result.success).toBe(true);
     });
   });
 
-  describe("locationId validation", () => {
-    it("rejects a locationId shorter than 8 characters", () => {
+  describe("storeId validation", () => {
+    it("rejects a storeId shorter than 8 characters", () => {
       const result = addShoppingListToCartInputSchema.safeParse({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: "7050084",
+        listId: SHORT_LIST_ID,
+        storeId: "7050084",
       });
       expect(result.success).toBe(false);
     });
 
-    it("rejects a locationId longer than 8 characters", () => {
+    it("rejects a storeId longer than 8 characters", () => {
       const result = addShoppingListToCartInputSchema.safeParse({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: "705008470",
+        listId: SHORT_LIST_ID,
+        storeId: "705008470",
       });
       expect(result.success).toBe(false);
     });
 
-    it("accepts a locationId that is exactly 8 characters", () => {
+    it("accepts a storeId that is exactly 8 characters", () => {
       const result = addShoppingListToCartInputSchema.safeParse({
-        shopping_list_id: SHOPPING_LIST_ID,
-        locationId: LOCATION_ID,
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
       });
       expect(result.success).toBe(true);
     });
 
-    it("accepts input when locationId is omitted", () => {
+    it("trims whitespace from storeId", () => {
+      const result = addShoppingListToCartInputSchema.parse({
+        listId: SHORT_LIST_ID,
+        storeId: `  ${LOCATION_ID}  `,
+      });
+      expect(result.storeId).toBe(LOCATION_ID);
+    });
+
+    it("accepts input when storeId is omitted", () => {
       const result = addShoppingListToCartInputSchema.safeParse({
-        shopping_list_id: SHOPPING_LIST_ID,
+        listId: SHORT_LIST_ID,
       });
       expect(result.success).toBe(true);
     });

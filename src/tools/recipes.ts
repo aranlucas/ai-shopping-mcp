@@ -1,8 +1,32 @@
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
+import type { OrderRecord } from "../utils/user-storage.js";
+
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { type ToolContext, textResult } from "./types.js";
+
+/**
+ * Ranks item names by purchase frequency across recent orders. Shared by
+ * `get_meal_planning_context` and `get_shopping_profile` so both surface the
+ * same "frequently purchased" signal.
+ */
+export function computeFrequentlyPurchasedItems(
+  recentOrders: OrderRecord[],
+  limit = 10,
+): Array<{ name: string; count: number }> {
+  const itemFrequency = new Map<string, number>();
+  for (const order of recentOrders) {
+    for (const item of order.items) {
+      const name = item.productName.toLowerCase();
+      itemFrequency.set(name, (itemFrequency.get(name) ?? 0) + 1);
+    }
+  }
+  return [...itemFrequency.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([name, count]) => ({ name, count }));
+}
 
 const mealPlanningInputSchema = z.object({
   numberOfMeals: z
@@ -55,7 +79,7 @@ export function registerRecipeTools(ctx: ToolContext) {
       ]).match(([pantry, equipment, recentOrders]) => {
         if (pantry.length === 0) {
           return textResult(
-            "Your pantry is empty. Add items to your pantry first using add_pantry_items, then try planning meals again.",
+            'Your pantry is empty. Add items first using add_to_inventory, e.g. {"inventory":"pantry","items":[{"name":"Eggs"}]}, then try planning meals again.',
           );
         }
 
@@ -114,19 +138,10 @@ export function registerRecipeTools(ctx: ToolContext) {
         }
 
         if (recentOrders.length > 0) {
-          const itemFrequency = new Map<string, number>();
-          for (const order of recentOrders) {
-            for (const item of order.items) {
-              const name = item.productName.toLowerCase();
-              itemFrequency.set(name, (itemFrequency.get(name) ?? 0) + 1);
-            }
-          }
-          const frequentItems = [...itemFrequency.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
+          const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
           if (frequentItems.length > 0) {
             parts.push("\n**Frequently Purchased (user preferences):**");
-            for (const [name, count] of frequentItems) {
+            for (const { name, count } of frequentItems) {
               parts.push(`- ${name} (ordered ${count}x)`);
             }
           }

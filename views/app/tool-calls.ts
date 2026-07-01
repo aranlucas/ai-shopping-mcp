@@ -32,13 +32,13 @@ export function createProductShoppingListCall({
 }
 
 export function addShoppingListToCartCall(
-  shoppingListId: string,
+  listId: string,
   modality: AddShoppingListToCartArgs["modality"] = "PICKUP",
 ): AddShoppingListToCartCall {
   return {
     name: "add_shopping_list_to_cart",
     arguments: {
-      shopping_list_id: shoppingListId,
+      listId,
       modality,
     },
   };
@@ -50,7 +50,7 @@ export function shoppingListIdFromResult(result: CallToolResult | undefined): st
     throw new Error("Shopping list id missing");
   }
 
-  const id = (structuredContent as { shopping_list_id?: unknown }).shopping_list_id;
+  const id = (structuredContent as { listId?: unknown }).listId;
   if (typeof id !== "string" || id.length === 0) {
     throw new Error("Shopping list id missing");
   }

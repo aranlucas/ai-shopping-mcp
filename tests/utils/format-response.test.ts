@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { components as LocationComponents } from "../../src/services/kroger/location.js";
+import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -16,9 +18,52 @@ import {
   formatPantryItemCompact,
   formatPantryListCompact,
   formatPreferredLocationCompact,
+  formatProductDetailMarkdown,
+  formatProductSearchLineMarkdown,
+  formatSearchProductsMarkdown,
   formatShoppingListCompact,
   formatShoppingListItemCompact,
+  formatStoreDetailMarkdown,
+  formatStoreLineMarkdown,
+  formatStoreListMarkdown,
+  formatWeeklyDealsMarkdown,
 } from "../../src/utils/format-response.js";
+
+type Product = ProductComponents["schemas"]["products.productModel"];
+type Location = LocationComponents["schemas"]["locations.location"];
+
+function makeProduct(overrides: Partial<Product> = {}): Product {
+  return {
+    upc: "0001111041700",
+    description: "Kroger 2% Reduced Fat Milk",
+    brand: "Kroger",
+    aisleLocations: [{ description: "Dairy", number: "21" }],
+    items: [
+      {
+        size: "1 gal",
+        price: { regular: 3.49, promo: 2.99 },
+        fulfillment: { curbside: true, instore: true, delivery: false, shiptohome: false },
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function makeLocation(overrides: Partial<Location> = {}): Location {
+  return {
+    locationId: "70500034",
+    name: "QFC Broadway",
+    chain: "QFC",
+    address: {
+      addressLine1: "417 Broadway E",
+      city: "Seattle",
+      state: "WA",
+      zipCode: "98102",
+    },
+    phone: "206-555-1234",
+    ...overrides,
+  };
+}
 
 // ----- Pantry Item Compact -----
 
@@ -271,5 +316,159 @@ describe("formatShoppingListCompact", () => {
     const result = formatShoppingListCompact(items);
     expect(result).toContain("1. Bread x1");
     expect(result).toContain("2. Milk x2");
+  });
+});
+
+// ----- Markdown formatters (model-facing content) -----
+
+describe("formatProductSearchLineMarkdown", () => {
+  it("includes upc, description, brand, size, price, pickup, and aisle", () => {
+    const line = formatProductSearchLineMarkdown(makeProduct());
+    expect(line).toBe(
+      "- upc=0001111041700 | Kroger 2% Reduced Fat Milk | Kroger | 1 gal | $2.99 (was $3.49) | pickup: yes | aisle: 21",
+    );
+  });
+
+  it("omits the 'was' price when there is no promo", () => {
+    const line = formatProductSearchLineMarkdown(
+      makeProduct({ items: [{ size: "1 gal", price: { regular: 3.49 } }] }),
+    );
+    expect(line).toContain("$3.49");
+    expect(line).not.toContain("was");
+  });
+
+  it("shows pickup: no when neither curbside nor instore fulfillment is available", () => {
+    const line = formatProductSearchLineMarkdown(
+      makeProduct({ items: [{ size: "1 gal", fulfillment: { curbside: false, instore: false } }] }),
+    );
+    expect(line).toContain("pickup: no");
+  });
+});
+
+describe("formatSearchProductsMarkdown", () => {
+  it("renders a heading and product lines per search term", () => {
+    const text = formatSearchProductsMarkdown([
+      { term: "milk", products: [makeProduct()], count: 1, failed: false },
+    ]);
+    expect(text).toContain("## milk");
+    expect(text).toContain("upc=0001111041700");
+  });
+
+  it("shows 'No results.' for an empty, non-failed term", () => {
+    const text = formatSearchProductsMarkdown([
+      { term: "unobtainium", products: [], count: 0, failed: false },
+    ]);
+    expect(text).toContain("## unobtainium");
+    expect(text).toContain("No results.");
+  });
+
+  it("shows a failure message for a failed term", () => {
+    const text = formatSearchProductsMarkdown([
+      { term: "eggs", products: [], count: 0, failed: true },
+    ]);
+    expect(text).toContain("Search failed for this term.");
+  });
+
+  it("ends with a reminder to reuse the upc for create_shopping_list", () => {
+    const text = formatSearchProductsMarkdown([
+      { term: "milk", products: [makeProduct()], count: 1, failed: false },
+    ]);
+    expect(text).toContain(
+      "To buy items, pass the exact upc values above to create_shopping_list.",
+    );
+  });
+});
+
+describe("formatProductDetailMarkdown", () => {
+  it("includes upc, description, brand, variant lines, and aisle", () => {
+    const text = formatProductDetailMarkdown(makeProduct());
+    expect(text).toContain("upc: 0001111041700");
+    expect(text).toContain("description: Kroger 2% Reduced Fat Milk");
+    expect(text).toContain("brand: Kroger");
+    expect(text).toContain("1 gal");
+    expect(text).toContain("$2.99 (was $3.49)");
+    expect(text).toContain("pickup: yes");
+    expect(text).toContain("aisle: Dairy 21");
+  });
+
+  it("does not mention images", () => {
+    const text = formatProductDetailMarkdown(
+      makeProduct({
+        images: [{ perspective: "front", default: true, sizes: [{ id: "a", url: "http://x" }] }],
+      }),
+    );
+    expect(text).not.toContain("images");
+    expect(text).not.toContain("http://x");
+  });
+});
+
+describe("formatStoreLineMarkdown / formatStoreListMarkdown", () => {
+  it("formats storeId, name, address, and phone", () => {
+    const line = formatStoreLineMarkdown(makeLocation());
+    expect(line).toBe(
+      "- storeId=70500034 | QFC Broadway | 417 Broadway E, Seattle WA 98102 | phone 206-555-1234",
+    );
+  });
+
+  it("returns 'No stores found.' for an empty list", () => {
+    expect(formatStoreListMarkdown([])).toBe("No stores found.");
+  });
+
+  it("formats one line per store", () => {
+    const text = formatStoreListMarkdown([
+      makeLocation(),
+      makeLocation({ locationId: "70500099" }),
+    ]);
+    expect(text).toContain("storeId=70500034");
+    expect(text).toContain("storeId=70500099");
+  });
+});
+
+describe("formatStoreDetailMarkdown", () => {
+  it("includes the store line plus hours when hours are present", () => {
+    const text = formatStoreDetailMarkdown(
+      makeLocation({
+        hours: {
+          timezone: "America/Los_Angeles",
+          monday: { open: "07:00", close: "22:00" },
+        },
+      }),
+    );
+    expect(text).toContain("storeId=70500034");
+    expect(text).toContain("hours:");
+    expect(text).toContain("monday: 07:00-22:00");
+  });
+
+  it("omits the hours block when no hours are present", () => {
+    const text = formatStoreDetailMarkdown(makeLocation());
+    expect(text).not.toContain("hours:");
+  });
+});
+
+describe("formatWeeklyDealsMarkdown", () => {
+  it("includes a validity header and dealCount when both dates are present", () => {
+    const text = formatWeeklyDealsMarkdown(
+      [{ title: "Ground Beef", details: "80% Lean", price: "$3.99/lb", savings: "Save $2.00" }],
+      "2026-06-25",
+      "2026-07-01",
+    );
+    expect(text).toContain("Deals valid 2026-06-25 to 2026-07-01. dealCount: 1");
+    expect(text).toContain("- Ground Beef | 80% Lean | $3.99/lb | Save $2.00");
+  });
+
+  it("falls back to a bare dealCount header when dates are missing", () => {
+    const text = formatWeeklyDealsMarkdown([{ title: "Bananas" }]);
+    expect(text).toContain("dealCount: 1");
+    expect(text).not.toContain("Deals valid");
+  });
+
+  it("includes warnings when present", () => {
+    const text = formatWeeklyDealsMarkdown([], undefined, undefined, ["Live refresh failed"]);
+    expect(text).toContain("warnings: Live refresh failed");
+  });
+
+  it("handles an empty deals array", () => {
+    const text = formatWeeklyDealsMarkdown([]);
+    expect(text).toBe("dealCount: 0");
   });
 });

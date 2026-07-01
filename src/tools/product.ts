@@ -3,36 +3,27 @@ import { ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
+import type { KrogerClients } from "../services/kroger/client.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
 
 import { notFoundError } from "../errors.js";
+import {
+  formatProductDetailMarkdown,
+  formatSearchProductsMarkdown,
+} from "../utils/format-response.js";
 import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
-import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
-// Compact representation for toon encoding of bulk search results.
-// Strips images, categories, extra aisle locations, itemId, shiptohome,
-// and inventory detail — the full data lives in structuredContent for the
-// React UI. Retains all size/price variants so the agent can present options.
-function compactProductForContent(product: Product) {
-  return {
-    upc: product.upc,
-    description: product.description,
-    brand: product.brand,
-    aisle: product.aisleLocations?.[0]?.description,
-    items: product.items?.map(({ itemId: _itemId, ...item }) => ({
-      size: item.size,
-      price: item.price?.promo ?? item.price?.regular,
-      ...(item.price?.promo != null && item.price.promo !== item.price?.regular
-        ? { was: item.price?.regular }
-        : {}),
-      pickup: !!(item.fulfillment?.curbside || item.fulfillment?.instore),
-    })),
-  };
-}
+export type ProductSearchResult = {
+  term: string;
+  products: Product[];
+  count: number;
+  failed: boolean;
+};
 
 export function logProductSearchError(term: string, error: AppError) {
   if (error.type === "AUTH_ERROR") {
@@ -41,6 +32,81 @@ export function logProductSearchError(term: string, error: AppError) {
   }
 
   console.error(`Error searching products for "${term}":`, error.message);
+}
+
+/**
+ * Searches Kroger products for each term in parallel. Shared by `search_products`
+ * and `shop_for_items` so both tools use the same query shape, sorting, and
+ * error handling.
+ */
+export async function searchProductsForTerms(
+  productClient: KrogerClients["productClient"],
+  terms: string[],
+  params: { locationId?: string; limitPerTerm: number },
+  onSearchComplete?: (completed: number, total: number) => Promise<void> | void,
+): Promise<ProductSearchResult[]> {
+  let completedSearches = 0;
+  const totalSearches = terms.length;
+
+  const searchPromises = terms.map(async (term) => {
+    const queryParams: Record<string, string | number> = {
+      "filter.term": term,
+      ...(params.locationId ? { "filter.locationId": params.locationId } : {}),
+      "filter.fulfillment": "ais",
+      "filter.limit": params.limitPerTerm,
+    };
+
+    const apiResult = await fromApiResponse(
+      productClient.GET("/v1/products", {
+        params: { query: queryParams },
+      }),
+      `search products for "${term}"`,
+    );
+
+    completedSearches++;
+    if (onSearchComplete) await onSearchComplete(completedSearches, totalSearches);
+
+    // Preserve Result type — map Ok to success shape, log and convert Err
+    return apiResult
+      .map((data) => {
+        const products = data?.data || [];
+        return {
+          term,
+          products,
+          count: products.length,
+          failed: false as const,
+        };
+      })
+      .orTee((error) => logProductSearchError(term, error))
+      .match(
+        (result) => result,
+        () => ({
+          term,
+          products: [] as Product[],
+          count: 0,
+          failed: true as const,
+        }),
+      );
+  });
+
+  const results = await Promise.all(searchPromises);
+
+  for (const result of results) {
+    if (!result.failed && result.count > 0) {
+      result.products.sort((a, b) => {
+        const aItem = a.items?.[0];
+        const bItem = b.items?.[0];
+        const aPickup = aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
+        const bPickup = bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
+
+        if (aPickup && !bPickup) return -1;
+        if (!aPickup && bPickup) return 1;
+        return 0;
+      });
+    }
+  }
+
+  return results;
 }
 
 export function registerProductTools(ctx: ToolContext) {
@@ -52,7 +118,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Search Products",
       description:
-        "Searches Kroger/QFC products using 1-10 search terms in parallel. Each term returns up to 10 products with UPCs, pricing, and pickup availability at the provided or preferred store.",
+        'Searches Kroger/QFC products using 1-10 search terms in parallel, up to limitPerTerm products each, with UPCs, pricing, and pickup availability at the given or preferred store. Example: {"terms":["milk","eggs"]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -65,21 +131,24 @@ export function registerProductTools(ctx: ToolContext) {
           .array(z.string().max(100))
           .min(1, { message: "At least one search term is required" })
           .max(10, { message: "Maximum 10 search terms allowed" })
-          .describe("Array of search terms for products (e.g., ['milk', 'bread', 'eggs'])"),
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" })
+          .describe("Search terms, e.g. ['milk', 'bread', 'eggs']"),
+        storeId: storeIdSchema
           .optional()
           .describe(
-            "Location ID to check product availability at a specific store. If omitted, the user's saved preferred location is used.",
+            "8-character storeId from search_stores. Uses your preferred store if omitted.",
           ),
+        limitPerTerm: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(10)
+          .default(5)
+          .describe("Max products to return per search term (1-10)"),
       }),
     },
-    async ({ terms, locationId }, extra) => {
-      const ITEMS_PER_TERM = 10;
-
-      // Resolve locationId: explicit arg → preferred location → omit filter
-      let resolvedLocationId: string | undefined = locationId;
+    async ({ terms, storeId, limitPerTerm }, extra) => {
+      // Resolve storeId: explicit arg → preferred store → omit filter
+      let resolvedLocationId: string | undefined = storeId;
       if (!resolvedLocationId) {
         const resolved = await safeResolveLocationId(ctx.storage, getProps().id, undefined);
         resolved.match(
@@ -90,64 +159,26 @@ export function registerProductTools(ctx: ToolContext) {
         );
       }
 
-      let completedSearches = 0;
-      const totalSearches = terms.length;
       const progressToken = extra?._meta?.progressToken;
+      const sendNotification = extra?.sendNotification;
 
-      const searchPromises = terms.map(async (term) => {
-        const queryParams: Record<string, string | number> = {
-          "filter.term": term,
-          ...(resolvedLocationId ? { "filter.locationId": resolvedLocationId } : {}),
-          "filter.fulfillment": "ais",
-          "filter.limit": ITEMS_PER_TERM,
-        };
+      const results = await searchProductsForTerms(
+        productClient,
+        terms,
+        { locationId: resolvedLocationId, limitPerTerm },
+        progressToken && sendNotification
+          ? async (completed, total) => {
+              await ResultAsync.fromPromise(
+                sendNotification({
+                  method: "notifications/progress",
+                  params: { progressToken, progress: completed, total },
+                }),
+                (e) => e,
+              ).orTee((e) => console.error("Failed to send progress notification:", e));
+            }
+          : undefined,
+      );
 
-        const apiResult = await fromApiResponse(
-          productClient.GET("/v1/products", {
-            params: { query: queryParams },
-          }),
-          `search products for "${term}"`,
-        );
-
-        completedSearches++;
-        if (progressToken && extra?.sendNotification) {
-          await ResultAsync.fromPromise(
-            extra.sendNotification({
-              method: "notifications/progress",
-              params: {
-                progressToken,
-                progress: completedSearches,
-                total: totalSearches,
-              },
-            }),
-            (e) => e,
-          ).orTee((e) => console.error("Failed to send progress notification:", e));
-        }
-
-        // Preserve Result type — map Ok to success shape, log and convert Err
-        return apiResult
-          .map((data) => {
-            const products = data?.data || [];
-            return {
-              term,
-              products,
-              count: products.length,
-              failed: false as const,
-            };
-          })
-          .orTee((error) => logProductSearchError(term, error))
-          .match(
-            (result) => result,
-            () => ({
-              term,
-              products: [] as never[],
-              count: 0,
-              failed: true as const,
-            }),
-          );
-      });
-
-      const results = await Promise.all(searchPromises);
       const totalProducts = results.reduce((sum, r) => sum + r.count, 0);
       const failedTerms = results.filter((r) => r.failed);
 
@@ -157,31 +188,8 @@ export function registerProductTools(ctx: ToolContext) {
         );
       }
 
-      for (const result of results) {
-        if (!result.failed && result.count > 0) {
-          result.products.sort((a, b) => {
-            const aItem = a.items?.[0];
-            const bItem = b.items?.[0];
-            const aPickup = aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
-            const bPickup = bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
-
-            if (aPickup && !bPickup) return -1;
-            if (!aPickup && bPickup) return 1;
-            return 0;
-          });
-        }
-      }
-
-      // Strip images, categories, extra aisle locations, and item IDs from the
-      // model context. Full product data is preserved in structuredContent for
-      // the React UI.
-      const resultsForContent = results.map((r) => ({
-        ...r,
-        products: r.products.map((product) => compactProductForContent(product)),
-      }));
-
       return {
-        ...toonResult({ termCount: terms.length, totalProducts, results: resultsForContent }),
+        content: [{ type: "text" as const, text: formatSearchProductsMarkdown(results) }],
         structuredContent: { _view: "search_products", results, totalProducts },
       };
     },
@@ -193,7 +201,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Get Product Details",
       description:
-        "Retrieves detailed Kroger/QFC product information by 13-digit UPC, including size variants, pricing, availability, images for the app view, and nutrition or fulfillment fields returned by Kroger.",
+        "Retrieves detailed Kroger/QFC product information by UPC, including size variants, pricing, and availability at a store.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -202,20 +210,16 @@ export function registerProductTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: z.object({
-        productId: z.string().length(13, {
-          message: "Product ID must be a 13-digit UPC number",
-        }),
-        locationId: z
-          .string()
-          .length(8, { message: "Location ID must be exactly 8 characters" })
+        productId: upcSchema.describe("UPC from search_products"),
+        storeId: storeIdSchema
           .optional()
-          .describe("Location ID to check product availability and pricing at a specific store"),
+          .describe("8-character storeId from search_stores to check availability and pricing"),
       }),
     },
-    async ({ productId, locationId }) => {
+    async ({ productId, storeId }) => {
       const queryParams: Record<string, string> = {};
-      if (locationId) {
-        queryParams["filter.locationId"] = locationId;
+      if (storeId) {
+        queryParams["filter.locationId"] = storeId;
       }
 
       const result = await fromApiResponse(
@@ -235,11 +239,8 @@ export function registerProductTools(ctx: ToolContext) {
       });
 
       return result.match((product) => {
-        // Strip images from model context; keep in structuredContent for UI.
-        const { images: _images, ...productForContent } = product;
-
         return {
-          ...toonResult(productForContent),
+          content: [{ type: "text" as const, text: formatProductDetailMarkdown(product) }],
           structuredContent: { _view: "get_product", product },
         };
       }, toMcpError);

@@ -234,7 +234,7 @@ describe("MCP client over Worker OAuth integration", () => {
     expect(toolNames).toContain("search_products");
     expect(toolNames).toContain("get_meal_planning_context");
     for (const tool of tools.tools) {
-      if (tool.name === "get_meal_planning_context") {
+      if (tool.name === "get_meal_planning_context" || tool.name === "get_shopping_profile") {
         expect(tool._meta?.ui).toBeUndefined();
       } else {
         expect(tool._meta?.ui).toBeDefined();
@@ -242,8 +242,8 @@ describe("MCP client over Worker OAuth integration", () => {
     }
     expect(client.getInstructions()).toContain("create_shopping_list");
     expect(client.getInstructions()).toContain("add_shopping_list_to_cart");
-    expect(client.getInstructions()).toContain("shopping_list_id");
-    expect(client.getInstructions()).toContain("shopping://user/kitchen-equipment");
+    expect(client.getInstructions()).toContain("listId");
+    expect(client.getInstructions()).toContain("get_shopping_profile");
     expect(client.getInstructions()).not.toContain(
       "pantry, equipment, shopping list, preferred location",
     );
@@ -251,7 +251,7 @@ describe("MCP client over Worker OAuth integration", () => {
 
     const result = await client.callTool({
       name: "search_products",
-      arguments: { terms: ["milk"], locationId: "70500847" },
+      arguments: { terms: ["milk"], storeId: "70500847" },
     });
 
     expect(result.isError).toBeFalsy();
@@ -262,11 +262,11 @@ describe("MCP client over Worker OAuth integration", () => {
   });
 
   // Regression: exercises the auth-props path (`getProps()`) through the real
-  // MCP handler. Tool calls that omit locationId and resource reads both call
+  // MCP handler. Tool calls that omit storeId and resource reads both call
   // `getProps()`, which reads `getMcpAuthContext()`. That context is only
   // populated by `createMcpHandler` — under the old `McpAgent.serve()` wiring it
   // was empty, so these threw "getProps() called outside an authenticated MCP
-  // request". The earlier test always passed an explicit locationId, so it never
+  // request". The earlier test always passed an explicit storeId, so it never
   // hit this path and the bug shipped.
   it("resolves auth props for tool calls and resource reads (getProps path)", async () => {
     const registeredClient = await registerClient();
@@ -274,7 +274,7 @@ describe("MCP client over Worker OAuth integration", () => {
     const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
     const client = await createAuthorizedMcpClient(token.access_token);
 
-    // No locationId → handler falls back to getProps().id to resolve the
+    // No storeId → handler falls back to getProps().id to resolve the
     // preferred location. This must not throw an auth error.
     const toolResult = await client.callTool({
       name: "search_products",

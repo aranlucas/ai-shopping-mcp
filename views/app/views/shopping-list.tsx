@@ -42,7 +42,7 @@ export function ShoppingListView({
   app: App | null;
   canCallTools: boolean;
 }) {
-  const { name, items, shopping_list_id } = data;
+  const { name, items, listId } = data;
   const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -52,9 +52,7 @@ export function ShoppingListView({
         <SectionHeader
           title={name || "Shopping List"}
           badge={
-            <span className="text-[11px] text-gray-400 font-mono truncate max-w-32">
-              {shopping_list_id}
-            </span>
+            <span className="text-[11px] text-gray-400 font-mono truncate max-w-32">{listId}</span>
           }
         />
         <EmptyState
@@ -89,7 +87,7 @@ export function ShoppingListView({
     setCheckoutError(null);
 
     try {
-      const result = await callTool(app, addShoppingListToCartCall(shopping_list_id, "PICKUP"));
+      const result = await callTool(app, addShoppingListToCartCall(listId, "PICKUP"));
       if (result?.isError) {
         throw new Error(toolResultErrorMessage(result, "Failed to add shopping list to cart"));
       }
@@ -117,9 +115,7 @@ export function ShoppingListView({
       <SectionHeader
         title={name || "Shopping List"}
         badge={
-          <span className="text-[11px] text-gray-400 font-mono truncate max-w-32">
-            {shopping_list_id}
-          </span>
+          <span className="text-[11px] text-gray-400 font-mono truncate max-w-32">{listId}</span>
         }
         subtitle={`${items.length} item${items.length === 1 ? "" : "s"}`}
       />
