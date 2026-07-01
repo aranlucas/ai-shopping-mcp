@@ -2,15 +2,15 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { AddToCartView } from "../app/views/AddToCart.js";
-import { KitchenEquipmentView } from "../app/views/KitchenEquipment.js";
-import { LocationDetailView } from "../app/views/LocationDetail.js";
-import { LocationResultsView } from "../app/views/LocationResults.js";
-import { PantryView } from "../app/views/Pantry.js";
-import { ProductDetailView } from "../app/views/ProductDetail.js";
-import { ProductSearchView } from "../app/views/ProductSearch.js";
-import { ShoppingListView } from "../app/views/ShoppingList.js";
-import { WeeklyDealsView } from "../app/views/WeeklyDeals.js";
+import { AddToCartView } from "../app/views/add-to-cart.js";
+import { KitchenEquipmentView } from "../app/views/kitchen-equipment.js";
+import { LocationDetailView } from "../app/views/location-detail.js";
+import { LocationResultsView } from "../app/views/location-results.js";
+import { PantryView } from "../app/views/pantry.js";
+import { ProductDetailView } from "../app/views/product-detail.js";
+import { ProductSearchView } from "../app/views/product-search.js";
+import { ShoppingListView } from "../app/views/shopping-list.js";
+import { WeeklyDealsView } from "../app/views/weekly-deals.js";
 import {
   mockAddToCart,
   mockKitchenEquipment,
@@ -21,7 +21,7 @@ import {
   mockProductSearch,
   mockShoppingList,
   mockWeeklyDeals,
-} from "./mockData.js";
+} from "./mock-data.js";
 
 const VIEWS = [
   "weekly_deals",

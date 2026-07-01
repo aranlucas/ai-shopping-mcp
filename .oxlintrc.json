@@ -1,9 +1,11 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["unicorn"],
   "jsPlugins": ["eslint-plugin-perfectionist"],
   "categories": {},
   "rules": {
-    "perfectionist/sort-imports": "error"
+    "perfectionist/sort-imports": "error",
+    "unicorn/filename-case": ["error", { "case": "kebabCase" }]
   },
   "settings": {
     "jsx-a11y": {
@@ -38,5 +40,5 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": []
+  "ignorePatterns": ["worker-configuration.d.ts"]
 }

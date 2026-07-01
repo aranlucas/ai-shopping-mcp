@@ -621,7 +621,7 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
 
   return new Response(htmlContent, {
     headers: {
-      "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src https:; form-action 'self' ${explicitOrigin}; frame-ancestors 'none'; base-uri 'none'`,
+      "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src https:; connect-src 'self'; form-action 'self' ${explicitOrigin}; frame-ancestors 'none'; base-uri 'none'`,
       "Content-Type": "text/html; charset=utf-8",
       "Set-Cookie": csrf.setCookie,
       "X-Frame-Options": "DENY",

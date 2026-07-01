@@ -23,7 +23,6 @@ import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
-import { withMcpOriginProtection } from "./utils/mcp-security.js";
 import { createUserStorage } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
@@ -148,7 +147,7 @@ class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
 
 export default new OAuthProvider({
   apiHandlers: {
-    "/mcp": withMcpOriginProtection(mcpApiHandler),
+    "/mcp": mcpApiHandler,
     "/userinfo": UserInfoHandler,
   },
   // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
