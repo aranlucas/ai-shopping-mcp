@@ -1,16 +1,17 @@
 import type {
-  AddToCartContent,
-  LocationDetailContent,
-  LocationResultsContent,
+  AddShoppingListToCartContent,
+  KitchenEquipmentContent,
   PantryListContent,
   ProductDetailContent,
   ProductSearchResultsContent,
   ShoppingListContent,
+  StoreDetailContent,
+  StoreResultsContent,
   WeeklyDealsContent,
 } from "../shared/types.js";
 
-export const mockAddToCart: AddToCartContent = {
-  _view: "add_to_cart",
+export const mockAddToCart: AddShoppingListToCartContent = {
+  _view: "add_shopping_list_to_cart",
   shopping_list_id: "user-123:session:dev-session:list:abc12345",
   name: "Tuesday Dinner",
   items: [
@@ -111,7 +112,7 @@ export const mockProductSearch: ProductSearchResultsContent = {
 };
 
 export const mockProductDetail: ProductDetailContent = {
-  _view: "get_product_details",
+  _view: "get_product",
   product: {
     upc: "0001111042578",
     description: "Organic Whole Milk",
@@ -130,9 +131,9 @@ export const mockProductDetail: ProductDetailContent = {
   },
 };
 
-export const mockLocationResults: LocationResultsContent = {
-  _view: "search_locations",
-  locations: [
+export const mockLocationResults: StoreResultsContent = {
+  _view: "search_stores",
+  stores: [
     {
       locationId: "70500847",
       name: "QFC",
@@ -160,9 +161,9 @@ export const mockLocationResults: LocationResultsContent = {
   ],
 };
 
-export const mockLocationDetail: LocationDetailContent = {
-  _view: "get_location_details",
-  location: {
+export const mockLocationDetail: StoreDetailContent = {
+  _view: "get_store",
+  store: {
     locationId: "70500847",
     name: "QFC",
     chain: "QFC",
@@ -182,7 +183,7 @@ export const mockLocationDetail: LocationDetailContent = {
 };
 
 export const mockPantry: PantryListContent = {
-  _view: "manage_pantry",
+  _view: "pantry",
   items: [
     { productName: "Eggs", quantity: 12, addedAt: "2026-03-20" },
     {
@@ -200,6 +201,16 @@ export const mockPantry: PantryListContent = {
     },
   ],
   actionDetail: "4 items in pantry",
+};
+
+export const mockKitchenEquipment: KitchenEquipmentContent = {
+  _view: "kitchen_equipment",
+  items: [
+    { equipmentName: "Dutch oven", category: "Cooking", addedAt: "2026-03-18" },
+    { equipmentName: "Sheet pan", category: "Baking", addedAt: "2026-03-19" },
+    { equipmentName: "Immersion blender", category: "Appliances", addedAt: "2026-03-20" },
+  ],
+  actionDetail: "3 items saved",
 };
 
 export const mockShoppingList: ShoppingListContent = {

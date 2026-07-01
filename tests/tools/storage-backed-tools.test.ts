@@ -226,15 +226,14 @@ describe("storage-backed tools", () => {
   it("adds pantry items and returns structured view content", async () => {
     registerPantryTools(makeContext());
 
-    const result = await getCapturedHandler("manage_pantry")({
-      action: "add",
+    const result = await getCapturedHandler("add_pantry_items")({
       items: [{ productName: "Milk" }],
     });
 
     expect(textFromResult(result)).toContain("Added 1 item(s) to pantry");
     expect(result).toMatchObject({
       structuredContent: {
-        _view: "manage_pantry",
+        _view: "pantry",
         actionDetail: "Added 1 item(s)",
         items: [
           {
@@ -249,7 +248,7 @@ describe("storage-backed tools", () => {
   it("rejects pantry add without items before touching storage", async () => {
     registerPantryTools(makeContext());
 
-    const result = await getCapturedHandler("manage_pantry")({ action: "add" });
+    const result = await getCapturedHandler("add_pantry_items")({});
 
     expect(isErrorResult(result)).toBe(true);
     expect(textFromResult(result)).toContain("'items' array is required");
@@ -258,7 +257,7 @@ describe("storage-backed tools", () => {
   it("rejects pantry remove without items before touching storage", async () => {
     registerPantryTools(makeContext());
 
-    const result = await getCapturedHandler("manage_pantry")({ action: "remove" });
+    const result = await getCapturedHandler("remove_pantry_items")({});
 
     expect(isErrorResult(result)).toBe(true);
     expect(textFromResult(result)).toContain("'items' array is required");
@@ -267,15 +266,15 @@ describe("storage-backed tools", () => {
   it("removes and clears pantry items", async () => {
     const storage = makeStorage();
     registerPantryTools(makeContext(storage));
-    const handler = getCapturedHandler("manage_pantry");
+    const addHandler = getCapturedHandler("add_pantry_items");
+    const removeHandler = getCapturedHandler("remove_pantry_items");
+    const clearHandler = getCapturedHandler("clear_pantry");
 
-    await handler({
-      action: "add",
+    await addHandler({
       items: [{ productName: "Eggs" }, { productName: "Bread", quantity: 2 }],
     });
 
-    const removeResult = await handler({
-      action: "remove",
+    const removeResult = await removeHandler({
       items: [{ productName: "Eggs" }],
     });
     expect(textFromResult(removeResult)).toContain("Removed 1 item(s) from pantry");
@@ -285,9 +284,10 @@ describe("storage-backed tools", () => {
       },
     });
 
-    const clearResult = await handler({ action: "clear" });
+    const clearResult = await clearHandler({});
     expect(clearResult).toMatchObject({
       structuredContent: {
+        _view: "pantry",
         actionDetail: "Pantry cleared",
         items: [],
       },
@@ -298,38 +298,57 @@ describe("storage-backed tools", () => {
     unauthenticate();
     registerPantryTools(makeContext());
 
-    await expect(getCapturedHandler("manage_pantry")({ action: "clear" })).rejects.toThrow(
+    await expect(getCapturedHandler("clear_pantry")({})).rejects.toThrow(
       "outside an authenticated MCP request",
     );
   });
 
   it("adds, removes, and clears kitchen equipment", async () => {
     registerEquipmentTools(makeContext());
-    const handler = getCapturedHandler("manage_equipment");
+    const addHandler = getCapturedHandler("add_kitchen_equipment");
+    const removeHandler = getCapturedHandler("remove_kitchen_equipment");
+    const clearHandler = getCapturedHandler("clear_kitchen_equipment");
 
-    const addResult = await handler({
-      action: "add",
+    const addResult = await addHandler({
       items: [{ equipmentName: "Dutch oven", category: "Cooking" }],
     });
     expect(textFromResult(addResult)).toContain("Added 1 item(s) to equipment");
-    expect(textFromResult(addResult)).toContain("Dutch oven");
+    expect(addResult).toMatchObject({
+      structuredContent: {
+        _view: "kitchen_equipment",
+        actionDetail: "Added 1 item(s)",
+        items: [{ equipmentName: "Dutch oven", category: "Cooking" }],
+      },
+    });
 
-    const removeResult = await handler({
-      action: "remove",
+    const removeResult = await removeHandler({
       equipmentName: "Dutch oven",
     });
     expect(textFromResult(removeResult)).toContain("Item removed from equipment");
+    expect(removeResult).toMatchObject({
+      structuredContent: {
+        _view: "kitchen_equipment",
+        actionDetail: "Removed Dutch oven",
+        items: [],
+      },
+    });
 
-    const clearResult = await handler({ action: "clear" });
+    const clearResult = await clearHandler({});
     expect(textFromResult(clearResult)).toBe("Equipment cleared successfully.");
+    expect(clearResult).toMatchObject({
+      structuredContent: {
+        _view: "kitchen_equipment",
+        actionDetail: "Kitchen equipment cleared",
+        items: [],
+      },
+    });
   });
 
   it("validates equipment mutation arguments", async () => {
     registerEquipmentTools(makeContext());
-    const handler = getCapturedHandler("manage_equipment");
 
-    const addResult = await handler({ action: "add" });
-    const removeResult = await handler({ action: "remove" });
+    const addResult = await getCapturedHandler("add_kitchen_equipment")({});
+    const removeResult = await getCapturedHandler("remove_kitchen_equipment")({});
 
     expect(isErrorResult(addResult)).toBe(true);
     expect(textFromResult(addResult)).toContain("'items' array is required");
@@ -349,7 +368,7 @@ describe("storage-backed tools", () => {
     });
     registerOrderTools(makeContext(storage));
 
-    const result = await getCapturedHandler("mark_order_placed")({
+    const result = await getCapturedHandler("record_order")({
       items: [
         { productId: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 },
         { productId: "0000000000002", productName: "Bananas", quantity: 3 },
@@ -369,10 +388,10 @@ describe("storage-backed tools", () => {
     expect(storedOrders[0]?.orderId).toMatch(/^ORD-/);
   });
 
-  it("returns structured content with _view: 'mark_order_placed' and all order fields", async () => {
+  it("returns structured content with _view: 'record_order' and all order fields", async () => {
     registerOrderTools(makeContext());
 
-    const result = await getCapturedHandler("mark_order_placed")({
+    const result = await getCapturedHandler("record_order")({
       items: [{ productId: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
       locationId: "70500847",
       notes: "Test note",
@@ -380,7 +399,7 @@ describe("storage-backed tools", () => {
 
     expect(result).toMatchObject({
       structuredContent: {
-        _view: "mark_order_placed",
+        _view: "record_order",
         items: [{ productId: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
         totalItems: 2,
         estimatedTotal: 3,
@@ -397,7 +416,7 @@ describe("storage-backed tools", () => {
   it("sets estimatedTotal to undefined when no items carry a price", async () => {
     registerOrderTools(makeContext());
 
-    const result = await getCapturedHandler("mark_order_placed")({
+    const result = await getCapturedHandler("record_order")({
       items: [
         { productId: "0000000000001", productName: "Apples", quantity: 2 },
         { productId: "0000000000002", productName: "Bananas", quantity: 3 },
@@ -410,7 +429,7 @@ describe("storage-backed tools", () => {
         structuredContent: { _view: string; estimatedTotal?: number; totalItems: number };
       }
     ).structuredContent;
-    expect(sc._view).toBe("mark_order_placed");
+    expect(sc._view).toBe("record_order");
     expect(sc.totalItems).toBe(5);
     expect(sc.estimatedTotal).toBeUndefined();
   });
@@ -446,7 +465,8 @@ describe("storage-backed tools", () => {
 
     const result = await handler({ name: "Empty", items: [] });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("at least one item");
   });
 
   it("returns a fresh shopping_list_id on each call so lists don't collide", async () => {
@@ -513,13 +533,13 @@ describe("storage-backed tools", () => {
       204,
     );
     registerCartTools(finalCtx);
-    const addHandler = getCapturedHandler("add_to_cart");
+    const addHandler = getCapturedHandler("add_shopping_list_to_cart");
 
     const result = await addHandler({ shopping_list_id: shoppingListId });
 
     expect(isErrorResult(result)).toBe(false);
     const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
-    expect(sc["_view"]).toBe("add_to_cart");
+    expect(sc["_view"]).toBe("add_shopping_list_to_cart");
     expect(sc["shopping_list_id"]).toBe(shoppingListId);
     expect(sc["name"]).toBe("Dinner");
     expect((sc["items"] as unknown[]).length).toBe(1);
@@ -539,7 +559,7 @@ describe("storage-backed tools", () => {
 
     const ctx = makeContextWithElicit(storage, { action: "accept" });
     registerCartTools(ctx);
-    const handler = getCapturedHandler("add_to_cart");
+    const handler = getCapturedHandler("add_shopping_list_to_cart");
 
     const result = await handler({
       shopping_list_id: listId,
@@ -558,14 +578,14 @@ describe("storage-backed tools", () => {
   it("refuses when the shopping_list_id doesn't belong to the user", async () => {
     const ctx = makeContextWithElicit(makeStorage(), { action: "accept" });
     registerCartTools(ctx);
-    const handler = getCapturedHandler("add_to_cart");
+    const handler = getCapturedHandler("add_shopping_list_to_cart");
 
     const result = await handler({ shopping_list_id: "user-999:session:x:list:abc" });
     expect(isErrorResult(result)).toBe(true);
     expect(textFromResult(result)).toContain("does not belong");
   });
 
-  it("aborts add_to_cart when the user declines elicitation", async () => {
+  it("aborts add_shopping_list_to_cart when the user declines elicitation", async () => {
     const storage = makeStorage();
     const listId = `${"user-123:session:session-1"}:list:abc`;
     await storage.shoppingList.create(listId, "Dinner", [
@@ -585,13 +605,13 @@ describe("storage-backed tools", () => {
       set: async () => {},
     } as unknown as UserStorage["preferredLocation"];
 
-    const handler = getCapturedHandler("add_to_cart");
+    const handler = getCapturedHandler("add_shopping_list_to_cart");
     const result = await handler({ shopping_list_id: listId });
     expect(isErrorResult(result)).toBe(true);
     expect(textFromResult(result)).toContain("cancelled");
   });
 
-  it("searches locations with query filters and returns structured locations", async () => {
+  it("searches stores with query filters and returns structured stores", async () => {
     const getCalls: unknown[] = [];
     const location = {
       locationId: "70500847",
@@ -618,7 +638,7 @@ describe("storage-backed tools", () => {
     } as unknown as ToolContext["clients"];
     registerLocationTools(context);
 
-    const result = await getCapturedHandler("search_locations")({
+    const result = await getCapturedHandler("search_stores")({
       zipCodeNear: "98122",
       limit: 3,
       chain: "QFC",
@@ -627,8 +647,8 @@ describe("storage-backed tools", () => {
     expect(textFromResult(result)).toContain("count: 1");
     expect(result).toMatchObject({
       structuredContent: {
-        _view: "search_locations",
-        locations: [{ locationId: "70500847", name: "QFC Broadway" }],
+        _view: "search_stores",
+        stores: [{ locationId: "70500847", name: "QFC Broadway" }],
       },
     });
     expect(getCalls[0]).toMatchObject({
@@ -642,7 +662,7 @@ describe("storage-backed tools", () => {
     });
   });
 
-  it("returns structured location details for a valid location ID", async () => {
+  it("returns structured store details for a valid location ID", async () => {
     const location = {
       locationId: "70500847",
       name: "QFC Broadway",
@@ -666,15 +686,15 @@ describe("storage-backed tools", () => {
     } as unknown as ToolContext["clients"];
     registerLocationTools(context);
 
-    const result = await getCapturedHandler("get_location_details")({
+    const result = await getCapturedHandler("get_store")({
       locationId: "70500847",
     });
 
     expect(isErrorResult(result)).toBe(false);
     expect(result).toMatchObject({
       structuredContent: {
-        _view: "get_location_details",
-        location: {
+        _view: "get_store",
+        store: {
           locationId: "70500847",
           name: "QFC Broadway",
           chain: "QFC",
@@ -696,7 +716,7 @@ describe("storage-backed tools", () => {
     } as unknown as ToolContext["clients"];
     registerLocationTools(context);
 
-    const result = await getCapturedHandler("get_location_details")({
+    const result = await getCapturedHandler("get_store")({
       locationId: "70500847",
     });
 
@@ -738,11 +758,20 @@ describe("storage-backed tools", () => {
     } as unknown as ToolContext["clients"];
     registerLocationTools(context);
 
-    const result = await getCapturedHandler("set_preferred_location")({
+    const result = await getCapturedHandler("set_preferred_store")({
       locationId: "70500847",
     });
 
     expect(textFromResult(result)).toContain("Preferred location set successfully");
+    expect(result).toMatchObject({
+      structuredContent: {
+        _view: "set_preferred_store",
+        store: {
+          locationId: "70500847",
+          locationName: "QFC Broadway",
+        },
+      },
+    });
     expect(savedLocations).toMatchObject([
       {
         locationId: "70500847",
@@ -765,7 +794,7 @@ describe("storage-backed tools", () => {
     } as unknown as ToolContext["clients"];
     registerLocationTools(context);
 
-    const result = await getCapturedHandler("set_preferred_location")({
+    const result = await getCapturedHandler("set_preferred_store")({
       locationId: "70500847",
     });
 

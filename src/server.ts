@@ -47,7 +47,7 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
 const SERVER_INFO = { name: "kroger-ai-assistant", version: "1.0.0" } as const;
 const SERVER_OPTIONS = {
   instructions:
-    "AI shopping assistant for Kroger/QFC stores. Manage shopping lists, search products, find store locations, track pantry inventory, and plan meals. Use MCP Resources to read user context (pantry, equipment, preferred location, order history) before making suggestions. Create shopping lists with create_shopping_list and pass the returned shopping_list_id to add_to_cart.",
+    "AI shopping assistant for Kroger/QFC stores. Search stores and products, manage pantry and kitchen equipment, create shopping lists, add shopping lists to the Kroger cart, record completed orders, and gather meal-planning context. Read MCP resources such as shopping://user/pantry, shopping://user/kitchen-equipment, shopping://user/preferred-store, and shopping://user/order-history before making personalized suggestions. Create shopping lists with create_shopping_list and pass the returned shopping_list_id to add_shopping_list_to_cart.",
 } as const;
 
 /**

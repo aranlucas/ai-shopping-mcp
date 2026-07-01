@@ -156,27 +156,27 @@ describe("registerResources", () => {
     expect(decoded.error).toContain("Failed to fetch pantry data");
   });
 
-  it("returns equipment inventory and handles storage failures", async () => {
+  it("returns kitchen equipment and handles storage failures", async () => {
     registerResources(
       makeContext(makeStorage({ equipment: [{ equipmentName: "Oven", addedAt: "x" }] })),
     );
-    expect(decodeResource(await callResource("Equipment Inventory")).itemCount).toBe(1);
+    expect(decodeResource(await callResource("Kitchen Equipment")).itemCount).toBe(1);
 
     testState.capturedResources.length = 0;
     registerResources(makeContext(makeStorage({ equipmentThrows: true })));
-    expect(decodeResource(await callResource("Equipment Inventory")).error).toContain(
+    expect(decodeResource(await callResource("Kitchen Equipment")).error).toContain(
       "Failed to fetch equipment data",
     );
 
     testState.capturedResources.length = 0;
     unauthenticate();
     registerResources(makeContext(makeStorage()));
-    await expect(callResource("Equipment Inventory")).rejects.toThrow(
+    await expect(callResource("Kitchen Equipment")).rejects.toThrow(
       "outside an authenticated MCP request",
     );
   });
 
-  it("returns the preferred location, a prompt when unset, and errors", async () => {
+  it("returns the preferred store, a prompt when unset, and errors", async () => {
     registerResources(
       makeContext(
         makeStorage({
@@ -190,24 +190,27 @@ describe("registerResources", () => {
         }),
       ),
     );
-    expect(decodeResource(await callResource("Preferred Store Location")).locationName).toBe("QFC");
+    expect(decodeResource(await callResource("Preferred Store")).locationName).toBe("QFC");
 
     testState.capturedResources.length = 0;
     registerResources(makeContext(makeStorage({ location: null })));
-    expect(decodeResource(await callResource("Preferred Store Location")).message).toContain(
-      "No preferred location set",
-    );
+    const unset = decodeResource(await callResource("Preferred Store"));
+    expect(unset.message).toContain("No preferred store set");
+    expect(unset.instruction).toContain("search_stores");
+    expect(unset.instruction).toContain("set_preferred_store");
+    expect(unset.instruction).not.toContain("search_locations");
+    expect(unset.instruction).not.toContain("set_preferred_location");
 
     testState.capturedResources.length = 0;
     registerResources(makeContext(makeStorage({ locationThrows: true })));
-    expect(decodeResource(await callResource("Preferred Store Location")).error).toContain(
-      "Failed to fetch location data",
+    expect(decodeResource(await callResource("Preferred Store")).error).toContain(
+      "Failed to fetch preferred store data",
     );
 
     testState.capturedResources.length = 0;
     unauthenticate();
     registerResources(makeContext(makeStorage()));
-    await expect(callResource("Preferred Store Location")).rejects.toThrow(
+    await expect(callResource("Preferred Store")).rejects.toThrow(
       "outside an authenticated MCP request",
     );
   });
@@ -239,8 +242,36 @@ describe("registerResources", () => {
   it("does not register a session shopping list resource", () => {
     registerResources(makeContext(makeStorage()));
 
+    expect(testState.capturedResources.map((resource) => resource.name)).toEqual([
+      "Pantry Inventory",
+      "Kitchen Equipment",
+      "Preferred Store",
+      "Order History",
+      "Product Details",
+    ]);
     expect(testState.capturedResources.map((resource) => resource.name)).not.toContain(
       "Shopping List",
+    );
+  });
+
+  it("registers workflow-first resource URIs", () => {
+    registerResources(makeContext(makeStorage()));
+
+    expect(testState.capturedResources.map((resource) => resource.uriOrTemplate)).toEqual(
+      expect.arrayContaining([
+        "shopping://user/pantry",
+        "shopping://user/kitchen-equipment",
+        "shopping://user/preferred-store",
+        "shopping://user/order-history",
+      ]),
+    );
+    expect(testState.capturedResources.map((resource) => resource.uriOrTemplate)).not.toEqual(
+      expect.arrayContaining([
+        "shopping://user/equipment",
+        "shopping://user/location",
+        "shopping://user/orders",
+        "shopping://user/shopping-list",
+      ]),
     );
   });
 
@@ -350,7 +381,7 @@ describe("registerResources", () => {
         ),
       );
 
-      const complete = getCompleteFn("Product Details", "productId");
+      const complete = getCompleteFn("Product Details", "upc");
       const all = await complete("");
       expect(all).toContain("2222222222222");
       expect(all).not.toContain("short");
@@ -381,7 +412,7 @@ describe("registerResources", () => {
         ),
       );
 
-      const complete = getCompleteFn("Product Details", "productId");
+      const complete = getCompleteFn("Product Details", "upc");
       const all = await complete("");
       const occurrences = all.filter((upc) => upc === "3333333333333").length;
       expect(occurrences).toBe(1);
@@ -396,7 +427,7 @@ describe("registerResources", () => {
         ),
       );
 
-      const complete = getCompleteFn("Product Details", "productId");
+      const complete = getCompleteFn("Product Details", "upc");
       const all = await complete("");
       expect(all).toEqual([]);
     });
@@ -405,7 +436,7 @@ describe("registerResources", () => {
       registerResources(makeContext(makeStorage()));
       unauthenticate();
 
-      const complete = getCompleteFn("Product Details", "productId");
+      const complete = getCompleteFn("Product Details", "upc");
       await expect(complete("1")).rejects.toThrow("outside an authenticated MCP request");
     });
   });

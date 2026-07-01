@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { AddToCartView } from "./app/views/AddToCart.js";
+import { KitchenEquipmentView } from "./app/views/KitchenEquipment.js";
 import { LocationDetailView } from "./app/views/LocationDetail.js";
 import { LocationResultsView } from "./app/views/LocationResults.js";
 import { OrderHistoryView } from "./app/views/OrderHistory.js";
@@ -97,23 +98,28 @@ function getPartialLoadingMessage(viewKey: string | null, args: Record<string, u
       if (terms?.length) return `Searching for ${terms.join(", ")}…`;
       return "Searching products…";
     }
-    case "get_product_details":
+    case "get_product":
       return "Loading product…";
-    case "search_locations":
-      return "Searching locations…";
-    case "get_location_details":
-      return "Loading location…";
+    case "search_stores":
+      return "Searching stores…";
+    case "get_store":
+      return "Loading store…";
     case "create_shopping_list":
       return "Creating shopping list…";
-    case "add_to_cart":
+    case "add_shopping_list_to_cart":
       return "Adding to cart…";
-    case "manage_pantry": {
-      const action = args.action as string | undefined;
-      if (action === "add") return "Adding to pantry…";
-      if (action === "remove") return "Removing from pantry…";
-      if (action === "clear") return "Clearing pantry…";
-      return "Updating pantry…";
-    }
+    case "add_pantry_items":
+      return "Adding to pantry…";
+    case "remove_pantry_items":
+      return "Removing from pantry…";
+    case "clear_pantry":
+      return "Clearing pantry…";
+    case "add_kitchen_equipment":
+      return "Adding kitchen equipment…";
+    case "remove_kitchen_equipment":
+      return "Removing kitchen equipment…";
+    case "clear_kitchen_equipment":
+      return "Clearing kitchen equipment…";
     case "get_weekly_deals":
       return "Fetching weekly deals…";
     default:
@@ -141,8 +147,13 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
         case "get_weekly_deals":
           return <WeeklyDealsSkeleton />;
         case "create_shopping_list":
-        case "manage_pantry":
-        case "mark_order_placed":
+        case "add_pantry_items":
+        case "remove_pantry_items":
+        case "clear_pantry":
+        case "add_kitchen_equipment":
+        case "remove_kitchen_equipment":
+        case "clear_kitchen_equipment":
+        case "record_order":
           return <ListSkeleton />;
         default: {
           const message = getPartialLoadingMessage(toolName, partialArgs);
@@ -163,9 +174,9 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
           hostContext={hostContext}
         />
       );
-    case "get_product_details":
+    case "get_product":
       return <ProductDetailView data={data} app={app} canCallTools={canCallTools} />;
-    case "search_locations":
+    case "search_stores":
       return (
         <LocationResultsView
           data={data}
@@ -175,14 +186,18 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
           hostContext={hostContext}
         />
       );
-    case "get_location_details":
+    case "get_store":
       return <LocationDetailView data={data} app={app} canCallTools={canCallTools} />;
     case "create_shopping_list":
       return <ShoppingListView data={data} app={app} canCallTools={canCallTools} />;
-    case "add_to_cart":
+    case "add_shopping_list_to_cart":
       return <AddToCartView data={data} />;
-    case "manage_pantry":
+    case "pantry":
       return <PantryView data={data} setData={setData} app={app} canCallTools={canCallTools} />;
+    case "kitchen_equipment":
+      return (
+        <KitchenEquipmentView data={data} setData={setData} app={app} canCallTools={canCallTools} />
+      );
     case "get_weekly_deals":
       return (
         <WeeklyDealsView
@@ -192,7 +207,7 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
           hostContext={hostContext}
         />
       );
-    case "mark_order_placed":
+    case "record_order":
       return <OrderHistoryView data={data} />;
     default:
       // `parseStructuredContent` only yields known views, so this is unreachable

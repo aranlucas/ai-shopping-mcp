@@ -9,7 +9,7 @@ import { notFoundError } from "../errors.js";
 import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { type ToolContext, textResult } from "./types.js";
+import { type ToolContext, errorResult } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -52,7 +52,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Search Products",
       description:
-        "Searches for Kroger products using multiple search terms in parallel. Accepts 1–25 terms. Each term returns up to 10 items with pricing and availability. Results sorted by pickup availability.",
+        "Searches Kroger/QFC products using 1-10 search terms in parallel. Each term returns up to 10 products with UPCs, pricing, and pickup availability at the provided or preferred store.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -64,7 +64,7 @@ export function registerProductTools(ctx: ToolContext) {
         terms: z
           .array(z.string().max(100))
           .min(1, { message: "At least one search term is required" })
-          .max(25, { message: "Maximum 25 search terms allowed" })
+          .max(10, { message: "Maximum 10 search terms allowed" })
           .describe("Array of search terms for products (e.g., ['milk', 'bread', 'eggs'])"),
         locationId: z
           .string()
@@ -151,12 +151,8 @@ export function registerProductTools(ctx: ToolContext) {
       const totalProducts = results.reduce((sum, r) => sum + r.count, 0);
       const failedTerms = results.filter((r) => r.failed);
 
-      if (totalProducts === 0 && failedTerms.length === 0) {
-        return textResult("No products found matching your search terms.");
-      }
-
       if (totalProducts === 0 && failedTerms.length > 0) {
-        return textResult(
+        return errorResult(
           `Search failed for: ${failedTerms.map((r) => r.term).join(", ")}. Please try again.`,
         );
       }
@@ -193,11 +189,11 @@ export function registerProductTools(ctx: ToolContext) {
 
   registerAppTool(
     ctx.server,
-    "get_product_details",
+    "get_product",
     {
       title: "Get Product Details",
       description:
-        "Retrieves detailed information about a specific Kroger product by its 13-digit UPC, including pricing, availability, and nutritional information.",
+        "Retrieves detailed Kroger/QFC product information by 13-digit UPC, including size variants, pricing, availability, images for the app view, and nutrition or fulfillment fields returned by Kroger.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -244,7 +240,7 @@ export function registerProductTools(ctx: ToolContext) {
 
         return {
           ...toonResult(productForContent),
-          structuredContent: { _view: "get_product_details", product },
+          structuredContent: { _view: "get_product", product },
         };
       }, toMcpError);
     },

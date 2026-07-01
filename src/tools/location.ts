@@ -6,6 +6,12 @@ import type { components as LocationComponents } from "../services/kroger/locati
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
+import { notFoundError } from "../errors.js";
+import { formatPreferredLocationCompact } from "../utils/format-response.js";
+import { fromApiResponse, getProps, safeStorage, toMcpError } from "../utils/result.js";
+import { toonResult } from "../utils/toon.js";
+import { APP_VIEW_URI } from "../utils/view-resource.js";
+
 type Location = LocationComponents["schemas"]["locations.location"];
 
 function compactLocationForContent(location: Location) {
@@ -48,28 +54,16 @@ function compactLocationForContent(location: Location) {
   };
 }
 
-import { notFoundError } from "../errors.js";
-import { formatPreferredLocationCompact } from "../utils/format-response.js";
-import {
-  fromApiResponse,
-  getProps,
-  safeStorage,
-  toMcpError,
-  toMcpResponse,
-} from "../utils/result.js";
-import { toonResult } from "../utils/toon.js";
-import { APP_VIEW_URI } from "../utils/view-resource.js";
-
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
 
   registerAppTool(
     ctx.server,
-    "search_locations",
+    "search_stores",
     {
       title: "Search Store Locations",
       description:
-        "Finds Kroger or QFC store locations near a zip code. Returns store names, addresses, and location IDs. Use this to help the user set their preferred store or find a store to pick up an order.",
+        "Finds Kroger or QFC stores near a 5-digit zip code. Returns store names, addresses, and 8-character location IDs for preferred-store setup, product availability, and pickup or delivery planning.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -107,12 +101,12 @@ export function registerLocationTools(ctx: ToolContext) {
       ).map((data) => data?.data || []);
 
       return result.match(
-        (locations) => ({
+        (stores) => ({
           ...toonResult({
-            count: locations.length,
-            locations: locations.map(compactLocationForContent),
+            count: stores.length,
+            stores: stores.map(compactLocationForContent),
           }),
-          structuredContent: { _view: "search_locations", locations },
+          structuredContent: { _view: "search_stores", stores },
         }),
         toMcpError,
       );
@@ -121,11 +115,11 @@ export function registerLocationTools(ctx: ToolContext) {
 
   registerAppTool(
     ctx.server,
-    "get_location_details",
+    "get_store",
     {
       title: "Get Store Details",
       description:
-        "Retrieves detailed information about a specific Kroger store by its location ID, including address, hours, and departments.",
+        "Retrieves detailed information for one Kroger/QFC store by its 8-character location ID, including address, phone, hours, and departments. Use after search_stores or before saving a preferred store.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -156,7 +150,7 @@ export function registerLocationTools(ctx: ToolContext) {
       return result.match(
         (location) => ({
           ...toonResult(compactLocationForContent(location)),
-          structuredContent: { _view: "get_location_details", location },
+          structuredContent: { _view: "get_store", store: location },
         }),
         toMcpError,
       );
@@ -165,11 +159,11 @@ export function registerLocationTools(ctx: ToolContext) {
 
   registerAppTool(
     ctx.server,
-    "set_preferred_location",
+    "set_preferred_store",
     {
       title: "Set Preferred Store",
       description:
-        "Saves a store as your preferred location for future product searches and cart operations.",
+        "Validates a Kroger/QFC store by its 8-character location ID and saves it as the user's preferred store for future product searches, weekly deals, and cart operations.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -206,13 +200,22 @@ export function registerLocationTools(ctx: ToolContext) {
         return safeStorage(
           () => ctx.storage.preferredLocation.set(props.id, preferredLocation),
           "save preferred location",
-        ).map(
-          () =>
-            `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
-        );
+        ).map(() => ({
+          content: [
+            {
+              type: "text" as const,
+              text: `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
+            },
+          ],
+          structuredContent: {
+            _view: "set_preferred_store" as const,
+            store: preferredLocation,
+            actionDetail: `Preferred store set to ${preferredLocation.locationName}`,
+          },
+        }));
       });
 
-      return toMcpResponse(result);
+      return result.match((response) => response, toMcpError);
     },
   );
 }

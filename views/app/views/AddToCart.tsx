@@ -1,11 +1,11 @@
 import { Badge } from "@/shared/ui/badge.js";
 
-import type { AddToCartContent } from "../../shared/types.js";
+import type { AddShoppingListToCartContent } from "../../shared/types.js";
 
 import { SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
-export function AddToCartView({ data }: { data: AddToCartContent }) {
+export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) {
   const { shopping_list_id, name, items, needsUpc, actionDetail } = data;
   const title = `Cart · ${name}`;
 
@@ -37,7 +37,7 @@ export function AddToCartView({ data }: { data: AddToCartContent }) {
             </svg>
           }
           message="No items in the cart"
-          description="Add items with UPCs to your shopping list, then call add_to_cart."
+          description="Add items with UPCs to your shopping list, then call add_shopping_list_to_cart."
         />
       </div>
     );

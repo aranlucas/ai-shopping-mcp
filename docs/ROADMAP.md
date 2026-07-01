@@ -10,13 +10,13 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 ### 1. Deal-aware meal planning
 
-**What:** Feed the current week's QFC deals into `plan_meals` so the host model plans meals around what's on sale, and let `manage_shopping_list` suggest sale-priced swaps for list items.
+**What:** Feed the current week's QFC deals into `get_meal_planning_context` so the host model plans meals around what's on sale, and let shopping-list creation surface sale-priced swaps for list items.
 
-**Why it's good:** This is the single thing a human actually does with a weekly ad — "what's cheap this week, and what can I cook with it?" We already have both halves (`get_weekly_deals`, `plan_meals`); they just don't talk to each other. It turns two standalone tools into the core workflow of the product.
+**Why it's good:** This is the single thing a human actually does with a weekly ad — "what's cheap this week, and what can I cook with it?" We already have both halves (`get_weekly_deals`, `get_meal_planning_context`); they just don't talk to each other. It turns two standalone tools into the core workflow of the product.
 
 **How:**
 
-- `plan_meals` optionally calls the QFC deals fetcher (`src/services/qfc-weekly-deals.ts`) and includes a compact deals summary in its structured context output. No sampling — the host model does the planning, consistent with the existing design.
+- `get_meal_planning_context` optionally calls the QFC deals fetcher (`src/services/qfc-weekly-deals.ts`) and includes a compact deals summary in its structured context output. No sampling — the host model does the planning, consistent with the existing design.
 - Add an `onSale` annotation when shopping-list items match a current deal (reuse the case-insensitive matching conventions from `user-storage.ts`).
 
 **Depends on:** Deals caching (Tier 3, #8) makes this fast, but it works without it.
@@ -29,14 +29,14 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 **How:**
 
-- A `reconcile_with_pantry` action on `manage_shopping_list` (or a flag on add): for each candidate item, check `PantryStorage` using the existing case-insensitive dedup matching, and return a split of "already have" vs "need to buy."
+- A pantry reconciliation option for shopping-list creation: for each candidate item, check `PantryStorage` using the existing case-insensitive dedup matching, and return a split of "already have" vs "need to buy."
 - Surface the split in the shopping-list view (`views/app/views/`) so the user can override ("actually I'm out of flour").
 
 **Depends on:** Nothing. The matching machinery already exists in `src/utils/user-storage.ts`.
 
 ### 3. Replenishment suggestions from order history
 
-**What:** A `suggest_restock` tool (or enrichment of the `shopping://user/orders` resource) that infers purchase cadence — "you buy milk roughly every 10 days; last bought 12 days ago."
+**What:** A `suggest_restock` tool (or enrichment of the `shopping://user/order-history` resource) that infers purchase cadence — "you buy milk roughly every 10 days; last bought 12 days ago."
 
 **Why it's good:** `OrderHistoryStorage` already keeps the last 50 orders and nothing reads them for insight. This is pure KV reads plus date math — no new Kroger API surface, no scraping — and it gives the assistant something proactive to say, which is what makes an MCP shopping assistant feel useful rather than transactional.
 
@@ -46,7 +46,7 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 - Read-only tool (`readOnlyHint: true`, `openWorldHint: false`), output schema in `src/tools/output-schemas.ts`, optionally a small view.
 - Items flagged for restock can flow into #2's pantry-aware list building.
 
-**Depends on:** Enough order history accumulating via `mark_order_placed` to be useful; degrade gracefully (return "not enough history yet") below a threshold.
+**Depends on:** Enough order history accumulating via `record_order` to be useful; degrade gracefully (return "not enough history yet") below a threshold.
 
 ---
 
@@ -54,7 +54,7 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 ### 4. Price history and list cost estimation
 
-**What:** Persist price snapshots from every product search, then (a) show an estimated total on `checkout_shopping_list` before items hit the cart, and (b) flag when a price is unusually high or low.
+**What:** Persist price snapshots from every product search, then (a) show an estimated total before `add_shopping_list_to_cart` sends items to the cart, and (b) flag when a price is unusually high or low.
 
 **Why it's good:** Every `search_products` call already returns prices we throw away. Capturing them is nearly free and unlocks two features users consistently want: "how much will this cost?" before checkout, and "is this actually a good deal?" — which also makes the deal planning in #1 smarter (a "sale" price that matches the everyday price is not a deal).
 
@@ -62,13 +62,13 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 - New `PriceHistoryStorage` in `src/utils/user-storage.ts` keyed `price:{locationId}:{upc}`, storing `{price, promoPrice, date}` snapshots with a retention cap (mirror the order-history 50-entry pattern).
 - Write snapshots opportunistically inside existing product-search and deals flows; never add extra API calls just to record prices.
-- `checkout_shopping_list` sums known prices and reports coverage honestly ("estimated $47.20, prices known for 9 of 12 items").
+- `add_shopping_list_to_cart` sums known prices and reports coverage honestly before cart handoff ("estimated $47.20, prices known for 9 of 12 items").
 
 **Watch out for:** KV write volume — batch snapshots per search, and keep keys global (not per-user) since prices are per-store, not per-person.
 
 ### 5. Dietary preferences and household profile
 
-**What:** A `PreferencesStorage` class (allergies, dislikes, dietary pattern, household size) with a `manage_preferences` tool and a `shopping://user/preferences` resource, fed into `plan_meals` context.
+**What:** A `PreferencesStorage` class (allergies, dislikes, dietary pattern, household size) with a `manage_preferences` tool and a `shopping://user/preferences` resource, fed into `get_meal_planning_context`.
 
 **Why it's good:** Every downstream suggestion gets better — meal plans that don't propose shellfish to an allergic user, portion math scaled to household size. It's also the pattern this codebase is best at: a small storage class, a CRUD tool, and a resource, exactly like pantry/equipment. Low risk, compounding payoff.
 
@@ -112,7 +112,7 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 **Why it's good:** A shopping list is the one surface users want to _touch_ rather than talk at — checking items off in conversation is clumsy. The view plumbing (`views/app/views/`, shared components, `_view` routing) already exists; this is the natural next step for the MCP Apps investment.
 
-**How:** Wire view interactions to `manage_shopping_list` calls; update the dev harness mocks in `views/dev/`; keep structured content aligned with `src/tools/output-schemas.ts` per the existing rule.
+**How:** Add focused shopping-list editing tools for check-off, removal, and quantity adjustment; update the dev harness mocks in `views/dev/`; keep structured content aligned with tool-local output schemas.
 
 ### 10. Workflow prompts
 
@@ -127,8 +127,8 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 ## Explicitly not planned
 
 - **Coupon clipping, pickup time slots, nutrition data** — not in the Kroger public API. Reaching them means expanding the scraping approach beyond the weekly ad, which is fragile and likely against terms. Revisit only if Kroger expands the public API.
-- **Server-side LLM calls in `plan_meals`** — MCP Sampling was deliberately removed; the host model does the reasoning. Keep it that way.
-- **Order placement / payment** — `checkout_shopping_list` fills the cart; the human completes the purchase. The trust boundary is correct as-is.
+- **Server-side LLM calls in `get_meal_planning_context`** — MCP Sampling was deliberately removed; the host model does the reasoning. Keep it that way.
+- **Order placement / payment** — `add_shopping_list_to_cart` fills the cart; the human completes the purchase. The trust boundary is correct as-is.
 
 ## Suggested sequencing
 

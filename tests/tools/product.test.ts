@@ -184,6 +184,12 @@ function getCapturedHandler(name: string): ToolHandler {
   );
 }
 
+function getCapturedTool(name: string): CapturedTool {
+  const tool = testState.capturedTools.find((t) => t.name === name);
+  expect(tool).toBeDefined();
+  return tool as CapturedTool;
+}
+
 // ---------------------------------------------------------------------------
 // logProductSearchError
 // ---------------------------------------------------------------------------
@@ -251,13 +257,39 @@ describe("search_products", () => {
     expect(sc.results[0].failed).toBe(false);
   });
 
-  it("returns textResult 'No products found...' when all terms return empty results and no failures", async () => {
+  it("rejects more than 10 search terms", () => {
+    registerProductTools(makeContext(async () => makeSearchResponse([])));
+
+    const tool = getCapturedTool("search_products");
+    const config = tool.config as {
+      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
+    };
+
+    expect(
+      config.inputSchema.safeParse({
+        terms: Array.from({ length: 10 }, (_, i) => `term-${i}`),
+      }).success,
+    ).toBe(true);
+    expect(
+      config.inputSchema.safeParse({
+        terms: Array.from({ length: 11 }, (_, i) => `term-${i}`),
+      }).success,
+    ).toBe(false);
+  });
+
+  it("returns routeable structured content when all terms return empty results and no failures", async () => {
     registerProductTools(makeContext(async () => makeSearchResponse([])));
 
     const result = await getCapturedHandler("search_products")({ terms: ["unknownitem"] });
 
-    expect(textFromResult(result)).toContain("No products found");
-    expect(structuredContentOf(result)).toBeUndefined();
+    expect(textFromResult(result)).toContain("totalProducts: 0");
+    expect(result).toMatchObject({
+      structuredContent: {
+        _view: "search_products",
+        results: [{ term: "unknownitem", products: [], count: 0, failed: false }],
+        totalProducts: 0,
+      },
+    });
   });
 
   it("returns textResult 'Search failed for...' when all searches fail with API errors", async () => {
@@ -402,25 +434,25 @@ describe("search_products", () => {
 });
 
 // ---------------------------------------------------------------------------
-// get_product_details
+// get_product
 // ---------------------------------------------------------------------------
 
-describe("get_product_details", () => {
+describe("get_product", () => {
   beforeEach(() => {
     testState.capturedTools.length = 0;
     authenticate();
   });
 
-  it("returns structuredContent with _view: get_product_details and full product including images", async () => {
+  it("returns structuredContent with _view: get_product and full product including images", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
-    const result = await getCapturedHandler("get_product_details")({
+    const result = await getCapturedHandler("get_product")({
       productId: "0001111041700",
     });
 
     const sc = structuredContentOf(result) as { _view: string; product: Product };
-    expect(sc._view).toBe("get_product_details");
+    expect(sc._view).toBe("get_product");
     expect(sc.product.upc).toBe("0001111041700");
     expect(sc.product.description).toBe("Test Milk");
     expect(sc.product.images).toBeDefined();
@@ -430,7 +462,7 @@ describe("get_product_details", () => {
   it("returns MCP error when API response has no product data (data.data is undefined)", async () => {
     registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
 
-    const result = await getCapturedHandler("get_product_details")({
+    const result = await getCapturedHandler("get_product")({
       productId: "0001111041700",
     });
 
@@ -441,7 +473,7 @@ describe("get_product_details", () => {
   it("returns MCP error when the Kroger API call itself fails (e.g. 401)", async () => {
     registerProductTools(makeContext(async () => makeErrorResponse(401)));
 
-    const result = await getCapturedHandler("get_product_details")({
+    const result = await getCapturedHandler("get_product")({
       productId: "0001111041700",
     });
 
@@ -460,7 +492,7 @@ describe("get_product_details", () => {
       }),
     );
 
-    await getCapturedHandler("get_product_details")({
+    await getCapturedHandler("get_product")({
       productId: "0001111041700",
       locationId: "12345678",
     });
@@ -472,7 +504,7 @@ describe("get_product_details", () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
-    const result = await getCapturedHandler("get_product_details")({
+    const result = await getCapturedHandler("get_product")({
       productId: "0001111041700",
     });
 

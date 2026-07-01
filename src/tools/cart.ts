@@ -18,7 +18,7 @@ import { type ToolContext } from "./types.js";
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
-export const addToCartInputSchema = z.object({
+export const addShoppingListToCartInputSchema = z.object({
   shopping_list_id: z
     .string()
     .min(1, { message: "shopping_list_id is required" })
@@ -38,11 +38,11 @@ export function registerCartTools(ctx: ToolContext) {
 
   registerAppTool(
     ctx.server,
-    "add_to_cart",
+    "add_shopping_list_to_cart",
     {
       title: "Add Shopping List to Cart",
       description:
-        "Adds every item on a shopping list (identified by `shopping_list_id`) that has a UPC to the user's Kroger shopping cart. Items without a UPC are listed separately so they can be searched first. After a successful add, the resulting cart contents are persisted under the same `shopping_list_id`. Location defaults to the user's preferred location if not specified.",
+        "Adds every UPC-backed item from a named shopping list to the user's Kroger/QFC cart. Requires the `shopping_list_id` returned by create_shopping_list, lists items that still need UPCs, and uses the preferred store when no locationId is supplied.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -50,7 +50,7 @@ export function registerCartTools(ctx: ToolContext) {
         idempotentHint: false,
         openWorldHint: true,
       },
-      inputSchema: addToCartInputSchema,
+      inputSchema: addShoppingListToCartInputSchema,
     },
     async ({ shopping_list_id, locationId, modality }) => {
       const props = getProps();
@@ -93,7 +93,7 @@ export function registerCartTools(ctx: ToolContext) {
               },
             ],
             structuredContent: {
-              _view: "add_to_cart",
+              _view: "add_shopping_list_to_cart",
               shopping_list_id,
               name: list.name,
               items: [],
@@ -158,7 +158,7 @@ export function registerCartTools(ctx: ToolContext) {
                 return {
                   content: [{ type: "text" as const, text: resultParts.join("\n\n") }],
                   structuredContent: {
-                    _view: "add_to_cart",
+                    _view: "add_shopping_list_to_cart",
                     shopping_list_id,
                     name: list.name,
                     items: snapshot,

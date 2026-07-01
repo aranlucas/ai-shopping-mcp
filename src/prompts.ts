@@ -1,6 +1,5 @@
 /**
- * MCP Prompts for Kroger AI Assistant
- * These prompts provide guided workflows for common shopping scenarios
+ * MCP prompts for guided Kroger/QFC shopping workflows.
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -8,16 +7,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 
 export function registerPrompts(server: McpServer) {
-  /**
-   * Prompt 1: Grocery List Store Path
-   * Helps users find the optimal path through a store based on their grocery list
-   */
   server.registerPrompt(
-    "grocery-list-store_path",
+    "plan_shopping_route",
     {
-      title: "grocery_list_store_path",
+      title: "Plan Shopping Route",
       description:
-        "Generate a prompt to find the optimal path through a store based on a grocery list",
+        "Plan an efficient in-store shopping route by matching grocery items to product departments and aisle information.",
       argsSchema: {
         grocery_list: z.string().optional().describe("Optional grocery list items to organize"),
       },
@@ -34,7 +29,7 @@ export function registerPrompts(server: McpServer) {
 ${grocery_list}
 
 Please help me by:
-1. Searching for each item to find their aisle/department locations
+1. Using search_products for each item to find aisle/department locations
 2. Organizing the items by department/aisle in a logical order
 3. Suggesting an efficient route through the store
 
@@ -42,7 +37,7 @@ IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.
               : `I need help planning a shopping trip. Please help me by:
 
 1. Understanding what items I might need (you can check my pantry, order history, or ask me what I'm looking for)
-2. Once we have a list of items, search for each item to find their aisle/department locations
+2. Once we have a list of items, use search_products for each item to find aisle/department locations
 3. Organize the items by department/aisle in a logical order
 4. Suggest an efficient route through the store
 
@@ -53,14 +48,12 @@ IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.
     }),
   );
 
-  /**
-   * Prompt 2: Set Preferred Store
-   * Guides users through selecting and saving their preferred Kroger store
-   */
   server.registerPrompt(
     "set_preferred_store",
     {
-      description: "Generate a prompt to help the user set their preferred Kroger store",
+      title: "Set Preferred Store",
+      description:
+        "Guide the user through finding nearby Kroger/QFC stores and saving one as their preferred store.",
       argsSchema: {
         zip_code: z
           .string()
@@ -80,9 +73,9 @@ IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.
 ${zip_code ? `Search for stores near zip code: ${zip_code}` : "Search for stores near my area"}
 
 Please:
-1. Search for nearby Kroger/QFC locations
-2. Show me the options with their addresses and distances
-3. Help me select my preferred location
+1. Use search_stores to find nearby Kroger/QFC locations
+2. Show me the options with their addresses and location IDs
+3. Use set_preferred_store after I choose a store
 
 This will make future shopping and product searches more convenient.`,
           },
@@ -91,19 +84,17 @@ This will make future shopping and product searches more convenient.`,
     }),
   );
 
-  /**
-   * Prompt 3: Add Recipe to Cart
-   * Finds a recipe and automatically adds ingredients to the shopping cart
-   */
   server.registerPrompt(
-    "add_recipe_to_cart",
+    "shop_recipe_ingredients",
     {
-      description: "Generate a prompt to find a specific recipe and add its ingredients to cart",
+      title: "Shop Recipe Ingredients",
+      description:
+        "Help the user turn a recipe or dish idea into shoppable Kroger/QFC ingredients, a shopping list, and optional cart handoff.",
       argsSchema: {
         recipe_type: z
           .string()
           .default("classic apple pie")
-          .describe("The type of recipe to search for"),
+          .describe("The recipe or dish the user wants to shop for"),
       },
     },
     ({ recipe_type }) => ({
@@ -114,17 +105,58 @@ This will make future shopping and product searches more convenient.`,
             type: "text",
             text: `I want to make ${recipe_type}. Please help me by:
 
-1. Finding a good recipe for ${recipe_type}
-2. Showing me the ingredients and instructions
-3. Searching for each ingredient at my local store
-4. Adding all available ingredients to my cart using create_shopping_list then add_to_cart
-5. Suggesting alternatives for any ingredients that aren't available
-6. Asking me if I want delivery or pickup before completing the additions
+1. Asking whether I already have a specific recipe; if not, propose a practical ingredient list for ${recipe_type}
+2. Checking my pantry context when useful so we do not buy items I already have
+3. Using search_products for missing ingredients at my preferred store
+4. Creating a shopping list with create_shopping_list using UPCs for the selected products
+5. Offering to add that list to my cart with add_shopping_list_to_cart after I confirm pickup or delivery
+6. Suggesting alternatives for any ingredients that are not available
 
 Please make sure to check product availability at my preferred location before adding to cart.`,
           },
         },
       ],
     }),
+  );
+
+  server.registerPrompt(
+    "plan_meals_from_pantry",
+    {
+      title: "Plan Meals From Pantry",
+      description:
+        "Use pantry, expiry, equipment, and recent-order context to draft meal ideas and optionally prepare a shopping list for missing ingredients.",
+      argsSchema: {
+        meal_count: z
+          .string()
+          .optional()
+          .default("3")
+          .describe("Number of meals to plan; passed to get_meal_planning_context"),
+      },
+    },
+    ({ meal_count }) => {
+      const parsedCount = Number.parseInt(meal_count ?? "3", 10);
+      const numberOfMeals = Number.isFinite(parsedCount)
+        ? Math.min(Math.max(parsedCount, 1), 7)
+        : 3;
+
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Please plan meals from my pantry.
+
+1. Call get_meal_planning_context with numberOfMeals: ${numberOfMeals}
+2. Use the returned pantry, expiry, equipment, and recent-order context to suggest meals
+3. Prioritize expiring ingredients and exclude expired items
+4. For missing ingredients I want to buy, create a shopping list with create_shopping_list
+
+Do not invent pantry contents; use the context returned by get_meal_planning_context.`,
+            },
+          },
+        ],
+      };
+    },
   );
 }

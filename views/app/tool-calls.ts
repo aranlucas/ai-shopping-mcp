@@ -1,6 +1,6 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-import { type AddToCartArgs, type ToolCall, callTool } from "../shared/types.js";
+import { type AddShoppingListToCartArgs, type ToolCall, callTool } from "../shared/types.js";
 
 type ProductShoppingListInput = {
   listName?: string;
@@ -10,11 +10,11 @@ type ProductShoppingListInput = {
 };
 
 type ProductCartInput = ProductShoppingListInput & {
-  modality?: AddToCartArgs["modality"];
+  modality?: AddShoppingListToCartArgs["modality"];
 };
 
 type CreateShoppingListCall = Extract<ToolCall, { name: "create_shopping_list" }>;
-type AddToCartCall = Extract<ToolCall, { name: "add_to_cart" }>;
+type AddShoppingListToCartCall = Extract<ToolCall, { name: "add_shopping_list_to_cart" }>;
 
 export function createProductShoppingListCall({
   listName,
@@ -33,10 +33,10 @@ export function createProductShoppingListCall({
 
 export function addShoppingListToCartCall(
   shoppingListId: string,
-  modality: AddToCartArgs["modality"] = "PICKUP",
-): AddToCartCall {
+  modality: AddShoppingListToCartArgs["modality"] = "PICKUP",
+): AddShoppingListToCartCall {
   return {
-    name: "add_to_cart",
+    name: "add_shopping_list_to_cart",
     arguments: {
       shopping_list_id: shoppingListId,
       modality,

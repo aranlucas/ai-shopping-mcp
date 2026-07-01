@@ -2,30 +2,34 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import type {
-  AddToCartArgs,
+  AddPantryItemsArgs,
+  AddShoppingListToCartArgs,
   CreateShoppingListArgs,
-  ManagePantryArgs,
+  RemovePantryItemsArgs,
 } from "../../src/tools/tool-types.js";
 
-export type { AddToCartArgs, CreateShoppingListArgs, ManagePantryArgs };
+export type {
+  AddPantryItemsArgs,
+  AddShoppingListToCartArgs,
+  CreateShoppingListArgs,
+  RemovePantryItemsArgs,
+};
 
-/** Discriminated union of all callable tools — enables type-safe callTool(). */
+/** Discriminated union of callable tools used by the app UI. */
 export type ToolCall =
-  | { name: "add_to_cart"; arguments: AddToCartArgs }
+  | { name: "add_shopping_list_to_cart"; arguments: AddShoppingListToCartArgs }
   | { name: "create_shopping_list"; arguments: CreateShoppingListArgs }
-  | { name: "manage_pantry"; arguments: ManagePantryArgs }
-  | { name: "set_preferred_location"; arguments: { locationId: string } }
-  | { name: "get_location_details"; arguments: { locationId: string } }
-  | { name: "search_products"; arguments: { terms: string[] } };
+  | { name: "add_pantry_items"; arguments: AddPantryItemsArgs }
+  | { name: "remove_pantry_items"; arguments: RemovePantryItemsArgs }
+  | { name: "clear_pantry"; arguments: Record<string, never> }
+  | { name: "remove_kitchen_equipment"; arguments: { equipmentName: string } }
+  | { name: "set_preferred_store"; arguments: { locationId: string } }
+  | { name: "get_store"; arguments: { locationId: string } }
+  | { name: "search_products"; arguments: { terms: string[]; locationId?: string } };
 
-/** Timeout for app-initiated callServerTool() calls (ms).
- *  Without this, calls hang indefinitely when the host doesn't respond. */
+/** Timeout for app-initiated callServerTool() calls (ms). */
 export const TOOL_CALL_TIMEOUT_MS = 15_000;
 
-/**
- * Type-safe wrapper around app.callServerTool() with a timeout.
- * Returns the Promise so callers can await results and handle errors.
- */
 export function callTool(
   app: App | null | undefined,
   call: ToolCall,
@@ -80,14 +84,14 @@ export type LocationData = {
   departments?: Array<{ name?: string; phone?: string }>;
 };
 
-export type LocationResultsContent = {
-  _view: "search_locations";
-  locations: LocationData[];
+export type StoreResultsContent = {
+  _view: "search_stores";
+  stores: LocationData[];
 };
 
-export type LocationDetailContent = {
-  _view: "get_location_details";
-  location: LocationData;
+export type StoreDetailContent = {
+  _view: "get_store";
+  store: LocationData;
 };
 
 export type ProductData = {
@@ -127,7 +131,7 @@ export type ProductSearchResultsContent = {
 };
 
 export type ProductDetailContent = {
-  _view: "get_product_details";
+  _view: "get_product";
   product: ProductData;
 };
 
@@ -139,8 +143,20 @@ export type PantryItemData = {
 };
 
 export type PantryListContent = {
-  _view: "manage_pantry";
+  _view: "pantry";
   items: PantryItemData[];
+  actionDetail?: string;
+};
+
+export type KitchenEquipmentItemData = {
+  equipmentName: string;
+  category?: string;
+  addedAt?: string;
+};
+
+export type KitchenEquipmentContent = {
+  _view: "kitchen_equipment";
+  items: KitchenEquipmentItemData[];
   actionDetail?: string;
 };
 
@@ -159,8 +175,8 @@ export type ShoppingListContent = {
   actionDetail?: string;
 };
 
-export type AddToCartContent = {
-  _view: "add_to_cart";
+export type AddShoppingListToCartContent = {
+  _view: "add_shopping_list_to_cart";
   shopping_list_id: string;
   name: string;
   items: Array<{
@@ -181,7 +197,7 @@ export type OrderItemData = {
 };
 
 export type OrderHistoryContent = {
-  _view: "mark_order_placed";
+  _view: "record_order";
   orderId: string;
   items: OrderItemData[];
   totalItems: number;
@@ -191,48 +207,33 @@ export type OrderHistoryContent = {
   notes?: string;
 };
 
-/**
- * Discriminated union of all possible tool `structuredContent` shapes.
- * Each member carries its `_view` literal, so this narrows cleanly on
- * `data._view`.
- */
 export type AppData =
   | ProductSearchResultsContent
   | ProductDetailContent
-  | LocationResultsContent
-  | LocationDetailContent
+  | StoreResultsContent
+  | StoreDetailContent
   | ShoppingListContent
   | PantryListContent
+  | KitchenEquipmentContent
   | WeeklyDealsContent
   | OrderHistoryContent
-  | AddToCartContent;
+  | AddShoppingListToCartContent;
 
-/**
- * Exhaustive map of the `_view` discriminators we know how to render. Typing it
- * as `Record<AppData["_view"], true>` makes it a compile error to add a view
- * to `AppData` without registering it here, so the runtime `KNOWN_VIEWS` set
- * below can't silently drift from the type.
- */
 const VIEW_NAMES: Record<AppData["_view"], true> = {
   search_products: true,
-  get_product_details: true,
-  search_locations: true,
-  get_location_details: true,
+  get_product: true,
+  search_stores: true,
+  get_store: true,
   create_shopping_list: true,
-  manage_pantry: true,
+  pantry: true,
+  kitchen_equipment: true,
   get_weekly_deals: true,
-  mark_order_placed: true,
-  add_to_cart: true,
+  record_order: true,
+  add_shopping_list_to_cart: true,
 };
 
-/** The set of `_view` discriminators we know how to render. */
 const KNOWN_VIEWS = new Set(Object.keys(VIEW_NAMES) as AppData["_view"][]);
 
-/**
- * Parse unknown structuredContent into a typed AppData value.
- * Returns null if the value is missing or carries an unrecognized `_view`,
- * so an unknown payload surfaces as "loading" rather than a blank render.
- */
 export function parseStructuredContent(raw: unknown): AppData | null {
   if (!raw || typeof raw !== "object") return null;
   const view = (raw as { _view?: unknown })._view;

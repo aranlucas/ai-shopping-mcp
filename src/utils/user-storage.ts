@@ -287,8 +287,8 @@ export class EquipmentStorage {
 /**
  * Shopping List Storage - persists named, id-keyed shopping lists created by
  * `create_shopping_list`. Lists are immutable snapshots: the agent creates a
- * fresh list to refine, never mutates an existing one. `add_to_cart` reads a
- * list back by id to send its items to the Kroger cart.
+ * fresh list to refine, never mutates an existing one. `add_shopping_list_to_cart`
+ * reads a list back by id to send its items to the Kroger cart.
  *
  * Entries auto-expire from KV after `LIST_TTL_SECONDS` (7 days) so dead lists
  * from abandoned conversations don't accumulate.
@@ -302,7 +302,7 @@ export class ShoppingListStorage {
   /**
    * Create and persist a new shopping list under the supplied id. The caller
    * (the create tool) is responsible for namespacing the id with the user id
-   * and session so a later `add_to_cart` can read it back safely.
+   * and session so a later `add_shopping_list_to_cart` can read it back safely.
    */
   async create(id: string, name: string, items: ShoppingListItem[]): Promise<ShoppingList> {
     const list: ShoppingList = {
