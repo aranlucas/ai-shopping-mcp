@@ -39,19 +39,21 @@ export type ProductSearchResult = {
 const PRODUCT_SEARCH_CACHE_TTL_SECONDS = 600;
 
 type ProductSearchCacheEntry = {
-  cachedAt: number;
   products: Product[];
 };
 
+const cachedProductSchema = z.custom<Product>(
+  (value) => typeof value === "object" && value !== null,
+  "Expected cached product object",
+);
+
 const productSearchCacheEntrySchema = z
   .looseObject({
-    cachedAt: z.number(),
-    products: z.array(z.looseObject({})),
+    products: z.array(cachedProductSchema),
   })
   .transform(
     (entry): ProductSearchCacheEntry => ({
-      cachedAt: entry.cachedAt,
-      products: entry.products as Product[],
+      products: entry.products,
     }),
   );
 
@@ -92,7 +94,7 @@ async function writeProductSearchCache(
 ): Promise<void> {
   if (!kv) return;
 
-  const entry: ProductSearchCacheEntry = { cachedAt: Date.now(), products };
+  const entry: ProductSearchCacheEntry = { products };
   try {
     await kv.put(key, JSON.stringify(entry), {
       expirationTtl: PRODUCT_SEARCH_CACHE_TTL_SECONDS,
@@ -105,24 +107,12 @@ async function writeProductSearchCache(
   }
 }
 
-/**
- * get_product's input: `upc` is the documented field; `productId` is kept as
- * a deprecated alias so existing hosts that call with `productId` (matching
- * the old field name) don't break. At least one of the two is required; when
- * both are present `upc` wins. See docs/small-model-efficiency-plan.md #2.
- */
-export const getProductInputSchema = z
-  .object({
-    upc: upcSchema.optional().describe("UPC from search_products"),
-    productId: upcSchema.optional().describe("Deprecated alias for upc."),
-    storeId: storeIdSchema
-      .optional()
-      .describe("8-character storeId from search_stores to check availability and pricing"),
-  })
-  .refine((data) => data.upc !== undefined || data.productId !== undefined, {
-    message: "Provide upc (preferred) or productId — copy the upc value from search_products.",
-    path: ["upc"],
-  });
+export const getProductInputSchema = z.object({
+  upc: upcSchema.describe("UPC from search_products"),
+  storeId: storeIdSchema
+    .optional()
+    .describe("8-character storeId from search_stores to check availability and pricing"),
+});
 
 export function logProductSearchError(term: string, error: AppError) {
   if (error.type === "AUTH_ERROR") {
@@ -334,8 +324,7 @@ export function registerProductTools(ctx: ToolContext) {
       },
       inputSchema: getProductInputSchema,
     },
-    async ({ upc, productId, storeId }) => {
-      const resolvedUpc = (upc ?? productId) as string;
+    async ({ upc, storeId }) => {
       const queryParams: Record<string, string> = {};
       if (storeId) {
         queryParams["filter.locationId"] = storeId;
@@ -344,7 +333,7 @@ export function registerProductTools(ctx: ToolContext) {
       const result = await fromApiResponse(
         productClient.GET("/v1/products/{id}", {
           params: {
-            path: { id: resolvedUpc },
+            path: { id: upc },
             query: queryParams,
           },
         }),
@@ -352,7 +341,7 @@ export function registerProductTools(ctx: ToolContext) {
       ).andThen((data) => {
         const product = data.data;
         if (!product) {
-          return err(notFoundError(`No information found for product ID: ${resolvedUpc}`));
+          return err(notFoundError(`No information found for UPC: ${upc}`));
         }
         return ok(product);
       });

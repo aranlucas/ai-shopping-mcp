@@ -584,20 +584,16 @@ describe("get_product", () => {
     expect(config.inputSchema.safeParse({ upc: "abc1111041700" }).success).toBe(false);
   });
 
-  it("still accepts the deprecated productId alias and pads it to 13 digits", async () => {
-    const product = makeProduct();
-    registerProductTools(makeContext(async () => makeDetailResponse(product)));
-
-    const result = await getCapturedHandler("get_product")({
-      productId: "1111041700",
-    });
-
-    expect(isErrorResult(result)).toBe(false);
-    const sc = structuredContentOf(result) as { product: Product };
-    expect(sc.product.upc).toBe("0001111041700");
+  it("rejects productId instead of upc", () => {
+    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    const tool = getCapturedTool("get_product");
+    const config = tool.config as {
+      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
+    };
+    expect(config.inputSchema.safeParse({ productId: "1111041700" }).success).toBe(false);
   });
 
-  it("rejects a call with neither upc nor productId", () => {
+  it("rejects a call without upc", () => {
     registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
@@ -783,8 +779,8 @@ describe("searchProductsForTerms KV cache", () => {
     expect(kv.put).toHaveBeenCalledTimes(1);
 
     const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0] as [string, string];
-    const entry = JSON.parse(putCall[1]) as { products: unknown[] };
-    expect(entry.products).toEqual([]);
+    const entry = JSON.parse(putCall[1]);
+    expect(entry).toEqual({ products: [] });
 
     await searchProductsForTerms(stubProductClient(get), ["zzz-unfindable"], {
       locationId: "70500847",

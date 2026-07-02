@@ -5,6 +5,7 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
 
 import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
+import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -369,6 +370,190 @@ describe("shop_for_items", () => {
       const text = textFromResult(result);
       expect(text).toContain("cancelled or failed");
       expect(text).toContain(`add_shopping_list_to_cart {"listId":"${sc["listId"]}"}`);
+    });
+  });
+
+  describe("semantic match ranking", () => {
+    // Both pickup-available, so the old first-pickup-available heuristic
+    // alone would pick the wrong (first-listed) product for "milk".
+    function makeAdversarialCandidates() {
+      const wrongMatch = makeProduct({
+        upc: "1111111111111",
+        description: "Chocolate Milk Candy Bar",
+        items: [{ fulfillment: { curbside: true, instore: false } }],
+      });
+      const rightMatch = makeProduct({
+        upc: "2222222222222",
+        description: "Whole Milk",
+        items: [{ fulfillment: { curbside: true, instore: false } }],
+      });
+      return { wrongMatch, rightMatch };
+    }
+
+    function makeStubAi() {
+      return {
+        run: async (_model: string, options: { text: string[] }) => ({
+          data: options.text.map((text) => {
+            if (text === "milk") return [1, 0];
+            if (text.startsWith("Whole Milk")) return [0.9, 0.1];
+            return [0, 1];
+          }),
+        }),
+      };
+    }
+
+    function makeMinimalKv() {
+      return { get: async () => null, put: async () => {} };
+    }
+
+    it("picks the semantically-better product when AI features are enabled", async () => {
+      const { wrongMatch, rightMatch } = makeAdversarialCandidates();
+
+      const ctx = makeContext(
+        async () => makeSearchResponse([wrongMatch, rightMatch]),
+        PREFERRED_LOCATION,
+      );
+      ctx.getEnv = () => ({ AI: makeStubAi(), USER_DATA_KV: makeMinimalKv() }) as unknown as Env;
+
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+
+      const sc = structuredContentOf(result);
+      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe("2222222222222");
+    });
+
+    it("keeps the old first-pickup-available pick when AI_FEATURES is off", async () => {
+      const { wrongMatch, rightMatch } = makeAdversarialCandidates();
+
+      const ctx = makeContext(
+        async () => makeSearchResponse([wrongMatch, rightMatch]),
+        PREFERRED_LOCATION,
+      );
+      ctx.getEnv = () =>
+        ({
+          AI: makeStubAi(),
+          AI_FEATURES: "off",
+          USER_DATA_KV: makeMinimalKv(),
+        }) as unknown as Env;
+
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+
+      const sc = structuredContentOf(result);
+      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(wrongMatch.upc);
+    });
+
+    it("keeps the old pick when there is no USER_DATA_KV binding, even with AI features enabled", async () => {
+      const { wrongMatch, rightMatch } = makeAdversarialCandidates();
+
+      const ctx = makeContext(
+        async () => makeSearchResponse([wrongMatch, rightMatch]),
+        PREFERRED_LOCATION,
+      );
+      ctx.getEnv = () => ({ AI: makeStubAi() }) as unknown as Env;
+
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+
+      const sc = structuredContentOf(result);
+      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(wrongMatch.upc);
+    });
+  });
+
+  describe("pantry and deal flags", () => {
+    it("appends ' | in pantry' when the requested item is already in the pantry", async () => {
+      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+      ctx.storage = {
+        ...ctx.storage,
+        pantry: {
+          getAll: async () => [
+            { productName: "Whole Milk", quantity: 1, addedAt: new Date().toISOString() },
+          ],
+        } as unknown as UserStorage["pantry"],
+      };
+
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "whole milk" }],
+      });
+
+      expect(textFromResult(result)).toContain("in pantry");
+    });
+
+    it("does not flag pantry when the item isn't present", async () => {
+      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+      ctx.storage = {
+        ...ctx.storage,
+        pantry: {
+          getAll: async () => [
+            { productName: "Bread", quantity: 1, addedAt: new Date().toISOString() },
+          ],
+        } as unknown as UserStorage["pantry"],
+      };
+
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "whole milk" }],
+      });
+
+      expect(textFromResult(result)).not.toContain("in pantry");
+    });
+
+    it("appends ' | on sale: $X' when a fresh weekly-deals cache entry matches the item", async () => {
+      const store = new Map<string, string>();
+      const cacheKey = buildWeeklyDealsCacheKey({
+        locationId: PREFERRED_LOCATION.locationId,
+        limit: 50,
+        pageLimit: 2,
+      });
+      const now = Date.now();
+      store.set(
+        cacheKey,
+        JSON.stringify({
+          version: 1,
+          createdAt: now,
+          freshUntil: now + 60_000,
+          staleUntil: now + 120_000,
+          data: {
+            sourceMode: "print_fallback",
+            locationId: PREFERRED_LOCATION.locationId,
+            divisionCode: "705",
+            warnings: [],
+            deals: [
+              { id: "d1", title: "Kroger Whole Milk, Gallon", price: "$2.99", source: "print" },
+            ],
+          },
+        }),
+      );
+
+      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+      ctx.getEnv = () =>
+        ({
+          USER_DATA_KV: {
+            get: async (key: string) => store.get(key) ?? null,
+            put: async (key: string, value: string) => {
+              store.set(key, value);
+            },
+          },
+        }) as unknown as Env;
+
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "whole milk" }],
+      });
+
+      expect(textFromResult(result)).toContain("on sale: $2.99");
+    });
+
+    it("does not flag on sale when the weekly-deals cache is cold", async () => {
+      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "whole milk" }],
+      });
+
+      expect(textFromResult(result)).not.toContain("on sale");
     });
   });
 });

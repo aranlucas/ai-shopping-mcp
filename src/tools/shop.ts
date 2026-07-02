@@ -2,18 +2,38 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../services/kroger/product.js";
-import type { CartSnapshotItem, ShoppingListItem } from "../utils/user-storage.js";
+import type { ShoppingListItem } from "../utils/user-storage.js";
 
 import { notFoundError, validationError } from "../errors.js";
+import {
+  type EmbeddingAi,
+  isEmbeddingAiLike,
+  rankProductMatches,
+} from "../services/match-ranker.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { type LineItem, addLineItemsToCart } from "./cart.js";
+import { type LineItem, addLineItemsToCart, toCartSnapshotItems } from "./cart.js";
+import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { getProductSearchCacheKv, searchProductsForTerms } from "./product.js";
 import { coercedBooleanSchema } from "./schemas.js";
 import { buildShoppingListStorageKey, createShoppingListRecord } from "./shopping-list.js";
 import { type ToolContext } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+
+/**
+ * Resolves the Workers AI binding for semantic match ranking, or null when AI
+ * features are disabled. Gated by two independent conditions so tests never
+ * reach the real (remote-proxied) `env.AI` binding: the binding must exist,
+ * and `AI_FEATURES` must not be `"off"` (see vitest.config.ts, which sets
+ * `AI_FEATURES: "off"` for the whole suite).
+ */
+export function getMatchRankerAi(ctx: ToolContext): EmbeddingAi | null {
+  const env = ctx.getEnv();
+  if ("AI_FEATURES" in env && env.AI_FEATURES === "off") return null;
+
+  return isEmbeddingAiLike(env.AI) ? env.AI : null;
+}
 
 const shopItemSchema = z.object({
   name: z.string().min(1).max(100).describe("Item to shop for, e.g. 'whole milk'"),
@@ -41,8 +61,16 @@ function pickBestMatch(products: Product[]): Product | undefined {
   return withPickup ?? products[0];
 }
 
-/** One markdown line: searched name → matched product, brand, size, price, upc. */
-function formatMatchLineMarkdown(searchedName: string, quantity: number, product: Product): string {
+/**
+ * One markdown line: searched name → matched product, brand, size, price,
+ * upc, plus optional trailing flags (e.g. "in pantry", "on sale: $2.99").
+ */
+function formatMatchLineMarkdown(
+  searchedName: string,
+  quantity: number,
+  product: Product,
+  flags: string[] = [],
+): string {
   const item = product.items?.[0];
   const parts: string[] = [`${searchedName} → ${product.description ?? "Unknown product"}`];
 
@@ -59,6 +87,7 @@ function formatMatchLineMarkdown(searchedName: string, quantity: number, product
   }
 
   parts.push(`upc=${product.upc ?? "unknown"}`);
+  parts.push(...flags);
 
   return `- ${parts.join(" | ")} (qty ${quantity})`;
 }
@@ -96,20 +125,51 @@ export function registerShopTools(ctx: ToolContext) {
       const { locationId } = resolvedLocation.value;
 
       const terms = items.map((item) => item.name);
+      const kv = getProductSearchCacheKv(ctx);
       const searchResults = await searchProductsForTerms(productClient, terms, {
         locationId,
         limitPerTerm: 5,
-        kv: getProductSearchCacheKv(ctx),
+        kv,
       });
 
-      const matched: Array<{ name: string; quantity: number; product: Product }> = [];
+      // Semantic re-ranking: when AI features are enabled, each term's
+      // candidates are reordered best-match-first before the existing
+      // pickup-first heuristic runs. Disabled (the default in tests and when
+      // AI_FEATURES=off), this is a no-op and behavior is byte-identical to
+      // before. See docs/small-model-efficiency-plan.md "Server-side AI" #8.
+      const ai = getMatchRankerAi(ctx);
+      const rankedResults = await Promise.all(
+        searchResults.map(async (result, index) => {
+          if (!ai || result.failed || result.products.length === 0) return result;
+          const ranked = await rankProductMatches({
+            ai,
+            kv,
+            query: terms[index],
+            products: result.products,
+          });
+          return { ...result, products: ranked };
+        }),
+      );
+
+      const [pantry, deals] = await Promise.all([
+        getPantryForFlags(ctx, props.id),
+        getDealsForFlags(ctx, locationId),
+      ]);
+
+      const matched: Array<{ name: string; quantity: number; product: Product; flags: string[] }> =
+        [];
       const notFound: string[] = [];
 
       items.forEach((item, index) => {
-        const result = searchResults[index];
+        const result = rankedResults[index];
         const best = result && !result.failed ? pickBestMatch(result.products) : undefined;
         if (best) {
-          matched.push({ name: item.name, quantity: item.quantity, product: best });
+          matched.push({
+            name: item.name,
+            quantity: item.quantity,
+            product: best,
+            flags: itemFlagLabels(item.name, pantry, deals),
+          });
         } else {
           notFound.push(item.name);
         }
@@ -144,7 +204,7 @@ export function registerShopTools(ctx: ToolContext) {
           `Created shopping list "${listName}" (listId=${shortId}) with ${matched.length} item(s).`,
           "",
           ...matched.map((match) =>
-            formatMatchLineMarkdown(match.name, match.quantity, match.product),
+            formatMatchLineMarkdown(match.name, match.quantity, match.product, match.flags),
           ),
         ];
 
@@ -200,12 +260,7 @@ export function registerShopTools(ctx: ToolContext) {
             // Persist the cart snapshot under the same storage key
             // add_shopping_list_to_cart checks, so a follow-up call with this
             // listId short-circuits instead of double-adding.
-            const snapshot: CartSnapshotItem[] = lineItems.map((item) => ({
-              upc: item.upc,
-              quantity: item.quantity,
-              modality: "PICKUP" as const,
-              productName: item.productName,
-            }));
+            const snapshot = toCartSnapshotItems(lineItems, "PICKUP");
             const storageKey = buildShoppingListStorageKey(props.id, ctx.getSessionId(), shortId);
 
             return safeStorage(

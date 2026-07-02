@@ -164,6 +164,19 @@ describe("Kroger OAuth handler", () => {
       expect(await response.text()).toContain("is requesting access");
     });
 
+    it("does not restrict approval form submissions with CSP form-action", async () => {
+      const env = makeEnv();
+
+      const response = await KrogerHandler.request(
+        `${BASE_URL}/authorize?client_id=mcp-client`,
+        undefined,
+        env,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Security-Policy")).not.toContain("form-action");
+    });
+
     it("skips dialog and redirects to Kroger when client is already approved", async () => {
       const env = makeEnv();
       const approvedResponse = await approveClient(env);

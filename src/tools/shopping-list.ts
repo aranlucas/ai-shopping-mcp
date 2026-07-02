@@ -1,14 +1,15 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { type Result, ResultAsync, err, ok } from "neverthrow";
+import { ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
 import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { validationError } from "../errors.js";
-import { formatShoppingListCompact } from "../utils/format-response.js";
-import { getProps, safeStorage, toMcpError } from "../utils/result.js";
+import { formatShoppingListItemCompact } from "../utils/format-response.js";
+import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
 import { type ToolContext, type UserStorage, getSessionScopedUserId } from "./types.js";
 
@@ -52,7 +53,7 @@ export const ELICITATION_UNSUPPORTED_MESSAGE = "Client does not support form eli
 export async function requestCheckoutConfirmation(
   server: CheckoutConfirmationServer,
   items: CheckoutConfirmationItem[],
-): Promise<Result<void, AppError>> {
+) {
   const itemList = items.map((i) => `${i.productName} x${i.quantity}`).join(", ");
 
   const elicitResult = await ResultAsync.fromPromise(
@@ -176,6 +177,29 @@ export function registerShoppingListTools(ctx: ToolContext) {
         return toMcpError(validationError("Shopping list must include at least one item."));
       }
 
+      // Best-effort pantry/deal flags (see item-flags.ts): a storage/cache
+      // miss or error yields no flag, never a failed tool call. Location is
+      // resolved best-effort too — no preferred store just means no deal
+      // flags, not an error for this tool.
+      const [pantry, resolvedLocation] = await Promise.all([
+        getPantryForFlags(ctx, props.id),
+        safeResolveLocationId(ctx.storage, props.id, undefined),
+      ]);
+      const locationId = resolvedLocation.match(
+        (resolved) => resolved.locationId,
+        () => undefined,
+      );
+      const deals = await getDealsForFlags(ctx, locationId);
+
+      const lines = items
+        .map((item, index) => {
+          const flags = itemFlagLabels(item.productName, pantry, deals);
+          const base = formatShoppingListItemCompact(item);
+          const suffixed = flags.length > 0 ? `${base} | ${flags.join(" | ")}` : base;
+          return `${index + 1}. ${suffixed}`;
+        })
+        .join("\n");
+
       const result = await createShoppingListRecord(
         ctx.storage,
         props.id,
@@ -189,7 +213,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           content: [
             {
               type: "text" as const,
-              text: `Created shopping list "${name}" with ${items.length} item(s). listId=${shortId}\n\n${formatShoppingListCompact(items)}`,
+              text: `Created shopping list "${name}" with ${items.length} item(s). listId=${shortId}\n\n${lines}`,
             },
           ],
           structuredContent: {

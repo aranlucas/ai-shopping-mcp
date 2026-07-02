@@ -57,12 +57,6 @@ describe("input forgiveness", () => {
       expect(result.isError, contentText(result)).toBeFalsy();
     });
 
-    it("still accepts the deprecated productId alias on get_product", async () => {
-      const result = await call("get_product", { productId: "1111041700" });
-      expect(result.isError, contentText(result)).toBeFalsy();
-      expect(contentText(result)).toContain("0001111041700");
-    });
-
     it("accepts record_order items keyed by upc", async () => {
       const result = await call("record_order", {
         items: [{ upc: "0001111041700", productName: "Milk", quantity: 1 }],
@@ -70,11 +64,11 @@ describe("input forgiveness", () => {
       expect(result.isError, contentText(result)).toBeFalsy();
     });
 
-    it("still accepts record_order items keyed by the deprecated productId alias", async () => {
+    it("rejects record_order items keyed by productId instead of upc", async () => {
       const result = await call("record_order", {
         items: [{ productId: "0001111041700", productName: "Milk", quantity: 1 }],
       });
-      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(result.isError, contentText(result)).toBeTruthy();
     });
 
     it("accepts a storeId with surrounding whitespace", async () => {
@@ -118,7 +112,12 @@ describe("input forgiveness", () => {
       expect(contentText(result)).toContain("search_products");
     });
 
-    it("rejects get_product with neither upc nor productId", async () => {
+    it("rejects get_product with productId instead of upc", async () => {
+      const result = await call("get_product", { productId: "1111041700" });
+      expect(result.isError).toBe(true);
+    });
+
+    it("rejects get_product without upc", async () => {
       const result = await call("get_product", { storeId: "70500847" });
       expect(result.isError).toBe(true);
     });

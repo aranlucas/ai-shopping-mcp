@@ -1,5 +1,5 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { type Result, err, ok } from "neverthrow";
+import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
@@ -49,6 +49,18 @@ export const addShoppingListToCartInputSchema = z
       "Provide exactly one of listId (from create_shopping_list) or items (inline upc/quantity pairs) — not both, not neither.",
   });
 
+export function toCartSnapshotItems(
+  lineItems: LineItem[],
+  modality: "PICKUP" | "DELIVERY",
+): CartSnapshotItem[] {
+  return lineItems.map((item) => ({
+    upc: item.upc,
+    quantity: item.quantity,
+    modality,
+    productName: item.productName,
+  }));
+}
+
 /**
  * Confirms with the user (via elicitation) and PUTs the given line items to
  * the Kroger cart. Shared by every cart-write path (listId, inline items, and
@@ -63,7 +75,7 @@ export async function addLineItemsToCart(
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
   userId: string,
-): Promise<Result<void, AppError>> {
+) {
   const confirmation = await requestCheckoutConfirmation(
     ctx.server.server,
     lineItems.map((item) => ({
@@ -90,19 +102,14 @@ export async function addLineItemsToCart(
 
   if (addResult.isErr()) return err<void, AppError>(addResult.error);
 
-  const mirrorItems: CartSnapshotItem[] = lineItems.map((item) => ({
-    upc: item.upc,
-    quantity: item.quantity,
-    modality,
-    productName: item.productName,
-  }));
+  const mirrorItems = toCartSnapshotItems(lineItems, modality);
 
   await safeStorage(
     () => ctx.storage.cartMirror.append(userId, mirrorItems, new Date().toISOString()),
     "append cart mirror",
   ).orTee((e) => console.warn("Cart mirror append failed (non-fatal):", e.message));
 
-  return ok<void, AppError>(undefined);
+  return ok(undefined);
 }
 
 async function handleInlineItemsCart(
@@ -231,12 +238,7 @@ async function handleListIdCart(
           // Persist the cart snapshot keyed by the namespaced storage key so a
           // retried call with the same listId short-circuits instead of
           // re-adding the same items to the cart.
-          const snapshot: CartSnapshotItem[] = lineItems.map((item) => ({
-            upc: item.upc,
-            quantity: item.quantity,
-            modality,
-            productName: item.productName,
-          }));
+          const snapshot = toCartSnapshotItems(lineItems, modality);
 
           return safeStorage(
             () => ctx.storage.cartSnapshot.set(storageKey, snapshot),

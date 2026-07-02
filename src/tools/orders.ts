@@ -9,23 +9,12 @@ import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 
-/**
- * `upc` is the documented field; `productId` is a deprecated alias kept so
- * existing hosts don't break. At least one is required; when both are
- * present `upc` wins. See docs/small-model-efficiency-plan.md #2.
- */
-const orderItemSchema = z
-  .object({
-    upc: upcSchema.optional().describe("UPC from search_products"),
-    productId: upcSchema.optional().describe("Deprecated alias for upc."),
-    productName: z.string().max(200),
-    quantity: z.coerce.number().min(1).max(999),
-    price: z.coerce.number().min(0).optional(),
-  })
-  .refine((data) => data.upc !== undefined || data.productId !== undefined, {
-    message: "Provide upc (preferred) or productId for each item.",
-    path: ["upc"],
-  });
+const orderItemSchema = z.object({
+  upc: upcSchema.describe("UPC from search_products"),
+  productName: z.string().max(200),
+  quantity: z.coerce.number().min(1).max(999),
+  price: z.coerce.number().min(0).optional(),
+});
 
 export const recordOrderInputSchema = z.object({
   items: z
@@ -62,18 +51,9 @@ export function registerOrderTools(ctx: ToolContext) {
         0,
       );
 
-      // KV storage keeps the `productId` field name (see user-storage.ts);
-      // `upc` is the tool-facing name, normalized here at the boundary.
-      const storedItems = items.map(({ upc, productId, productName, quantity, price }) => ({
-        productId: (upc ?? productId) as string,
-        productName,
-        quantity,
-        price,
-      }));
-
       const order: OrderRecord = {
         orderId,
-        items: storedItems,
+        items,
         totalItems,
         estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
         placedAt: new Date().toISOString(),

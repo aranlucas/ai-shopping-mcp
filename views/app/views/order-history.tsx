@@ -73,7 +73,7 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
       </p>
       <div className="divide-y divide-border">
         {items.map((item, idx) => (
-          <div key={`${item.productId}-${idx}`} className="flex items-center gap-2.5 py-2.5">
+          <div key={`${item.upc}-${idx}`} className="flex items-center gap-2.5 py-2.5">
             <div className="shrink-0 w-6 h-6 rounded bg-gray-100 text-gray-400 flex items-center justify-center">
               <svg
                 aria-hidden="true"

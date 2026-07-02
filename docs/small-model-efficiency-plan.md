@@ -11,13 +11,13 @@ in `docs/ROADMAP.md`; this plan covers the model-facing API and code health.
 
 Numbers from `EVAL_LOG=1 pnpm eval:mcp` (estimateTokens ≈ chars/4):
 
-| Surface                                                                             | Estimated tokens   | Notes                                                                                                                                                                                                                                                                                         |
-| ----------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Full tool list (14 tools)                                                           | **3,455**          | Largest: `add_shopping_list_to_cart` 311, `add_to_inventory` 307, `record_order` 303, `create_shopping_list` 303. Updated post-Phase-1 items 1-2: `create_shopping_list`/`add_to_inventory` trimmed from 335/320; `get_product`/`record_order` grew slightly from the `upc`/`productId` alias |
-| Server instructions                                                                 | 187                | States the golden path                                                                                                                                                                                                                                                                        |
-| `search_products` ×5 terms, content text                                            | 291                | Compact markdown with `upc=` lines                                                                                                                                                                                                                                                            |
-| `search_products` ×5 terms, **structuredContent**                                   | **4,658**          | ~16× the text, but not model-facing: the consuming hosts strip `structuredContent` before it reaches the model (owner decision, 2026-07). It exists for the MCP Apps views; the eval cap only guards unbounded growth                                                                         |
-| `search_stores` / `get_product` / `shop_for_items` / `get_shopping_profile` content | 74 / 40 / 102 / 61 | All healthy                                                                                                                                                                                                                                                                                   |
+| Surface                                                                             | Estimated tokens   | Notes                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full tool list (14 tools)                                                           | **3,455**          | Largest: `add_shopping_list_to_cart` 311, `add_to_inventory` 307, `record_order` 303, `create_shopping_list` 303. Updated post-Phase-1 items 1-2: `create_shopping_list`/`add_to_inventory` trimmed from 335/320; `get_product`/`record_order` now use `upc` consistently |
+| Server instructions                                                                 | 187                | States the golden path                                                                                                                                                                                                                                                    |
+| `search_products` ×5 terms, content text                                            | 291                | Compact markdown with `upc=` lines                                                                                                                                                                                                                                        |
+| `search_products` ×5 terms, **structuredContent**                                   | **4,658**          | ~16× the text, but not model-facing: the consuming hosts strip `structuredContent` before it reaches the model (owner decision, 2026-07). It exists for the MCP Apps views; the eval cap only guards unbounded growth                                                     |
+| `search_stores` / `get_product` / `shop_for_items` / `get_shopping_profile` content | 74 / 40 / 102 / 61 | All healthy                                                                                                                                                                                                                                                               |
 
 What already works well (worth protecting, which the evals now do):
 
@@ -77,16 +77,12 @@ case) when the change lands.
    `description` and `.describe()` strings.
    _Gate:_ per-tool budget in `token-budget.eval.test.ts` tightened from 450
    to 400 (measured max is now 311, `add_shopping_list_to_cart`, unchanged).
-2. **DONE (2026-07). Unify the UPC field name.** `get_product` took
-   `productId` and `record_order` items took `productId`, but every
-   model-facing string says `upc=`. Small models copy field names; the
-   mismatch caused retries. Both tools now document `upc` as the primary
-   field; `productId` is kept as a deprecated alias (object-level `.refine()`
-   requiring at least one, `upc` wins if both are present) so existing hosts
-   don't break. The KV `OrderRecord` shape is unchanged (`productId`
-   internally); the tool boundary normalizes.
+2. **DONE (2026-07). Unify the UPC field name.** Model-facing strings say
+   `upc=`, so tool inputs and order history now use `upc` too. Small models
+   copy field names; keeping a second id name caused retries and extra type
+   plumbing.
    _Gate:_ new `input-forgiveness` cases: `{upc: …}` accepted on both tools;
-   `{productId: …}` alias still accepted on both.
+   `{productId: …}` rejected at the tool boundary.
 
 ### Phase 2 — Fewer round trips
 
@@ -134,15 +130,30 @@ true}` reuses `add_shopping_list_to_cart`'s confirm-then-PUT path
 
 ### Phase 3 — Efficiency features (ties into ROADMAP.md)
 
-6. **Deal-aware and pantry-aware shopping** (ROADMAP #1/#2): flag `on sale`
-   and `already in pantry` per line in `shop_for_items`/`create_shopping_list`
-   output — one line-suffix each, so the token cost is a few words per item
-   while saving the model separate `get_weekly_deals`/`get_shopping_profile`
-   calls.
-   _Gate:_ content budgets in `token-budget.eval.test.ts`; new scenario in
-   `scenarios.ts` ("add whatever milk is on sale").
-7. **Replenishment** (ROADMAP #3): once landed, add a live-model scenario
-   ("what am I due to restock?") to keep its output small-model-parseable.
+6. **DONE (2026-07). Deal-aware and pantry-aware shopping** (ROADMAP #1/#2):
+   `shop_for_items` and `create_shopping_list` now append ` | in pantry`
+   and/or ` | on sale: $X` per line via the shared best-effort helpers in
+   `src/tools/item-flags.ts`. Pantry: case-insensitive containment match
+   against `ctx.storage.pantry`. Deals: reads the `get_weekly_deals` KV cache
+   (fresh or stale-within-grace) only — never fetches the QFC circular
+   inline; a cold/corrupted/missing cache silently yields no flag. Both
+   flags degrade to nothing (never a failed tool call) on any storage error.
+   _Gate:_ content budgets in `token-budget.eval.test.ts`; unit/storage-backed
+   tests in `tests/tools/item-flags.test.ts`, `tests/tools/shop.test.ts`,
+   `tests/tools/storage-backed-tools.test.ts`. No live-model scenario in
+   `scenarios.ts` was added in this pass — the deterministic suites are the
+   gate for now.
+7. **DONE (2026-07). Replenishment** (ROADMAP #3): `computeRestockSuggestions`
+   (`src/tools/recipes.ts`) groups order history by case-insensitive product
+   name, computes the median interval between consecutive purchases for
+   items bought 3+ times, and flags items where the time since the last
+   purchase exceeds that median — capped at 5, most-overdue first.
+   `get_shopping_profile` (`src/tools/inventory.ts`) now reads 50 recent
+   orders (up from 10) and prints a `## Due to restock` section.
+   _Gate:_ `tests/tools/recipes.test.ts` (median math, purchase-count and
+   not-yet-due exclusions, cap, case-insensitive grouping),
+   `tests/tools/storage-backed-tools.test.ts` (profile section). No
+   live-model scenario was added in this pass.
 
 ### Server-side AI (the unused `AI` binding)
 
@@ -161,24 +172,40 @@ What the AI binding _is_ a good fit for: single-shot, fallback-safe inference
 where the current code uses a crude heuristic and the host model never sees
 the candidates:
 
-8. **Semantic match ranking in `shop_for_items`.** `pickBestMatch` currently
-   takes the first pickup-available result of a keyword search, so "milk" can
-   match a milk-chocolate bar. Rank the ≤5 candidates against the requested
-   name with Workers AI embeddings (e.g. `@cf/baai/bge-small-en-v1.5`,
-   cosine over name vs `description + brand + size`), cache product
-   embeddings in KV keyed by UPC, and fall back to the current heuristic on
-   any AI-binding error or timeout. One inference call per shop*for_items
-   invocation, bounded latency, no change to the model-facing response shape.
-   This is the highest-leverage quality fix for the tool small models depend
-   on most — and the checkout elicitation still gates any wrong pick.
-   \_Gate:* new adversarial fixture in `harness.ts` (a term whose first result
-   is a wrong-category product) + a golden-path case asserting the right UPC
-   lands in the cart; live-model scenarios stay green.
-9. **Deal ↔ item fuzzy matching** (feeds item 6): scraped QFC deal titles are
-   messy free text; embedding similarity beats string matching for tagging
-   list items `on sale`. Same pattern: single-shot, KV-cached, heuristic
-   fallback.
-   _Gate:_ unit tests on the matcher; content budgets unchanged.
+8. **DONE (2026-07). Semantic match ranking in `shop_for_items`.**
+   `src/services/match-ranker.ts` (`rankProductMatches`) reorders each term's
+   ≤5 candidates best-match-first via Workers AI embeddings
+   (`@cf/baai/bge-small-en-v1.5`, cosine over the query vs
+   `description + brand + size`), with a small score boost for
+   pickup-available items so availability still matters; `pickBestMatch`
+   still runs on the ranked list. Product-text embeddings are cached in KV
+   (`embed|v1|bge-small|<sha256>`, 30-day TTL); query embeddings are always
+   computed fresh and batched into the same `ai.run` call as the uncached
+   product texts. Gated end-to-end by `getMatchRankerAi` in `src/tools/shop.ts`
+   (`env.AI` present AND `env.AI_FEATURES !== "off"`); missing either the AI
+   binding or the KV binding, any error, a ~1.5s timeout, or a malformed
+   response falls back to the original (unranked) order — never throws.
+   `vitest.config.ts` sets `AI_FEATURES: "off"` for the whole suite so no test
+   can reach the real (remote-proxied) `env.AI` binding; AI-dependent logic is
+   unit-tested by passing a stubbed structural `Ai`-like object directly to
+   `rankProductMatches`.
+   _Gate:_ `tests/services/match-ranker.test.ts` (reordering, pickup boost,
+   cache-hit batching, every fallback path) and an adversarial case in
+   `tests/tools/shop.test.ts` (a wrong-category first result reordered
+   correctly with AI enabled, old behavior preserved with `AI_FEATURES: "off"`
+   or no KV binding). No `harness.ts`/`scenarios.ts` fixture or live-model
+   scenario was added in this pass.
+9. **DONE (2026-07). Deal ↔ item fuzzy matching** (feeds item 6):
+   `src/utils/deal-match.ts` (`findDealForItem`) normalizes both the item name
+   and each deal title (lowercase, strip punctuation, cheap trailing-`s`
+   singularization) and matches when every item token appears in the deal
+   title, or when the token-overlap ratio is ≥0.6 — cheap token overlap
+   instead of embeddings, since deal titles are short and the KV-cached
+   weekly-deals list is already small. `src/tools/item-flags.ts` wires it into
+   the per-item `on sale` flag (item 6).
+   _Gate:_ `tests/utils/deal-match.test.ts` (messy real-world-shaped titles,
+   punctuation, singularization, overlap-ratio matches/misses, best-match
+   selection); content budgets unchanged.
 
 Both must degrade to today's behavior when `env.AI` errors, and tests/evals
 run against the fallback path (no AI binding calls in CI) with the matcher

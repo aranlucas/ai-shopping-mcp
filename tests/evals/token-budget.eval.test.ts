@@ -190,7 +190,10 @@ describe("token budget: tool responses", () => {
     const result = await call("get_shopping_profile", {});
     expect(result.isError).toBeFalsy();
 
-    // Baseline 2026-07: 61t.
+    // Baseline 2026-07 (Phase 1): 61t. Updated 2026-07 (Phase 3, #7): 72t —
+    // +11t for the new "## Due to restock" section (empty here, since this
+    // scenario has no order history); cap unchanged, still comfortably under
+    // it. See small-model-efficiency-plan.md Phase 3 item 7.
     const { textTokens } = report("get_shopping_profile", result);
     expect(textTokens).toBeLessThan(150);
   });

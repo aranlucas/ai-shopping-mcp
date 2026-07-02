@@ -188,7 +188,7 @@ describe("MCP agent contract", () => {
       record_order: {
         _view: "record_order",
         orderId: "ORD-1",
-        items: [{ productId: "0001112223334", productName: "Milk", quantity: 1 }],
+        items: [{ upc: "0001112223334", productName: "Milk", quantity: 1 }],
         totalItems: 1,
         placedAt: "2026-06-30T00:00:00.000Z",
       },

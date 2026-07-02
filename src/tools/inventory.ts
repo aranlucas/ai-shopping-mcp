@@ -13,7 +13,7 @@ import {
 } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { computeFrequentlyPurchasedItems } from "./recipes.js";
+import { computeFrequentlyPurchasedItems, computeRestockSuggestions } from "./recipes.js";
 
 const addInventoryItemSchema = z.object({
   name: z.string().min(1).max(200).describe("Item name, e.g. 'Eggs' or 'Dutch oven'"),
@@ -240,7 +240,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         safeStorage(() => ctx.storage.preferredLocation.get(props.id), "fetch preferred store"),
         safeStorage(() => ctx.storage.pantry.getAll(props.id), "fetch pantry"),
         safeStorage(() => ctx.storage.equipment.getAll(props.id), "fetch equipment"),
-        safeStorage(() => ctx.storage.orderHistory.getRecent(props.id, 10), "fetch order history"),
+        safeStorage(() => ctx.storage.orderHistory.getRecent(props.id, 50), "fetch order history"),
       ]).match(([preferredStore, pantry, equipment, recentOrders]) => {
         const parts: string[] = [];
 
@@ -284,6 +284,18 @@ export function registerInventoryTools(ctx: ToolContext) {
         } else {
           for (const { name, count } of frequentItems) {
             parts.push(`- ${name} (ordered ${count}x)`);
+          }
+        }
+
+        const restockSuggestions = computeRestockSuggestions(recentOrders);
+        parts.push("\n## Due to restock");
+        if (restockSuggestions.length === 0) {
+          parts.push("no restock suggestions yet");
+        } else {
+          for (const { name, daysSinceLast, medianIntervalDays } of restockSuggestions) {
+            parts.push(
+              `- ${name} (last bought ${daysSinceLast}d ago, usually every ~${medianIntervalDays}d)`,
+            );
           }
         }
 

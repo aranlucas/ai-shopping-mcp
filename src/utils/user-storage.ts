@@ -17,7 +17,7 @@ export interface PantryItem {
 export interface OrderRecord {
   orderId: string; // Auto-generated
   items: Array<{
-    productId: string;
+    upc: string;
     productName: string;
     quantity: number;
     price?: number;
@@ -74,7 +74,7 @@ const orderRecordSchema = z.looseObject({
   orderId: z.string(),
   items: z.array(
     z.looseObject({
-      productId: z.string(),
+      upc: z.string(),
       productName: z.string(),
       quantity: z.number(),
       price: z.number().optional(),
@@ -393,10 +393,7 @@ const CART_MIRROR_MAX_ITEMS = 100;
 export type CartMirrorItem = CartSnapshotItem & { addedAt: string };
 
 const cartMirrorItemSchema = z.looseObject({
-  upc: z.string(),
-  quantity: z.number(),
-  modality: z.enum(["PICKUP", "DELIVERY"]),
-  productName: z.string().optional(),
+  ...cartSnapshotItemSchema.shape,
   addedAt: z.string(),
 });
 
