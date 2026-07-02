@@ -11,12 +11,16 @@ measures the actual wire payloads a host model sees.
 ```bash
 pnpm eval:mcp                 # all deterministic suites (also run by pnpm test)
 EVAL_LOG=1 pnpm eval:mcp      # print measured token tables for recalibration
-ANTHROPIC_API_KEY=... pnpm eval:mcp             # + live small-model runs
-EVAL_MODEL=claude-sonnet-5 ANTHROPIC_API_KEY=... pnpm eval:mcp  # other model
+EVAL_LIVE=1 pnpm eval:mcp     # + live small-model runs via the Workers AI binding
+EVAL_LIVE=1 EVAL_MODEL=@cf/meta/llama-3.3-70b-instruct-fp8-fast pnpm eval:mcp
 ```
 
 The deterministic suites run in CI as part of `pnpm test`. The live-model
-suite is skipped without `ANTHROPIC_API_KEY`.
+suite only runs with `EVAL_LIVE=1`: it uses the Worker's own Cloudflare AI
+binding (`env.AI`), which miniflare proxies to **remote** Workers AI — it
+needs Cloudflare credentials (`wrangler login` or
+`CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`) and can incur usage charges,
+which is why it never runs implicitly.
 
 ## What each suite measures
 
@@ -27,7 +31,7 @@ suite is skipped without `ANTHROPIC_API_KEY`.
 | `golden-path.eval.test.ts`         | Can a "scripted small model" that only reads `content[0].text` and extracts ids with trivial regexes (`storeId=…`, `upc=…`, `listId=…`) finish the golden paths within the documented call budget? Also covers idempotent cart retry and partial no-result searches.         |
 | `input-forgiveness.eval.test.ts`   | Are typical small-model input mistakes (unpadded UPCs, string numbers, lowercase enums, stray whitespace, extra keys) normalized instead of rejected — and when rejection is right, does the error name the fix?                                                             |
 | `error-actionability.eval.test.ts` | Does every error name the concrete recovery tool, and does following that advice actually work?                                                                                                                                                                              |
-| `live-model.eval.test.ts`          | Can a real small model (default `claude-haiku-4-5`) complete the `scenarios.ts` shopping tasks against the live tool surface? Reports tool-call count, schema rejections, and token usage per scenario.                                                                      |
+| `live-model.eval.test.ts`          | Can a real small model (default `@cf/meta/llama-3.1-8b-instruct` on Workers AI, via the Worker's own `env.AI` binding) complete the `scenarios.ts` shopping tasks against the live tool surface? Reports tool-call count and schema rejections per scenario.                 |
 
 ## The small-model contract
 
@@ -62,5 +66,9 @@ match for a term is a legitimate model pick).
   `tests/tools/weekly-deals.test.ts` cover the caching logic).
 - `estimateTokens()` is a chars/4 heuristic, not a real tokenizer. Budgets
   are for regression detection, not billing.
-- The live runner needs outbound network to `api.anthropic.com` from the
-  Workers test pool; everything else stays fixture-backed.
+- The live runner's `env.AI` binding is remote-proxied by miniflare (real
+  Workers AI inference, real charges); everything else stays fixture-backed.
+  Tool-calling reliability varies by Workers AI model — a failure at the
+  default 8B model is signal about the tool surface, but confirm against a
+  larger model (`EVAL_MODEL=@cf/meta/llama-3.3-70b-instruct-fp8-fast`) before
+  treating it as a regression.

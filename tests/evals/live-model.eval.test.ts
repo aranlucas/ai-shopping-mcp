@@ -1,19 +1,23 @@
 /**
- * Eval: live small-model agent runs (opt-in).
+ * Eval: live small-model agent runs (opt-in, Workers AI).
  *
- * Runs the scenarios in scenarios.ts with a real small model
- * (claude-haiku-4-5 by default — the class of model this server is tuned
- * for) driving the real MCP server over the wire. Kroger stays fixture-backed;
- * only api.anthropic.com is reached.
+ * Runs the scenarios in scenarios.ts with a real small model driving the real
+ * MCP server over the wire, using the Worker's own Cloudflare AI binding
+ * (`env.AI`) — no external API key. Kroger stays fixture-backed.
  *
- * Skipped unless ANTHROPIC_API_KEY is set:
- *   ANTHROPIC_API_KEY=sk-... pnpm eval:mcp
- * Override the model under test with EVAL_MODEL (e.g. EVAL_MODEL=claude-sonnet-5).
+ * The miniflare AI binding proxies to **remote** Workers AI (it can incur
+ * usage charges and needs Cloudflare credentials — `wrangler login` or
+ * CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID), so the suite is explicitly
+ * opt-in:
  *
- * Metrics per scenario: task success (fixture cart contents), tool-call count
- * vs budget, schema-rejection count (isError results), and token usage.
+ *   EVAL_LIVE=1 pnpm eval:mcp
+ *   EVAL_LIVE=1 EVAL_MODEL=@cf/meta/llama-3.3-70b-instruct-fp8-fast pnpm eval:mcp
+ *
+ * The default model is deliberately small (llama-3.1-8b) — that is the class
+ * of model this server is tuned for. Metrics per scenario: task success
+ * (fixture cart contents), tool-call count vs budget, and schema-rejection
+ * count (isError results).
  */
-import Anthropic from "@anthropic-ai/sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -28,24 +32,82 @@ import {
 import { SCENARIOS } from "./scenarios.js";
 
 const evalEnv = env as unknown as Record<string, string | undefined>;
-const apiKey = evalEnv.ANTHROPIC_API_KEY;
-const model = evalEnv.EVAL_MODEL ?? "claude-haiku-4-5";
+const liveEnabled = Boolean(evalEnv.EVAL_LIVE);
+const model = evalEnv.EVAL_MODEL ?? "@cf/meta/llama-3.1-8b-instruct";
 
 const MAX_AGENT_TURNS = 12;
 
-type RunStats = {
-  toolCalls: number;
-  schemaRejections: number;
-  inputTokens: number;
-  outputTokens: number;
+// The generated Ai binding types are keyed by model id and don't cover the
+// tool-calling request/response shape generically, so the runner uses a
+// narrow structural view of the binding instead.
+type ChatMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  name?: string;
+  tool_calls?: WorkersAiToolCall[];
 };
 
-describe.skipIf(!apiKey)(`live small-model eval (${model})`, () => {
+type WorkersAiTool = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+};
+
+type WorkersAiToolCall = { name: string; arguments: unknown };
+
+type WorkersAiChatResult = {
+  response?: string;
+  tool_calls?: WorkersAiToolCall[];
+};
+
+type ChatCapableAi = {
+  run(
+    model: string,
+    options: { messages: ChatMessage[]; tools: WorkersAiTool[] },
+  ): Promise<unknown>;
+};
+
+function parseChatResult(raw: unknown): WorkersAiChatResult {
+  if (!raw || typeof raw !== "object") return {};
+  const record = raw as Record<string, unknown>;
+  const toolCallsRaw = record.tool_calls;
+  const toolCalls = Array.isArray(toolCallsRaw)
+    ? toolCallsRaw.flatMap((entry): WorkersAiToolCall[] => {
+        if (!entry || typeof entry !== "object") return [];
+        const call = entry as Record<string, unknown>;
+        if (typeof call.name !== "string") return [];
+        return [{ name: call.name, arguments: call.arguments }];
+      })
+    : undefined;
+  return {
+    response: typeof record.response === "string" ? record.response : undefined,
+    tool_calls: toolCalls,
+  };
+}
+
+/** Workers AI models return tool arguments as an object or a JSON string. */
+function parseToolArguments(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+    return {};
+  }
+  if (value && typeof value === "object") return value as Record<string, unknown>;
+  return {};
+}
+
+type RunStats = { toolCalls: number; schemaRejections: number };
+
+describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
   let stub: KrogerFetchStub;
   let client: Client;
 
   beforeEach(async () => {
-    stub = installKrogerFetchStub(["api.anthropic.com"]);
+    stub = installKrogerFetchStub();
     client = await createEvalMcpClient();
   });
 
@@ -54,69 +116,52 @@ describe.skipIf(!apiKey)(`live small-model eval (${model})`, () => {
     await reset();
   });
 
-  /** Minimal manual agentic loop: model ↔ real MCP tools until end_turn. */
+  /** Minimal manual agentic loop: Workers AI model ↔ real MCP tools. */
   async function runAgent(userTask: string): Promise<RunStats> {
-    const anthropic = new Anthropic({ apiKey, fetch: stub.realFetch });
+    const ai = (env as { AI?: unknown }).AI as ChatCapableAi | undefined;
+    if (!ai) throw new Error("AI binding is not available in the test environment");
 
     const { tools: mcpTools } = await client.listTools();
-    const tools: Anthropic.Tool[] = mcpTools.map((tool) => ({
+    const tools: WorkersAiTool[] = mcpTools.map((tool) => ({
       name: tool.name,
       description: tool.description ?? "",
-      input_schema: tool.inputSchema as Anthropic.Tool.InputSchema,
+      parameters: tool.inputSchema as Record<string, unknown>,
     }));
 
-    const stats: RunStats = {
-      toolCalls: 0,
-      schemaRejections: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-    };
-    const messages: Anthropic.MessageParam[] = [{ role: "user", content: userTask }];
+    const stats: RunStats = { toolCalls: 0, schemaRejections: 0 };
+    const messages: ChatMessage[] = [
+      { role: "system", content: client.getInstructions() ?? "" },
+      { role: "user", content: userTask },
+    ];
 
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
-      const response = await anthropic.messages.create({
-        model,
-        max_tokens: 2048,
-        system: client.getInstructions() ?? "",
-        tools,
-        messages,
-      });
-      stats.inputTokens += response.usage.input_tokens;
-      stats.outputTokens += response.usage.output_tokens;
+      const result = parseChatResult(await ai.run(model, { messages, tools }));
 
-      if (response.stop_reason !== "tool_use") break;
+      if (!result.tool_calls || result.tool_calls.length === 0) break;
 
-      messages.push({ role: "assistant", content: response.content });
+      messages.push({ role: "assistant", content: "", tool_calls: result.tool_calls });
 
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      for (const block of response.content) {
-        if (block.type !== "tool_use") continue;
+      for (const toolCall of result.tool_calls) {
         stats.toolCalls++;
 
-        let result: ToolCallResult;
+        let toolResult: ToolCallResult;
         try {
-          result = (await client.callTool({
-            name: block.name,
-            arguments: block.input as Record<string, unknown>,
+          toolResult = (await client.callTool({
+            name: toolCall.name,
+            arguments: parseToolArguments(toolCall.arguments),
           })) as ToolCallResult;
         } catch (error) {
-          result = {
+          toolResult = {
             isError: true,
             content: [
               { type: "text", text: error instanceof Error ? error.message : String(error) },
             ],
           };
         }
-        if (result.isError) stats.schemaRejections++;
+        if (toolResult.isError) stats.schemaRejections++;
 
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: contentText(result),
-          is_error: result.isError ? true : undefined,
-        });
+        messages.push({ role: "tool", name: toolCall.name, content: contentText(toolResult) });
       }
-      messages.push({ role: "user", content: toolResults });
     }
 
     return stats;
@@ -140,8 +185,7 @@ describe.skipIf(!apiKey)(`live small-model eval (${model})`, () => {
 
         console.log(
           `[live-eval] ${scenario.name}: toolCalls=${stats.toolCalls} ` +
-            `schemaRejections=${stats.schemaRejections} ` +
-            `tokens=${stats.inputTokens}in/${stats.outputTokens}out cart=[${cartUpcs.join(", ")}]`,
+            `schemaRejections=${stats.schemaRejections} cart=[${cartUpcs.join(", ")}]`,
         );
 
         for (const expected of scenario.expectCart) {

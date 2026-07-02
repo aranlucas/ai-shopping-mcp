@@ -11,13 +11,13 @@ in `docs/ROADMAP.md`; this plan covers the model-facing API and code health.
 
 Numbers from `EVAL_LOG=1 pnpm eval:mcp` (estimateTokens ≈ chars/4):
 
-| Surface                                                                             | Estimated tokens   | Notes                                                                                                                                                                                                                 |
-| ----------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Full tool list (14 tools)                                                           | **3,445**          | Largest: `create_shopping_list` 335, `add_to_inventory` 320, `add_shopping_list_to_cart` 311                                                                                                                          |
-| Server instructions                                                                 | 187                | States the golden path                                                                                                                                                                                                |
-| `search_products` ×5 terms, content text                                            | 291                | Compact markdown with `upc=` lines                                                                                                                                                                                    |
-| `search_products` ×5 terms, **structuredContent**                                   | **4,658**          | ~16× the text, but not model-facing: the consuming hosts strip `structuredContent` before it reaches the model (owner decision, 2026-07). It exists for the MCP Apps views; the eval cap only guards unbounded growth |
-| `search_stores` / `get_product` / `shop_for_items` / `get_shopping_profile` content | 74 / 40 / 102 / 61 | All healthy                                                                                                                                                                                                           |
+| Surface                                                                             | Estimated tokens   | Notes                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full tool list (14 tools)                                                           | **3,455**          | Largest: `add_shopping_list_to_cart` 311, `add_to_inventory` 307, `record_order` 303, `create_shopping_list` 303. Updated post-Phase-1 items 1-2: `create_shopping_list`/`add_to_inventory` trimmed from 335/320; `get_product`/`record_order` grew slightly from the `upc`/`productId` alias |
+| Server instructions                                                                 | 187                | States the golden path                                                                                                                                                                                                                                                                        |
+| `search_products` ×5 terms, content text                                            | 291                | Compact markdown with `upc=` lines                                                                                                                                                                                                                                                            |
+| `search_products` ×5 terms, **structuredContent**                                   | **4,658**          | ~16× the text, but not model-facing: the consuming hosts strip `structuredContent` before it reaches the model (owner decision, 2026-07). It exists for the MCP Apps views; the eval cap only guards unbounded growth                                                                         |
+| `search_stores` / `get_product` / `shop_for_items` / `get_shopping_profile` content | 74 / 40 / 102 / 61 | All healthy                                                                                                                                                                                                                                                                                   |
 
 What already works well (worth protecting, which the evals now do):
 
@@ -70,18 +70,23 @@ case) when the change lands.
 > buys no model-facing tokens — it exists for the MCP Apps views. The
 > token-budget eval keeps a generous cap on it purely as a growth guard.
 
-1. **Trim the two heaviest tool definitions.** `create_shopping_list` (335t)
-   and `add_to_inventory` (320t) spend tokens on prose the schema already
-   encodes. Keep the JSON examples (they demonstrably help small models);
-   cut redundant sentences.
-   _Gate:_ per-tool budget in `token-budget.eval.test.ts` drops to ~350.
-2. **Unify the UPC field name.** `get_product` takes `productId` and
-   `record_order` items take `productId`, but every model-facing string says
-   `upc=`. Small models copy field names; the mismatch causes retries. Rename
-   to `upc` (accept `productId` as a deprecated alias via a permissive
-   preprocess so existing hosts don't break).
+1. **DONE (2026-07). Trim the two heaviest tool definitions.**
+   `create_shopping_list` (335t → 303t) and `add_to_inventory` (320t → 307t)
+   spent tokens on prose the schema already encodes. Kept the JSON examples
+   (they demonstrably help small models); cut redundant sentences from
+   `description` and `.describe()` strings.
+   _Gate:_ per-tool budget in `token-budget.eval.test.ts` tightened from 450
+   to 400 (measured max is now 311, `add_shopping_list_to_cart`, unchanged).
+2. **DONE (2026-07). Unify the UPC field name.** `get_product` took
+   `productId` and `record_order` items took `productId`, but every
+   model-facing string says `upc=`. Small models copy field names; the
+   mismatch caused retries. Both tools now document `upc` as the primary
+   field; `productId` is kept as a deprecated alias (object-level `.refine()`
+   requiring at least one, `upc` wins if both are present) so existing hosts
+   don't break. The KV `OrderRecord` shape is unchanged (`productId`
+   internally); the tool boundary normalizes.
    _Gate:_ new `input-forgiveness` cases: `{upc: …}` accepted on both tools;
-   alias still accepted.
+   `{productId: …}` alias still accepted on both.
 
 ### Phase 2 — Fewer round trips
 
@@ -162,29 +167,39 @@ itself unit-tested behind an interface.
 
 ### Code health (independent of phases)
 
-- **Delete ~22 dead formatter exports.** Everything in
+- **DONE (2026-07). Delete ~22 dead formatter exports.** Everything in
   `src/utils/format-response.ts` above the "MARKDOWN: model-facing formatters"
   banner except `formatPreferredLocationCompact`, `formatPantryListCompact`,
   `formatEquipmentListCompact`, `formatOrderHistoryCompact`, and
-  `formatShoppingList(Item)Compact` has zero call sites in `src/` (verified by
-  grep, 2026-07): `formatProduct*`, `formatLocation*`, `formatWeeklyDeal*`
-  (list variants), `formatPantryItem`/`formatPantryList`, `formatOrderRecord`/
-  `formatOrderHistory`, `formatEquipmentItem`/`formatEquipmentList`,
-  `formatShoppingList`/`formatShoppingListItem`. Remove them and their tests —
-  roughly 700 of the file's 970 lines.
-- **`search_stores` chain default.** `chain` defaults to `"QFC"`, silently
-  hiding Kroger-banner stores for non-QFC users. Either drop the default or
-  say "QFC only by default; pass chain to widen" in the description.
-- **`IMPROVEMENTS.md` backlog hygiene.** The cart-mirror items graduate into
-  Phase 2 here; profile/auth-introspection tools (`test_authentication`,
-  `get_authentication_info`) should be explicitly rejected — they add surface
-  without serving any golden path, the trap the 26-tool reference fell into.
-- **Elicitation error-message coupling.** `requestCheckoutConfirmation`
-  string-matches the SDK's `"Client does not support form elicitation."`
-  message to distinguish capability absence from failure. An SDK upgrade that
-  rewords it silently turns every no-elicitation client into a failed
-  checkout. Pin with a comment + a test against the installed SDK, or detect
-  capability via `getClientCapabilities()` before calling `elicitInput`.
+  `formatShoppingList(Item)Compact` had zero call sites in `src/` (verified by
+  grep, 2026-07), including `formatPreferredLocation` (not previously listed,
+  confirmed dead by the same grep): `formatProduct*`, `formatLocation*`,
+  `formatWeeklyDeal*` (list variants), `formatPantryItem`/`formatPantryList`,
+  `formatOrderRecord`/`formatOrderHistory`,
+  `formatEquipmentItem`/`formatEquipmentList`,
+  `formatShoppingList`/`formatShoppingListItem`, `formatPreferredLocation`.
+  Removed them and their tests — the file dropped from 971 to 355 lines.
+- **DONE (2026-07). `search_stores` chain default.** `chain` still defaults
+  to `"QFC"` (unchanged behavior), but now has a `.describe()` saying so and
+  naming `chain: "KROGER"` as the way to widen results.
+- **DONE (2026-07). `IMPROVEMENTS.md` backlog hygiene.** The cart-mirror
+  items now point at Phase 2 item 4 here instead of duplicating it; added a
+  "Rejected" section for `test_authentication`, `get_authentication_info`,
+  `get_user_profile`, `list_chains`, `list_departments`, and
+  `force_reauthenticate` with per-tool reasoning — they add surface without
+  serving any golden path, the trap the 26-tool reference fell into.
+- **DONE (2026-07). Elicitation error-message coupling.**
+  `requestCheckoutConfirmation` still string-matches the SDK's
+  `"Client does not support form elicitation."` message (there is no
+  `getClientCapabilities()`-based check exposed for this on the type this
+  function accepts), but the string is now the exported
+  `ELICITATION_UNSUPPORTED_MESSAGE` constant in `src/tools/shopping-list.ts`,
+  and `tests/tools/shopping-list-confirmation.test.ts` asserts it against a
+  real `Server#elicitInput` call from the installed SDK (no transport needed —
+  a freshly constructed `Server` has no client capabilities, so the throw
+  happens before any request is sent). An SDK upgrade that rewords the
+  message now fails that test loudly instead of silently breaking checkout
+  for no-elicitation clients.
 
 ## 4. Non-goals
 
@@ -209,5 +224,6 @@ Every phase item lands with its eval gate updated in the same PR. Budgets in
 `token-budget.eval.test.ts` are calibrated numbers, not aspirations: after a
 deliberate change, re-measure with `EVAL_LOG=1 pnpm eval:mcp` and set the new
 budget at ~1.3× measured. Before/after comparisons for model behavior come
-from the live runner: `ANTHROPIC_API_KEY=… pnpm eval:mcp` (default model
-`claude-haiku-4-5`, override with `EVAL_MODEL`).
+from the live runner: `EVAL_LIVE=1 pnpm eval:mcp`, which drives a small model
+through the Worker's own Cloudflare AI binding (default
+`@cf/meta/llama-3.1-8b-instruct`, override with `EVAL_MODEL`).
