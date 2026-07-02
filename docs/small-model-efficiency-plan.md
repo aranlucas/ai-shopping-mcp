@@ -11,13 +11,13 @@ in `docs/ROADMAP.md`; this plan covers the model-facing API and code health.
 
 Numbers from `EVAL_LOG=1 pnpm eval:mcp` (estimateTokens ≈ chars/4):
 
-| Surface                                                                             | Estimated tokens   | Notes                                                                                                                       |
-| ----------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| Full tool list (14 tools)                                                           | **3,445**          | Largest: `create_shopping_list` 335, `add_to_inventory` 320, `add_shopping_list_to_cart` 311                                |
-| Server instructions                                                                 | 187                | States the golden path                                                                                                      |
-| `search_products` ×5 terms, content text                                            | 291                | Compact markdown with `upc=` lines                                                                                          |
-| `search_products` ×5 terms, **structuredContent**                                   | **4,658**          | ~16× the text — and fixtures only carry 1–3 products/term; production (5/term with full image sets) is several times larger |
-| `search_stores` / `get_product` / `shop_for_items` / `get_shopping_profile` content | 74 / 40 / 102 / 61 | All healthy                                                                                                                 |
+| Surface                                                                             | Estimated tokens   | Notes                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full tool list (14 tools)                                                           | **3,445**          | Largest: `create_shopping_list` 335, `add_to_inventory` 320, `add_shopping_list_to_cart` 311                                                                                                                          |
+| Server instructions                                                                 | 187                | States the golden path                                                                                                                                                                                                |
+| `search_products` ×5 terms, content text                                            | 291                | Compact markdown with `upc=` lines                                                                                                                                                                                    |
+| `search_products` ×5 terms, **structuredContent**                                   | **4,658**          | ~16× the text, but not model-facing: the consuming hosts strip `structuredContent` before it reaches the model (owner decision, 2026-07). It exists for the MCP Apps views; the eval cap only guards unbounded growth |
+| `search_stores` / `get_product` / `shop_for_items` / `get_shopping_profile` content | 74 / 40 / 102 / 61 | All healthy                                                                                                                                                                                                           |
 
 What already works well (worth protecting, which the evals now do):
 
@@ -52,8 +52,8 @@ What already works well (worth protecting, which the evals now do):
   are the two costs; the fixes are response projection (trim fields the model
   never uses), aggregation tools over CRUD tools, and result caching. This
   repo already has the aggregation-tool shape (`shop_for_items`,
-  `get_shopping_profile`); the remaining gap is response projection on
-  `structuredContent`.
+  `get_shopping_profile`), and response projection is a non-issue here because
+  the consuming hosts strip `structuredContent` from model context.
 
 Sources: github.com/CupOfOwls/kroger-mcp, docs.instacart.com
 (developer_platform_api MCP tutorial), shopify.dev/docs/apps/build/storefront-mcp.
@@ -65,23 +65,17 @@ case) when the change lands.
 
 ### Phase 1 — Token efficiency (highest leverage)
 
-1. **Slim `structuredContent` to what the views render.** ~4,700+ estimated
-   tokens per bulk search ride along for the React view; hosts that inject
-   `structuredContent` into model context (several do) pay ~16× the useful
-   text. Project products to the fields `views/app/views/` actually renders —
-   one medium image URL instead of 2 perspectives × 5 CDN URLs, drop
-   `itemInformation`/`temperature`/`countryOrigin` — via a `toViewProduct()`
-   projection in `src/utils/format-response.ts`. Update
-   `tests/tools/response-size.test.ts` (which currently asserts images are
-   present) and the dev-harness mocks together with the views.
-   _Gate:_ `token-budget.eval.test.ts` — tighten the structuredContent cap
-   from 8,000 to ~1,500 after landing.
-2. **Trim the two heaviest tool definitions.** `create_shopping_list` (335t)
+> Decision (2026-07): `structuredContent` stays as-is. The consuming hosts
+> already strip it from model context before the model sees it, so slimming it
+> buys no model-facing tokens — it exists for the MCP Apps views. The
+> token-budget eval keeps a generous cap on it purely as a growth guard.
+
+1. **Trim the two heaviest tool definitions.** `create_shopping_list` (335t)
    and `add_to_inventory` (320t) spend tokens on prose the schema already
    encodes. Keep the JSON examples (they demonstrably help small models);
    cut redundant sentences.
    _Gate:_ per-tool budget in `token-budget.eval.test.ts` drops to ~350.
-3. **Unify the UPC field name.** `get_product` takes `productId` and
+2. **Unify the UPC field name.** `get_product` takes `productId` and
    `record_order` items take `productId`, but every model-facing string says
    `upc=`. Small models copy field names; the mismatch causes retries. Rename
    to `upc` (accept `productId` as a deprecated alias via a permissive
@@ -91,14 +85,14 @@ case) when the change lands.
 
 ### Phase 2 — Fewer round trips
 
-4. **Optional `addToCart` on `shop_for_items`.** The golden path is 4 calls;
+3. **Optional `addToCart` on `shop_for_items`.** The golden path is 4 calls;
    for a returning user it can be 2 (`shop_for_items {items, addToCart:
 true}`), with the elicitation confirmation still gating the cart write.
    Kroger's 5,000 cart-calls/day budget is untouched — it's the same single
    PUT.
    _Gate:_ new golden-path case with a 2-call budget; retry-safety case must
    still pass.
-5. **Local cart mirror + `view_cart`.** Kroger's API cannot read the cart
+4. **Local cart mirror + `view_cart`.** Kroger's API cannot read the cart
    (the reason IMPROVEMENTS.md defers view/remove/clear). Generalize
    `CartSnapshotStorage` from per-list snapshots to a per-user rolling mirror
    updated on every cart PUT, then add a read-only `view_cart` tool ("what's
@@ -106,7 +100,7 @@ true}`), with the elicitation confirmation still gating the cart write.
    this assistant" since in-store/app changes are invisible.
    _Gate:_ golden-path case: add → view shows the items; token budget for the
    new tool definition.
-6. **KV-cache product searches (short TTL).** Same-term searches at the same
+5. **KV-cache product searches (short TTL).** Same-term searches at the same
    store within ~10 minutes are common in multi-turn shopping and burn the
    10k/day product quota. Reuse the weekly-deals cache pattern
    (fresh/stale/miss) with a short fresh window keyed on
@@ -116,15 +110,55 @@ true}`), with the elicitation confirmation still gating the cart write.
 
 ### Phase 3 — Efficiency features (ties into ROADMAP.md)
 
-7. **Deal-aware and pantry-aware shopping** (ROADMAP #1/#2): flag `on sale`
+6. **Deal-aware and pantry-aware shopping** (ROADMAP #1/#2): flag `on sale`
    and `already in pantry` per line in `shop_for_items`/`create_shopping_list`
    output — one line-suffix each, so the token cost is a few words per item
    while saving the model separate `get_weekly_deals`/`get_shopping_profile`
    calls.
    _Gate:_ content budgets in `token-budget.eval.test.ts`; new scenario in
    `scenarios.ts` ("add whatever milk is on sale").
-8. **Replenishment** (ROADMAP #3): once landed, add a live-model scenario
+7. **Replenishment** (ROADMAP #3): once landed, add a live-model scenario
    ("what am I due to restock?") to keep its output small-model-parseable.
+
+### Server-side AI (the unused `AI` binding)
+
+`wrangler.jsonc` declares a Workers AI binding (`env.AI`) that no code uses.
+Position: **no internal agents, but targeted single-shot inference is worth
+it** in two places.
+
+Keep the invariant that the host model is the only agent. MCP Sampling was
+removed deliberately (AGENTS.md); an inner agent loop inside a tool would
+reintroduce hidden multi-step reasoning with its latency, cost,
+non-determinism, and debugging opacity — and it duplicates work the host model
+already does with full conversation context (free-text list parsing, meal
+planning). `get_meal_planning_context` stays a context provider.
+
+What the AI binding _is_ a good fit for: single-shot, fallback-safe inference
+where the current code uses a crude heuristic and the host model never sees
+the candidates:
+
+8. **Semantic match ranking in `shop_for_items`.** `pickBestMatch` currently
+   takes the first pickup-available result of a keyword search, so "milk" can
+   match a milk-chocolate bar. Rank the ≤5 candidates against the requested
+   name with Workers AI embeddings (e.g. `@cf/baai/bge-small-en-v1.5`,
+   cosine over name vs `description + brand + size`), cache product
+   embeddings in KV keyed by UPC, and fall back to the current heuristic on
+   any AI-binding error or timeout. One inference call per shop*for_items
+   invocation, bounded latency, no change to the model-facing response shape.
+   This is the highest-leverage quality fix for the tool small models depend
+   on most — and the checkout elicitation still gates any wrong pick.
+   \_Gate:* new adversarial fixture in `harness.ts` (a term whose first result
+   is a wrong-category product) + a golden-path case asserting the right UPC
+   lands in the cart; live-model scenarios stay green.
+9. **Deal ↔ item fuzzy matching** (feeds item 6): scraped QFC deal titles are
+   messy free text; embedding similarity beats string matching for tagging
+   list items `on sale`. Same pattern: single-shot, KV-cached, heuristic
+   fallback.
+   _Gate:_ unit tests on the matcher; content budgets unchanged.
+
+Both must degrade to today's behavior when `env.AI` errors, and tests/evals
+run against the fallback path (no AI binding calls in CI) with the matcher
+itself unit-tested behind an interface.
 
 ### Code health (independent of phases)
 
@@ -154,6 +188,11 @@ true}`), with the elicitation confirmation still gating the cart write.
 
 ## 4. Non-goals
 
+- **Slimming `structuredContent`.** The consuming hosts strip it from model
+  context; it is the MCP Apps view payload, not a model-facing cost.
+- **Internal agents / sampling inside tools.** Single-shot AI-binding calls
+  with heuristic fallback (items 8–9) are the ceiling; no multi-step loops,
+  no server-side meal-plan generation, no re-introducing `createMessage`.
 - **Growing the tool surface** toward chains/departments/auth-introspection
   parity with the reference implementation. Every added tool costs every
   request ~200–350 tokens; the survey shows production commerce MCPs are

@@ -124,16 +124,14 @@ describe("token budget: tool responses", () => {
     });
     expect(result.isError).toBeFalsy();
 
-    // Baseline 2026-07: content=291t, structuredContent=4658t (~16x the text
-    // the model reads, and fixtures carry only 1-3 products per term).
+    // Baseline 2026-07: content=291t, structuredContent=4658t.
     const { textTokens, structuredTokens } = report("search_products x5", result);
     expect(textTokens).toBeLessThan(600);
 
-    // Documented liability, tracked in docs/small-model-efficiency-plan.md:
-    // structuredContent carries full Kroger payloads (images included) for the
-    // MCP Apps view. Hosts that inject structuredContent into model context pay
-    // this in full. The cap here only stops it growing further before the
-    // planned slimming lands.
+    // structuredContent is the MCP Apps view payload, not model-facing: the
+    // consuming hosts strip it from model context (see
+    // docs/small-model-efficiency-plan.md). This cap is only a growth guard
+    // so the view payload doesn't balloon unnoticed.
     expect(structuredTokens).toBeLessThan(8000);
   });
 
