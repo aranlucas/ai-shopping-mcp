@@ -1,20 +1,20 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { ResultAsync, fromThrowable, okAsync } from "neverthrow";
+import { ResultAsync, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
 import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
+import type { KvLike } from "../utils/kv.js";
 import type { ToolContext } from "./types.js";
 
 import { networkError, notFoundError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 import { safeJsonParseWithSchema } from "../utils/json.js";
+import { getUserDataKv } from "../utils/kv.js";
 import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
-
-export type KvLike = Pick<KVNamespace, "get" | "put">;
 
 export type WeeklyDealsCacheEntry = {
   version: 1;
@@ -66,25 +66,6 @@ const weeklyDealsCacheEntrySchema = z
       data: entry.data,
     }),
   );
-
-export function isKvLike(value: unknown): value is KvLike {
-  return !!value && typeof value === "object" && "get" in value && "put" in value;
-}
-
-const safeGetCacheKv = fromThrowable(
-  (ctx: ToolContext) => {
-    const env = ctx.getEnv();
-    return isKvLike(env?.USER_DATA_KV) ? env.USER_DATA_KV : null;
-  },
-  () => null,
-);
-
-function getCacheKv(ctx: ToolContext): KvLike | null {
-  return safeGetCacheKv(ctx).match(
-    (kv) => kv,
-    () => null,
-  );
-}
 
 export function buildWeeklyDealsCacheKey(params: {
   locationId?: string;
@@ -226,7 +207,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         resolvedStoreId = resolved.value.locationId;
       }
 
-      const kv = getCacheKv(ctx);
+      const kv = getUserDataKv(ctx.getEnv());
       const cacheKey = buildWeeklyDealsCacheKey({
         locationId: resolvedStoreId,
         limit,

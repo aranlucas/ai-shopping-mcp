@@ -11,6 +11,7 @@ import {
   isErrorResult,
   makeContext,
   makeContextWithElicit,
+  makeProductService,
   makeStorage,
   resetToolTestHarness,
   textFromResult,
@@ -18,7 +19,10 @@ import {
 } from "./tool-test-harness.js";
 import { registerCartTools } from "../../src/tools/cart.js";
 import { registerInventoryTools } from "../../src/tools/inventory.js";
-import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
+import {
+  buildShoppingListStorageKey,
+  registerShoppingListTools,
+} from "../../src/tools/shopping-list.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 
 describe("storage-backed tools", () => {
@@ -273,14 +277,19 @@ describe("storage-backed tools", () => {
   });
 
   it("creates a shopping list and returns a short listId", async () => {
-    registerShoppingListTools(makeContext());
+    registerShoppingListTools(
+      makeContext(
+        undefined,
+        makeProductService({ "0001111042578": "Milk", "0009999999999": "Bread" }),
+      ),
+    );
     const handler = getCapturedHandler("create_shopping_list");
 
     const result = await handler({
       name: "Tuesday Dinner",
       items: [
-        { productName: "Milk", upc: "0001111042578", quantity: 2 },
-        { productName: "Bread", quantity: 1 },
+        { upc: "0001111042578", quantity: 2 },
+        { upc: "0009999999999", quantity: 1 },
       ],
     });
 
@@ -312,11 +321,11 @@ describe("storage-backed tools", () => {
 
     const first = await handler({
       name: "First",
-      items: [{ productName: "A", quantity: 1 }],
+      items: [{ upc: "0001111000001", quantity: 1 }],
     });
     const second = await handler({
       name: "Second",
-      items: [{ productName: "B", quantity: 2 }],
+      items: [{ upc: "0001111000002", quantity: 2 }],
     });
 
     const firstId = (first as { structuredContent: { listId: string } }).structuredContent.listId;
@@ -337,11 +346,13 @@ describe("storage-backed tools", () => {
           ],
         } as unknown as UserStorage["pantry"],
       });
-      registerShoppingListTools(makeContext(storage));
+      registerShoppingListTools(
+        makeContext(storage, makeProductService({ "0001111000001": "Milk" })),
+      );
 
       const result = await getCapturedHandler("create_shopping_list")({
         name: "Groceries",
-        items: [{ productName: "Milk", quantity: 1 }],
+        items: [{ upc: "0001111000001", quantity: 1 }],
       });
 
       expect(isErrorResult(result)).toBe(false);
@@ -356,11 +367,13 @@ describe("storage-backed tools", () => {
           ],
         } as unknown as UserStorage["pantry"],
       });
-      registerShoppingListTools(makeContext(storage));
+      registerShoppingListTools(
+        makeContext(storage, makeProductService({ "0001111000001": "Milk" })),
+      );
 
       const result = await getCapturedHandler("create_shopping_list")({
         name: "Groceries",
-        items: [{ productName: "Milk", quantity: 1 }],
+        items: [{ upc: "0001111000001", quantity: 1 }],
       });
 
       expect(textFromResult(result)).not.toContain("in pantry");
@@ -389,7 +402,7 @@ describe("storage-backed tools", () => {
         }),
       );
 
-      const context = makeContext();
+      const context = makeContext(undefined, makeProductService({ "0001111000001": "Whole Milk" }));
       context.getEnv = () =>
         ({
           USER_DATA_KV: {
@@ -403,7 +416,7 @@ describe("storage-backed tools", () => {
 
       const result = await getCapturedHandler("create_shopping_list")({
         name: "Groceries",
-        items: [{ productName: "Whole Milk", quantity: 1 }],
+        items: [{ upc: "0001111000001", quantity: 1 }],
       });
 
       expect(isErrorResult(result)).toBe(false);
@@ -415,7 +428,7 @@ describe("storage-backed tools", () => {
       const cacheKey = buildWeeklyDealsCacheKey({ locationId: undefined, limit: 50, pageLimit: 2 });
       store.set(cacheKey, "{not-valid-json");
 
-      const context = makeContext();
+      const context = makeContext(undefined, makeProductService({ "0001111000001": "Whole Milk" }));
       context.getEnv = () =>
         ({
           USER_DATA_KV: {
@@ -429,7 +442,7 @@ describe("storage-backed tools", () => {
 
       const result = await getCapturedHandler("create_shopping_list")({
         name: "Groceries",
-        items: [{ productName: "Whole Milk", quantity: 1 }],
+        items: [{ upc: "0001111000001", quantity: 1 }],
       });
 
       expect(isErrorResult(result)).toBe(false);
@@ -460,7 +473,7 @@ describe("storage-backed tools", () => {
     const createHandler = getCapturedHandler("create_shopping_list");
     const createResult = await createHandler({
       name: "Dinner",
-      items: [{ productName: "Milk", upc: "0001111042578", quantity: 2 }],
+      items: [{ upc: "0001111042578", quantity: 2 }],
     });
     const listId = (createResult as { structuredContent: { listId: string } }).structuredContent
       .listId;
@@ -505,7 +518,7 @@ describe("storage-backed tools", () => {
 
     const createResult = await createHandler({
       name: "Dinner",
-      items: [{ productName: "Milk", upc: "0001111042578", quantity: 2 }],
+      items: [{ upc: "0001111042578", quantity: 2 }],
     });
     const listId = (createResult as { structuredContent: { listId: string } }).structuredContent
       .listId;
@@ -529,6 +542,11 @@ describe("storage-backed tools", () => {
   });
 
   it("bails when the shopping list has no items with UPCs", async () => {
+    // create_shopping_list always resolves a upc from the input now, so a
+    // upc-less item can only reach the cart tool via a pre-existing stored
+    // list (e.g. a matched product missing its own upc from Kroger's API —
+    // see shop_for_items's LineItem filtering). Seed storage directly to
+    // exercise that path.
     const storage = makeStorage();
     storage.preferredLocation = {
       get: async () => null,
@@ -536,15 +554,16 @@ describe("storage-backed tools", () => {
     } as unknown as UserStorage["preferredLocation"];
 
     const ctx = makeContextWithElicit(storage, { action: "accept" });
-    registerShoppingListTools(ctx);
     registerCartTools(ctx);
 
-    const createResult = await getCapturedHandler("create_shopping_list")({
-      name: "No UPCs",
-      items: [{ productName: "Strawberries", quantity: 2 }],
-    });
-    const listId = (createResult as { structuredContent: { listId: string } }).structuredContent
-      .listId;
+    const listId = "list_deadbeef";
+    // buildShoppingListStorageKey scopes by (userId, sessionId) internally —
+    // pass the raw userId/sessionId the harness authenticates as, not a
+    // pre-scoped id.
+    const storageKey = buildShoppingListStorageKey("user-123", "session-1", listId);
+    await storage.shoppingList.create(storageKey, "No UPCs", [
+      { productName: "Strawberries", quantity: 2 },
+    ]);
 
     const handler = getCapturedHandler("add_shopping_list_to_cart");
     const result = await handler({ listId, storeId: "70500847" });
@@ -587,7 +606,7 @@ describe("storage-backed tools", () => {
 
     const createResult = await getCapturedHandler("create_shopping_list")({
       name: "Dinner",
-      items: [{ productName: "Milk", upc: "0001111042578", quantity: 2 }],
+      items: [{ upc: "0001111042578", quantity: 2 }],
     });
     const listId = (createResult as { structuredContent: { listId: string } }).structuredContent
       .listId;

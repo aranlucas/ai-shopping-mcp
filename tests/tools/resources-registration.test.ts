@@ -1,8 +1,10 @@
 import { decode } from "@toon-format/toon";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { KrogerClients } from "../../src/services/kroger/client.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 
+import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
 
 type AuthContext = {
@@ -90,6 +92,7 @@ function makeContext(storage: UserStorage, productClient: unknown = {}): ToolCon
   return {
     server: makeServer(),
     clients: { productClient } as unknown as ToolContext["clients"],
+    productService: new ProductService(productClient as KrogerClients["productClient"]),
     storage,
     getEnv: () => ({}) as Env,
     getSessionId: () => "session-1",

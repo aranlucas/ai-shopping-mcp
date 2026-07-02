@@ -10,6 +10,15 @@ import type {
 import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
 import { getSessionScopedUserId } from "../../src/tools/types.js";
 
+function stubProductService(): ToolContext["productService"] {
+  return {
+    getProduct: () => {
+      throw new Error("productService not used in this test");
+    },
+    enrichProductName: async () => null,
+  } as unknown as ToolContext["productService"];
+}
+
 type AuthContext = {
   props?: {
     id: string;
@@ -172,6 +181,7 @@ function makeContext(
         },
       },
     } as unknown as ToolContext["clients"],
+    productService: stubProductService(),
     storage: actualStorage,
     getEnv: () => ({}) as Env,
     getSessionId: () => SESSION_ID,

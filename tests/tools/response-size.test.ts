@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "../../src/tools/types.js";
 
 import { createKrogerClients } from "../../src/services/kroger/client.js";
+import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerProductTools } from "../../src/tools/product.js";
 import { createUserStorage } from "../../src/utils/user-storage.js";
 
@@ -183,6 +184,7 @@ describe("search_products content size", () => {
     registerProductTools({
       server: {} as unknown as ToolContext["server"],
       clients,
+      productService: new ProductService(clients.productClient),
       storage,
       getEnv: () =>
         ({

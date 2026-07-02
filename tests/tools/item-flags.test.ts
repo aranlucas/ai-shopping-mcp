@@ -50,6 +50,12 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
   return {
     server: {} as ToolContext["server"],
     clients: {} as ToolContext["clients"],
+    productService: {
+      getProduct: () => {
+        throw new Error("productService not used in this test");
+      },
+      enrichProductName: async () => null,
+    } as unknown as ToolContext["productService"],
     storage: {} as ToolContext["storage"],
     getEnv: () =>
       (store

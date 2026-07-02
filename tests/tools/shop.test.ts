@@ -9,6 +9,15 @@ import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
+function stubProductService(): ToolContext["productService"] {
+  return {
+    getProduct: () => {
+      throw new Error("productService not used in this test");
+    },
+    enrichProductName: async () => null,
+  } as unknown as ToolContext["productService"];
+}
+
 type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
 };
@@ -148,6 +157,7 @@ function makeContext(
         },
       },
     } as unknown as ToolContext["clients"],
+    productService: stubProductService(),
     storage,
     getEnv: () =>
       ({

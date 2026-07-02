@@ -1,12 +1,16 @@
 import { ResultAsync, err, ok } from "neverthrow";
 import createClient, { type Middleware } from "openapi-fetch";
+import * as z from "zod/v4";
 
+import type { KvLike } from "../../utils/kv.js";
 import type { paths as CartPaths } from "./cart.js";
 import type { paths as IdentityPaths } from "./identity.js";
 import type { paths as LocationPaths } from "./location.js";
 import type { paths as ProductPaths } from "./product.js";
 
 import { type AppError, apiError, networkError } from "../../errors.js";
+import { safeJsonParseWithSchema } from "../../utils/json.js";
+import { safeStorage } from "../../utils/result.js";
 
 export interface KrogerTokenInfo {
   accessToken: string;
@@ -146,12 +150,83 @@ export function createKrogerAuthMiddleware(getTokenInfo: () => KrogerTokenInfo |
   };
 }
 
+const KROGER_CACHE_TTL_SECONDS = 600;
+
+type KrogerCacheEntry = { status: number; body: string };
+
+const krogerCacheEntrySchema = z.object({
+  status: z.number(),
+  body: z.string(),
+});
+
+function krogerCacheKeyFor(url: string): string {
+  return `kroger-cache|v1|${url}`;
+}
+
+/**
+ * Generic KV-cache middleware for Kroger GET responses, structured like
+ * `createKrogerAuthMiddleware`. Only GET requests are ever read from or
+ * written to cache; only 2xx responses are cached. KV read/write failures
+ * are non-fatal — a read failure falls through to a live request, a write
+ * failure is logged and swallowed.
+ */
+export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: number): Middleware {
+  return {
+    async onRequest({ request }) {
+      if (!kv || request.method !== "GET") return;
+
+      const key = krogerCacheKeyFor(request.url);
+      const raw = await safeStorage(() => kv.get(key), "read Kroger response cache").match(
+        (value) => value,
+        () => null,
+      );
+      if (!raw) return;
+
+      const entry = safeJsonParseWithSchema(raw, krogerCacheEntrySchema).match(
+        (value): KrogerCacheEntry => value,
+        () => null,
+      );
+      if (!entry) return;
+
+      return new Response(entry.body, {
+        status: entry.status,
+        headers: { "content-type": "application/json" },
+      });
+    },
+
+    async onResponse({ request, response }) {
+      if (!kv || request.method !== "GET" || !response.ok) return;
+
+      const key = krogerCacheKeyFor(request.url);
+      const body = await response.clone().text();
+      const entry: KrogerCacheEntry = { status: response.status, body };
+
+      await safeStorage(
+        () => kv.put(key, JSON.stringify(entry), { expirationTtl: ttlSeconds }),
+        "write Kroger response cache",
+      ).orTee((error) =>
+        console.warn("Kroger response cache write failed (non-fatal):", error.message),
+      );
+    },
+  };
+}
+
 /**
  * Creates all Kroger API clients with authentication middleware applied.
  * Returns fresh client instances — no global mutable state.
+ *
+ * `productClient` and `locationClient` also get the KV-cache middleware:
+ * their GET responses aren't user-specific, so sharing a cache across users
+ * is the point. `cartClient`/`identityClient` are deliberately excluded —
+ * the cache has no per-user scoping, and caching a future GET on either
+ * would leak one user's data to another.
  */
-export function createKrogerClients(getTokenInfo: () => KrogerTokenInfo | null) {
-  const middleware = createKrogerAuthMiddleware(getTokenInfo);
+export function createKrogerClients(
+  getTokenInfo: () => KrogerTokenInfo | null,
+  kv: KvLike | null = null,
+) {
+  const authMiddleware = createKrogerAuthMiddleware(getTokenInfo);
+  const cacheMiddleware = createKrogerCacheMiddleware(kv, KROGER_CACHE_TTL_SECONDS);
   const base = { baseUrl: "https://api.kroger.com" };
 
   const cartClient = createClient<CartPaths>(base);
@@ -159,10 +234,13 @@ export function createKrogerClients(getTokenInfo: () => KrogerTokenInfo | null) 
   const locationClient = createClient<LocationPaths>(base);
   const productClient = createClient<ProductPaths>(base);
 
-  cartClient.use(middleware);
-  identityClient.use(middleware);
-  locationClient.use(middleware);
-  productClient.use(middleware);
+  cartClient.use(authMiddleware);
+  identityClient.use(authMiddleware);
+  locationClient.use(authMiddleware);
+  productClient.use(authMiddleware);
+
+  locationClient.use(cacheMiddleware);
+  productClient.use(cacheMiddleware);
 
   return { cartClient, identityClient, locationClient, productClient };
 }

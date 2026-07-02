@@ -251,6 +251,8 @@ return toMcpResponse(result.map((data) => formatProducts(data)));
 
 Use `AppError` constructors from `src/errors.ts`; do not construct the union members directly. Older `errorResult(message)` and `textResult(text)` helpers still exist in `src/tools/types.ts`; keep changes consistent with the file you are editing.
 
+Prefer `ResultAsync.fromPromise`/the `safeStorage`/`safeFetch`/`fromApiResponse` helpers over raw `try/catch` for fallible async operations (KV reads/writes, external calls), even when the call site ultimately needs a plain value or throw rather than a `Result` — use `.match()`/`.orTee()`/`.unwrapOr()` to bridge back out at the boundary (e.g. `createKrogerCacheMiddleware` in `src/services/kroger/client.ts`, which must return a plain `Response | undefined` for `openapi-fetch`). Reach for a bare `try/catch` only when no existing helper fits and adding one isn't warranted.
+
 ## Product Search
 
 `search_products` is intentionally bulk and parallel:

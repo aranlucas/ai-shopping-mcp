@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { KvLike } from "../../../src/utils/kv.js";
+
 import {
   KrogerTokenExpiredError,
   createKrogerAuthMiddleware,
+  createKrogerCacheMiddleware,
   createKrogerClients,
   isKrogerTokenExpiring,
   refreshKrogerToken,
@@ -347,5 +350,239 @@ describe("createKrogerClients", () => {
     const { cartClient } = createKrogerClients(() => null);
 
     await expect(cartClient.PUT("/v1/cart/add", {})).rejects.toThrow(KrogerTokenExpiredError);
+  });
+});
+
+// ----- createKrogerCacheMiddleware -----
+
+describe("createKrogerCacheMiddleware", () => {
+  function makeMockKv(initialData: Record<string, string> = {}) {
+    const store = new Map<string, string>(Object.entries(initialData));
+    return {
+      get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
+      put: vi.fn((key: string, value: string) => {
+        store.set(key, value);
+        return Promise.resolve();
+      }),
+      store,
+    } as unknown as KvLike & {
+      get: ReturnType<typeof vi.fn>;
+      put: ReturnType<typeof vi.fn>;
+      store: Map<string, string>;
+    };
+  }
+
+  function makeRequestParams(request: Request) {
+    return {
+      request,
+      schemaPath: "/v1/products/{id}",
+      params: {},
+      options: {} as never,
+      id: "test",
+    };
+  }
+
+  function makeResponseParams(request: Request, response: Response) {
+    return {
+      request,
+      response,
+      schemaPath: "/v1/products/{id}",
+      params: {},
+      options: {} as never,
+      id: "test",
+    };
+  }
+
+  it("onRequest returns undefined on a cache miss", async () => {
+    const kv = makeMockKv();
+    const middleware = createKrogerCacheMiddleware(kv, 600);
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+
+    const result = await middleware.onRequest?.(makeRequestParams(request));
+
+    expect(result).toBeUndefined();
+    expect(kv.get).toHaveBeenCalledWith(
+      "kroger-cache|v1|https://api.kroger.com/v1/products/0001111041700",
+    );
+  });
+
+  it("onRequest returns a reconstructed Response on a cache hit", async () => {
+    const url = "https://api.kroger.com/v1/products/0001111041700";
+    const kv = makeMockKv({
+      [`kroger-cache|v1|${url}`]: JSON.stringify({
+        status: 200,
+        body: '{"data":{"upc":"0001111041700"}}',
+      }),
+    });
+    const middleware = createKrogerCacheMiddleware(kv, 600);
+    const request = new Request(url);
+
+    const result = await middleware.onRequest?.(makeRequestParams(request));
+
+    expect(result).toBeInstanceOf(Response);
+    const response = result as Response;
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { upc: "0001111041700" } });
+  });
+
+  it("onRequest never reads the cache for non-GET requests", async () => {
+    const kv = makeMockKv();
+    const middleware = createKrogerCacheMiddleware(kv, 600);
+    const request = new Request("https://api.kroger.com/v1/cart/add", { method: "PUT" });
+
+    const result = await middleware.onRequest?.(makeRequestParams(request));
+
+    expect(result).toBeUndefined();
+    expect(kv.get).not.toHaveBeenCalled();
+  });
+
+  it("onRequest is a no-op when kv is null", async () => {
+    const middleware = createKrogerCacheMiddleware(null, 600);
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+
+    const result = await middleware.onRequest?.(makeRequestParams(request));
+
+    expect(result).toBeUndefined();
+  });
+
+  it("onResponse caches a successful GET response", async () => {
+    const kv = makeMockKv();
+    const middleware = createKrogerCacheMiddleware(kv, 600);
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+    const response = new Response('{"data":{"upc":"0001111041700"}}', { status: 200 });
+
+    await middleware.onResponse?.(makeResponseParams(request, response));
+
+    expect(kv.put).toHaveBeenCalledTimes(1);
+    const [key, value, options] = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      string,
+      { expirationTtl: number },
+    ];
+    expect(key).toBe("kroger-cache|v1|https://api.kroger.com/v1/products/0001111041700");
+    expect(JSON.parse(value)).toEqual({ status: 200, body: '{"data":{"upc":"0001111041700"}}' });
+    expect(options.expirationTtl).toBe(600);
+  });
+
+  it("onResponse does not cache a non-GET response", async () => {
+    const kv = makeMockKv();
+    const middleware = createKrogerCacheMiddleware(kv, 600);
+    const request = new Request("https://api.kroger.com/v1/cart/add", { method: "PUT" });
+    const response = new Response(null, { status: 204 });
+
+    await middleware.onResponse?.(makeResponseParams(request, response));
+
+    expect(kv.put).not.toHaveBeenCalled();
+  });
+
+  it("onResponse does not cache a non-ok GET response", async () => {
+    const kv = makeMockKv();
+    const middleware = createKrogerCacheMiddleware(kv, 600);
+    const request = new Request("https://api.kroger.com/v1/products/0009999999999");
+    const response = new Response('{"error":"not found"}', { status: 500 });
+
+    await middleware.onResponse?.(makeResponseParams(request, response));
+
+    expect(kv.put).not.toHaveBeenCalled();
+  });
+
+  it("onResponse is a no-op when kv is null", async () => {
+    const middleware = createKrogerCacheMiddleware(null, 600);
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+    const response = new Response('{"data":{}}', { status: 200 });
+
+    // Should not throw even though there's no kv to write to.
+    await expect(
+      middleware.onResponse?.(makeResponseParams(request, response)),
+    ).resolves.toBeUndefined();
+  });
+
+  it("a malformed cache entry is treated as a miss", async () => {
+    const url = "https://api.kroger.com/v1/products/0001111041700";
+    const kv = makeMockKv({ [`kroger-cache|v1|${url}`]: "{not-valid-json" });
+    const middleware = createKrogerCacheMiddleware(kv, 600);
+    const request = new Request(url);
+
+    const result = await middleware.onRequest?.(makeRequestParams(request));
+
+    expect(result).toBeUndefined();
+  });
+});
+
+// ----- createKrogerClients cache wiring -----
+
+describe("createKrogerClients cache wiring", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("defaults to no caching when kv is omitted", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockImplementation(async () => new Response('{"upc":"0001111041700"}', { status: 200 }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const { productClient } = createKrogerClients(() => ({
+      accessToken: "token",
+      tokenExpiresAt: Date.now() + 30 * 60 * 1000,
+    }));
+
+    await productClient.GET("/v1/products/{id}", { params: { path: { id: "0001111041700" } } });
+    await productClient.GET("/v1/products/{id}", { params: { path: { id: "0001111041700" } } });
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("caches repeated productClient GETs when kv is provided", async () => {
+    const store = new Map<string, string>();
+    const kv = {
+      get: async (key: string) => store.get(key) ?? null,
+      put: async (key: string, value: string) => {
+        store.set(key, value);
+      },
+    } as unknown as KvLike;
+
+    const mockFetch = vi
+      .fn()
+      .mockImplementation(async () => new Response('{"upc":"0001111041700"}', { status: 200 }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const { productClient } = createKrogerClients(
+      () => ({ accessToken: "token", tokenExpiresAt: Date.now() + 30 * 60 * 1000 }),
+      kv,
+    );
+
+    const first = await productClient.GET("/v1/products/{id}", {
+      params: { path: { id: "0001111041700" } },
+    });
+    const second = await productClient.GET("/v1/products/{id}", {
+      params: { path: { id: "0001111041700" } },
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(first.data).toEqual({ upc: "0001111041700" });
+    expect(second.data).toEqual({ upc: "0001111041700" });
+  });
+
+  it("does not cache cartClient requests even when kv is provided", async () => {
+    const store = new Map<string, string>();
+    const kv = {
+      get: async (key: string) => store.get(key) ?? null,
+      put: async (key: string, value: string) => {
+        store.set(key, value);
+      },
+    } as unknown as KvLike;
+
+    const mockFetch = vi.fn().mockImplementation(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    const { cartClient } = createKrogerClients(
+      () => ({ accessToken: "token", tokenExpiresAt: Date.now() + 30 * 60 * 1000 }),
+      kv,
+    );
+
+    await cartClient.PUT("/v1/cart/add", { body: { items: [] } });
+
+    expect(store.size).toBe(0);
   });
 });

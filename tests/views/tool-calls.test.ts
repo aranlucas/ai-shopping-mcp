@@ -37,7 +37,7 @@ describe("view tool call helpers", () => {
       name: "create_shopping_list",
       arguments: {
         name: "Whole Milk",
-        items: [{ productName: "Whole Milk", quantity: 2, upc: "0001111041700" }],
+        items: [{ quantity: 2, upc: "0001111041700" }],
       },
     });
   });
@@ -97,7 +97,7 @@ describe("view tool call helpers", () => {
         name: "create_shopping_list",
         arguments: {
           name: "Cart: Whole Milk",
-          items: [{ productName: "Whole Milk", quantity: 2, upc: "0001111041700" }],
+          items: [{ quantity: 2, upc: "0001111041700" }],
         },
       },
       {
@@ -124,7 +124,7 @@ describe("view tool call helpers", () => {
         name: "create_shopping_list",
         arguments: {
           name: "Sourdough Bread",
-          items: [{ productName: "Sourdough Bread", quantity: 1, upc: "0001111041717" }],
+          items: [{ quantity: 1, upc: "0001111041717" }],
         },
       },
     ]);

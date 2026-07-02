@@ -1,23 +1,19 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { ResultAsync, err, ok } from "neverthrow";
+import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
-import type { KvLike } from "./weekly-deals.js";
 
-import { notFoundError } from "../errors.js";
 import {
   formatProductDetailMarkdown,
   formatSearchProductsMarkdown,
 } from "../utils/format-response.js";
-import { safeJsonParseWithSchema } from "../utils/json.js";
 import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
-import { isKvLike } from "./weekly-deals.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -27,88 +23,6 @@ export type ProductSearchResult = {
   count: number;
   failed: boolean;
 };
-
-/**
- * Short-TTL KV cache for per-term product searches. Same-term searches at the
- * same store within `PRODUCT_SEARCH_CACHE_TTL_SECONDS` (10 minutes) are
- * common in multi-turn shopping and would otherwise re-burn Kroger's
- * 10,000/day product-search quota. Empty results are cached too (a
- * consistently-empty term shouldn't keep re-querying); failed searches are
- * never cached. See docs/small-model-efficiency-plan.md Phase 2 item 5.
- */
-const PRODUCT_SEARCH_CACHE_TTL_SECONDS = 600;
-
-type ProductSearchCacheEntry = {
-  products: Product[];
-};
-
-const cachedProductSchema = z.custom<Product>(
-  (value) => typeof value === "object" && value !== null,
-  "Expected cached product object",
-);
-
-const productSearchCacheEntrySchema = z
-  .looseObject({
-    products: z.array(cachedProductSchema),
-  })
-  .transform(
-    (entry): ProductSearchCacheEntry => ({
-      products: entry.products,
-    }),
-  );
-
-/** Builds the cache key for a single-term product search. */
-export function buildProductSearchCacheKey(
-  term: string,
-  locationId: string | undefined,
-  limitPerTerm: number,
-): string {
-  return `products|v1|loc:${locationId || "none"}|limit:${limitPerTerm}|term:${term.toLowerCase().trim()}`;
-}
-
-/** Resolves the KV binding for the product-search cache. */
-export function getProductSearchCacheKv(ctx: ToolContext): KvLike {
-  const env = ctx.getEnv();
-  if (!isKvLike(env?.USER_DATA_KV)) {
-    throw new Error("USER_DATA_KV binding is required");
-  }
-  return env.USER_DATA_KV;
-}
-
-async function readProductSearchCache(
-  kv: KvLike | null,
-  key: string,
-): Promise<ProductSearchCacheEntry | null> {
-  if (!kv) return null;
-
-  const raw = await kv.get(key);
-  if (!raw) return null;
-
-  return safeJsonParseWithSchema(raw, productSearchCacheEntrySchema).match(
-    (entry) => entry,
-    () => null,
-  );
-}
-
-async function writeProductSearchCache(
-  kv: KvLike | null,
-  key: string,
-  products: Product[],
-): Promise<void> {
-  if (!kv) return;
-
-  const entry: ProductSearchCacheEntry = { products };
-  try {
-    await kv.put(key, JSON.stringify(entry), {
-      expirationTtl: PRODUCT_SEARCH_CACHE_TTL_SECONDS,
-    });
-  } catch (e) {
-    console.warn(
-      "Product search cache write failed (non-fatal):",
-      e instanceof Error ? e.message : String(e),
-    );
-  }
-}
 
 export const getProductInputSchema = z.object({
   upc: upcSchema.describe("UPC from search_products"),
@@ -134,28 +48,13 @@ export function logProductSearchError(term: string, error: AppError) {
 export async function searchProductsForTerms(
   productClient: KrogerClients["productClient"],
   terms: string[],
-  params: { locationId?: string; limitPerTerm: number; kv?: KvLike | null },
+  params: { locationId?: string; limitPerTerm: number },
   onSearchComplete?: (completed: number, total: number) => Promise<void> | void,
 ): Promise<ProductSearchResult[]> {
   let completedSearches = 0;
   const totalSearches = terms.length;
-  const kv = params.kv ?? null;
 
   const searchPromises = terms.map(async (term) => {
-    const cacheKey = buildProductSearchCacheKey(term, params.locationId, params.limitPerTerm);
-
-    const cached = await readProductSearchCache(kv, cacheKey);
-    if (cached) {
-      completedSearches++;
-      if (onSearchComplete) await onSearchComplete(completedSearches, totalSearches);
-      return {
-        term,
-        products: cached.products,
-        count: cached.products.length,
-        failed: false as const,
-      };
-    }
-
     const queryParams: Record<string, string | number> = {
       "filter.term": term,
       ...(params.locationId ? { "filter.locationId": params.locationId } : {}),
@@ -174,7 +73,7 @@ export async function searchProductsForTerms(
     if (onSearchComplete) await onSearchComplete(completedSearches, totalSearches);
 
     // Preserve Result type — map Ok to success shape, log and convert Err
-    const outcome = await apiResult
+    return apiResult
       .map((data) => {
         const products = data?.data || [];
         return {
@@ -194,15 +93,6 @@ export async function searchProductsForTerms(
           failed: true as const,
         }),
       );
-
-    // Cache successful searches (including empty results) so a repeated term
-    // within the TTL window skips the Kroger fetch entirely. Failed searches
-    // are never cached.
-    if (!outcome.failed) {
-      await writeProductSearchCache(kv, cacheKey, outcome.products);
-    }
-
-    return outcome;
   });
 
   const results = await Promise.all(searchPromises);
@@ -281,7 +171,7 @@ export function registerProductTools(ctx: ToolContext) {
       const results = await searchProductsForTerms(
         productClient,
         terms,
-        { locationId: resolvedLocationId, limitPerTerm, kv: getProductSearchCacheKv(ctx) },
+        { locationId: resolvedLocationId, limitPerTerm },
         progressToken && sendNotification
           ? async (completed, total) => {
               await ResultAsync.fromPromise(
@@ -328,26 +218,7 @@ export function registerProductTools(ctx: ToolContext) {
       inputSchema: getProductInputSchema,
     },
     async ({ upc, storeId }) => {
-      const queryParams: Record<string, string> = {};
-      if (storeId) {
-        queryParams["filter.locationId"] = storeId;
-      }
-
-      const result = await fromApiResponse(
-        productClient.GET("/v1/products/{id}", {
-          params: {
-            path: { id: upc },
-            query: queryParams,
-          },
-        }),
-        "get product details",
-      ).andThen((data) => {
-        const product = data.data;
-        if (!product) {
-          return err(notFoundError(`No information found for UPC: ${upc}`));
-        }
-        return ok(product);
-      });
+      const result = await ctx.productService.getProduct(upc, storeId);
 
       return result.match((product) => {
         return {

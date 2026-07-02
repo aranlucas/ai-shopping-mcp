@@ -93,7 +93,7 @@ describe("golden path (scripted agent, text-only)", () => {
 
     const created = await call("create_shopping_list", {
       name: "Bread run",
-      items: [{ productName: "Bread", upc: upcs[0], quantity: 1 }],
+      items: [{ upc: upcs[0], quantity: 1 }],
     });
     const listIds = extractListIds(contentText(created));
     expect(listIds).toHaveLength(1);

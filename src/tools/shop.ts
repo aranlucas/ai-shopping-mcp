@@ -10,11 +10,12 @@ import {
   isEmbeddingAiLike,
   rankProductMatches,
 } from "../services/match-ranker.js";
+import { getUserDataKv } from "../utils/kv.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type LineItem, addLineItemsToCart, toCartSnapshotItems } from "./cart.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
-import { getProductSearchCacheKv, searchProductsForTerms } from "./product.js";
+import { searchProductsForTerms } from "./product.js";
 import { coercedBooleanSchema } from "./schemas.js";
 import { buildShoppingListStorageKey, createShoppingListRecord } from "./shopping-list.js";
 import { type ToolContext } from "./types.js";
@@ -126,11 +127,13 @@ export function registerShopTools(ctx: ToolContext) {
       const { locationId } = resolvedLocation.value;
 
       const terms = items.map((item) => item.name);
-      const kv = getProductSearchCacheKv(ctx);
+      const kv = getUserDataKv(ctx.getEnv());
+      if (!kv) {
+        throw new Error("USER_DATA_KV binding is required");
+      }
       const searchResults = await searchProductsForTerms(productClient, terms, {
         locationId,
         limitPerTerm: 5,
-        kv,
       });
 
       // Semantic re-ranking: when AI features are enabled, each term's

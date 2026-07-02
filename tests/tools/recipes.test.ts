@@ -102,6 +102,12 @@ function makeContext(storage = makeStorage()): ToolContext {
       },
     } as unknown as ToolContext["server"],
     clients: {} as unknown as ToolContext["clients"],
+    productService: {
+      getProduct: () => {
+        throw new Error("productService not used in this test");
+      },
+      enrichProductName: async () => null,
+    } as unknown as ToolContext["productService"],
     storage,
     getEnv: () => ({}) as Env,
     getSessionId: () => "session-1",

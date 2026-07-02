@@ -59,6 +59,12 @@ function makeContext(): ToolContext {
       locationClient: { GET: async () => ({ response: new Response(null, { status: 204 }) }) },
       cartClient: { PUT: async () => ({ response: new Response(null, { status: 204 }) }) },
     } as unknown as ToolContext["clients"],
+    productService: {
+      getProduct: () => {
+        throw new Error("productService not used in this test");
+      },
+      enrichProductName: async () => null,
+    } as unknown as ToolContext["productService"],
     storage: {} as ToolContext["storage"],
     getEnv: () => ({}) as Env,
     getSessionId: () => "eval-session",
@@ -243,8 +249,14 @@ describe("MCP agent contract", () => {
     expect(
       createShoppingList.config.inputSchema?.safeParse({
         name: "Dinner",
-        items: [{ productName: "Milk", quantity: 1 }],
+        items: [{ upc: "0001112223334", quantity: 1 }],
       }).success,
     ).toBe(true);
+    expect(
+      createShoppingList.config.inputSchema?.safeParse({
+        name: "Dinner",
+        items: [{ productName: "Milk", quantity: 1 }],
+      }).success,
+    ).toBe(false);
   });
 });
