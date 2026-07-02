@@ -6,14 +6,12 @@ import { SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
 export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) {
-  const { shopping_list_id, name, items, needsUpc, actionDetail } = data;
+  const { listId, name, items, needsUpc, actionDetail } = data;
   const title = `Cart · ${name}`;
 
-  const headerBadge = (
-    <span className="text-[11px] text-gray-400 font-mono truncate max-w-32">
-      {shopping_list_id}
-    </span>
-  );
+  const headerBadge = listId ? (
+    <span className="text-[11px] text-gray-400 font-mono truncate max-w-32">{listId}</span>
+  ) : undefined;
 
   if (items.length === 0 && needsUpc.length === 0) {
     return (

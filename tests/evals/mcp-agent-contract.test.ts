@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "../../src/tools/types.js";
 
 import { registerCartTools } from "../../src/tools/cart.js";
-import { registerEquipmentTools } from "../../src/tools/equipment.js";
+import { registerInventoryTools } from "../../src/tools/inventory.js";
 import { registerLocationTools } from "../../src/tools/location.js";
 import { registerOrderTools } from "../../src/tools/orders.js";
-import { registerPantryTools } from "../../src/tools/pantry.js";
 import { registerProductTools } from "../../src/tools/product.js";
 import { registerRecipeTools } from "../../src/tools/recipes.js";
+import { registerShopTools } from "../../src/tools/shop.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
@@ -72,11 +72,11 @@ function registerAllTools() {
   registerCartTools(ctx);
   registerLocationTools(ctx);
   registerProductTools(ctx);
-  registerPantryTools(ctx);
-  registerEquipmentTools(ctx);
+  registerInventoryTools(ctx);
   registerOrderTools(ctx);
   registerRecipeTools(ctx);
   registerShoppingListTools(ctx);
+  registerShopTools(ctx);
   registerWeeklyDealsTools(ctx);
 
   return testState.capturedTools;
@@ -95,31 +95,35 @@ describe("MCP agent contract", () => {
       .sort();
 
     expect(toolNames).toEqual([
-      "add_kitchen_equipment",
-      "add_pantry_items",
       "add_shopping_list_to_cart",
-      "clear_kitchen_equipment",
-      "clear_pantry",
+      "add_to_inventory",
       "create_shopping_list",
       "get_meal_planning_context",
       "get_product",
+      "get_shopping_profile",
       "get_store",
       "get_weekly_deals",
       "record_order",
-      "remove_kitchen_equipment",
-      "remove_pantry_items",
+      "remove_from_inventory",
       "search_products",
       "search_stores",
       "set_preferred_store",
+      "shop_for_items",
     ]);
 
     expect(toolNames).not.toContain("add_to_cart");
+    expect(toolNames).not.toContain("add_kitchen_equipment");
+    expect(toolNames).not.toContain("add_pantry_items");
+    expect(toolNames).not.toContain("clear_kitchen_equipment");
+    expect(toolNames).not.toContain("clear_pantry");
     expect(toolNames).not.toContain("get_location_details");
     expect(toolNames).not.toContain("get_product_details");
     expect(toolNames).not.toContain("manage_equipment");
     expect(toolNames).not.toContain("manage_pantry");
     expect(toolNames).not.toContain("mark_order_placed");
     expect(toolNames).not.toContain("plan_meals");
+    expect(toolNames).not.toContain("remove_kitchen_equipment");
+    expect(toolNames).not.toContain("remove_pantry_items");
     expect(toolNames).not.toContain("search_locations");
     expect(toolNames).not.toContain("set_preferred_location");
   });
@@ -127,6 +131,7 @@ describe("MCP agent contract", () => {
   it("gives every tool metadata and exact annotations", () => {
     const tools = registerAllTools();
     for (const tool of tools) {
+      if (tool.name === "get_shopping_profile") continue; // plain registerTool, no app UI
       expect(tool.config.title, `${tool.name} title`).toEqual(expect.any(String));
       expect(tool.config.description, `${tool.name} description`).toEqual(expect.any(String));
       expect(tool.config.description?.length, `${tool.name} description length`).toBeGreaterThan(
@@ -144,6 +149,7 @@ describe("MCP agent contract", () => {
     for (const name of [
       "get_meal_planning_context",
       "get_product",
+      "get_shopping_profile",
       "get_store",
       "get_weekly_deals",
       "search_products",
@@ -152,41 +158,25 @@ describe("MCP agent contract", () => {
       expect(toolByName(tools, name).config.annotations?.readOnlyHint, name).toBe(true);
     }
 
-    for (const name of [
-      "clear_kitchen_equipment",
-      "clear_pantry",
-      "remove_kitchen_equipment",
-      "remove_pantry_items",
-    ]) {
-      expect(toolByName(tools, name).config.annotations?.destructiveHint, name).toBe(true);
-    }
+    expect(toolByName(tools, "remove_from_inventory").config.annotations?.destructiveHint).toBe(
+      true,
+    );
   });
 
   it("keeps UI metadata paired with output schemas and routeable view payloads", () => {
     const tools = registerAllTools();
     const appBackedExamples: Record<string, Record<string, unknown>> = {
-      add_kitchen_equipment: {
-        _view: "kitchen_equipment",
-        items: [],
-        actionDetail: "Added 0 item(s)",
-      },
-      add_pantry_items: { _view: "pantry", items: [], actionDetail: "Added 0 item(s)" },
+      add_to_inventory: { _view: "pantry", items: [], actionDetail: "Added 0 item(s)" },
       add_shopping_list_to_cart: {
         _view: "add_shopping_list_to_cart",
-        shopping_list_id: "user-123:session:eval-session:list:abc12345",
+        listId: "list_abc12345",
         name: "Dinner",
         items: [],
         needsUpc: [],
       },
-      clear_kitchen_equipment: {
-        _view: "kitchen_equipment",
-        items: [],
-        actionDetail: "Kitchen equipment cleared",
-      },
-      clear_pantry: { _view: "pantry", items: [], actionDetail: "Pantry cleared" },
       create_shopping_list: {
         _view: "create_shopping_list",
-        shopping_list_id: "user-123:session:eval-session:list:abc12345",
+        listId: "list_abc12345",
         name: "Dinner",
         items: [{ productName: "Milk", quantity: 1 }],
       },
@@ -200,17 +190,18 @@ describe("MCP agent contract", () => {
         totalItems: 1,
         placedAt: "2026-06-30T00:00:00.000Z",
       },
-      remove_kitchen_equipment: {
-        _view: "kitchen_equipment",
-        items: [],
-        actionDetail: "Removed 1 item(s)",
-      },
-      remove_pantry_items: { _view: "pantry", items: [], actionDetail: "Removed 1 item(s)" },
+      remove_from_inventory: { _view: "pantry", items: [], actionDetail: "Removed 1 item(s)" },
       search_products: { _view: "search_products", results: [], totalProducts: 0 },
       search_stores: { _view: "search_stores", stores: [] },
       set_preferred_store: {
         _view: "set_preferred_store",
         store: { locationId: "70500847", locationName: "QFC" },
+      },
+      shop_for_items: {
+        _view: "create_shopping_list",
+        listId: "list_abc12345",
+        name: "Dinner",
+        items: [],
       },
     };
 
@@ -221,6 +212,9 @@ describe("MCP agent contract", () => {
 
     const mealContext = toolByName(tools, "get_meal_planning_context");
     expect(mealContext.config._meta?.ui?.resourceUri).toBeUndefined();
+
+    const shoppingProfile = toolByName(tools, "get_shopping_profile");
+    expect(shoppingProfile.config._meta?.ui?.resourceUri).toBeUndefined();
   });
 
   it("models product search and shopping list validation in schemas", () => {

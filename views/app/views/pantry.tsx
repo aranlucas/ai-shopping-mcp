@@ -133,8 +133,8 @@ export function PantryView({
 
   const handleRemove = async (name: string) => {
     const result = await callTool(app, {
-      name: "remove_pantry_items",
-      arguments: { items: [{ productName: name }] },
+      name: "remove_from_inventory",
+      arguments: { inventory: "pantry", items: [{ name }] },
     });
     if (result?.isError) throw new Error("Failed to remove item");
     const updated = parseStructuredContent(result?.structuredContent);

@@ -227,7 +227,7 @@ export function LocationResultsView({
   const handleSetPreferred = async (id: string) => {
     const result = await callTool(app, {
       name: "set_preferred_store",
-      arguments: { locationId: id },
+      arguments: { storeId: id },
     });
     if (result?.isError) throw new Error("Failed to set preferred location");
   };
@@ -235,7 +235,7 @@ export function LocationResultsView({
   const handleViewDetails = async (id: string) => {
     const result = await callTool(app, {
       name: "get_store",
-      arguments: { locationId: id },
+      arguments: { storeId: id },
     });
     if (result?.isError) throw new Error("Failed to load details");
     const parsed = parseStructuredContent(result?.structuredContent);

@@ -52,16 +52,17 @@ Core entry points:
 
 Tooling and MCP surface:
 
-- `src/tools/cart.ts`: `add_to_cart`
-- `src/tools/location.ts`: `search_locations`, `get_location_details`, `set_preferred_location`
-- `src/tools/product.ts`: `search_products`, `get_product_details`
-- `src/tools/pantry.ts`: `manage_pantry`
-- `src/tools/equipment.ts`: `manage_equipment`
-- `src/tools/orders.ts`: `mark_order_placed`
-- `src/tools/recipes.ts`: `search_recipes_from_web`, `plan_meals`
-- `src/tools/shopping-list.ts`: `manage_shopping_list`, `checkout_shopping_list`
+- `src/tools/cart.ts`: `add_shopping_list_to_cart` (listId or inline items)
+- `src/tools/location.ts`: `search_stores`, `get_store`, `set_preferred_store`
+- `src/tools/product.ts`: `search_products`, `get_product`
+- `src/tools/shop.ts`: `shop_for_items` (one-shot search + create list)
+- `src/tools/inventory.ts`: `add_to_inventory`, `remove_from_inventory`, `get_shopping_profile`
+- `src/tools/orders.ts`: `record_order`
+- `src/tools/recipes.ts`: `get_meal_planning_context`
+- `src/tools/shopping-list.ts`: `create_shopping_list`
 - `src/tools/weekly-deals.ts`: `get_weekly_deals`
 - `src/tools/resources.ts`: read-only MCP resources
+- `src/tools/schemas.ts`: shared Zod input helpers (UPC/storeId normalization, coerced quantities, case-insensitive modality)
 - `src/tools/types.ts`: shared tool context, auth helpers, response helpers, storage types
 - `src/tools/tool-types.ts`: Zod-inferred cross-module tool argument types
 
@@ -147,10 +148,10 @@ Token exchange and token refresh use direct `fetch()` calls with:
 - `Authorization: Basic ${btoa(`${clientId}:${clientSecret}`)}`
 - `URLSearchParams` body parameters for the token endpoint
 
-Kroger IDs have strict formats:
+Kroger IDs have strict formats, but input schemas normalize reasonable variations instead of rejecting them (see `src/tools/schemas.ts`):
 
-- UPCs are exactly 13 digits.
-- Location IDs are exactly 8 characters.
+- UPCs are 13 digits; a 1-13 digit numeric string is trimmed and left-padded with zeros to 13.
+- Store IDs (`storeId`) are exactly 8 characters after trimming whitespace.
 
 ## MCP Design Rules
 
@@ -163,22 +164,25 @@ Tools should follow MCP annotations consistently:
 
 Current MCP tools:
 
-- Shopping/products: `add_to_cart`, `search_locations`, `get_location_details`, `search_products`, `get_product_details`, `set_preferred_location`
-- User data mutations: `manage_pantry`, `manage_equipment`, `mark_order_placed`
-- Shopping list: `manage_shopping_list`, `checkout_shopping_list`
-- Recipes/meal planning: `search_recipes_from_web`, `plan_meals`
+- Shopping/products: `add_shopping_list_to_cart`, `search_stores`, `get_store`, `set_preferred_store`, `search_products`, `get_product`
+- One-shot shopping: `shop_for_items` (search + create a shopping list from item names, no cart add)
+- Shopping list: `create_shopping_list`
+- Inventory: `add_to_inventory`, `remove_from_inventory` (pantry or equipment), `get_shopping_profile` (read-only summary)
+- Orders: `record_order`
+- Recipes/meal planning: `get_meal_planning_context`
 - Weekly deals: `get_weekly_deals`
+
+Golden path for a small model: `shop_for_items` (or `search_products` → `create_shopping_list`) → `add_shopping_list_to_cart` with the returned `listId`. Call `get_shopping_profile` before personalized suggestions.
 
 Current MCP resources:
 
 - `shopping://user/pantry`
-- `shopping://user/equipment`
-- `shopping://user/location`
-- `shopping://user/orders`
-- `shopping://user/shopping-list`
-- `shopping://product/{productId}`
+- `shopping://user/kitchen-equipment`
+- `shopping://user/preferred-store`
+- `shopping://user/order-history`
+- `shopping://product/{upc}`
 
-MCP Sampling has been removed. `plan_meals` returns structured context for the host model to use; it should not call `createMessage`.
+MCP Sampling has been removed. `get_meal_planning_context` returns structured context for the host model to use; it should not call `createMessage`.
 
 ## Data Persistence
 
@@ -190,6 +194,7 @@ Storage classes:
 - `PantryStorage`
 - `EquipmentStorage`
 - `ShoppingListStorage`
+- `CartSnapshotStorage`
 - `OrderHistoryStorage`
 
 Storage expectations:
@@ -254,10 +259,15 @@ Use `AppError` constructors from `src/errors.ts`; do not construct the union mem
 `search_products` is intentionally bulk and parallel:
 
 - Accept 1-10 search terms.
-- Return up to 10 products per term.
+- Return up to `limitPerTerm` products per term (1-10, default 5).
 - Execute searches in parallel with `Promise.all()`.
 - Send progress notifications after each search completes when the client provided a progress token.
 - Do not convert this flow to sequential requests.
+- Search logic is extracted as `searchProductsForTerms` in `src/tools/product.ts` and reused by `shop_for_items`.
+
+## Model-Facing Response Format
+
+`content[0].text` (what the model reads) uses compact markdown, not TOON — small models can't reliably parse TOON. Markdown formatters live in `src/utils/format-response.ts` (`formatSearchProductsMarkdown`, `formatProductDetailMarkdown`, `formatStoreListMarkdown`, `formatStoreDetailMarkdown`, `formatWeeklyDealsMarkdown`). `structuredContent` is untouched by this — it still carries full data for the React views. `toonResource` in `src/tools/resources.ts` (MCP resources, not tools) is unaffected; `src/utils/toon.ts` is kept for that use.
 
 ## MCP Apps Views
 

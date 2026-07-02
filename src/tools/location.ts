@@ -2,57 +2,18 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
-import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 import { notFoundError } from "../errors.js";
-import { formatPreferredLocationCompact } from "../utils/format-response.js";
+import {
+  formatPreferredLocationCompact,
+  formatStoreDetailMarkdown,
+  formatStoreListMarkdown,
+} from "../utils/format-response.js";
 import { fromApiResponse, getProps, safeStorage, toMcpError } from "../utils/result.js";
-import { toonResult } from "../utils/toon.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-
-type Location = LocationComponents["schemas"]["locations.location"];
-
-function compactLocationForContent(location: Location) {
-  const days = [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-  ] as const;
-  return {
-    locationId: location.locationId,
-    name: location.name,
-    chain: location.chain,
-    address: location.address
-      ? {
-          addressLine1: location.address.addressLine1,
-          city: location.address.city,
-          state: location.address.state,
-          zipCode: location.address.zipCode,
-        }
-      : undefined,
-    phone: location.phone,
-    hours: location.hours
-      ? {
-          timezone: location.hours.timezone,
-          ...Object.fromEntries(
-            days
-              .map((day) => {
-                const h = location.hours?.[day];
-                return h ? [day, { open: h.open, close: h.close }] : null;
-              })
-              .filter((e) => e !== null),
-          ),
-        }
-      : undefined,
-    departments: location.departments?.map((d) => d.name).filter((n): n is string => n != null),
-  };
-}
+import { storeIdSchema } from "./schemas.js";
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
@@ -75,8 +36,8 @@ export function registerLocationTools(ctx: ToolContext) {
         zipCodeNear: z
           .string()
           .length(5, { message: "Zip code must be exactly 5 digits" })
-          .default("98122"),
-        limit: z.number().min(1).max(200).optional().default(1),
+          .describe("5-digit zip code. Ask the user for their zip code if you don't know it."),
+        limit: z.coerce.number().min(1).max(200).optional().default(5),
         chain: z.string().optional().default("QFC"),
       }),
     },
@@ -102,10 +63,7 @@ export function registerLocationTools(ctx: ToolContext) {
 
       return result.match(
         (stores) => ({
-          ...toonResult({
-            count: stores.length,
-            stores: stores.map(compactLocationForContent),
-          }),
+          content: [{ type: "text" as const, text: formatStoreListMarkdown(stores) }],
           structuredContent: { _view: "search_stores", stores },
         }),
         toMcpError,
@@ -119,7 +77,7 @@ export function registerLocationTools(ctx: ToolContext) {
     {
       title: "Get Store Details",
       description:
-        "Retrieves detailed information for one Kroger/QFC store by its 8-character location ID, including address, phone, hours, and departments. Use after search_stores or before saving a preferred store.",
+        "Retrieves detailed information for one Kroger/QFC store by its storeId, including address, phone, hours, and departments. Use the 8-character storeId from search_stores output.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -128,28 +86,26 @@ export function registerLocationTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: z.object({
-        locationId: z.string().length(8, {
-          message: "Location ID must be exactly 8 characters long",
-        }),
+        storeId: storeIdSchema.describe("8-character storeId from search_stores"),
       }),
     },
-    async ({ locationId }) => {
+    async ({ storeId }) => {
       const result = await fromApiResponse(
         locationClient.GET("/v1/locations/{locationId}", {
-          params: { path: { locationId } },
+          params: { path: { locationId: storeId } },
         }),
         "get location details",
       ).andThen((data) => {
         const location = data?.data;
         if (!location) {
-          return err(notFoundError(`No information found for location ID: ${locationId}`));
+          return err(notFoundError(`No information found for location ID: ${storeId}`));
         }
         return ok(location);
       });
 
       return result.match(
         (location) => ({
-          ...toonResult(compactLocationForContent(location)),
+          content: [{ type: "text" as const, text: formatStoreDetailMarkdown(location) }],
           structuredContent: { _view: "get_store", store: location },
         }),
         toMcpError,
@@ -163,7 +119,7 @@ export function registerLocationTools(ctx: ToolContext) {
     {
       title: "Set Preferred Store",
       description:
-        "Validates a Kroger/QFC store by its 8-character location ID and saves it as the user's preferred store for future product searches, weekly deals, and cart operations.",
+        "Validates a Kroger/QFC store by its storeId and saves it as the user's preferred store for future product searches, weekly deals, and cart operations. Use the 8-character storeId from search_stores output.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -172,20 +128,20 @@ export function registerLocationTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: z.object({
-        locationId: z.string().length(8, { message: "Location ID must be exactly 8 characters" }),
+        storeId: storeIdSchema.describe("8-character storeId from search_stores"),
       }),
     },
-    async ({ locationId }) => {
+    async ({ storeId }) => {
       const props = getProps();
       const result = await fromApiResponse(
         locationClient.GET("/v1/locations/{locationId}", {
-          params: { path: { locationId } },
+          params: { path: { locationId: storeId } },
         }),
         "get location details",
       ).andThen((data) => {
         const location = data?.data;
         if (!location) {
-          return err(notFoundError(`No information found for location ID: ${locationId}`));
+          return err(notFoundError(`No information found for location ID: ${storeId}`));
         }
 
         const preferredLocation: PreferredLocation = {

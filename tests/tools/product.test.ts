@@ -282,7 +282,7 @@ describe("search_products", () => {
 
     const result = await getCapturedHandler("search_products")({ terms: ["unknownitem"] });
 
-    expect(textFromResult(result)).toContain("totalProducts: 0");
+    expect(textFromResult(result)).toContain("No results.");
     expect(result).toMatchObject({
       structuredContent: {
         _view: "search_products",
@@ -333,7 +333,7 @@ describe("search_products", () => {
     expect(breadResult?.count).toBe(0);
   });
 
-  it("passes provided locationId as 'filter.locationId' in the API query params", async () => {
+  it("passes provided storeId as 'filter.locationId' in the API query params", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProductTools(
       makeContext(async (_path, opts) => {
@@ -342,12 +342,42 @@ describe("search_products", () => {
       }),
     );
 
-    await getCapturedHandler("search_products")({ terms: ["milk"], locationId: "12345678" });
+    await getCapturedHandler("search_products")({ terms: ["milk"], storeId: "12345678" });
 
     expect(capturedQueries[0]["filter.locationId"]).toBe("12345678");
   });
 
-  it("resolves preferred location from storage and uses it as 'filter.locationId' when no locationId arg is given", async () => {
+  it("respects a custom limitPerTerm in the 'filter.limit' query param", async () => {
+    const capturedQueries: Array<Record<string, string | number>> = [];
+    registerProductTools(
+      makeContext(async (_path, opts) => {
+        if (opts.params.query) capturedQueries.push(opts.params.query);
+        return makeSearchResponse([]);
+      }),
+    );
+
+    await getCapturedHandler("search_products")({ terms: ["milk"], limitPerTerm: 3 });
+
+    expect(capturedQueries[0]["filter.limit"]).toBe(3);
+  });
+
+  it("defaults limitPerTerm to 5 when omitted", async () => {
+    const capturedQueries: Array<Record<string, string | number>> = [];
+    registerProductTools(
+      makeContext(async (_path, opts) => {
+        if (opts.params.query) capturedQueries.push(opts.params.query);
+        return makeSearchResponse([]);
+      }),
+    );
+
+    const tool = getCapturedTool("search_products");
+    const config = tool.config as {
+      inputSchema: { parse: (v: unknown) => { limitPerTerm: number } };
+    };
+    expect(config.inputSchema.parse({ terms: ["milk"] }).limitPerTerm).toBe(5);
+  });
+
+  it("resolves preferred location from storage and uses it as 'filter.locationId' when no storeId arg is given", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     const storage = makeStorage({
       locationId: "99887766",
@@ -415,7 +445,7 @@ describe("search_products", () => {
     expect(products[1].upc).toBe("1111111111111"); // no-pickup product sorted after
   });
 
-  it("toon content strips itemId, images, and categories; structuredContent retains them", async () => {
+  it("markdown content omits itemId/images/categories; structuredContent retains them", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeSearchResponse([product])));
 
@@ -426,10 +456,23 @@ describe("search_products", () => {
     expect(sc.results[0].products[0].images).toBeDefined();
     expect(sc.results[0].products[0].categories).toBeDefined();
 
-    // toon (model context) is compact: no itemId, but has pickup field
+    // markdown (model context) is compact: no itemId/images, but has upc/pickup fields
     const text = textFromResult(result);
     expect(text).not.toContain("itemId");
-    expect(text).toContain("pickup");
+    expect(text).not.toContain("images");
+    expect(text).toContain("upc=0001111041700");
+    expect(text).toContain("pickup: yes");
+  });
+
+  it("markdown content ends with a reminder to reuse the upc for create_shopping_list", async () => {
+    const product = makeProduct();
+    registerProductTools(makeContext(async () => makeSearchResponse([product])));
+
+    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+
+    expect(textFromResult(result)).toContain(
+      "To buy items, pass the exact upc values above to create_shopping_list.",
+    );
   });
 });
 
@@ -480,7 +523,7 @@ describe("get_product", () => {
     expect(isErrorResult(result)).toBe(true);
   });
 
-  it("passes locationId as 'filter.locationId' query param when provided", async () => {
+  it("passes storeId as 'filter.locationId' query param when provided", async () => {
     const capturedQueries: Array<Record<string, string>> = [];
     const product = makeProduct();
     registerProductTools(
@@ -494,13 +537,13 @@ describe("get_product", () => {
 
     await getCapturedHandler("get_product")({
       productId: "0001111041700",
-      locationId: "12345678",
+      storeId: "12345678",
     });
 
     expect(capturedQueries[0]["filter.locationId"]).toBe("12345678");
   });
 
-  it("strips images from toon content but structuredContent retains them", async () => {
+  it("strips images from markdown content but structuredContent retains them", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
@@ -513,8 +556,25 @@ describe("get_product", () => {
     expect(sc.product.images).toBeDefined();
     expect(sc.product.images).toHaveLength(1);
 
-    // toon (model context) strips the images field
+    // markdown (model context) strips the images field
     const text = textFromResult(result);
     expect(text).not.toContain("images");
+    expect(text).toContain("upc: 0001111041700");
+  });
+
+  it("accepts a 10-digit productId and pads it to 13 digits via the schema", () => {
+    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    const tool = getCapturedTool("get_product");
+    const config = tool.config as { inputSchema: { parse: (v: unknown) => { productId: string } } };
+    expect(config.inputSchema.parse({ productId: "1111041700" }).productId).toBe("0001111041700");
+  });
+
+  it("rejects a productId containing letters", () => {
+    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    const tool = getCapturedTool("get_product");
+    const config = tool.config as {
+      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
+    };
+    expect(config.inputSchema.safeParse({ productId: "abc1111041700" }).success).toBe(false);
   });
 });

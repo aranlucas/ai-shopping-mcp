@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
 import type { ToolContext } from "../../src/tools/types.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
+import type { PreferredLocation } from "../../src/utils/user-storage.js";
 
 import {
   addCacheWarning,
@@ -12,6 +13,16 @@ import {
   parseCacheEntry,
   registerWeeklyDealsTools,
 } from "../../src/tools/weekly-deals.js";
+
+const weeklyDealsAuthState = vi.hoisted(() => ({
+  authContext: {
+    props: { id: "user-weekly-deals", accessToken: "token", tokenExpiresAt: Date.now() + 60_000 },
+  } as { props?: { id: string; accessToken: string; tokenExpiresAt: number } } | undefined,
+}));
+
+vi.mock("agents/mcp", () => ({
+  getMcpAuthContext: () => weeklyDealsAuthState.authContext,
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -220,16 +231,15 @@ describe("addCacheWarning", () => {
 // ---------------------------------------------------------------------------
 
 describe("formatWeeklyDealsToolResponse", () => {
-  it("returns TOON-encoded deals when no dates and no warnings", async () => {
+  it("returns markdown deals when no dates and no warnings", async () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Bananas", price: "$0.59/lb", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("Bananas");
     expect(text).toContain("dealCount: 1");
-    // top-level validFrom: field absent (column headers contain "validFrom" without ": ")
-    expect(text).not.toContain("validFrom: ");
-    expect(text).not.toContain("warnings");
+    expect(text).not.toContain("Deals valid");
+    expect(text).not.toContain("warnings:");
   });
 
   it("includes validFrom and validTill from printCircular", async () => {
@@ -238,8 +248,9 @@ describe("formatWeeklyDealsToolResponse", () => {
       deals: [{ id: "1", title: "Apples", price: "$1.99/lb", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("validFrom:");
-    expect(text).toContain("validTill:");
+    expect(text).toContain("Deals valid");
+    expect(text).toContain("2025-01-01T00:00:00Z");
+    expect(text).toContain("2025-01-07T00:00:00Z");
     expect(text).toContain("Apples");
   });
 
@@ -249,7 +260,7 @@ describe("formatWeeklyDealsToolResponse", () => {
       deals: [{ id: "1", title: "Milk", price: "$3.49", source: "search_api" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("validFrom:");
+    expect(text).toContain("Deals valid");
     expect(text).toContain("2025-01-02T00:00:00Z");
     expect(text).toContain("2025-01-08T00:00:00Z");
   });
@@ -272,7 +283,7 @@ describe("formatWeeklyDealsToolResponse", () => {
     expect(text).toContain("2025-01-07");
   });
 
-  it("omits date fields when only one date is available", async () => {
+  it("omits the validity header when only one date is available", async () => {
     const result = makeMinimalResult({
       deals: [
         {
@@ -285,12 +296,10 @@ describe("formatWeeklyDealsToolResponse", () => {
       ],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    // top-level date keys absent (column headers have "validFrom" without the ": " suffix)
-    expect(text).not.toContain("validFrom: ");
-    expect(text).not.toContain("validTill: ");
+    expect(text).not.toContain("Deals valid");
   });
 
-  it("includes warnings array when present", async () => {
+  it("includes warnings when present", async () => {
     const result = makeMinimalResult({
       warnings: ["Print-ad parsing failed", "Using fallback"],
       deals: [{ id: "1", title: "Chicken", price: "$4.99", source: "search_api" }],
@@ -298,7 +307,7 @@ describe("formatWeeklyDealsToolResponse", () => {
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("Print-ad parsing failed");
     expect(text).toContain("Using fallback");
-    expect(text).toContain("warnings");
+    expect(text).toContain("warnings:");
   });
 
   it("includes both date fields and warnings", async () => {
@@ -308,7 +317,7 @@ describe("formatWeeklyDealsToolResponse", () => {
       deals: [{ id: "1", title: "Beef", price: "$5.99", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("validFrom:");
+    expect(text).toContain("Deals valid");
     expect(text).toContain("Some warning");
   });
 
@@ -333,17 +342,6 @@ describe("formatWeeklyDealsToolResponse", () => {
     expect(text).not.toContain("division");
   });
 
-  it("does not include deals count in output", async () => {
-    const result = makeMinimalResult({
-      deals: [
-        { id: "1", title: "A", price: "$1.00", source: "print" },
-        { id: "2", title: "B", price: "$2.00", source: "print" },
-      ],
-    });
-    const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).not.toContain("Deals returned:");
-  });
-
   it("does not include cache state label in text output", async () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
@@ -361,7 +359,7 @@ describe("formatWeeklyDealsToolResponse", () => {
     expect((response.structuredContent as { cache: { state: string } }).cache.state).toBe("fresh");
   });
 
-  it("includes deal title, details, price, and savings in TOON row", async () => {
+  it("includes deal title, details, price, and savings in a markdown line", async () => {
     const result = makeMinimalResult({
       deals: [
         {
@@ -375,10 +373,7 @@ describe("formatWeeklyDealsToolResponse", () => {
       ],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    expect(text).toContain("Ground Beef");
-    expect(text).toContain("80% Lean");
-    expect(text).toContain("$3.99/lb");
-    expect(text).toContain("Save $2.00");
+    expect(text).toContain("- Ground Beef | 80% Lean | $3.99/lb | Save $2.00");
   });
 
   it("includes deal title when deal has no price", async () => {
@@ -394,69 +389,6 @@ describe("formatWeeklyDealsToolResponse", () => {
     const result = makeMinimalResult({ deals: [] });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("dealCount: 0");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// TOON compaction vs JSON
-// ---------------------------------------------------------------------------
-
-function makeDeals(count: number) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `deal-${i}`,
-    title: `Organic Valley Whole Milk 64oz`,
-    details: "2% Reduced Fat, Grade A",
-    price: `$${(3 + i * 0.25).toFixed(2)}`,
-    savings: `Save $1.${i % 10}0`,
-    source: "print" as const,
-    validFrom: "2025-01-01",
-    validTill: "2025-01-07",
-  }));
-}
-
-describe("TOON compaction vs JSON", () => {
-  it("TOON is shorter than JSON for a realistic deals list (10 items)", () => {
-    const result = makeMinimalResult({ deals: makeDeals(10) });
-    const toonText = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    const jsonText = JSON.stringify(result.deals);
-    const savings = ((1 - toonText.length / jsonText.length) * 100).toFixed(1);
-    console.log(
-      `10 deals — TOON: ${toonText.length} chars, JSON: ${jsonText.length} chars (${savings}% smaller)`,
-    );
-    expect(toonText.length).toBeLessThan(jsonText.length);
-  });
-
-  it("TOON is shorter than JSON for a larger deals list (50 items)", () => {
-    const result = makeMinimalResult({ deals: makeDeals(50) });
-    const toonText = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    const jsonText = JSON.stringify(result.deals);
-    const savings = ((1 - toonText.length / jsonText.length) * 100).toFixed(1);
-    console.log(
-      `50 deals — TOON: ${toonText.length} chars, JSON: ${jsonText.length} chars (${savings}% smaller)`,
-    );
-    expect(toonText.length).toBeLessThan(jsonText.length);
-  });
-
-  it("savings grow with array size — 50-item list saves more than 10-item list", () => {
-    const result10 = makeMinimalResult({ deals: makeDeals(10) });
-    const result50 = makeMinimalResult({ deals: makeDeals(50) });
-    const toon10 = getTextContent(formatWeeklyDealsToolResponse(result10, "miss")).length;
-    const json10 = JSON.stringify(result10.deals).length;
-    const toon50 = getTextContent(formatWeeklyDealsToolResponse(result50, "miss")).length;
-    const json50 = JSON.stringify(result50.deals).length;
-    const savings10 = 1 - toon10 / json10;
-    const savings50 = 1 - toon50 / json50;
-    console.log(
-      `Savings ratio — 10 items: ${(savings10 * 100).toFixed(1)}%, 50 items: ${(savings50 * 100).toFixed(1)}%`,
-    );
-    expect(savings50).toBeGreaterThan(savings10);
-  });
-
-  it("TOON output is valid text with TOON field-header syntax for uniform arrays", () => {
-    const result = makeMinimalResult({ deals: makeDeals(5) });
-    const toonText = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
-    // TOON tabular arrays declare length and fields in a header like: deals[N]{field1,field2,...}:
-    expect(toonText).toMatch(/deals\[\d+\]\{[^}]+\}:/);
   });
 });
 
@@ -535,7 +467,18 @@ function makeKV(initialData: Map<string, string> = new Map()): {
   };
 }
 
-function makeWeeklyDealsContext(kv: KVNamespace | null = null): ToolContext {
+const DEFAULT_PREFERRED_LOCATION: PreferredLocation = {
+  locationId: "70500034",
+  locationName: "QFC Test Store",
+  address: "1 Test St",
+  chain: "QFC",
+  setAt: new Date().toISOString(),
+};
+
+function makeWeeklyDealsContext(
+  kv: KVNamespace | null = null,
+  preferredLocation: PreferredLocation | null = DEFAULT_PREFERRED_LOCATION,
+): ToolContext {
   return {
     server: {} as ToolContext["server"],
     clients: {
@@ -546,7 +489,12 @@ function makeWeeklyDealsContext(kv: KVNamespace | null = null): ToolContext {
         })),
       },
     } as unknown as ToolContext["clients"],
-    storage: {} as ToolContext["storage"],
+    storage: {
+      preferredLocation: {
+        get: async () => preferredLocation,
+        set: async () => {},
+      },
+    } as unknown as ToolContext["storage"],
     getEnv: () => (kv ? { USER_DATA_KV: kv } : {}) as Env,
     getSessionId: () => "session-1",
   };
@@ -571,17 +519,22 @@ describe("get_weekly_deals handler", () => {
   beforeEach(() => {
     capturedWeeklyDealsTools.length = 0;
     vi.resetAllMocks();
+    weeklyDealsAuthState.authContext = {
+      props: { id: "user-weekly-deals", accessToken: "token", tokenExpiresAt: Date.now() + 60_000 },
+    };
   });
 
-  // Defaults that match the tool's inputSchema defaults (Zod defaults bypass raw handler calls)
-  const DEFAULT_ARGS = { limit: 50, pageLimit: 2 };
+  const TEST_STORE_ID = DEFAULT_PREFERRED_LOCATION.locationId;
+  // Explicit storeId bypasses preferred-store resolution for tests that don't care about it.
+  const DEFAULT_ARGS = { storeId: TEST_STORE_ID, limit: 50, pageLimit: 2 };
+  const CACHE_KEY_PARAMS = { locationId: TEST_STORE_ID, limit: 50, pageLimit: 2 };
 
   it("returns cached deals without calling the API when a fresh KV cache entry exists", async () => {
     const cachedData = makeMinimalDealsResponse({
       deals: [{ id: "cached", title: "Cached Deal", price: "$1.00", source: "print" }],
     });
     const { kv, store } = makeKV();
-    const cacheKey = buildWeeklyDealsCacheKey({ ...DEFAULT_ARGS });
+    const cacheKey = buildWeeklyDealsCacheKey(CACHE_KEY_PARAMS);
     store.set(cacheKey, JSON.stringify(makeFreshCacheEntry(cachedData)));
 
     registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
@@ -612,7 +565,7 @@ describe("get_weekly_deals handler", () => {
       deals: [{ id: "s1", title: "Stale Deal", price: "$2.00", source: "print" }],
     });
     const { kv, store } = makeKV();
-    const cacheKey = buildWeeklyDealsCacheKey({ ...DEFAULT_ARGS });
+    const cacheKey = buildWeeklyDealsCacheKey(CACHE_KEY_PARAMS);
     store.set(cacheKey, JSON.stringify(makeStaleCacheEntry(staleData)));
 
     mockGetQfcWeeklyDeals.mockRejectedValue(new Error("network timeout"));
@@ -650,14 +603,14 @@ describe("get_weekly_deals handler", () => {
     expect(isErrorResult(result)).toBe(false);
   });
 
-  it("passes locationId to the cache key and to getQfcWeeklyDeals", async () => {
+  it("passes storeId to the cache key and to getQfcWeeklyDeals", async () => {
     const liveData = makeMinimalDealsResponse({ locationId: "12345678" });
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv, store } = makeKV();
 
     registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
 
-    await getWeeklyDealsHandler()({ locationId: "12345678", ...DEFAULT_ARGS });
+    await getWeeklyDealsHandler()({ storeId: "12345678", limit: 50, pageLimit: 2 });
 
     expect(mockGetQfcWeeklyDeals).toHaveBeenCalledWith(
       expect.objectContaining({ locationId: "12345678" }),
@@ -678,5 +631,34 @@ describe("get_weekly_deals handler", () => {
       .structuredContent;
     expect(sc?._view).toBe("get_weekly_deals");
     expect(sc?.cache.state).toBe("miss");
+  });
+
+  it("resolves the preferred store when storeId is omitted", async () => {
+    const liveData = makeMinimalDealsResponse();
+    mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
+    const { kv, store } = makeKV();
+
+    registerWeeklyDealsTools(makeWeeklyDealsContext(kv, DEFAULT_PREFERRED_LOCATION));
+
+    await getWeeklyDealsHandler()({ limit: 50, pageLimit: 2 });
+
+    expect(mockGetQfcWeeklyDeals).toHaveBeenCalledWith(
+      expect.objectContaining({ locationId: DEFAULT_PREFERRED_LOCATION.locationId }),
+    );
+    expect([...store.keys()][0]).toContain(`loc:${DEFAULT_PREFERRED_LOCATION.locationId}`);
+  });
+
+  it("returns a prescriptive error when storeId is omitted and no preferred store is set", async () => {
+    const { kv } = makeKV();
+
+    registerWeeklyDealsTools(makeWeeklyDealsContext(kv, null));
+
+    const result = await getWeeklyDealsHandler()({ limit: 50, pageLimit: 2 });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("No store set");
+    expect(textFromResult(result)).toContain("search_stores");
+    expect(textFromResult(result)).toContain("set_preferred_store");
+    expect(mockGetQfcWeeklyDeals).not.toHaveBeenCalled();
   });
 });

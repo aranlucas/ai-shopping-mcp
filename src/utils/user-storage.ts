@@ -52,8 +52,9 @@ export interface ShoppingListItem {
 
 /**
  * A shopping list is an immutable snapshot created by `create_shopping_list`.
- * Lists are keyed by `id` (returned to the agent as `shopping_list_id`) and
- * never mutated in place — refining the list means creating a new one.
+ * The storage `id` is a namespaced key built from the authenticated user id,
+ * session id, and a short `listId` (e.g. `list_a1b2c3d8`) shown to the agent.
+ * Lists are never mutated in place — refining the list means creating a new one.
  */
 export interface ShoppingList {
   id: string;
@@ -330,8 +331,9 @@ export class ShoppingListStorage {
 /**
  * Cart Snapshot Storage - persists the Kroger cart contents that resulted
  * from adding a shopping list to the user's cart, keyed by the shopping
- * list id. This is the `shopping_list_id -> CartItem[]` mapping the agent
- * uses to recall which shopping list produced which cart.
+ * list's namespaced storage id. This mapping also lets `add_shopping_list_to_cart`
+ * detect a retried call for the same list and short-circuit instead of
+ * re-adding the same items.
  *
  * Entries auto-expire from KV after `SNAPSHOT_TTL_SECONDS` (7 days) alongside
  * the shopping list itself.

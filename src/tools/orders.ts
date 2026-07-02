@@ -7,12 +7,13 @@ import type { ToolContext } from "./types.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { storeIdSchema, upcSchema } from "./schemas.js";
 
 const orderItemSchema = z.object({
-  productId: z.string().describe("13-digit product UPC or Kroger product identifier"),
+  productId: upcSchema.describe("UPC from search_products"),
   productName: z.string().max(200),
-  quantity: z.number().min(1).max(999),
-  price: z.number().min(0).optional(),
+  quantity: z.coerce.number().min(1).max(999),
+  price: z.coerce.number().min(0).optional(),
 });
 
 export const recordOrderInputSchema = z.object({
@@ -20,10 +21,7 @@ export const recordOrderInputSchema = z.object({
     .array(orderItemSchema)
     .min(1, { message: "At least one ordered item is required" })
     .describe("Items that were actually purchased in the completed order"),
-  locationId: z
-    .string()
-    .length(8, { message: "Location ID must be exactly 8 characters" })
-    .optional(),
+  storeId: storeIdSchema.optional().describe("8-character storeId from search_stores"),
   notes: z.string().max(500).optional(),
 });
 
@@ -44,7 +42,7 @@ export function registerOrderTools(ctx: ToolContext) {
       },
       inputSchema: recordOrderInputSchema,
     },
-    async ({ items, locationId, notes }) => {
+    async ({ items, storeId, notes }) => {
       const props = getProps();
       const orderId = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -59,7 +57,7 @@ export function registerOrderTools(ctx: ToolContext) {
         totalItems,
         estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
         placedAt: new Date().toISOString(),
-        locationId,
+        locationId: storeId,
         notes,
       };
 

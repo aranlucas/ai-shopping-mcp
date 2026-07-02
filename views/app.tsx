@@ -108,18 +108,12 @@ function getPartialLoadingMessage(viewKey: string | null, args: Record<string, u
       return "Creating shopping list…";
     case "add_shopping_list_to_cart":
       return "Adding to cart…";
-    case "add_pantry_items":
-      return "Adding to pantry…";
-    case "remove_pantry_items":
-      return "Removing from pantry…";
-    case "clear_pantry":
-      return "Clearing pantry…";
-    case "add_kitchen_equipment":
-      return "Adding kitchen equipment…";
-    case "remove_kitchen_equipment":
-      return "Removing kitchen equipment…";
-    case "clear_kitchen_equipment":
-      return "Clearing kitchen equipment…";
+    case "shop_for_items":
+      return "Shopping for items…";
+    case "add_to_inventory":
+      return "Adding to inventory…";
+    case "remove_from_inventory":
+      return "Removing from inventory…";
     case "get_weekly_deals":
       return "Fetching weekly deals…";
     default:
@@ -147,12 +141,9 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
         case "get_weekly_deals":
           return <WeeklyDealsSkeleton />;
         case "create_shopping_list":
-        case "add_pantry_items":
-        case "remove_pantry_items":
-        case "clear_pantry":
-        case "add_kitchen_equipment":
-        case "remove_kitchen_equipment":
-        case "clear_kitchen_equipment":
+        case "shop_for_items":
+        case "add_to_inventory":
+        case "remove_from_inventory":
         case "record_order":
           return <ListSkeleton />;
         default: {

@@ -3,13 +3,14 @@ import { type Result, ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
-import type { ShoppingListItem } from "../utils/user-storage.js";
+import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { validationError } from "../errors.js";
 import { formatShoppingListCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { type ToolContext, getSessionScopedUserId } from "./types.js";
+import { upcSchema } from "./schemas.js";
+import { type ToolContext, type UserStorage, getSessionScopedUserId } from "./types.js";
 
 type CheckoutConfirmationServer = {
   elicitInput(input: {
@@ -79,37 +80,63 @@ export async function requestCheckoutConfirmation(
 }
 
 export const createShoppingListInputSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(200)
-    .describe(
-      "Short label for the list (e.g., 'Tuesday dinner', 'Weekend BBQ'). Distinguishes this list from any prior ones in the conversation.",
-    ),
+  name: z.string().min(1).max(200).describe("Short label for the list, e.g. 'Tuesday dinner'."),
   items: z
     .array(
       z.object({
-        productName: z
-          .string()
-          .min(1)
-          .max(200)
-          .describe("Product name (e.g., 'Whole Milk', 'Sourdough Bread')"),
-        upc: z
-          .string()
-          .length(13, { message: "UPC must be exactly 13 characters" })
-          .optional()
-          .describe("13-digit UPC from product search, needed for cart checkout"),
-        quantity: z.number().min(1).max(999).default(1),
-        notes: z
-          .string()
-          .max(500)
-          .optional()
-          .describe("Optional notes (e.g., 'get organic if available')"),
+        productName: z.string().min(1).max(200).describe("Product name, e.g. 'Whole Milk'"),
+        upc: upcSchema.optional().describe("UPC from search_products, needed for cart checkout"),
+        quantity: z.coerce.number().min(1).max(999).default(1),
+        notes: z.string().max(500).optional().describe("Optional note, e.g. 'get organic'"),
       }),
     )
     .min(1, { message: "Shopping list must include at least one item" })
     .describe("Items to add to this shopping list"),
 });
+
+/** Short opaque id shown to the model: `list_` + 8 hex chars, e.g. `list_a1b2c3d8`. */
+export function generateShortListId(): string {
+  return `list_${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
+}
+
+/**
+ * Builds the namespaced KV storage key for a shopping list from the
+ * authenticated user id, session id, and the short id shown to the model.
+ * The user/session namespace is never sent to the model — only the short id
+ * is. Because the storage key is namespaced by the authenticated user id, a
+ * forged short id from another user is not readable here: the same
+ * per-user isolation the old prefix-checked composite id provided.
+ */
+export function buildShoppingListStorageKey(
+  userId: string,
+  sessionId: string,
+  shortId: string,
+): string {
+  return `${getSessionScopedUserId(userId, sessionId)}:list:${shortId}`;
+}
+
+export type CreateShoppingListResult = { shortId: string; list: ShoppingList };
+
+/**
+ * Shared helper: persists a new shopping list snapshot and returns the short
+ * id shown to the model alongside the stored record. Reused by
+ * `create_shopping_list` and `shop_for_items`.
+ */
+export function createShoppingListRecord(
+  storage: UserStorage,
+  userId: string,
+  sessionId: string,
+  name: string,
+  items: ShoppingListItem[],
+): ResultAsync<CreateShoppingListResult, AppError> {
+  const shortId = generateShortListId();
+  const storageKey = buildShoppingListStorageKey(userId, sessionId, shortId);
+
+  return safeStorage(
+    () => storage.shoppingList.create(storageKey, name, items),
+    "create shopping list",
+  ).map((list) => ({ shortId, list }));
+}
 
 export function registerShoppingListTools(ctx: ToolContext) {
   registerAppTool(
@@ -118,7 +145,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Create Shopping List",
       description:
-        "Build a named immutable shopping list snapshot containing at least one product the user plans to buy. Returns a `shopping_list_id` to pass to `add_shopping_list_to_cart`; create a fresh list when refining items.",
+        'Build a named immutable shopping list snapshot with at least one product. Returns a short `listId` to pass to add_shopping_list_to_cart. Example: {"name":"Tuesday dinner","items":[{"productName":"Whole Milk","upc":"0001111041700","quantity":1}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -135,29 +162,25 @@ export function registerShoppingListTools(ctx: ToolContext) {
         return toMcpError(validationError("Shopping list must include at least one item."));
       }
 
-      // The list id is a short random token namespaced under the authenticated
-      // user and session; `add_shopping_list_to_cart` reads the list back by this id.
-      // Including the user id in the key prevents a forged id from reaching
-      // another user's list.
-      const shortId = crypto.randomUUID().slice(0, 8);
-      const shoppingListId = `${getSessionScopedUserId(props.id, ctx.getSessionId())}:list:${shortId}`;
-
-      const result = await safeStorage(
-        () => ctx.storage.shoppingList.create(shoppingListId, name, items),
-        "create shopping list",
+      const result = await createShoppingListRecord(
+        ctx.storage,
+        props.id,
+        ctx.getSessionId(),
+        name,
+        items,
       );
 
       return result.match(
-        (list) => ({
+        ({ shortId, list }) => ({
           content: [
             {
               type: "text" as const,
-              text: `Created shopping list "${name}" with ${items.length} item(s).\n\n${formatShoppingListCompact(items)}`,
+              text: `Created shopping list "${name}" with ${items.length} item(s). listId=${shortId}\n\n${formatShoppingListCompact(items)}`,
             },
           ],
           structuredContent: {
             _view: "create_shopping_list",
-            shopping_list_id: list.id,
+            listId: shortId,
             name: list.name,
             items: list.items,
           },

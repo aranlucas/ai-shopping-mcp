@@ -105,8 +105,8 @@ export function KitchenEquipmentView({
 
   const handleRemove = async (name: string) => {
     const result = await callTool(app, {
-      name: "remove_kitchen_equipment",
-      arguments: { equipmentName: name },
+      name: "remove_from_inventory",
+      arguments: { inventory: "equipment", items: [{ name }] },
     });
     if (result?.isError) throw new Error("Failed to remove equipment");
     const updated = parseStructuredContent(result?.structuredContent);
