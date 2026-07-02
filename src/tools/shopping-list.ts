@@ -100,8 +100,7 @@ export const createShoppingListInputSchema = z.object({
   items: z
     .array(
       z.object({
-        productName: z.string().min(1).max(200).describe("Product name, e.g. 'Whole Milk'"),
-        upc: upcSchema.optional().describe("UPC from search_products, needed for cart checkout"),
+        upc: upcSchema.describe("UPC from search_products"),
         quantity: z.coerce.number().min(1).max(999).default(1),
         notes: z.string().max(500).optional().describe("e.g. 'get organic'"),
       }),
@@ -160,7 +159,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Create Shopping List",
       description:
-        'Creates a named shopping list snapshot; returns `listId` for add_shopping_list_to_cart. Example: {"name":"Tuesday dinner","items":[{"productName":"Whole Milk","upc":"0001111041700","quantity":1}]}',
+        'Creates a named shopping list snapshot; returns `listId` for add_shopping_list_to_cart. The product name is looked up automatically from the UPC. Example: {"name":"Tuesday dinner","items":[{"upc":"0001111041700","quantity":1}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -170,12 +169,28 @@ export function registerShoppingListTools(ctx: ToolContext) {
       },
       inputSchema: createShoppingListInputSchema,
     },
-    async ({ name, items }) => {
+    async ({ name: listName, items }) => {
       const props = getProps();
 
       if (items.length === 0) {
         return toMcpError(validationError("Shopping list must include at least one item."));
       }
+
+      // Product names are always looked up from the UPC (ProductService is
+      // KV-cached at the Kroger client layer) — a lookup failure falls back
+      // to the UPC as the display name, never a failed tool call. Lookups
+      // run in parallel.
+      const enrichedItems: ShoppingListItem[] = await Promise.all(
+        items.map(async (item) => {
+          const productName = await ctx.productService.enrichProductName(item.upc);
+          return {
+            productName: productName ?? item.upc,
+            upc: item.upc,
+            quantity: item.quantity,
+            notes: item.notes,
+          };
+        }),
+      );
 
       // Best-effort pantry/deal flags (see item-flags.ts): a storage/cache
       // miss or error yields no flag, never a failed tool call. Location is
@@ -191,7 +206,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       );
       const deals = await getDealsForFlags(ctx, locationId);
 
-      const lines = items
+      const lines = enrichedItems
         .map((item, index) => {
           const flags = itemFlagLabels(item.productName, pantry, deals);
           const base = formatShoppingListItemCompact(item);
@@ -204,8 +219,8 @@ export function registerShoppingListTools(ctx: ToolContext) {
         ctx.storage,
         props.id,
         ctx.getSessionId(),
-        name,
-        items,
+        listName,
+        enrichedItems,
       );
 
       return result.match(
@@ -213,7 +228,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           content: [
             {
               type: "text" as const,
-              text: `Created shopping list "${name}" with ${items.length} item(s). listId=${shortId}\n\n${lines}`,
+              text: `Created shopping list "${listName}" with ${enrichedItems.length} item(s). listId=${shortId}\n\n${lines}`,
             },
           ],
           structuredContent: {

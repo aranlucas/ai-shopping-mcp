@@ -26,7 +26,7 @@ export function createProductShoppingListCall({
     name: "create_shopping_list",
     arguments: {
       name: listName ?? productName,
-      items: [{ productName, upc, quantity }],
+      items: [{ upc, quantity }],
     },
   };
 }
