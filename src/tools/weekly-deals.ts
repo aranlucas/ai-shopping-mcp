@@ -16,8 +16,6 @@ import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js"
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
 
-export type { KvLike } from "../utils/kv.js";
-
 export type WeeklyDealsCacheEntry = {
   version: 1;
   createdAt: number;
