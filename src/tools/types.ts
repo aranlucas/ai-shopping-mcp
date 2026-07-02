@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { createUserStorage } from "../utils/user-storage.js";
 
-// Props stored in the access token and provided to McpAgent as this.props.
+// Props stored in the access token and exposed through the MCP auth context.
 // Only contains what's needed for runtime API calls — no refresh credentials.
 export type Props = {
   id: string;

@@ -90,15 +90,7 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 ## Tier 3 — Infrastructure and polish
 
-### 7. Drop the `MyMCP` Durable Object
-
-**What:** The dedicated infra PR that `src/server.ts` and `wrangler.jsonc` comments already promise: add the `deleted_classes` migration, remove the stub class and `MCP_OBJECT` binding.
-
-**Why it's good:** It's a standing landmine — a binding-only class that a future contributor could mistakenly route through, plus stored DO data that lingers until deleted. The codebase explicitly defers this to a dedicated PR; it should actually happen.
-
-**How:** `deleted_classes: ["MyMCP"]` migration, remove the class and binding, validate against the deployed Worker before merging (the deletion is irreversible for the DO's stored data — confirm nothing live depends on it).
-
-### 8. Cron-cached weekly deals
+### 7. Cron-cached weekly deals
 
 **What:** A Cloudflare cron trigger that pre-fetches and caches the QFC weekly ad in KV; `get_weekly_deals` reads the cache.
 
@@ -106,7 +98,7 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 **How:** `scheduled` handler in the Worker, weekly cron in `wrangler.jsonc`, cache key with the ad's week identifier, fall back to live fetch on cache miss. Cache is global, not per-user.
 
-### 9. Interactive shopping-list view
+### 8. Interactive shopping-list view
 
 **What:** Upgrade the shopping-list view so users can check off, remove, and adjust quantities directly in the UI, with actions flowing back through the MCP Apps action bridge.
 
@@ -114,7 +106,7 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 **How:** Add focused shopping-list editing tools for check-off, removal, and quantity adjustment; update the dev harness mocks in `views/dev/`; keep structured content aligned with tool-local output schemas.
 
-### 10. Workflow prompts
+### 9. Workflow prompts
 
 **What:** A small set of MCP prompts encoding end-to-end workflows: "weekly shop" (deals → meal plan → pantry-reconciled list → cart), "restock check," "clean out the pantry" (plan meals around what's expiring).
 
@@ -132,9 +124,9 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 ## Suggested sequencing
 
-1. **#7 (DO removal)** and **#8 (deals cron)** first — small, independent, and #8 unblocks the headline feature.
+1. **#7 (deals cron)** first — small, independent, and it unblocks the headline feature.
 2. **#1 (deal-aware planning)** and **#2 (pantry-aware lists)** next — these are the product's core loop.
 3. **#5 (preferences)** and **#3 (restock)** — compounding context for everything above.
-4. **#4 (price history)**, **#6 (store comparison)**, **#9 (interactive list)**, **#10 (prompts)** as follow-ons, in whatever order interest dictates.
+4. **#4 (price history)**, **#6 (store comparison)**, **#8 (interactive list)**, **#9 (prompts)** as follow-ons, in whatever order interest dictates.
 
 Every feature lands with tests per `AGENTS.md` — new tools, storage classes, and branches all need coverage before handing back.

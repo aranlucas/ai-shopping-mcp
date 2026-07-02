@@ -44,7 +44,7 @@ pnpm generate:apis  # regenerate all Kroger OpenAPI types (or generate:cart|loca
 
 Core entry points:
 
-- `src/server.ts`: `buildServer()` factory, stateless `/mcp` handler, `OAuthProvider` configuration, `MyMCP` Durable Object stub, tool/resource/prompt registration.
+- `src/server.ts`: `buildServer()` factory, stateless `/mcp` handler, `OAuthProvider` configuration, tool/resource/prompt registration.
 - `src/kroger-handler.ts`: Kroger OAuth `/authorize` and `/callback` HTTP handlers.
 - `src/workers-oauth-utils.ts`: OAuth approval and client verification helpers.
 - `src/prompts.ts`: MCP prompt registrations.
@@ -75,7 +75,6 @@ Services and utilities:
 - `src/utils/user-storage.ts`: Cloudflare KV-backed user data storage.
 - `src/utils/format-response.ts`: user-facing formatting helpers.
 - `src/utils/view-resource.ts`: MCP Apps view resource registration.
-- `src/utils/mcp-security.ts`: `withMcpOriginProtection` origin allowlisting for `/mcp`.
 
 Views:
 
@@ -96,8 +95,6 @@ Tests:
 - The `Mcp-Session-Id` header carries the session id; a storage shim rebuilds minimal transport state from it. The session id only namespaces KV data — the user id comes from OAuth, not the header.
 - Auth `Props` are read lazily inside tool execution via `getMcpAuthContext()`. Tool registration must not require auth context.
 - There is no `requireAuth` wrapper; `OAuthProvider` enforces the auth invariant before requests reach `/mcp`. Do not reintroduce per-tool auth gating.
-- `/mcp` is wrapped in `withMcpOriginProtection`; keep origin checks intact when touching routing.
-- The `MyMCP` Durable Object in `src/server.ts` exists only to satisfy the `MCP_OBJECT` binding and is never addressed. Do not route through it or add logic to it; removing it requires a `deleted_classes` migration in a dedicated infra PR.
 
 ## OAuth And Tokens
 

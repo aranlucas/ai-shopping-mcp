@@ -15,23 +15,19 @@
     "directory": "./dist/views",
     "binding": "ASSETS",
   },
+  // v1 is retained as migration history so Wrangler can apply v2. The v2
+  // migration deletes the retired MyMCP Durable Object, and there is no active
+  // `durable_objects` binding below.
   "migrations": [
     {
       "new_sqlite_classes": ["MyMCP"],
       "tag": "v1",
     },
+    {
+      "deleted_classes": ["MyMCP"],
+      "tag": "v2",
+    },
   ],
-  // `/mcp` now runs through the stateless `createMcpHandler` (see src/server.ts),
-  // but the MyMCP Durable Object is kept (unused) to avoid a data-dropping
-  // `deleted_classes` migration here; removal is deferred to a dedicated PR.
-  "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "MyMCP",
-        "name": "MCP_OBJECT",
-      },
-    ],
-  },
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
