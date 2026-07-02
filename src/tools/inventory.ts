@@ -23,11 +23,11 @@ const addInventoryItemSchema = z.object({
 });
 
 export const addToInventoryInputSchema = z.object({
-  inventory: z.enum(["pantry", "equipment"]).describe("Which inventory to add to"),
+  inventory: z.enum(["pantry", "equipment"]).describe("Inventory to add to"),
   items: z
     .array(addInventoryItemSchema)
     .min(1, { message: "At least one item is required" })
-    .describe("Items to add or quantity-increment by case-insensitive name"),
+    .describe("Merges by case-insensitive name"),
 });
 
 const removeInventoryItemSchema = z.object({
@@ -75,7 +75,7 @@ export function registerInventoryTools(ctx: ToolContext) {
     {
       title: "Add To Inventory",
       description:
-        'Adds items to the pantry or kitchen equipment inventory. Duplicate names are merged case-insensitively. Example: {"inventory":"pantry","items":[{"name":"Eggs","quantity":12}]}',
+        'Adds pantry or kitchen equipment items, merging duplicate names case-insensitively. Example: {"inventory":"pantry","items":[{"name":"Eggs","quantity":12}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,

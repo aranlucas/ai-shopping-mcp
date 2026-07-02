@@ -453,8 +453,8 @@ describe("storage-backed tools", () => {
 
     const result = await getCapturedHandler("record_order")({
       items: [
-        { productId: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 },
-        { productId: "0000000000002", productName: "Bananas", quantity: 3 },
+        { upc: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 },
+        { upc: "0000000000002", productName: "Bananas", quantity: 3 },
       ],
       storeId: "70500847",
       notes: "Pickup order",
@@ -475,7 +475,7 @@ describe("storage-backed tools", () => {
     registerOrderTools(makeContext());
 
     const result = await getCapturedHandler("record_order")({
-      items: [{ productId: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
+      items: [{ upc: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
       storeId: "70500847",
       notes: "Test note",
     });
@@ -501,8 +501,8 @@ describe("storage-backed tools", () => {
 
     const result = await getCapturedHandler("record_order")({
       items: [
-        { productId: "0000000000001", productName: "Apples", quantity: 2 },
-        { productId: "0000000000002", productName: "Bananas", quantity: 3 },
+        { upc: "0000000000001", productName: "Apples", quantity: 2 },
+        { upc: "0000000000002", productName: "Bananas", quantity: 3 },
       ],
     });
 
@@ -515,6 +515,50 @@ describe("storage-backed tools", () => {
     expect(sc._view).toBe("record_order");
     expect(sc.totalItems).toBe(5);
     expect(sc.estimatedTotal).toBeUndefined();
+  });
+
+  it("still accepts the deprecated productId alias on record_order items", async () => {
+    const storedOrders: OrderRecord[] = [];
+    const storage = makeStorage({
+      orderHistory: {
+        add: async (_userId: string, order: OrderRecord) => {
+          storedOrders.push(order);
+        },
+        getAll: async () => storedOrders,
+      } as unknown as UserStorage["orderHistory"],
+    });
+    registerOrderTools(makeContext(storage));
+
+    const result = await getCapturedHandler("record_order")({
+      items: [{ productId: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(storedOrders).toHaveLength(1);
+    expect(storedOrders[0].items[0]).toMatchObject({
+      productId: "0000000000001",
+      productName: "Apples",
+    });
+  });
+
+  it("rejects a record_order item with neither upc nor productId at the schema level", () => {
+    registerOrderTools(makeContext());
+
+    const tool = getCapturedTool("record_order");
+    const config = tool.config as {
+      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
+    };
+
+    expect(
+      config.inputSchema.safeParse({
+        items: [{ productName: "Apples", quantity: 2 }],
+      }).success,
+    ).toBe(false);
+    expect(
+      config.inputSchema.safeParse({
+        items: [{ upc: "0000000000001", productName: "Apples", quantity: 2 }],
+      }).success,
+    ).toBe(true);
   });
 
   it("creates a shopping list and returns a short listId", async () => {

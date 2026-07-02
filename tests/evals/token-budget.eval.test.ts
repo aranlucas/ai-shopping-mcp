@@ -58,13 +58,15 @@ describe("token budget: tool surface", () => {
     for (const entry of perTool) log(`  ${entry.name}: ${entry.tokens}`);
 
     // Whole tool list: what every request to the host model carries.
-    // Baseline 2026-07: 3445 estimated tokens across 14 tools.
+    // Baseline 2026-07: 3455 estimated tokens across 14 tools (create_shopping_list
+    // and add_to_inventory trimmed to ~303-307t; get_product and record_order grew
+    // slightly from the upc/productId alias — see small-model-efficiency-plan.md #1-2).
     expect(total).toBeLessThan(4200);
 
-    // No single tool may dominate the surface. Baseline max: 335
-    // (create_shopping_list).
+    // No single tool may dominate the surface. Baseline max: 311
+    // (add_shopping_list_to_cart).
     for (const entry of perTool) {
-      expect(entry.tokens, `tool ${entry.name} definition too large`).toBeLessThan(450);
+      expect(entry.tokens, `tool ${entry.name} definition too large`).toBeLessThan(400);
     }
   });
 
@@ -146,7 +148,7 @@ describe("token budget: tool responses", () => {
 
   it("get_product stays within content budget", async () => {
     const result = await call("get_product", {
-      productId: "0001111041700",
+      upc: "0001111041700",
       storeId: DEFAULT_STORE_ID,
     });
     expect(result.isError).toBeFalsy();

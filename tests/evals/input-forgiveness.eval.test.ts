@@ -47,13 +47,33 @@ describe("input forgiveness", () => {
 
   describe("normalized (must succeed)", () => {
     it("accepts an unpadded UPC and pads it to 13 digits", async () => {
-      const result = await call("get_product", { productId: "1111041700" });
+      const result = await call("get_product", { upc: "1111041700" });
       expect(result.isError, contentText(result)).toBeFalsy();
       expect(contentText(result)).toContain("0001111041700");
     });
 
     it("accepts a UPC with surrounding whitespace", async () => {
-      const result = await call("get_product", { productId: " 0001111041700 " });
+      const result = await call("get_product", { upc: " 0001111041700 " });
+      expect(result.isError, contentText(result)).toBeFalsy();
+    });
+
+    it("still accepts the deprecated productId alias on get_product", async () => {
+      const result = await call("get_product", { productId: "1111041700" });
+      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(contentText(result)).toContain("0001111041700");
+    });
+
+    it("accepts record_order items keyed by upc", async () => {
+      const result = await call("record_order", {
+        items: [{ upc: "0001111041700", productName: "Milk", quantity: 1 }],
+      });
+      expect(result.isError, contentText(result)).toBeFalsy();
+    });
+
+    it("still accepts record_order items keyed by the deprecated productId alias", async () => {
+      const result = await call("record_order", {
+        items: [{ productId: "0001111041700", productName: "Milk", quantity: 1 }],
+      });
       expect(result.isError, contentText(result)).toBeFalsy();
     });
 
@@ -93,9 +113,14 @@ describe("input forgiveness", () => {
 
   describe("rejected (error must name the fix)", () => {
     it("rejects a non-numeric UPC with instructions to copy it from search_products", async () => {
-      const result = await call("get_product", { productId: "not-a-upc" });
+      const result = await call("get_product", { upc: "not-a-upc" });
       expect(result.isError).toBe(true);
       expect(contentText(result)).toContain("search_products");
+    });
+
+    it("rejects get_product with neither upc nor productId", async () => {
+      const result = await call("get_product", { storeId: "70500847" });
+      expect(result.isError).toBe(true);
     });
 
     it("rejects a wrong-length storeId pointing at search_stores", async () => {

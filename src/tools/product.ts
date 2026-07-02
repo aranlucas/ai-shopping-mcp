@@ -25,6 +25,25 @@ export type ProductSearchResult = {
   failed: boolean;
 };
 
+/**
+ * get_product's input: `upc` is the documented field; `productId` is kept as
+ * a deprecated alias so existing hosts that call with `productId` (matching
+ * the old field name) don't break. At least one of the two is required; when
+ * both are present `upc` wins. See docs/small-model-efficiency-plan.md #2.
+ */
+export const getProductInputSchema = z
+  .object({
+    upc: upcSchema.optional().describe("UPC from search_products"),
+    productId: upcSchema.optional().describe("Deprecated alias for upc."),
+    storeId: storeIdSchema
+      .optional()
+      .describe("8-character storeId from search_stores to check availability and pricing"),
+  })
+  .refine((data) => data.upc !== undefined || data.productId !== undefined, {
+    message: "Provide upc (preferred) or productId — copy the upc value from search_products.",
+    path: ["upc"],
+  });
+
 export function logProductSearchError(term: string, error: AppError) {
   if (error.type === "AUTH_ERROR") {
     console.warn(`Search unavailable for "${term}":`, error.message);
@@ -209,14 +228,10 @@ export function registerProductTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      inputSchema: z.object({
-        productId: upcSchema.describe("UPC from search_products"),
-        storeId: storeIdSchema
-          .optional()
-          .describe("8-character storeId from search_stores to check availability and pricing"),
-      }),
+      inputSchema: getProductInputSchema,
     },
-    async ({ productId, storeId }) => {
+    async ({ upc, productId, storeId }) => {
+      const resolvedUpc = (upc ?? productId) as string;
       const queryParams: Record<string, string> = {};
       if (storeId) {
         queryParams["filter.locationId"] = storeId;
@@ -225,7 +240,7 @@ export function registerProductTools(ctx: ToolContext) {
       const result = await fromApiResponse(
         productClient.GET("/v1/products/{id}", {
           params: {
-            path: { id: productId },
+            path: { id: resolvedUpc },
             query: queryParams,
           },
         }),
@@ -233,7 +248,7 @@ export function registerProductTools(ctx: ToolContext) {
       ).andThen((data) => {
         const product = data.data;
         if (!product) {
-          return err(notFoundError(`No information found for product ID: ${productId}`));
+          return err(notFoundError(`No information found for product ID: ${resolvedUpc}`));
         }
         return ok(product);
       });

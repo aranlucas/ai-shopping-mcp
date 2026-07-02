@@ -491,7 +491,7 @@ describe("get_product", () => {
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
     const result = await getCapturedHandler("get_product")({
-      productId: "0001111041700",
+      upc: "0001111041700",
     });
 
     const sc = structuredContentOf(result) as { _view: string; product: Product };
@@ -506,7 +506,7 @@ describe("get_product", () => {
     registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
 
     const result = await getCapturedHandler("get_product")({
-      productId: "0001111041700",
+      upc: "0001111041700",
     });
 
     expect(isErrorResult(result)).toBe(true);
@@ -517,7 +517,7 @@ describe("get_product", () => {
     registerProductTools(makeContext(async () => makeErrorResponse(401)));
 
     const result = await getCapturedHandler("get_product")({
-      productId: "0001111041700",
+      upc: "0001111041700",
     });
 
     expect(isErrorResult(result)).toBe(true);
@@ -536,7 +536,7 @@ describe("get_product", () => {
     );
 
     await getCapturedHandler("get_product")({
-      productId: "0001111041700",
+      upc: "0001111041700",
       storeId: "12345678",
     });
 
@@ -548,7 +548,7 @@ describe("get_product", () => {
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
     const result = await getCapturedHandler("get_product")({
-      productId: "0001111041700",
+      upc: "0001111041700",
     });
 
     // structuredContent preserves the full product with images
@@ -562,19 +562,41 @@ describe("get_product", () => {
     expect(text).toContain("upc: 0001111041700");
   });
 
-  it("accepts a 10-digit productId and pads it to 13 digits via the schema", () => {
+  it("accepts a 10-digit upc and pads it to 13 digits via the schema", () => {
     registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
     const tool = getCapturedTool("get_product");
-    const config = tool.config as { inputSchema: { parse: (v: unknown) => { productId: string } } };
-    expect(config.inputSchema.parse({ productId: "1111041700" }).productId).toBe("0001111041700");
+    const config = tool.config as { inputSchema: { parse: (v: unknown) => { upc: string } } };
+    expect(config.inputSchema.parse({ upc: "1111041700" }).upc).toBe("0001111041700");
   });
 
-  it("rejects a productId containing letters", () => {
+  it("rejects a upc containing letters", () => {
     registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
-    expect(config.inputSchema.safeParse({ productId: "abc1111041700" }).success).toBe(false);
+    expect(config.inputSchema.safeParse({ upc: "abc1111041700" }).success).toBe(false);
+  });
+
+  it("still accepts the deprecated productId alias and pads it to 13 digits", async () => {
+    const product = makeProduct();
+    registerProductTools(makeContext(async () => makeDetailResponse(product)));
+
+    const result = await getCapturedHandler("get_product")({
+      productId: "1111041700",
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    const sc = structuredContentOf(result) as { product: Product };
+    expect(sc.product.upc).toBe("0001111041700");
+  });
+
+  it("rejects a call with neither upc nor productId", () => {
+    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    const tool = getCapturedTool("get_product");
+    const config = tool.config as {
+      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
+    };
+    expect(config.inputSchema.safeParse({}).success).toBe(false);
   });
 });

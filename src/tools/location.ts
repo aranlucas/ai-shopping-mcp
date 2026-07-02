@@ -38,7 +38,13 @@ export function registerLocationTools(ctx: ToolContext) {
           .length(5, { message: "Zip code must be exactly 5 digits" })
           .describe("5-digit zip code. Ask the user for their zip code if you don't know it."),
         limit: z.coerce.number().min(1).max(200).optional().default(5),
-        chain: z.string().optional().default("QFC"),
+        chain: z
+          .string()
+          .optional()
+          .default("QFC")
+          .describe(
+            "Kroger family chain to search. Defaults to QFC — pass e.g. 'KROGER' to widen results to other banners.",
+          ),
       }),
     },
     async ({ zipCodeNear, limit, chain }) => {
