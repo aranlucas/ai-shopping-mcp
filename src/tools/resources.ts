@@ -1,12 +1,10 @@
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import { fromApiResponse, getProps, safeStorage } from "../utils/result.js";
+import { getProps, safeStorage } from "../utils/result.js";
 import { toonResource } from "../utils/toon.js";
 import { type ToolContext } from "./types.js";
 
 export function registerResources(ctx: ToolContext) {
-  const { productClient } = ctx.clients;
-
   ctx.server.registerResource(
     "Pantry Inventory",
     "shopping://user/pantry",
@@ -192,35 +190,16 @@ export function registerResources(ctx: ToolContext) {
         () => undefined,
       );
 
-      const queryParams: Record<string, string> = {};
-      if (locationId) {
-        queryParams["filter.locationId"] = locationId;
-      }
-
-      const result = await fromApiResponse(
-        productClient.GET("/v1/products/{id}", {
-          params: {
-            path: { id: upc },
-            query: queryParams,
-          },
-        }),
-        "fetch product details",
-      );
+      const result = await ctx.productService.getProduct(upc, locationId);
 
       return result.match(
-        (data) => {
-          const product = data.data;
-          if (!product) {
-            return toonResource(uri.href, {
-              error: `No product found with UPC: ${upc}`,
-            });
+        (product) => toonResource(uri.href, product),
+        (error) => {
+          if (error.type === "NOT_FOUND") {
+            return toonResource(uri.href, { error: `No product found with UPC: ${upc}` });
           }
-          return toonResource(uri.href, product);
+          return toonResource(uri.href, { error: `Failed to fetch product: ${error.message}` });
         },
-        (error) =>
-          toonResource(uri.href, {
-            error: `Failed to fetch product: ${error.message}`,
-          }),
       );
     },
   );
