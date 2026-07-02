@@ -1,5 +1,5 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { ResultAsync, err, ok } from "neverthrow";
+import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
@@ -7,7 +7,6 @@ import type { KrogerClients } from "../services/kroger/client.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
 import type { KvLike } from "./weekly-deals.js";
 
-import { notFoundError } from "../errors.js";
 import {
   formatProductDetailMarkdown,
   formatSearchProductsMarkdown,
@@ -328,26 +327,7 @@ export function registerProductTools(ctx: ToolContext) {
       inputSchema: getProductInputSchema,
     },
     async ({ upc, storeId }) => {
-      const queryParams: Record<string, string> = {};
-      if (storeId) {
-        queryParams["filter.locationId"] = storeId;
-      }
-
-      const result = await fromApiResponse(
-        productClient.GET("/v1/products/{id}", {
-          params: {
-            path: { id: upc },
-            query: queryParams,
-          },
-        }),
-        "get product details",
-      ).andThen((data) => {
-        const product = data.data;
-        if (!product) {
-          return err(notFoundError(`No information found for UPC: ${upc}`));
-        }
-        return ok(product);
-      });
+      const result = await ctx.productService.getProduct(upc, storeId);
 
       return result.match((product) => {
         return {
