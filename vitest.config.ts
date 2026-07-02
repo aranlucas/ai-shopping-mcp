@@ -26,6 +26,13 @@ export default defineConfig({
                 KROGER_CLIENT_ID: "test-kroger-client-id",
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
+                // Opt-in knobs for tests/evals: the live-model runner skips
+                // without ANTHROPIC_API_KEY; EVAL_LOG prints token tables.
+                ...(process.env.ANTHROPIC_API_KEY
+                  ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }
+                  : {}),
+                ...(process.env.EVAL_MODEL ? { EVAL_MODEL: process.env.EVAL_MODEL } : {}),
+                ...(process.env.EVAL_LOG ? { EVAL_LOG: process.env.EVAL_LOG } : {}),
               },
             },
           }),
