@@ -149,7 +149,11 @@ function makeContext(
       },
     } as unknown as ToolContext["clients"],
     storage,
-    getEnv: () => ({}) as Env,
+    getEnv: () =>
+      ({
+        AI: { run: async () => ({ data: [] }) },
+        USER_DATA_KV: { get: async () => null, put: async () => {} },
+      }) as unknown as Env,
     getSessionId: () => "session-1",
   };
 }
@@ -421,43 +425,6 @@ describe("shop_for_items", () => {
       const sc = structuredContentOf(result);
       expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe("2222222222222");
     });
-
-    it("keeps the old first-pickup-available pick when AI_FEATURES is off", async () => {
-      const { wrongMatch, rightMatch } = makeAdversarialCandidates();
-
-      const ctx = makeContext(
-        async () => makeSearchResponse([wrongMatch, rightMatch]),
-        PREFERRED_LOCATION,
-      );
-      ctx.getEnv = () =>
-        ({
-          AI: makeStubAi(),
-          AI_FEATURES: "off",
-          USER_DATA_KV: makeMinimalKv(),
-        }) as unknown as Env;
-
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
-
-      const sc = structuredContentOf(result);
-      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(wrongMatch.upc);
-    });
-
-    it("keeps the old pick when there is no USER_DATA_KV binding, even with AI features enabled", async () => {
-      const { wrongMatch, rightMatch } = makeAdversarialCandidates();
-
-      const ctx = makeContext(
-        async () => makeSearchResponse([wrongMatch, rightMatch]),
-        PREFERRED_LOCATION,
-      );
-      ctx.getEnv = () => ({ AI: makeStubAi() }) as unknown as Env;
-
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
-
-      const sc = structuredContentOf(result);
-      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(wrongMatch.upc);
-    });
   });
 
   describe("pantry and deal flags", () => {
@@ -529,6 +496,7 @@ describe("shop_for_items", () => {
       const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
       ctx.getEnv = () =>
         ({
+          AI: { run: async () => ({ data: [] }) },
           USER_DATA_KV: {
             get: async (key: string) => store.get(key) ?? null,
             put: async (key: string, value: string) => {

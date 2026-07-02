@@ -214,13 +214,13 @@ async function rankProductMatchesInner(params: {
  * missing `ai`/`kv`, or a malformed embedding response — never throws.
  */
 export async function rankProductMatches(params: {
-  ai: EmbeddingAi | null | undefined;
-  kv: EmbeddingKv | null | undefined;
+  ai: EmbeddingAi;
+  kv: EmbeddingKv;
   query: string;
   products: Product[];
 }): Promise<Product[]> {
   const { ai, kv, query, products } = params;
-  if (!ai || !kv || products.length === 0) return products;
+  if (products.length === 0) return products;
 
   try {
     return await Promise.race([

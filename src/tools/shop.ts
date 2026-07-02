@@ -28,11 +28,12 @@ type Product = ProductComponents["schemas"]["products.productModel"];
  * and `AI_FEATURES` must not be `"off"` (see vitest.config.ts, which sets
  * `AI_FEATURES: "off"` for the whole suite).
  */
-export function getMatchRankerAi(ctx: ToolContext): EmbeddingAi | null {
+export function getMatchRankerAi(ctx: ToolContext): EmbeddingAi {
   const env = ctx.getEnv();
-  if ("AI_FEATURES" in env && env.AI_FEATURES === "off") return null;
-
-  return isEmbeddingAiLike(env.AI) ? env.AI : null;
+  if (!isEmbeddingAiLike(env.AI)) {
+    throw new Error("AI binding is required for semantic match ranking");
+  }
+  return env.AI;
 }
 
 const shopItemSchema = z.object({
@@ -140,7 +141,7 @@ export function registerShopTools(ctx: ToolContext) {
       const ai = getMatchRankerAi(ctx);
       const rankedResults = await Promise.all(
         searchResults.map(async (result, index) => {
-          if (!ai || result.failed || result.products.length === 0) return result;
+          if (result.failed || result.products.length === 0) return result;
           const ranked = await rankProductMatches({
             ai,
             kv,

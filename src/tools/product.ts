@@ -66,10 +66,13 @@ export function buildProductSearchCacheKey(
   return `products|v1|loc:${locationId || "none"}|limit:${limitPerTerm}|term:${term.toLowerCase().trim()}`;
 }
 
-/** Resolves the KV binding for the product-search cache, or null if unavailable. */
-export function getProductSearchCacheKv(ctx: ToolContext): KvLike | null {
+/** Resolves the KV binding for the product-search cache. */
+export function getProductSearchCacheKv(ctx: ToolContext): KvLike {
   const env = ctx.getEnv();
-  return isKvLike(env?.USER_DATA_KV) ? env.USER_DATA_KV : null;
+  if (!isKvLike(env?.USER_DATA_KV)) {
+    throw new Error("USER_DATA_KV binding is required");
+  }
+  return env.USER_DATA_KV;
 }
 
 async function readProductSearchCache(

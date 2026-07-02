@@ -114,7 +114,10 @@ function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolConte
       productClient: { GET: productGet },
     } as unknown as ToolContext["clients"],
     storage: storage ?? makeStorage(),
-    getEnv: () => ({}) as Env,
+    getEnv: () =>
+      ({
+        USER_DATA_KV: { get: async () => null, put: async () => {} },
+      }) as unknown as Env,
     getSessionId: () => "session-1",
   };
 }

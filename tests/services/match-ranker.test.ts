@@ -209,26 +209,6 @@ describe("rankProductMatches", () => {
     expect(ranked).toEqual(products);
   });
 
-  it("returns original order without calling ai.run when ai is null", async () => {
-    const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
-    const { kv, get } = makeFakeKv();
-
-    const ranked = await rankProductMatches({ ai: null, kv, query: "milk", products });
-
-    expect(ranked).toEqual(products);
-    expect(get).not.toHaveBeenCalled();
-  });
-
-  it("returns original order without calling ai.run when kv is null", async () => {
-    const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
-    const ai = makeStubAi(() => [1, 0]);
-
-    const ranked = await rankProductMatches({ ai, kv: null, query: "milk", products });
-
-    expect(ranked).toEqual(products);
-    expect(ai.run).not.toHaveBeenCalled();
-  });
-
   it("returns an empty array unchanged", async () => {
     const ai = makeStubAi(() => [1, 0]);
     const { kv } = makeFakeKv();

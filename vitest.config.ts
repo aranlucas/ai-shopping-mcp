@@ -26,15 +26,7 @@ export default defineConfig({
                 KROGER_CLIENT_ID: "test-kroger-client-id",
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
-                // Miniflare's env.AI proxies to REMOTE Workers AI (real
-                // inference, real charges, needs Cloudflare credentials). No
-                // test may ever reach it: AI_FEATURES: "off" forces every
-                // AI-gated code path (see getMatchRankerAi in
-                // src/tools/shop.ts) onto its heuristic fallback for the
-                // whole suite. AI-dependent logic is unit-tested separately
-                // by passing a stubbed structural Ai-like object directly to
-                // the functions under test — never through env.
-                AI_FEATURES: "off",
+
                 // Opt-in knobs for tests/evals: the live-model runner (Workers
                 // AI via the remote-proxied env.AI binding) only runs with
                 // EVAL_LIVE=1; EVAL_LOG prints token tables.
