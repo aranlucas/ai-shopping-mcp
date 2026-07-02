@@ -189,7 +189,7 @@ export type AddShoppingListToCartContent = {
 };
 
 export type OrderItemData = {
-  productId: string;
+  upc: string;
   productName: string;
   quantity: number;
   price?: number;

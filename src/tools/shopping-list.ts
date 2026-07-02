@@ -1,14 +1,15 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { type Result, ResultAsync, err, ok } from "neverthrow";
+import { ResultAsync, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
 import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { validationError } from "../errors.js";
-import { formatShoppingListCompact } from "../utils/format-response.js";
-import { getProps, safeStorage, toMcpError } from "../utils/result.js";
+import { formatShoppingListItemCompact } from "../utils/format-response.js";
+import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
 import { type ToolContext, type UserStorage, getSessionScopedUserId } from "./types.js";
 
@@ -34,10 +35,25 @@ type CheckoutConfirmationItem = Pick<ShoppingListItem, "productName" | "quantity
 class ElicitationUnsupportedError extends Error {}
 class ElicitationFailedError extends Error {}
 
+/**
+ * The exact message the MCP SDK's `Server#elicitInput` throws when the
+ * connected client didn't advertise the `elicitation.form` capability (see
+ * `elicitInput` in `@modelcontextprotocol/sdk/server/index.js`). There is no
+ * typed error or capability check exposed for this — `requestCheckoutConfirmation`
+ * below distinguishes "capability absent" (fall through, treat as implicit
+ * confirmation) from "elicitation actually failed" (surface an error) by
+ * string-matching this message. An SDK upgrade that rewords it would silently
+ * turn every no-elicitation client into a failed checkout, so this constant
+ * is asserted against the installed SDK directly in
+ * tests/tools/shopping-list-confirmation.test.ts — that test fails loudly if
+ * the SDK's wording ever changes.
+ */
+export const ELICITATION_UNSUPPORTED_MESSAGE = "Client does not support form elicitation.";
+
 export async function requestCheckoutConfirmation(
   server: CheckoutConfirmationServer,
   items: CheckoutConfirmationItem[],
-): Promise<Result<void, AppError>> {
+) {
   const itemList = items.map((i) => `${i.productName} x${i.quantity}`).join(", ");
 
   const elicitResult = await ResultAsync.fromPromise(
@@ -56,7 +72,7 @@ export async function requestCheckoutConfirmation(
       },
     }),
     (e) =>
-      e instanceof Error && e.message === "Client does not support form elicitation."
+      e instanceof Error && e.message === ELICITATION_UNSUPPORTED_MESSAGE
         ? new ElicitationUnsupportedError()
         : new ElicitationFailedError(),
   );
@@ -80,18 +96,17 @@ export async function requestCheckoutConfirmation(
 }
 
 export const createShoppingListInputSchema = z.object({
-  name: z.string().min(1).max(200).describe("Short label for the list, e.g. 'Tuesday dinner'."),
+  name: z.string().min(1).max(200).describe("List label, e.g. 'Tuesday dinner'."),
   items: z
     .array(
       z.object({
         productName: z.string().min(1).max(200).describe("Product name, e.g. 'Whole Milk'"),
         upc: upcSchema.optional().describe("UPC from search_products, needed for cart checkout"),
         quantity: z.coerce.number().min(1).max(999).default(1),
-        notes: z.string().max(500).optional().describe("Optional note, e.g. 'get organic'"),
+        notes: z.string().max(500).optional().describe("e.g. 'get organic'"),
       }),
     )
-    .min(1, { message: "Shopping list must include at least one item" })
-    .describe("Items to add to this shopping list"),
+    .min(1, { message: "Shopping list must include at least one item" }),
 });
 
 /** Short opaque id shown to the model: `list_` + 8 hex chars, e.g. `list_a1b2c3d8`. */
@@ -145,7 +160,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Create Shopping List",
       description:
-        'Build a named immutable shopping list snapshot with at least one product. Returns a short `listId` to pass to add_shopping_list_to_cart. Example: {"name":"Tuesday dinner","items":[{"productName":"Whole Milk","upc":"0001111041700","quantity":1}]}',
+        'Creates a named shopping list snapshot; returns `listId` for add_shopping_list_to_cart. Example: {"name":"Tuesday dinner","items":[{"productName":"Whole Milk","upc":"0001111041700","quantity":1}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -162,6 +177,29 @@ export function registerShoppingListTools(ctx: ToolContext) {
         return toMcpError(validationError("Shopping list must include at least one item."));
       }
 
+      // Best-effort pantry/deal flags (see item-flags.ts): a storage/cache
+      // miss or error yields no flag, never a failed tool call. Location is
+      // resolved best-effort too — no preferred store just means no deal
+      // flags, not an error for this tool.
+      const [pantry, resolvedLocation] = await Promise.all([
+        getPantryForFlags(ctx, props.id),
+        safeResolveLocationId(ctx.storage, props.id, undefined),
+      ]);
+      const locationId = resolvedLocation.match(
+        (resolved) => resolved.locationId,
+        () => undefined,
+      );
+      const deals = await getDealsForFlags(ctx, locationId);
+
+      const lines = items
+        .map((item, index) => {
+          const flags = itemFlagLabels(item.productName, pantry, deals);
+          const base = formatShoppingListItemCompact(item);
+          const suffixed = flags.length > 0 ? `${base} | ${flags.join(" | ")}` : base;
+          return `${index + 1}. ${suffixed}`;
+        })
+        .join("\n");
+
       const result = await createShoppingListRecord(
         ctx.storage,
         props.id,
@@ -175,7 +213,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
           content: [
             {
               type: "text" as const,
-              text: `Created shopping list "${name}" with ${items.length} item(s). listId=${shortId}\n\n${formatShoppingListCompact(items)}`,
+              text: `Created shopping list "${name}" with ${items.length} item(s). listId=${shortId}\n\n${lines}`,
             },
           ],
           structuredContent: {

@@ -154,8 +154,8 @@ export function registerResources(ctx: ToolContext) {
           ordersResult.map((orders) => {
             for (const order of orders) {
               for (const item of order.items) {
-                if (item.productId && /^\d{13}$/.test(item.productId)) {
-                  upcs.add(item.productId);
+                if (/^\d{13}$/.test(item.upc)) {
+                  upcs.add(item.upc);
                 }
               }
             }

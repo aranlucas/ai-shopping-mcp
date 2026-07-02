@@ -10,7 +10,7 @@ import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 
 const orderItemSchema = z.object({
-  productId: upcSchema.describe("UPC from search_products"),
+  upc: upcSchema.describe("UPC from search_products"),
   productName: z.string().max(200),
   quantity: z.coerce.number().min(1).max(999),
   price: z.coerce.number().min(0).optional(),

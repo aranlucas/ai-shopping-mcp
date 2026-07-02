@@ -370,8 +370,8 @@ describe("registerResources", () => {
               {
                 orderId: "o1",
                 items: [
-                  { productId: "2222222222222", productName: "Eggs", quantity: 1 },
-                  { productId: "short", productName: "Bad", quantity: 1 },
+                  { upc: "2222222222222", productName: "Eggs", quantity: 1 },
+                  { upc: "short", productName: "Bad", quantity: 1 },
                 ],
                 totalItems: 2,
                 placedAt: "x",
@@ -397,13 +397,13 @@ describe("registerResources", () => {
             orders: [
               {
                 orderId: "o1",
-                items: [{ productId: "3333333333333", productName: "Milk", quantity: 1 }],
+                items: [{ upc: "3333333333333", productName: "Milk", quantity: 1 }],
                 totalItems: 1,
                 placedAt: "x",
               },
               {
                 orderId: "o2",
-                items: [{ productId: "3333333333333", productName: "Milk", quantity: 1 }],
+                items: [{ upc: "3333333333333", productName: "Milk", quantity: 1 }],
                 totalItems: 1,
                 placedAt: "x",
               },

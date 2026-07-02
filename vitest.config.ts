@@ -26,6 +26,13 @@ export default defineConfig({
                 KROGER_CLIENT_ID: "test-kroger-client-id",
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
+
+                // Opt-in knobs for tests/evals: the live-model runner (Workers
+                // AI via the remote-proxied env.AI binding) only runs with
+                // EVAL_LIVE=1; EVAL_LOG prints token tables.
+                ...(process.env.EVAL_LIVE ? { EVAL_LIVE: process.env.EVAL_LIVE } : {}),
+                ...(process.env.EVAL_MODEL ? { EVAL_MODEL: process.env.EVAL_MODEL } : {}),
+                ...(process.env.EVAL_LOG ? { EVAL_LOG: process.env.EVAL_LOG } : {}),
               },
             },
           }),

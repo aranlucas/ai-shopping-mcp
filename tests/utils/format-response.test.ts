@@ -29,6 +29,13 @@ import {
   formatWeeklyDealsMarkdown,
 } from "../../src/utils/format-response.js";
 
+// Note: formatProduct*, formatLocation*, formatWeeklyDeal(s)/(Compact) (list
+// variants), formatPantryItem/formatPantryList, formatOrderRecord/
+// formatOrderHistory, formatEquipmentItem/formatEquipmentList,
+// formatShoppingList/formatShoppingListItem, and formatPreferredLocation were
+// removed as dead code (zero call sites in src/) — see
+// docs/small-model-efficiency-plan.md, "Code health".
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 type Location = LocationComponents["schemas"]["locations.location"];
 

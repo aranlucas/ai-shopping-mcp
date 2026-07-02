@@ -184,7 +184,10 @@ describe("search_products content size", () => {
       server: {} as unknown as ToolContext["server"],
       clients,
       storage,
-      getEnv: () => ({}) as Env,
+      getEnv: () =>
+        ({
+          USER_DATA_KV: { get: async () => null, put: async () => {} },
+        }) as unknown as Env,
       getSessionId: () => "session-size",
     });
 

@@ -17,7 +17,7 @@ export interface PantryItem {
 export interface OrderRecord {
   orderId: string; // Auto-generated
   items: Array<{
-    productId: string;
+    upc: string;
     productName: string;
     quantity: number;
     price?: number;
@@ -74,7 +74,7 @@ const orderRecordSchema = z.looseObject({
   orderId: z.string(),
   items: z.array(
     z.looseObject({
-      productId: z.string(),
+      upc: z.string(),
       productName: z.string(),
       quantity: z.number(),
       price: z.number().optional(),
@@ -377,6 +377,57 @@ export class CartSnapshotStorage {
 }
 
 /**
+ * Cart Mirror Storage - a per-user rolling log of items this assistant has
+ * added to the Kroger cart. Kroger's Cart API is write-only (no read
+ * endpoint), so this mirror is the only way `view_cart` can answer "what's in
+ * my cart?" — it necessarily excludes anything added or removed outside this
+ * assistant (in-store, the Kroger app, kroger.com).
+ *
+ * Capped at the most recent `CART_MIRROR_MAX_ITEMS` line items and expires
+ * from KV after `CART_MIRROR_TTL_SECONDS` (7 days) so a stale mirror doesn't
+ * linger indefinitely.
+ */
+const CART_MIRROR_TTL_SECONDS = 60 * 60 * 24 * 7;
+const CART_MIRROR_MAX_ITEMS = 100;
+
+export type CartMirrorItem = CartSnapshotItem & { addedAt: string };
+
+const cartMirrorItemSchema = z.looseObject({
+  ...cartSnapshotItemSchema.shape,
+  addedAt: z.string(),
+});
+
+export class CartMirrorStorage {
+  constructor(private kv: KVNamespace) {}
+
+  async getAll(userId: string): Promise<CartMirrorItem[]> {
+    const key = getKey(userId, "cart_mirror");
+    const value = await this.kv.get(key);
+    return parseJson(value, z.array(cartMirrorItemSchema), []);
+  }
+
+  /** Appends items to the rolling mirror, keeping only the most recent entries. */
+  async append(
+    userId: string,
+    items: CartSnapshotItem[],
+    addedAt: string,
+  ): Promise<CartMirrorItem[]> {
+    const existing = await this.getAll(userId);
+    const appended: CartMirrorItem[] = items.map((item) => ({ ...item, addedAt }));
+    const merged = [...existing, ...appended].slice(-CART_MIRROR_MAX_ITEMS);
+
+    const key = getKey(userId, "cart_mirror");
+    await this.kv.put(key, JSON.stringify(merged), { expirationTtl: CART_MIRROR_TTL_SECONDS });
+    return merged;
+  }
+
+  async clear(userId: string): Promise<void> {
+    const key = getKey(userId, "cart_mirror");
+    await this.kv.delete(key);
+  }
+}
+
+/**
  * Order History Storage - tracks past orders
  */
 export class OrderHistoryStorage {
@@ -422,5 +473,6 @@ export function createUserStorage(kv: KVNamespace) {
     orderHistory: new OrderHistoryStorage(kv),
     shoppingList: new ShoppingListStorage(kv),
     cartSnapshot: new CartSnapshotStorage(kv),
+    cartMirror: new CartMirrorStorage(kv),
   };
 }

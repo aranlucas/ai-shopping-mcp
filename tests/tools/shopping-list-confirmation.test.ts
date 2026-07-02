@@ -1,6 +1,32 @@
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { requestCheckoutConfirmation } from "../../src/tools/shopping-list.js";
+import {
+  ELICITATION_UNSUPPORTED_MESSAGE,
+  requestCheckoutConfirmation,
+} from "../../src/tools/shopping-list.js";
+
+describe("ELICITATION_UNSUPPORTED_MESSAGE stays pinned to the installed SDK", () => {
+  it("matches the exact message the SDK's Server#elicitInput throws for a client without form-elicitation capability", async () => {
+    // A freshly constructed Server has no connected transport, so
+    // `_clientCapabilities` is unset and `elicitInput` throws before making
+    // any request — no InMemoryTransport/Client pairing needed. This test
+    // exercises the *real* installed SDK, not a mock, so an SDK upgrade that
+    // rewords the message fails this test instead of silently breaking
+    // `requestCheckoutConfirmation`'s capability-absent detection.
+    const server = new Server({ name: "elicitation-pin-test", version: "0.0.0" });
+
+    await expect(
+      server.elicitInput({
+        message: "test",
+        requestedSchema: {
+          type: "object",
+          properties: { confirm: { type: "boolean" } },
+        },
+      }),
+    ).rejects.toThrow(ELICITATION_UNSUPPORTED_MESSAGE);
+  });
+});
 
 describe("requestCheckoutConfirmation", () => {
   describe("elicitation not supported by client", () => {

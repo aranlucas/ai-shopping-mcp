@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CartMirrorStorage,
   CartSnapshotStorage,
   EquipmentStorage,
   OrderHistoryStorage,
@@ -463,6 +464,107 @@ describe("CartSnapshotStorage", () => {
   });
 });
 
+// ----- CartMirrorStorage -----
+
+describe("CartMirrorStorage", () => {
+  let kv: KVNamespace;
+  let storage: CartMirrorStorage;
+
+  beforeEach(() => {
+    kv = createMockKV();
+    storage = new CartMirrorStorage(kv);
+  });
+
+  it("returns an empty array when nothing has been appended", async () => {
+    expect(await storage.getAll("user1")).toEqual([]);
+  });
+
+  it("append stamps items with addedAt and returns the merged mirror", async () => {
+    const result = await storage.append(
+      "user1",
+      [{ upc: "0001111042578", quantity: 2, modality: "PICKUP", productName: "Milk" }],
+      "2026-06-30T00:00:00.000Z",
+    );
+
+    expect(result).toEqual([
+      {
+        upc: "0001111042578",
+        quantity: 2,
+        modality: "PICKUP",
+        productName: "Milk",
+        addedAt: "2026-06-30T00:00:00.000Z",
+      },
+    ]);
+    expect(await storage.getAll("user1")).toEqual(result);
+  });
+
+  it("accumulates items across multiple appends", async () => {
+    await storage.append(
+      "user1",
+      [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" }],
+      "2026-06-30T00:00:00.000Z",
+    );
+    await storage.append(
+      "user1",
+      [{ upc: "0001111060933", quantity: 1, modality: "PICKUP" }],
+      "2026-06-30T01:00:00.000Z",
+    );
+
+    const all = await storage.getAll("user1");
+    expect(all).toHaveLength(2);
+    expect(all.map((item) => item.upc)).toEqual(["0001111042578", "0001111060933"]);
+  });
+
+  it("caps the mirror at the most recent 100 items", async () => {
+    for (let i = 0; i < 105; i++) {
+      await storage.append(
+        "user1",
+        [{ upc: String(i).padStart(13, "0"), quantity: 1, modality: "PICKUP" }],
+        "2026-06-30T00:00:00.000Z",
+      );
+    }
+
+    const all = await storage.getAll("user1");
+    expect(all).toHaveLength(100);
+    // The oldest 5 appends should have been dropped, keeping items 5..104.
+    expect(all[0]?.upc).toBe(String(5).padStart(13, "0"));
+    expect(all[99]?.upc).toBe(String(104).padStart(13, "0"));
+  });
+
+  it("isolates the mirror between users", async () => {
+    await storage.append(
+      "user1",
+      [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" }],
+      "2026-06-30T00:00:00.000Z",
+    );
+    await storage.append(
+      "user2",
+      [{ upc: "0001111060933", quantity: 1, modality: "PICKUP" }],
+      "2026-06-30T00:00:00.000Z",
+    );
+
+    expect(await storage.getAll("user1")).toHaveLength(1);
+    expect(await storage.getAll("user2")).toHaveLength(1);
+    expect((await storage.getAll("user1"))[0]?.upc).toBe("0001111042578");
+  });
+
+  it("clear removes the mirror", async () => {
+    await storage.append(
+      "user1",
+      [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" }],
+      "2026-06-30T00:00:00.000Z",
+    );
+    await storage.clear("user1");
+    expect(await storage.getAll("user1")).toEqual([]);
+  });
+
+  it("returns an empty array for corrupted JSON entry", async () => {
+    const kvBad = createMockKV({ "user:user1:cart_mirror": "not-json" });
+    const s = new CartMirrorStorage(kvBad);
+    expect(await s.getAll("user1")).toEqual([]);
+  });
+});
+
 // ----- OrderHistoryStorage -----
 
 describe("OrderHistoryStorage", () => {
@@ -591,6 +693,7 @@ describe("createUserStorage", () => {
     expect(storage.orderHistory).toBeInstanceOf(OrderHistoryStorage);
     expect(storage.shoppingList).toBeInstanceOf(ShoppingListStorage);
     expect(storage.cartSnapshot).toBeInstanceOf(CartSnapshotStorage);
+    expect(storage.cartMirror).toBeInstanceOf(CartMirrorStorage);
     expect(storage.shoppingList).not.toBe(storage.cartSnapshot);
   });
 });
