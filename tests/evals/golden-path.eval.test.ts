@@ -120,6 +120,49 @@ describe("golden path (scripted agent, text-only)", () => {
     expect(contentText(retry)).toContain("already added");
   });
 
+  it("returning user one-shot: shop_for_items with addToCart lands the cart in 1 call", async () => {
+    // Seeding the preferred store models a returning user's earlier session
+    // and doesn't count against the 1-call budget of the shopping action
+    // itself, so it's reset here before the timed call.
+    await call("set_preferred_store", { storeId: "70500847" });
+    toolCalls = 0;
+
+    const shop = await call("shop_for_items", { items: [{ name: "milk" }], addToCart: true });
+    const shopText = contentText(shop);
+    const listIds = extractListIds(shopText);
+    expect(listIds, `no extractable listId in:\n${shopText}`).toHaveLength(1);
+    expect(shopText).toContain("Added");
+    expect(shopText).not.toContain("Review these matches");
+
+    // A single shop_for_items call landed the cart for a returning user.
+    expect(toolCalls).toBe(1);
+
+    const items = stub.allCartItems();
+    expect(items).toHaveLength(1);
+    expect(upcsForTerm("milk")).toContain(items[0].upc);
+
+    // The addToCart path persists a cart snapshot under the same storage key
+    // add_shopping_list_to_cart checks, so a follow-up call with this listId
+    // must not double-add.
+    const retry = await call("add_shopping_list_to_cart", { listId: listIds[0] });
+    expect(stub.cartPuts).toHaveLength(1);
+    expect(contentText(retry)).toContain("already added");
+  });
+
+  it("view_cart shows items added through this assistant, with name and upc", async () => {
+    await call("set_preferred_store", { storeId: "70500847" });
+    const shop = await call("shop_for_items", { items: [{ name: "eggs" }], addToCart: true });
+    expect(extractListIds(contentText(shop))).toHaveLength(1);
+
+    const viewed = await call("view_cart", {});
+    const text = contentText(viewed);
+    const upcs = extractUpcs(text);
+
+    expect(upcs.length).toBeGreaterThan(0);
+    expect(upcsForTerm("eggs")).toContain(upcs[0]);
+    expect(text).toContain("in-store/app changes are not shown");
+  });
+
   it("no-results terms are reported per term without failing the whole search", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
     const result = await call("search_products", { terms: ["milk", "zzz-unfindable"] });

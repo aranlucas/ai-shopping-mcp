@@ -4,7 +4,7 @@ import type { components as ProductComponents } from "../../src/services/kroger/
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
 
-import { registerShopTools } from "../../src/tools/shop.js";
+import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -70,11 +70,26 @@ type ProductGetFn = (
   opts: { params: { query?: Record<string, string | number> } },
 ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
 
+type CartPutOptions = { body: unknown; headers: Record<string, string> };
+type CartPutCall = { path: string; options: CartPutOptions };
+
 function makeContext(
   productGet: ProductGetFn,
   preferredLocation: PreferredLocation | null,
+  cartOptions: {
+    status?: number;
+    throws?: boolean;
+    elicitAction?: "accept" | "decline" | "cancel";
+    cartPutCalls?: CartPutCall[];
+    snapshotSetCalls?: unknown[][];
+    mirrorAppendCalls?: unknown[][];
+  } = {},
 ): ToolContext {
   const createdLists: ShoppingList[] = [];
+  const cartPutCalls = cartOptions.cartPutCalls ?? [];
+  const snapshotSetCalls = cartOptions.snapshotSetCalls ?? [];
+  const mirrorAppendCalls = cartOptions.mirrorAppendCalls ?? [];
+  const elicitAction = cartOptions.elicitAction ?? "accept";
 
   const storage = {
     preferredLocation: {
@@ -92,7 +107,17 @@ function makeContext(
     },
     cartSnapshot: {
       get: async () => null,
-      set: async () => {},
+      set: async (id: string, items: unknown[]) => {
+        snapshotSetCalls.push([id, items]);
+      },
+      clear: async () => {},
+    },
+    cartMirror: {
+      getAll: async () => [],
+      append: async (userId: string, items: unknown[], addedAt: string) => {
+        mirrorAppendCalls.push([userId, items, addedAt]);
+        return items;
+      },
       clear: async () => {},
     },
     pantry: {} as UserStorage["pantry"],
@@ -102,9 +127,26 @@ function makeContext(
 
   return {
     server: {
-      server: { elicitInput: async () => ({ action: "accept", content: { confirm: true } }) },
+      server: {
+        elicitInput: async () =>
+          elicitAction === "accept"
+            ? { action: "accept", content: { confirm: true } }
+            : { action: elicitAction },
+      },
     } as unknown as ToolContext["server"],
-    clients: { productClient: { GET: productGet } } as unknown as ToolContext["clients"],
+    clients: {
+      productClient: { GET: productGet },
+      cartClient: {
+        PUT: async (path: string, options: CartPutOptions) => {
+          cartPutCalls.push({ path, options });
+          if (cartOptions.throws) throw new Error("Network failure");
+          return {
+            data: undefined,
+            response: new Response(null, { status: cartOptions.status ?? 204 }),
+          };
+        },
+      },
+    } as unknown as ToolContext["clients"],
     storage,
     getEnv: () => ({}) as Env,
     getSessionId: () => "session-1",
@@ -252,4 +294,85 @@ describe("shop_for_items", () => {
     expect(textFromResult(result)).toContain("search_stores");
     expect(textFromResult(result)).toContain("set_preferred_store");
   });
+
+  describe("addToCart", () => {
+    it("defaults to false when omitted", () => {
+      const parsed = shopForItemsInputSchema.parse({ items: [{ name: "milk" }] });
+      expect(parsed.addToCart).toBe(false);
+    });
+
+    it("coerces the strings 'true' and 'false' since small models sometimes stringify booleans", () => {
+      expect(
+        shopForItemsInputSchema.parse({ items: [{ name: "milk" }], addToCart: "true" }).addToCart,
+      ).toBe(true);
+      expect(
+        shopForItemsInputSchema.parse({ items: [{ name: "milk" }], addToCart: "false" }).addToCart,
+      ).toBe(false);
+    });
+
+    it("adds matched items to the cart, persists a cart snapshot, and mirrors the items", async () => {
+      const cartPutCalls: CartPutCall[] = [];
+      const snapshotSetCalls: unknown[][] = [];
+      const mirrorAppendCalls: unknown[][] = [];
+
+      registerShopTools(
+        makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION, {
+          cartPutCalls,
+          snapshotSetCalls,
+          mirrorAppendCalls,
+        }),
+      );
+
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "whole milk", quantity: 1 }],
+        addToCart: true,
+      });
+
+      expect(isErrorResult(result)).toBe(false);
+      expect(cartPutCalls).toHaveLength(1);
+      expect(cartPutCalls[0]).toMatchObject({
+        options: {
+          body: { items: [{ upc: "0001111041700", quantity: 1, modality: "PICKUP" }] },
+        },
+      });
+      expect(snapshotSetCalls).toHaveLength(1);
+      expect(mirrorAppendCalls).toHaveLength(1);
+
+      const sc = structuredContentOf(result);
+      const text = textFromResult(result);
+      expect(text).toContain(`listId=${sc["listId"]}`);
+      expect(text).toContain("Added");
+      expect(text).toContain("cart");
+      expect(text).toContain("no need to call add_shopping_list_to_cart");
+      expect(text).not.toContain("Review these matches");
+    });
+
+    it("still returns the created list, unadded, when the cart confirmation is declined", async () => {
+      const cartPutCalls: CartPutCall[] = [];
+
+      registerShopTools(
+        makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION, {
+          elicitAction: "decline",
+          cartPutCalls,
+        }),
+      );
+
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "whole milk" }],
+        addToCart: true,
+      });
+
+      expect(isErrorResult(result)).toBe(false);
+      expect(cartPutCalls).toHaveLength(0);
+      const sc = structuredContentOf(result);
+      expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
+      const text = textFromResult(result);
+      expect(text).toContain("cancelled or failed");
+      expect(text).toContain(`add_shopping_list_to_cart {"listId":"${sc["listId"]}"}`);
+    });
+  });
 });
+
+function makeSearchResponse(products: Product[]) {
+  return { data: { data: products }, response: new Response(null, { status: 200 }) };
+}

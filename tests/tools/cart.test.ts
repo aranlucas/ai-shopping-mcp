@@ -105,6 +105,8 @@ function makeStorage(
   storedLocation: PreferredLocation | null = null,
   snapshotSetCalls: unknown[][] = [],
   existingSnapshot: CartSnapshotItem[] | null = null,
+  mirrorAppendCalls: unknown[][] = [],
+  mirrorItems: Array<CartSnapshotItem & { addedAt: string }> = [],
 ): UserStorage {
   return {
     pantry: {} as UserStorage["pantry"],
@@ -126,19 +128,34 @@ function makeStorage(
       },
       clear: async () => {},
     } as unknown as UserStorage["cartSnapshot"],
+    cartMirror: {
+      getAll: async () => mirrorItems,
+      append: async (userId: string, items: CartSnapshotItem[], addedAt: string) => {
+        mirrorAppendCalls.push([userId, items, addedAt]);
+        return [...mirrorItems, ...items.map((item) => ({ ...item, addedAt }))];
+      },
+      clear: async () => {},
+    } as unknown as UserStorage["cartMirror"],
   } as unknown as UserStorage;
 }
 
 function makeContext(
   storage?: UserStorage,
   putConfig: { status: number; throws?: boolean } = { status: 204 },
-): { context: ToolContext; putCalls: PutCall[]; snapshotSetCalls: unknown[][] } {
+): {
+  context: ToolContext;
+  putCalls: PutCall[];
+  snapshotSetCalls: unknown[][];
+} {
   const putCalls: PutCall[] = [];
   const snapshotSetCalls: unknown[][] = [];
   const actualStorage = storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
 
   const context: ToolContext = {
     server: {
+      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+        testState.capturedTools.push({ name, config, handler });
+      },
       server: {
         elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
       },
@@ -371,6 +388,79 @@ describe("add_shopping_list_to_cart tool", () => {
     });
   });
 
+  describe("cart mirror", () => {
+    it("appends the added items to the cart mirror on a successful listId add", async () => {
+      const mirrorAppendCalls: unknown[][] = [];
+      const storage = makeStorage(listFixture(), null, [], null, mirrorAppendCalls);
+      const { context } = makeContext(storage);
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+
+      await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID, modality: "PICKUP" });
+
+      expect(mirrorAppendCalls).toHaveLength(1);
+      expect(mirrorAppendCalls[0]?.[0]).toBe(USER_ID);
+      expect(mirrorAppendCalls[0]?.[1]).toEqual([
+        {
+          upc: "0001111042578",
+          quantity: 2,
+          modality: "PICKUP",
+          productName: "Organic Whole Milk",
+        },
+      ]);
+    });
+
+    it("appends inline items to the cart mirror on a successful inline add", async () => {
+      const mirrorAppendCalls: unknown[][] = [];
+      const storage = makeStorage(
+        null,
+        {
+          locationId: LOCATION_ID,
+          locationName: "QFC Broadway",
+          address: "500 Broadway E",
+          chain: "QFC",
+          setAt: new Date().toISOString(),
+        },
+        [],
+        null,
+        mirrorAppendCalls,
+      );
+      const { context } = makeContext(storage);
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+
+      const parsed = addShoppingListToCartInputSchema.parse({
+        items: [{ upc: "0001111042578", quantity: 3 }],
+      });
+      await handler(parsed as unknown as Record<string, unknown>);
+
+      expect(mirrorAppendCalls).toHaveLength(1);
+      expect(mirrorAppendCalls[0]?.[1]).toEqual([
+        { upc: "0001111042578", quantity: 3, modality: "PICKUP", productName: undefined },
+      ]);
+    });
+
+    it("does not append to the mirror when the retry short-circuit skips the PUT", async () => {
+      const mirrorAppendCalls: unknown[][] = [];
+      const existingSnapshot: CartSnapshotItem[] = [
+        {
+          upc: "0001111042578",
+          quantity: 2,
+          modality: "PICKUP",
+          productName: "Organic Whole Milk",
+        },
+      ];
+      const storage = makeStorage(listFixture(), null, [], existingSnapshot, mirrorAppendCalls);
+      const { context } = makeContext(storage);
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+
+      await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+
+      expect(mirrorAppendCalls).toHaveLength(0);
+    });
+  });
+
   describe("shopping list resolution errors", () => {
     it("returns an error when the shopping list is not found for the listId", async () => {
       const storage = makeStorage(null);
@@ -442,6 +532,90 @@ describe("add_shopping_list_to_cart tool", () => {
         }),
       ).rejects.toThrow("outside an authenticated MCP request");
     });
+  });
+});
+
+describe("view_cart tool", () => {
+  beforeEach(() => {
+    testState.capturedTools.length = 0;
+    authenticate();
+  });
+
+  it("lists mirrored items with productName, quantity, upc, and modality", async () => {
+    const storage = makeStorage(
+      listFixture(),
+      null,
+      [],
+      null,
+      [],
+      [
+        {
+          upc: "0001111042578",
+          quantity: 2,
+          modality: "PICKUP",
+          productName: "Organic Whole Milk",
+          addedAt: "2026-06-30T00:00:00.000Z",
+        },
+      ],
+    );
+    const { context } = makeContext(storage);
+    registerCartTools(context);
+    const handler = getCapturedHandler("view_cart");
+
+    const result = await handler({});
+
+    expect(isErrorResult(result)).toBe(false);
+    const text = textFromResult(result);
+    expect(text).toContain("Organic Whole Milk x2");
+    expect(text).toContain("upc=0001111042578");
+    expect(text).toContain("PICKUP");
+    expect(text).toContain("in-store/app changes are not shown");
+  });
+
+  it("falls back to the upc when productName is missing", async () => {
+    const storage = makeStorage(
+      listFixture(),
+      null,
+      [],
+      null,
+      [],
+      [
+        {
+          upc: "0001111042578",
+          quantity: 1,
+          modality: "DELIVERY",
+          addedAt: "2026-06-30T00:00:00.000Z",
+        },
+      ],
+    );
+    const { context } = makeContext(storage);
+    registerCartTools(context);
+    const handler = getCapturedHandler("view_cart");
+
+    const result = await handler({});
+
+    expect(textFromResult(result)).toContain("0001111042578 x1");
+  });
+
+  it("names shop_for_items as the next step when the mirror is empty", async () => {
+    const { context } = makeContext(makeStorage());
+    registerCartTools(context);
+    const handler = getCapturedHandler("view_cart");
+
+    const result = await handler({});
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(textFromResult(result)).toContain("shop_for_items");
+  });
+
+  it("throws when called outside an authenticated MCP request", async () => {
+    unauthenticate();
+    const { context } = makeContext();
+    registerCartTools(context);
+
+    await expect(getCapturedHandler("view_cart")({})).rejects.toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 });
 

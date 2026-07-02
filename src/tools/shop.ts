@@ -2,13 +2,15 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../services/kroger/product.js";
-import type { ShoppingListItem } from "../utils/user-storage.js";
+import type { CartSnapshotItem, ShoppingListItem } from "../utils/user-storage.js";
 
 import { notFoundError, validationError } from "../errors.js";
-import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { searchProductsForTerms } from "./product.js";
-import { createShoppingListRecord } from "./shopping-list.js";
+import { type LineItem, addLineItemsToCart } from "./cart.js";
+import { getProductSearchCacheKv, searchProductsForTerms } from "./product.js";
+import { coercedBooleanSchema } from "./schemas.js";
+import { buildShoppingListStorageKey, createShoppingListRecord } from "./shopping-list.js";
 import { type ToolContext } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -24,6 +26,10 @@ export const shopForItemsInputSchema = z.object({
     .min(1, { message: "At least one item is required" })
     .max(10, { message: "Maximum 10 items allowed" })
     .describe("Items to search for and add to a new shopping list"),
+  addToCart: coercedBooleanSchema
+    .optional()
+    .default(false)
+    .describe("Also add matched items to the Kroger cart (PICKUP) after creating the list"),
 });
 
 /** Picks the best product match for a name: first pickup-available result, else the first result. */
@@ -58,7 +64,7 @@ function formatMatchLineMarkdown(searchedName: string, quantity: number, product
 }
 
 export function registerShopTools(ctx: ToolContext) {
-  const { productClient } = ctx.clients;
+  const { productClient, cartClient } = ctx.clients;
 
   registerAppTool(
     ctx.server,
@@ -66,7 +72,7 @@ export function registerShopTools(ctx: ToolContext) {
     {
       title: "Shop For Items",
       description:
-        'One-shot shopping: resolves your preferred store, searches for each item name, picks the best match, and creates a shopping list — without adding to cart. Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}]}',
+        'One-shot shopping: resolves your preferred store, searches for each item name, picks the best match, and creates a shopping list. Set addToCart:true to also add the matches to your Kroger cart (PICKUP). Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -76,7 +82,7 @@ export function registerShopTools(ctx: ToolContext) {
       },
       inputSchema: shopForItemsInputSchema,
     },
-    async ({ items }) => {
+    async ({ items, addToCart }) => {
       const props = getProps();
 
       const resolvedLocation = await safeResolveLocationId(ctx.storage, props.id, undefined);
@@ -93,6 +99,7 @@ export function registerShopTools(ctx: ToolContext) {
       const searchResults = await searchProductsForTerms(productClient, terms, {
         locationId,
         limitPerTerm: 5,
+        kv: getProductSearchCacheKv(ctx),
       });
 
       const matched: Array<{ name: string; quantity: number; product: Product }> = [];
@@ -132,7 +139,7 @@ export function registerShopTools(ctx: ToolContext) {
         listItems,
       );
 
-      return createResult.match(({ shortId, list }) => {
+      return createResult.match(async ({ shortId, list }) => {
         const parts: string[] = [
           `Created shopping list "${listName}" (listId=${shortId}) with ${matched.length} item(s).`,
           "",
@@ -145,12 +152,7 @@ export function registerShopTools(ctx: ToolContext) {
           parts.push("", `No results for: ${notFound.join(", ")}.`);
         }
 
-        parts.push(
-          "",
-          `Review these matches, then call add_shopping_list_to_cart with listId "${shortId}" to add them to the Kroger cart.`,
-        );
-
-        return {
+        const respond = () => ({
           content: [{ type: "text" as const, text: parts.join("\n") }],
           structuredContent: {
             _view: "create_shopping_list" as const,
@@ -158,7 +160,73 @@ export function registerShopTools(ctx: ToolContext) {
             name: list.name,
             items: list.items,
           },
-        };
+        });
+
+        if (!addToCart) {
+          parts.push(
+            "",
+            `Review these matches, then call add_shopping_list_to_cart with listId "${shortId}" to add them to the Kroger cart.`,
+          );
+          return respond();
+        }
+
+        // addToCart: reuse the same confirm-then-PUT path as
+        // add_shopping_list_to_cart so the elicitation confirmation still
+        // gates the write.
+        const lineItems: LineItem[] = matched.flatMap((match) =>
+          match.product.upc
+            ? [
+                {
+                  upc: match.product.upc,
+                  quantity: match.quantity,
+                  productName: match.product.description || match.name,
+                },
+              ]
+            : [],
+        );
+
+        if (lineItems.length === 0) {
+          parts.push(
+            "",
+            `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${shortId}"} once available.`,
+          );
+          return respond();
+        }
+
+        const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, "PICKUP", props.id);
+
+        return addResult.match(
+          async () => {
+            // Persist the cart snapshot under the same storage key
+            // add_shopping_list_to_cart checks, so a follow-up call with this
+            // listId short-circuits instead of double-adding.
+            const snapshot: CartSnapshotItem[] = lineItems.map((item) => ({
+              upc: item.upc,
+              quantity: item.quantity,
+              modality: "PICKUP" as const,
+              productName: item.productName,
+            }));
+            const storageKey = buildShoppingListStorageKey(props.id, ctx.getSessionId(), shortId);
+
+            return safeStorage(
+              () => ctx.storage.cartSnapshot.set(storageKey, snapshot),
+              "persist cart snapshot",
+            ).match(() => {
+              parts.push(
+                "",
+                `Added ${lineItems.length} item(s) to your Kroger cart (no need to call add_shopping_list_to_cart).`,
+              );
+              return respond();
+            }, toMcpError);
+          },
+          () => {
+            parts.push(
+              "",
+              `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${shortId}"}.`,
+            );
+            return respond();
+          },
+        );
       }, toMcpError);
     },
   );

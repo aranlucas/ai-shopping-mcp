@@ -151,6 +151,12 @@ function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
         snapshots.delete(id);
       },
     },
+    cartMirror: {
+      getAll: async () => [],
+      append: async (_userId: string, items: CartSnapshotItem[], addedAt: string) =>
+        items.map((item) => ({ ...item, addedAt })),
+      clear: async () => {},
+    },
     preferredLocation: {
       set: async (_userId: string, location: PreferredLocation) => {
         preferredLocations.push(location);
@@ -194,6 +200,9 @@ function makeContextWithElicit(
 ): ToolContext {
   return {
     server: {
+      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+        testState.capturedTools.push({ name, config, handler });
+      },
       server: {
         elicitInput: async () => elicitResult,
       },

@@ -42,4 +42,14 @@ export const SCENARIOS: EvalScenario[] = [
     maxToolCalls: 5,
     expectCart: [{ label: "bread", anyOf: upcsForTerm("bread") }],
   },
+  {
+    name: "returning user: milk via addToCart",
+    userTask: "Add milk to my Kroger cart.",
+    seedPreferredStoreId: "70500847",
+    // The live model may or may not use shop_for_items's addToCart option;
+    // either a 1-call addToCart path or a 2-call shop_for_items +
+    // add_shopping_list_to_cart path should land the milk in the cart.
+    maxToolCalls: 2,
+    expectCart: [{ label: "milk", anyOf: upcsForTerm("milk") }],
+  },
 ];

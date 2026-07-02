@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { KrogerClients } from "../../src/services/kroger/client.js";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { PreferredLocation } from "../../src/utils/user-storage.js";
 
 import { apiError, authError } from "../../src/errors.js";
-import { logProductSearchError, registerProductTools } from "../../src/tools/product.js";
+import {
+  buildProductSearchCacheKey,
+  logProductSearchError,
+  registerProductTools,
+  searchProductsForTerms,
+} from "../../src/tools/product.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -598,5 +604,209 @@ describe("get_product", () => {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
     expect(config.inputSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// searchProductsForTerms: product-search KV cache
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal in-memory KV stub — same pattern as tests/tools/response-size.test.ts
+ * and tests/utils/user-storage.test.ts.
+ */
+function createMockKV(initialData: Record<string, string> = {}): KVNamespace {
+  const store = new Map<string, string>(Object.entries(initialData));
+  return {
+    get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
+    put: vi.fn((key: string, value: string) => {
+      store.set(key, value);
+      return Promise.resolve();
+    }),
+    delete: vi.fn((key: string) => {
+      store.delete(key);
+      return Promise.resolve();
+    }),
+    list: vi.fn(),
+    getWithMetadata: vi.fn(),
+  } as unknown as KVNamespace;
+}
+
+function stubProductClient(
+  get: (...args: unknown[]) => Promise<unknown>,
+): KrogerClients["productClient"] {
+  return { GET: get } as unknown as KrogerClients["productClient"];
+}
+
+describe("buildProductSearchCacheKey", () => {
+  it("builds a key from the normalized term, locationId, and limitPerTerm", () => {
+    expect(buildProductSearchCacheKey("Milk", "70500847", 5)).toBe(
+      "products|v1|loc:70500847|limit:5|term:milk",
+    );
+  });
+
+  it("trims and lowercases the term", () => {
+    expect(buildProductSearchCacheKey("  Whole Milk  ", "70500847", 5)).toBe(
+      "products|v1|loc:70500847|limit:5|term:whole milk",
+    );
+  });
+
+  it("uses 'none' when locationId is omitted", () => {
+    expect(buildProductSearchCacheKey("milk", undefined, 5)).toBe(
+      "products|v1|loc:none|limit:5|term:milk",
+    );
+  });
+});
+
+describe("searchProductsForTerms KV cache", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("a fresh cache hit skips the Kroger fetch entirely", async () => {
+    const kv = createMockKV();
+    const product = makeProduct();
+    const get = vi.fn(async () => makeSearchResponse([product]));
+    const productClient = stubProductClient(get);
+
+    const first = await searchProductsForTerms(productClient, ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(first[0].products[0].upc).toBe(product.upc);
+
+    const second = await searchProductsForTerms(productClient, ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+    expect(get).toHaveBeenCalledTimes(1); // no additional Kroger fetch on the cache hit
+    expect(second[0].products[0].upc).toBe(product.upc);
+    expect(second[0].failed).toBe(false);
+  });
+
+  it("counts a cache hit as a completed search for progress notifications", async () => {
+    const kv = createMockKV();
+    const get = vi.fn(async () => makeSearchResponse([makeProduct()]));
+    const productClient = stubProductClient(get);
+
+    await searchProductsForTerms(productClient, ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+
+    const onSearchComplete = vi.fn();
+    await searchProductsForTerms(
+      productClient,
+      ["milk"],
+      { locationId: "70500847", limitPerTerm: 5, kv },
+      onSearchComplete,
+    );
+
+    expect(onSearchComplete).toHaveBeenCalledWith(1, 1);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("an absent cache entry misses and fetches from Kroger", async () => {
+    const kv = createMockKV();
+    const get = vi.fn(async () => makeSearchResponse([makeProduct()]));
+
+    await searchProductsForTerms(stubProductClient(get), ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(kv.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("a cache entry that has aged out of KV (get returns null) misses and re-fetches", async () => {
+    // The cache relies entirely on KV's own expirationTtl — there is no
+    // in-entry freshness check — so an "expired" entry is indistinguishable
+    // from an absent one: kv.get simply returns null once KV expires it.
+    const kv = createMockKV();
+    const get = vi.fn(async () => makeSearchResponse([makeProduct()]));
+
+    await searchProductsForTerms(stubProductClient(get), ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+
+    // Simulate KV expiring the entry between calls.
+    await kv.delete(buildProductSearchCacheKey("milk", "70500847", 5));
+
+    await searchProductsForTerms(stubProductClient(get), ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("a failed search is never cached", async () => {
+    const kv = createMockKV();
+    const get = vi.fn(async () => makeErrorResponse(500));
+
+    await searchProductsForTerms(stubProductClient(get), ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+
+    expect(kv.put).not.toHaveBeenCalled();
+
+    // A retry still misses (nothing was cached) and fetches again.
+    await searchProductsForTerms(stubProductClient(get), ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("caches empty results so a consistently-empty term doesn't keep re-querying", async () => {
+    const kv = createMockKV();
+    const get = vi.fn(async () => makeSearchResponse([]));
+
+    const result = await searchProductsForTerms(stubProductClient(get), ["zzz-unfindable"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+    expect(result[0].products).toEqual([]);
+    expect(kv.put).toHaveBeenCalledTimes(1);
+
+    const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0] as [string, string];
+    const entry = JSON.parse(putCall[1]) as { products: unknown[] };
+    expect(entry.products).toEqual([]);
+
+    await searchProductsForTerms(stubProductClient(get), ["zzz-unfindable"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+      kv,
+    });
+    expect(get).toHaveBeenCalledTimes(1); // second call hit the empty-result cache
+  });
+
+  it("without a kv binding, every call fetches from Kroger (no caching)", async () => {
+    const get = vi.fn(async () => makeSearchResponse([makeProduct()]));
+    const productClient = stubProductClient(get);
+
+    await searchProductsForTerms(productClient, ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+    });
+    await searchProductsForTerms(productClient, ["milk"], {
+      locationId: "70500847",
+      limitPerTerm: 5,
+    });
+
+    expect(get).toHaveBeenCalledTimes(2);
   });
 });

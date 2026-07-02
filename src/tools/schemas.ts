@@ -42,3 +42,17 @@ export const modalityEnum = z.preprocess(
   (value) => (typeof value === "string" ? value.toUpperCase() : value),
   z.enum(["DELIVERY", "PICKUP"]),
 );
+
+/**
+ * A boolean field that also accepts the strings "true"/"false" (any case,
+ * trimmed), since small models sometimes stringify booleans. Plain
+ * `z.coerce.boolean()` would treat the string "false" as truthy.
+ */
+export const coercedBooleanSchema = z.preprocess((value) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return value;
+}, z.boolean());

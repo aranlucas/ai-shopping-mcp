@@ -90,28 +90,47 @@ case) when the change lands.
 
 ### Phase 2 — Fewer round trips
 
-3. **Optional `addToCart` on `shop_for_items`.** The golden path is 4 calls;
-   for a returning user it can be 2 (`shop_for_items {items, addToCart:
-true}`), with the elicitation confirmation still gating the cart write.
-   Kroger's 5,000 cart-calls/day budget is untouched — it's the same single
-   PUT.
-   _Gate:_ new golden-path case with a 2-call budget; retry-safety case must
-   still pass.
-4. **Local cart mirror + `view_cart`.** Kroger's API cannot read the cart
-   (the reason IMPROVEMENTS.md defers view/remove/clear). Generalize
-   `CartSnapshotStorage` from per-list snapshots to a per-user rolling mirror
-   updated on every cart PUT, then add a read-only `view_cart` tool ("what's
-   in my cart?" is a top user question). Clearly label it "items added via
-   this assistant" since in-store/app changes are invisible.
-   _Gate:_ golden-path case: add → view shows the items; token budget for the
-   new tool definition.
-5. **KV-cache product searches (short TTL).** Same-term searches at the same
-   store within ~10 minutes are common in multi-turn shopping and burn the
-   10k/day product quota. Reuse the weekly-deals cache pattern
-   (fresh/stale/miss) with a short fresh window keyed on
-   `term|locationId|limit`.
-   _Gate:_ existing suites stay green; add a unit test for the cache key and
-   TTL behavior.
+3. **DONE (2026-07). Optional `addToCart` on `shop_for_items`.** For a
+   returning user with a saved store, `shop_for_items {items, addToCart:
+true}` reuses `add_shopping_list_to_cart`'s confirm-then-PUT path
+   (`addLineItemsToCart`, exported from `src/tools/cart.ts`) to land the cart
+   in the same call — one call instead of the documented two-step
+   `shop_for_items` → `add_shopping_list_to_cart`. The elicitation
+   confirmation still gates the write; a decline/cancel still returns the
+   created list with a retry hint. The cart snapshot is persisted under the
+   same storage key `add_shopping_list_to_cart` checks, so a follow-up call
+   with the same `listId` short-circuits instead of double-adding. Kroger's
+   5,000 cart-calls/day budget is untouched — it's the same single PUT.
+   _Gate:_ new golden-path case asserting a 1-call cart landing plus a
+   non-double-adding retry; existing 4-call golden path and retry-safety
+   cases unchanged.
+4. **DONE (2026-07). Local cart mirror + `view_cart`.** Kroger's API cannot
+   read the cart (the reason IMPROVEMENTS.md defers view/remove/clear). Added
+   `CartMirrorStorage` (`src/utils/user-storage.ts`), a per-user rolling
+   mirror (7-day TTL, capped at 100 line items) appended to by every
+   successful cart PUT — `add_shopping_list_to_cart` (both the listId and
+   inline-items paths, via the shared `addLineItemsToCart`) and
+   `shop_for_items`'s `addToCart` path. The read-only `view_cart` tool
+   (registered with plain `ctx.server.registerTool`, no `structuredContent`/
+   view, like `get_shopping_profile`) lists mirrored items and states plainly
+   that it only shows items added through this assistant — in-store/app
+   changes are invisible.
+   _Gate:_ golden-path case: add → `view_cart` shows the item's name and upc;
+   token budget stays under the tool-surface cap (measured: +134t for
+   `view_cart`, total 3637t, cap 4200t).
+5. **DONE (2026-07). KV-cache product searches (short TTL).**
+   `searchProductsForTerms` (`src/tools/product.ts`) now checks
+   `env.USER_DATA_KV` (guarded by the `isKvLike` pattern shared with
+   `weekly-deals.ts`) before each per-term Kroger fetch, keyed on
+   `products|v1|loc:{locationId}|limit:{limitPerTerm}|term:{term}` with a
+   flat 10-minute `expirationTtl`. Empty results are cached too (a
+   consistently-empty term shouldn't keep re-querying); failed searches are
+   never cached. A cache hit still counts toward progress notifications, and
+   searches stay parallel — shared by both `search_products` and
+   `shop_for_items`.
+   _Gate:_ existing suites stay green; unit tests cover the cache key, fresh
+   hit (fetch skipped), miss (fetch happens), failed-search non-caching, and
+   empty-result caching.
 
 ### Phase 3 — Efficiency features (ties into ROADMAP.md)
 

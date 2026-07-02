@@ -1,5 +1,5 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { err } from "neverthrow";
+import { type Result, err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
@@ -18,12 +18,12 @@ import {
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
 import { buildShoppingListStorageKey, requestCheckoutConfirmation } from "./shopping-list.js";
-import { type Props, type ToolContext } from "./types.js";
+import { type Props, type ToolContext, textResult } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 
-type LineItem = { upc: string; quantity: number; productName?: string };
+export type LineItem = { upc: string; quantity: number; productName?: string };
 
 const inlineCartItemSchema = z.object({
   upc: upcSchema.describe("UPC from search_products"),
@@ -51,15 +51,19 @@ export const addShoppingListToCartInputSchema = z
 
 /**
  * Confirms with the user (via elicitation) and PUTs the given line items to
- * the Kroger cart. Shared by both the listId and inline-items paths so the
- * confirm → PUT → result logic lives in one place.
+ * the Kroger cart. Shared by every cart-write path (listId, inline items, and
+ * `shop_for_items`'s `addToCart`) so the confirm → PUT → mirror-append logic
+ * lives in one place. On success, also appends to the per-user cart mirror
+ * (`ctx.storage.cartMirror`) that `view_cart` reads — best-effort, a mirror
+ * write failure does not fail the tool call.
  */
-async function addLineItemsToCart(
+export async function addLineItemsToCart(
   ctx: ToolContext,
   cartClient: KrogerClients["cartClient"],
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
-) {
+  userId: string,
+): Promise<Result<void, AppError>> {
   const confirmation = await requestCheckoutConfirmation(
     ctx.server.server,
     lineItems.map((item) => ({
@@ -84,7 +88,21 @@ async function addLineItemsToCart(
     "add items to cart",
   );
 
-  return addResult.map(() => undefined);
+  if (addResult.isErr()) return err<void, AppError>(addResult.error);
+
+  const mirrorItems: CartSnapshotItem[] = lineItems.map((item) => ({
+    upc: item.upc,
+    quantity: item.quantity,
+    modality,
+    productName: item.productName,
+  }));
+
+  await safeStorage(
+    () => ctx.storage.cartMirror.append(userId, mirrorItems, new Date().toISOString()),
+    "append cart mirror",
+  ).orTee((e) => console.warn("Cart mirror append failed (non-fatal):", e.message));
+
+  return ok<void, AppError>(undefined);
 }
 
 async function handleInlineItemsCart(
@@ -96,7 +114,7 @@ async function handleInlineItemsCart(
   modality: "PICKUP" | "DELIVERY",
 ) {
   return safeResolveLocationId(ctx.storage, props.id, storeId).match(async (resolved) => {
-    const addResult = await addLineItemsToCart(ctx, cartClient, items, modality);
+    const addResult = await addLineItemsToCart(ctx, cartClient, items, modality, props.id);
 
     return addResult.match(() => {
       const locationInfo = resolved.locationName
@@ -207,7 +225,7 @@ async function handleListIdCart(
           productName: item.productName,
         }));
 
-        const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality);
+        const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality, props.id);
 
         return addResult.match(async () => {
           // Persist the cart snapshot keyed by the namespaced storage key so a
@@ -294,6 +312,45 @@ export function registerCartTools(ctx: ToolContext) {
         validationError(
           "Provide either listId (from create_shopping_list) or items (inline upc/quantity pairs).",
         ),
+      );
+    },
+  );
+
+  ctx.server.registerTool(
+    "view_cart",
+    {
+      title: "View Cart",
+      description:
+        "Shows items added to the Kroger cart through this assistant, with upc and quantity. The Kroger API has no cart-read endpoint, so in-store or Kroger-app changes never appear here — this is an assistant-only mirror, not the live cart.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: z.object({}),
+    },
+    async () => {
+      const props = getProps();
+
+      return safeStorage(() => ctx.storage.cartMirror.getAll(props.id), "fetch cart mirror").match(
+        (items) => {
+          if (items.length === 0) {
+            return textResult(
+              "No items added to your cart through this assistant yet. Use shop_for_items to search for items and add them to your Kroger cart.",
+            );
+          }
+
+          const lines = items.map(
+            (item) =>
+              `- ${item.productName ?? item.upc} x${item.quantity} | upc=${item.upc} | ${item.modality}`,
+          );
+
+          return textResult(
+            `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
+          );
+        },
+        toMcpError,
       );
     },
   );

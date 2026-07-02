@@ -58,9 +58,11 @@ describe("token budget: tool surface", () => {
     for (const entry of perTool) log(`  ${entry.name}: ${entry.tokens}`);
 
     // Whole tool list: what every request to the host model carries.
-    // Baseline 2026-07: 3455 estimated tokens across 14 tools (create_shopping_list
-    // and add_to_inventory trimmed to ~303-307t; get_product and record_order grew
-    // slightly from the upc/productId alias — see small-model-efficiency-plan.md #1-2).
+    // Baseline 2026-07 (Phase 1, #1-2): 3455 estimated tokens across 14 tools.
+    // Updated 2026-07 (Phase 2, #3-4): 3637 estimated tokens across 15 tools —
+    // +134t for the new read-only view_cart tool and +~12t for shop_for_items'
+    // addToCart field. Still comfortably under the cap, so the budget itself
+    // is unchanged; see small-model-efficiency-plan.md Phase 2 items 3-4.
     expect(total).toBeLessThan(4200);
 
     // No single tool may dominate the surface. Baseline max: 311

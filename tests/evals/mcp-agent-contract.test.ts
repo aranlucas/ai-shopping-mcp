@@ -109,6 +109,7 @@ describe("MCP agent contract", () => {
       "search_stores",
       "set_preferred_store",
       "shop_for_items",
+      "view_cart",
     ]);
 
     expect(toolNames).not.toContain("add_to_cart");
@@ -154,6 +155,7 @@ describe("MCP agent contract", () => {
       "get_weekly_deals",
       "search_products",
       "search_stores",
+      "view_cart",
     ]) {
       expect(toolByName(tools, name).config.annotations?.readOnlyHint, name).toBe(true);
     }
@@ -215,6 +217,9 @@ describe("MCP agent contract", () => {
 
     const shoppingProfile = toolByName(tools, "get_shopping_profile");
     expect(shoppingProfile.config._meta?.ui?.resourceUri).toBeUndefined();
+
+    const viewCart = toolByName(tools, "view_cart");
+    expect(viewCart.config._meta?.ui?.resourceUri).toBeUndefined();
   });
 
   it("models product search and shopping list validation in schemas", () => {
