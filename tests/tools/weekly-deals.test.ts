@@ -489,6 +489,12 @@ function makeWeeklyDealsContext(
         })),
       },
     } as unknown as ToolContext["clients"],
+    productService: {
+      getProduct: () => {
+        throw new Error("productService not used in this test");
+      },
+      enrichProductName: async () => null,
+    } as unknown as ToolContext["productService"],
     storage: {
       preferredLocation: {
         get: async () => preferredLocation,

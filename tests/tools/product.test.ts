@@ -6,6 +6,7 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { PreferredLocation } from "../../src/utils/user-storage.js";
 
 import { apiError, authError } from "../../src/errors.js";
+import { ProductService } from "../../src/services/kroger/product-service.js";
 import {
   buildProductSearchCacheKey,
   logProductSearchError,
@@ -108,11 +109,11 @@ function makeStorage(preferredLocation?: PreferredLocation): UserStorage {
 }
 
 function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolContext {
+  const clients = { productClient: { GET: productGet } } as unknown as ToolContext["clients"];
   return {
     server: {} as ToolContext["server"],
-    clients: {
-      productClient: { GET: productGet },
-    } as unknown as ToolContext["clients"],
+    clients,
+    productService: new ProductService(clients.productClient),
     storage: storage ?? makeStorage(),
     getEnv: () =>
       ({

@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { KrogerClients } from "../services/kroger/client.js";
+import type { ProductService } from "../services/kroger/product-service.js";
 import type { createUserStorage } from "../utils/user-storage.js";
 
 // Props stored in the access token and exposed through the MCP auth context.
@@ -27,6 +28,7 @@ export type UserStorage = ReturnType<typeof createUserStorage>;
 export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;
+  productService: ProductService;
   storage: UserStorage;
   getEnv: () => Env;
   getSessionId: () => string;

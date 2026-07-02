@@ -13,6 +13,7 @@ import {
   isKrogerTokenExpiring,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
+import { ProductService } from "./services/kroger/product-service.js";
 import { registerCartTools } from "./tools/cart.js";
 import { registerInventoryTools } from "./tools/inventory.js";
 import { registerLocationTools } from "./tools/location.js";
@@ -23,6 +24,7 @@ import { registerResources } from "./tools/resources.js";
 import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
+import { getUserDataKv } from "./utils/kv.js";
 import { createUserStorage } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
@@ -71,13 +73,15 @@ function buildServer(env: Env, sessionId: string): McpServer {
       return null;
     }
     return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
-  });
+  }, getUserDataKv(env));
 
   const storage = createUserStorage(env.USER_DATA_KV);
+  const productService = new ProductService(clients.productClient);
 
   const ctx: ToolContext = {
     server,
     clients,
+    productService,
     storage,
     getEnv: () => env,
     getSessionId: () => sessionId,
