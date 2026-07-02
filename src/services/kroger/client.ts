@@ -10,6 +10,7 @@ import type { paths as ProductPaths } from "./product.js";
 
 import { type AppError, apiError, networkError } from "../../errors.js";
 import { safeJsonParseWithSchema } from "../../utils/json.js";
+import { safeStorage } from "../../utils/result.js";
 
 export interface KrogerTokenInfo {
   accessToken: string;
@@ -174,12 +175,11 @@ export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: numbe
     async onRequest({ request }) {
       if (!kv || request.method !== "GET") return;
 
-      let raw: string | null;
-      try {
-        raw = await kv.get(krogerCacheKeyFor(request.url));
-      } catch {
-        return;
-      }
+      const key = krogerCacheKeyFor(request.url);
+      const raw = await safeStorage(() => kv.get(key), "read Kroger response cache").match(
+        (value) => value,
+        () => null,
+      );
       if (!raw) return;
 
       const entry = safeJsonParseWithSchema(raw, krogerCacheEntrySchema).match(
@@ -197,19 +197,16 @@ export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: numbe
     async onResponse({ request, response }) {
       if (!kv || request.method !== "GET" || !response.ok) return;
 
+      const key = krogerCacheKeyFor(request.url);
       const body = await response.clone().text();
       const entry: KrogerCacheEntry = { status: response.status, body };
 
-      try {
-        await kv.put(krogerCacheKeyFor(request.url), JSON.stringify(entry), {
-          expirationTtl: ttlSeconds,
-        });
-      } catch (e) {
-        console.warn(
-          "Kroger response cache write failed (non-fatal):",
-          e instanceof Error ? e.message : String(e),
-        );
-      }
+      await safeStorage(
+        () => kv.put(key, JSON.stringify(entry), { expirationTtl: ttlSeconds }),
+        "write Kroger response cache",
+      ).orTee((error) =>
+        console.warn("Kroger response cache write failed (non-fatal):", error.message),
+      );
     },
   };
 }
