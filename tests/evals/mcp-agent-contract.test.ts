@@ -249,8 +249,14 @@ describe("MCP agent contract", () => {
     expect(
       createShoppingList.config.inputSchema?.safeParse({
         name: "Dinner",
-        items: [{ productName: "Milk", quantity: 1 }],
+        items: [{ upc: "0001112223334", quantity: 1 }],
       }).success,
     ).toBe(true);
+    expect(
+      createShoppingList.config.inputSchema?.safeParse({
+        name: "Dinner",
+        items: [{ productName: "Milk", quantity: 1 }],
+      }).success,
+    ).toBe(false);
   });
 });
