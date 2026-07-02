@@ -10,8 +10,9 @@ import type { Deal } from "../utils/deal-match.js";
 import type { PantryItem } from "../utils/user-storage.js";
 
 import { findDealForItem } from "../utils/deal-match.js";
+import { getUserDataKv } from "../utils/kv.js";
 import { type ToolContext } from "./types.js";
-import { buildWeeklyDealsCacheKey, isKvLike, parseCacheEntry } from "./weekly-deals.js";
+import { buildWeeklyDealsCacheKey, parseCacheEntry } from "./weekly-deals.js";
 
 /** Best-effort pantry fetch: any storage error yields an empty list, never a throw. */
 export async function getPantryForFlags(ctx: ToolContext, userId: string): Promise<PantryItem[]> {
@@ -34,8 +35,7 @@ export async function getDealsForFlags(
   locationId: string | undefined,
 ): Promise<Deal[]> {
   try {
-    const env = ctx.getEnv();
-    const kv = isKvLike(env?.USER_DATA_KV) ? env.USER_DATA_KV : null;
+    const kv = getUserDataKv(ctx.getEnv());
     if (!kv) return [];
 
     const cacheKey = buildWeeklyDealsCacheKey({ locationId, limit: 50, pageLimit: 2 });
