@@ -205,3 +205,31 @@ The complete Partner Cart API OpenAPI spec was sourced from the Kroger developer
 - Items have `allowSubstitutes`, `specialInstructions`, `description` fields
 - Responses include product names (`description`)
 - Supports `SHIP` modality (in addition to `DELIVERY`, `PICKUP`)
+
+---
+
+## Outcome (2026-07-02)
+
+Design: `docs/superpowers/specs/2026-07-02-cart-api-integration-design.md`.
+
+**Adopted:**
+
+- Merged spec: `kroger/cart.json` now contains the Partner endpoints plus the
+  Public `PUT /v1/cart/add` (still the only write path we use). One
+  `cartClient` serves both. The Partner spec's `integer` type on the
+  `/v1/carts/{id}` path param was corrected to `string` (cart IDs are UUIDs).
+- `view_cart` reads the live cart via Partner `GET /v1/carts/{id}` when a
+  cart ID is known, falling back to the assistant-only KV mirror otherwise.
+- Cart ID bootstrap is manual: `view_cart` accepts an optional `cartId` once
+  and remembers it per user (`user:{userId}:kroger-cart-id`). The "cache the
+  cart ID after `PUT /v1/cart/add`" idea in this doc does not work — that
+  endpoint returns 204 with no body.
+
+**Deferred:**
+
+- Atlas API (`www.qfc.com/atlas/v1`): out of scope — Akamai browser-header
+  fragility. It remains the only known automatic cart-ID discovery path.
+- Cart mutation tools (`remove_from_cart` / `update_cart_item`): blocked on
+  Partner `cart.basic:rw`; revisit with a Partner app registration.
+- Catalog API V2 (`kroger/catalog.json`): spec committed but unwired; needs
+  its own design.
