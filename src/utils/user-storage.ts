@@ -378,10 +378,12 @@ export class CartSnapshotStorage {
 
 /**
  * Cart Mirror Storage - a per-user rolling log of items this assistant has
- * added to the Kroger cart. Kroger's Cart API is write-only (no read
- * endpoint), so this mirror is the only way `view_cart` can answer "what's in
- * my cart?" — it necessarily excludes anything added or removed outside this
- * assistant (in-store, the Kroger app, kroger.com).
+ * added to the Kroger cart. Kroger's Public Cart API has no read endpoint;
+ * the Partner API's `GET /v1/carts/{id}` read only works once a cart ID is
+ * known (see `CartIdStorage` below). So this mirror remains the fallback
+ * `view_cart` uses when no cart ID is available or the live read fails — it
+ * necessarily excludes anything added or removed outside this assistant
+ * (in-store, the Kroger app, kroger.com).
  *
  * Capped at the most recent `CART_MIRROR_MAX_ITEMS` line items and expires
  * from KV after `CART_MIRROR_TTL_SECONDS` (7 days) so a stale mirror doesn't
@@ -424,6 +426,23 @@ export class CartMirrorStorage {
   async clear(userId: string): Promise<void> {
     const key = getKey(userId, "cart_mirror");
     await this.kv.delete(key);
+  }
+}
+
+/**
+ * Kroger Cart ID Storage — remembers the user's live Kroger cart UUID so
+ * view_cart can read the real cart without the model re-supplying it.
+ * The value is a plain string, not JSON.
+ */
+export class CartIdStorage {
+  constructor(private kv: KVNamespace) {}
+
+  async get(userId: string): Promise<string | null> {
+    return this.kv.get(getKey(userId, "kroger-cart-id"));
+  }
+
+  async set(userId: string, cartId: string): Promise<void> {
+    await this.kv.put(getKey(userId, "kroger-cart-id"), cartId);
   }
 }
 
@@ -474,5 +493,6 @@ export function createUserStorage(kv: KVNamespace) {
     shoppingList: new ShoppingListStorage(kv),
     cartSnapshot: new CartSnapshotStorage(kv),
     cartMirror: new CartMirrorStorage(kv),
+    cartId: new CartIdStorage(kv),
   };
 }

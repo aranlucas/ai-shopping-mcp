@@ -58,7 +58,7 @@ Core entry points:
 
 Tooling and MCP surface (`src/tools/`):
 
-- `cart.ts`: `add_shopping_list_to_cart` (listId or inline items)
+- `cart.ts`: `add_shopping_list_to_cart` (listId or inline items), `view_cart` (live Partner cart read when a cartId is known, KV-mirror fallback)
 - `location.ts`: `search_stores`, `get_store`, `set_preferred_store`
 - `product.ts`: `search_products`, `get_product`; exports `searchProductsForTerms`
 - `shop.ts`: `shop_for_items` (one-shot search + create list; uses the match ranker)
@@ -179,7 +179,7 @@ Tools should follow MCP annotations consistently:
 
 Current MCP tools:
 
-- Shopping/products: `add_shopping_list_to_cart`, `search_stores`, `get_store`, `set_preferred_store`, `search_products`, `get_product`
+- Shopping/products: `add_shopping_list_to_cart`, `search_stores`, `get_store`, `set_preferred_store`, `search_products`, `get_product`, `view_cart`
 - One-shot shopping: `shop_for_items` (search + create a shopping list from item names, no cart add)
 - Shopping list: `create_shopping_list`
 - Inventory: `add_to_inventory`, `remove_from_inventory` (pantry or equipment), `get_shopping_profile` (read-only summary)

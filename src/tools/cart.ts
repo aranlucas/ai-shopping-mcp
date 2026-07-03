@@ -22,6 +22,7 @@ import { type Props, type ToolContext, textResult } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
+type LiveCart = components["schemas"]["carts.cartModel"];
 
 export type LineItem = { upc: string; quantity: number; productName?: string };
 
@@ -280,6 +281,59 @@ async function handleListIdCart(
   );
 }
 
+const viewCartInputSchema = z.object({
+  cartId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      "Kroger cart UUID for a live cart read. Remembered after the first successful call, so later calls can omit it.",
+    ),
+});
+
+function formatLiveCart(cart: LiveCart, cartId: string): string {
+  const items = cart.items ?? [];
+  const lines = items.map(
+    (item) =>
+      `- ${item.description ?? item.upc} x${item.quantity ?? 1} | upc=${item.upc} | ${item.modality}`,
+  );
+  return [
+    `Live Kroger cart (cartId=${cartId}): ${items.length} item(s)`,
+    lines.join("\n"),
+    "Add more items with shop_for_items or add_shopping_list_to_cart.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
+ * Mirror fallback for view_cart: shows what this assistant added to the cart.
+ * `note` (when set) explains why the live cart is not being shown.
+ */
+function mirrorFallbackResult(ctx: ToolContext, userId: string, note?: string) {
+  return safeStorage(() => ctx.storage.cartMirror.getAll(userId), "fetch cart mirror").match(
+    (items) => {
+      const parts: string[] = note ? [note] : [];
+      if (items.length === 0) {
+        parts.push(
+          "No items added to your cart through this assistant yet. Use shop_for_items to search for items and add them to your Kroger cart.",
+        );
+      } else {
+        const lines = items.map(
+          (item) =>
+            `- ${item.productName ?? item.upc} x${item.quantity} | upc=${item.upc} | ${item.modality}`,
+        );
+        parts.push(
+          `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
+        );
+      }
+      return textResult(parts.join("\n\n"));
+    },
+    toMcpError,
+  );
+}
+
 export function registerCartTools(ctx: ToolContext) {
   const { cartClient } = ctx.clients;
 
@@ -323,36 +377,54 @@ export function registerCartTools(ctx: ToolContext) {
     {
       title: "View Cart",
       description:
-        "Shows items added to the Kroger cart through this assistant, with upc and quantity. The Kroger API has no cart-read endpoint, so in-store or Kroger-app changes never appear here — this is an assistant-only mirror, not the live cart.",
+        "Shows the live Kroger cart when a cartId (from the Kroger website/app) has been provided once — it is remembered afterwards. Without one, shows only items added through this assistant.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: false,
+        openWorldHint: true,
       },
-      inputSchema: z.object({}),
+      inputSchema: viewCartInputSchema,
     },
-    async () => {
+    async ({ cartId }) => {
       const props = getProps();
 
-      return safeStorage(() => ctx.storage.cartMirror.getAll(props.id), "fetch cart mirror").match(
-        (items) => {
-          if (items.length === 0) {
-            return textResult(
-              "No items added to your cart through this assistant yet. Use shop_for_items to search for items and add them to your Kroger cart.",
-            );
-          }
+      const resolvedId =
+        cartId ??
+        (await safeStorage(() => ctx.storage.cartId.get(props.id), "read stored cart id").match(
+          (value) => value,
+          () => null,
+        ));
 
-          const lines = items.map(
-            (item) =>
-              `- ${item.productName ?? item.upc} x${item.quantity} | upc=${item.upc} | ${item.modality}`,
-          );
+      if (!resolvedId) {
+        return mirrorFallbackResult(
+          ctx,
+          props.id,
+          "No live cart id known — pass cartId to view_cart once to enable live cart reads.",
+        );
+      }
 
-          return textResult(
-            `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
-          );
+      const liveResult = await fromApiResponse(
+        cartClient.GET("/v1/carts/{id}", { params: { path: { id: resolvedId } } }),
+        "read live cart",
+      );
+
+      return liveResult.match(
+        async (payload) => {
+          await safeStorage(
+            () => ctx.storage.cartId.set(props.id, resolvedId),
+            "store cart id",
+          ).orTee((error) => console.warn("Cart id store failed (non-fatal):", error.message));
+          return textResult(formatLiveCart(payload.data ?? {}, resolvedId));
         },
-        toMcpError,
+        (error) =>
+          mirrorFallbackResult(
+            ctx,
+            props.id,
+            cartId
+              ? `Live cart read failed for cartId=${cartId} — the id may be stale or wrong. Showing items added through this assistant instead.`
+              : `Live cart read failed (${error.message}). Showing items added through this assistant instead.`,
+          ),
       );
     },
   );
