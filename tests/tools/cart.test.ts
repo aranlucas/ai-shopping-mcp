@@ -116,6 +116,8 @@ function makeStorage(
   existingSnapshot: CartSnapshotItem[] | null = null,
   mirrorAppendCalls: unknown[][] = [],
   mirrorItems: Array<CartSnapshotItem & { addedAt: string }> = [],
+  storedCartId: string | null = null,
+  cartIdSetCalls: string[][] = [],
 ): UserStorage {
   return {
     pantry: {} as UserStorage["pantry"],
@@ -145,19 +147,42 @@ function makeStorage(
       },
       clear: async () => {},
     } as unknown as UserStorage["cartMirror"],
+    cartId: {
+      get: async () => storedCartId,
+      set: async (userId: string, cartId: string) => {
+        cartIdSetCalls.push([userId, cartId]);
+      },
+    } as unknown as UserStorage["cartId"],
   } as unknown as UserStorage;
 }
+
+type GetCall = { path: string; options: unknown };
+
+const LIVE_CART = {
+  id: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4",
+  items: [
+    {
+      upc: "0001111040110",
+      description: "QFC Vitamin D Whole Milk Gallon",
+      quantity: 1,
+      modality: "PICKUP" as const,
+    },
+  ],
+};
 
 function makeContext(
   storage?: UserStorage,
   putConfig: { status: number; throws?: boolean } = { status: 204 },
+  getConfig: { status: number; cart?: typeof LIVE_CART } = { status: 200, cart: LIVE_CART },
 ): {
   context: ToolContext;
   putCalls: PutCall[];
   snapshotSetCalls: unknown[][];
+  getCalls: GetCall[];
 } {
   const putCalls: PutCall[] = [];
   const snapshotSetCalls: unknown[][] = [];
+  const getCalls: GetCall[] = [];
   const actualStorage = storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
 
   const context: ToolContext = {
@@ -179,6 +204,20 @@ function makeContext(
             response: new Response(null, { status: putConfig.status }),
           };
         },
+        GET: async (path: string, options: unknown) => {
+          getCalls.push({ path, options });
+          if (getConfig.status !== 200) {
+            return {
+              data: undefined,
+              error: { reason: "cart not found" },
+              response: new Response("{}", { status: getConfig.status }),
+            };
+          }
+          return {
+            data: { data: getConfig.cart },
+            response: new Response(null, { status: 200 }),
+          };
+        },
       },
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
@@ -187,7 +226,7 @@ function makeContext(
     getSessionId: () => SESSION_ID,
   };
 
-  return { context, putCalls, snapshotSetCalls };
+  return { context, putCalls, snapshotSetCalls, getCalls };
 }
 
 function getCapturedHandler(name: string): ToolHandler {
@@ -626,6 +665,112 @@ describe("view_cart tool", () => {
     await expect(getCapturedHandler("view_cart")({})).rejects.toThrow(
       "outside an authenticated MCP request",
     );
+  });
+
+  it("reads the live cart when an explicit cartId is passed and prints cartId= and upc=", async () => {
+    const cartIdSetCalls: string[][] = [];
+    const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
+    const { context, getCalls } = makeContext(storage);
+    registerCartTools(context);
+
+    const result = await getCapturedHandler("view_cart")({
+      cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4",
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    const text = textFromResult(result);
+    expect(text).toContain("cartId=2b9b3963-5cac-42f8-9d28-7bebdec0b9e4");
+    expect(text).toContain("QFC Vitamin D Whole Milk Gallon x1");
+    expect(text).toContain("upc=0001111040110");
+    expect(getCalls).toHaveLength(1);
+    expect(getCalls[0].path).toBe("/v1/carts/{id}");
+  });
+
+  it("persists the cartId after a successful live read", async () => {
+    const cartIdSetCalls: string[][] = [];
+    const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
+    const { context } = makeContext(storage);
+    registerCartTools(context);
+
+    await getCapturedHandler("view_cart")({ cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4" });
+
+    expect(cartIdSetCalls).toEqual([[USER_ID, "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4"]]);
+  });
+
+  it("uses the stored cartId for a live read when no cartId is passed", async () => {
+    const storage = makeStorage(null, null, [], null, [], [], "stored-cart-id");
+    const { context, getCalls } = makeContext(storage);
+    registerCartTools(context);
+
+    const result = await getCapturedHandler("view_cart")({});
+
+    expect(textFromResult(result)).toContain("cartId=stored-cart-id");
+    expect(getCalls).toHaveLength(1);
+  });
+
+  it("falls back to the mirror with a cartId hint when no id is known", async () => {
+    const storage = makeStorage(
+      null,
+      null,
+      [],
+      null,
+      [],
+      [
+        {
+          upc: "0001111042578",
+          quantity: 2,
+          modality: "PICKUP",
+          productName: "Organic Whole Milk",
+          addedAt: "2026-06-30T00:00:00.000Z",
+        },
+      ],
+    );
+    const { context, getCalls } = makeContext(storage);
+    registerCartTools(context);
+
+    const result = await getCapturedHandler("view_cart")({});
+
+    const text = textFromResult(result);
+    expect(getCalls).toHaveLength(0);
+    expect(text).toContain("in-store/app changes are not shown");
+    expect(text).toContain("cartId");
+  });
+
+  it("falls back to the mirror and names the failed cartId when the live read errors", async () => {
+    const storage = makeStorage(
+      null,
+      null,
+      [],
+      null,
+      [],
+      [
+        {
+          upc: "0001111042578",
+          quantity: 2,
+          modality: "PICKUP",
+          productName: "Organic Whole Milk",
+          addedAt: "2026-06-30T00:00:00.000Z",
+        },
+      ],
+    );
+    const { context } = makeContext(storage, { status: 204 }, { status: 404 });
+    registerCartTools(context);
+
+    const result = await getCapturedHandler("view_cart")({ cartId: "stale-cart-id" });
+
+    expect(isErrorResult(result)).toBe(false);
+    const text = textFromResult(result);
+    expect(text).toContain("cartId=stale-cart-id");
+    expect(text).toContain("in-store/app changes are not shown");
+    expect(text).toContain("Organic Whole Milk x2");
+  });
+
+  it("declares openWorldHint true now that it can call the Kroger API", () => {
+    const { context } = makeContext(makeStorage());
+    registerCartTools(context);
+    const tool = testState.capturedTools.find((t) => t.name === "view_cart");
+    const config = tool?.config as { annotations?: { openWorldHint?: boolean } };
+    expect(config.annotations?.openWorldHint).toBe(true);
   });
 });
 
