@@ -4,6 +4,112 @@
  */
 
 export interface paths {
+  "/v1/carts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * User carts list
+     * @description Provides access to return a list of all carts that belong to an authenticated customer.
+     *     <br><br> **Note**: the customer must be authenticated using the OAuth2 Authorization
+     *     Code grant type.
+     */
+    get: operations["getCarts"];
+    put?: never;
+    /**
+     * Create a cart
+     * @description Provides access to create a new cart for an authenticated customer.
+     *     <br><br> **Note**: the customer must be authenticated using the OAuth2 Authorization
+     *     Code grant type.
+     */
+    post: operations["createCart"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/carts/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Cart by ID
+     * @description Provides access to an authenticated customer's cart by ID.
+     *     <br><br> **Note**: the customer must be authenticated using the OAuth2 Authorization
+     *     Code grant type.
+     */
+    get: operations["getCart"];
+    /**
+     * Update cart
+     * @description Provides access to update an authenticated customer's cart by ID. This operation only updates items that are already in a customer's cart.
+     *     <br><br> **Note**: the customer must be authenticated using the OAuth2 Authorization
+     *     Code grant type.
+     */
+    put: operations["putCart"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/carts/{id}/items": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add to cart
+     * @description Provides access to add items to an authenticated customer's cart.
+     *     <br><br> **Note**: the customer must be authenticated using the OAuth2 Authorization
+     *     Code grant type.
+     */
+    post: operations["postCartItem"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/carts/{id}/items/{upc}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Updates item quantity
+     * @description Provides access to update the quantity of an item in an authenticated
+     *     customer's cart.\n<br><br> **Note**: the customer must be authenticated using
+     *     the OAuth2 Authorization \nCode grant type.\n
+     */
+    put: operations["putCartItem"];
+    post?: never;
+    /**
+     * Delete item
+     * @description Provides access to delete an item from an authenticated customer's cart.
+     *     <br><br> **Note**: the customer must be authenticated using the OAuth2 Authorization
+     *     Code grant type.
+     */
+    delete: operations["deleteCartItem"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/cart/add": {
     parameters: {
       query?: never;
@@ -35,14 +141,12 @@ export interface components {
       code?: string;
       reason?: string;
     };
-    "APIError.cart.serverError": {
+    "APIError.unauthorized": {
       errors?: {
-        /** @example Internal server error */
-        reason?: string;
-        /** @example CART-4xxx-xxx */
-        code?: string;
-        /** @example 1564159296910 */
-        timestamp?: number;
+        /** @example The access token is invalid or has expired */
+        error_description?: string;
+        /** @example invalid_token */
+        error?: string;
       };
     };
     "APIError.forbidden": {
@@ -55,13 +159,193 @@ export interface components {
         timestamp?: number;
       };
     };
-    "APIError.unauthorized": {
+    "carts.cartModel": {
+      /**
+       * @description The ID of the cart.
+       * @example 2b9b3963-5cac-42f8-9d28-7bebdec0b9e4
+       */
+      id?: string;
+      /**
+       * @description The date the cart was created.
+       * @example 2018-01-18T16:05:05.206Z
+       */
+      createdDate?: string;
+      /** @description An array of items in the cart. */
+      items?: components["schemas"]["carts.cartItemResponseModel"][];
+      /**
+       * @description The name of the cart.
+       * @example High Protein Diet
+       */
+      name?: string;
+    };
+    "carts.cartPayloadModel": {
+      data?: components["schemas"]["carts.cartModel"];
+      meta?: Record<string, never>;
+    };
+    "carts.cartsPayloadModel": {
+      data?: components["schemas"]["carts.cartModel"][];
+      meta?: Record<string, never>;
+    };
+    "carts.cartItemRequestModel": {
+      /** @description Indicates if substitutes are allow. */
+      allowSubstitutes?: boolean;
+      /**
+       * @description The quantity of the item.
+       * @example 1
+       */
+      quantity: number;
+      /**
+       * @description Any special instructions for the item.
+       * @example Bag separate from other groceries.
+       */
+      specialInstructions?: string;
+      /**
+       * @description The UPC of the item.
+       * @example 0001111041700
+       */
+      upc: string;
+      /**
+       * @description An optional value representing a modality including: SHIP, DELIVERY, PICKUP.
+       * @default PICKUP
+       * @enum {string}
+       */
+      modality: "SHIP" | "DELIVERY" | "PICKUP";
+    };
+    "carts.cartItemResponseModel": {
+      /** @description Indicates if substitutes are allow. */
+      allowSubstitutes?: boolean;
+      /**
+       * @description The date the item was added to the cart.
+       * @example 2018-01-18T16:05:05.206Z
+       */
+      createdDate?: string;
+      /**
+       * @description The quantity of the item.
+       * @example 1
+       */
+      quantity?: number;
+      /**
+       * @description Any special instructions for the item.
+       * @example Bag separate from other groceries.
+       */
+      specialInstructions?: string;
+      /**
+       * @description The UPC of the item.
+       * @example 0001111060903
+       */
+      upc?: string;
+      /**
+       * @description The name of the product.
+       * @example Kroger 2% Reduced Fat Milk
+       */
+      description?: string;
+      /**
+       * @description An optional value representing a modality including: SHIP, DELIVERY, PICKUP.
+       * @default PICKUP
+       * @enum {string}
+       */
+      modality: "SHIP" | "DELIVERY" | "PICKUP";
+    };
+    "carts.cartRequestModel": {
+      /** @description An array of items in the cart. */
+      items?: components["schemas"]["carts.cartItemRequestModel"][];
+    };
+    "carts.cartItemPostRequestModel": {
+      /**
+       * @description The UPC of the item.
+       * @example 0001111060903
+       */
+      upc: string;
+      /** @description Indicates if substitutes are allow. */
+      allowSubstitutes?: boolean;
+      /**
+       * @description The quantity of the item.
+       * @example 1
+       */
+      quantity: number;
+      /**
+       * @description Any special instructions for the item.
+       * @example Bag separate from other groceries.
+       */
+      specialInstructions?: string;
+      /**
+       * @description An optional value representing a modality including: SHIP, DELIVERY, PICKUP.
+       * @default PICKUP
+       * @enum {string}
+       */
+      modality: "SHIP" | "DELIVERY" | "PICKUP";
+    };
+    "carts.cartItemPutRequestModel": {
+      /** @description Indicates if substitutes are allow. */
+      allowSubstitutes?: boolean;
+      /**
+       * @description The quantity of the item.
+       * @example 1
+       */
+      quantity: number;
+      /**
+       * @description Any special instructions for the item.
+       * @example Bag separate from other groceries.
+       */
+      specialInstructions?: string;
+      /**
+       * @description An optional value representing a modality including: SHIP, DELIVERY, PICKUP.
+       * @default PICKUP
+       * @enum {string}
+       */
+      modality: "SHIP" | "DELIVERY" | "PICKUP";
+    };
+    "APIError.cart.serverError": {
       errors?: {
-        /** @example The access token is invalid or has expired */
-        error_description?: string;
-        /** @example invalid_token */
-        error?: string;
+        /** @example Internal server error */
+        reason?: string;
+        /** @example CART-4xxx-xxx */
+        code?: string;
+        /** @example 1564159296910 */
+        timestamp?: number;
       };
+    };
+    "APIError.cart.notfFulfillable": {
+      errors?: {
+        /** @example 1564159296910 */
+        timestamp?: number;
+        /** @example CART-4xxx-xxx */
+        code?: string;
+        /** @example cart not fulfillable */
+        reason?: string;
+      };
+    };
+    Invalid_cart_exists: {
+      /** @example 1569851999383 */
+      timestamp?: number;
+      /** @example API-4101-400 */
+      code?: string;
+      /** @example Cart exists for user */
+      reason?: string;
+    };
+    Invalid_parameters: {
+      /** @example 1569851999383 */
+      timestamp?: number;
+      /** @example API-4101-400 */
+      code?: string;
+      /** @example Cannot parse parameters */
+      reason?: string;
+    };
+    Invalid_UPC: {
+      /** @example 1569851999383 */
+      timestamp?: number;
+      /** @example API-4101-400 */
+      code?: string;
+      /** @example UPC must have a length of 13 characters */
+      reason?: string;
+    };
+    Invalid_modality: {
+      /** @example 1569851999383 */
+      timestamp?: number;
+      /** @example API-4101-400 */
+      code?: string;
+      /** @example Modality must be omitted or equal to one of the following codes: SHIP, DELIVERY, PICKUP */
+      reason?: string;
     };
     "cart.cartItemModel": {
       /**
@@ -85,30 +369,6 @@ export interface components {
       /** @description An array of items in the cart. */
       items?: components["schemas"]["cart.cartItemModel"][];
     };
-    "Invalid.modality": {
-      /** @example 1569851999383 */
-      timestamp?: number;
-      /** @example API-4101-400 */
-      code?: string;
-      /** @example Modality must be omitted or equal one of the following codes: DELIVERY, PICKUP */
-      reason?: string;
-    };
-    "Invalid.parameters": {
-      /** @example 1569851999383 */
-      timestamp?: number;
-      /** @example API-4101-400 */
-      code?: string;
-      /** @example Cannot parse parameters */
-      reason?: string;
-    };
-    "Invalid.UPC": {
-      /** @example 1569851999383 */
-      timestamp?: number;
-      /** @example API-4101-400 */
-      code?: string;
-      /** @example UPC must have a length of 13 characters */
-      reason?: string;
-    };
   };
   responses: never;
   parameters: never;
@@ -118,6 +378,501 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  getCarts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["carts.cartsPayloadModel"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.unauthorized"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.forbidden"];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.serverError"];
+        };
+      };
+    };
+  };
+  createCart: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["carts.cartRequestModel"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["carts.cartsPayloadModel"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["APIError"]
+            | components["schemas"]["Invalid_cart_exists"]
+            | components["schemas"]["Invalid_parameters"]
+            | components["schemas"]["Invalid_UPC"]
+            | components["schemas"]["Invalid_modality"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.unauthorized"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.forbidden"];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.serverError"];
+        };
+      };
+    };
+  };
+  getCart: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The ID of the cart */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["carts.cartPayloadModel"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.unauthorized"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.forbidden"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.serverError"];
+        };
+      };
+    };
+  };
+  putCart: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The ID of the cart */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["carts.cartRequestModel"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["carts.cartsPayloadModel"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["APIError"]
+            | components["schemas"]["Invalid_UPC"]
+            | components["schemas"]["Invalid_modality"]
+            | components["schemas"]["Invalid_parameters"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.unauthorized"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.forbidden"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.notfFulfillable"];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.serverError"];
+        };
+      };
+    };
+  };
+  postCartItem: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The ID of the cart. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["carts.cartItemPostRequestModel"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["carts.cartsPayloadModel"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["APIError"]
+            | components["schemas"]["Invalid_UPC"]
+            | components["schemas"]["Invalid_modality"]
+            | components["schemas"]["Invalid_parameters"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.unauthorized"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.forbidden"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.notfFulfillable"];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.serverError"];
+        };
+      };
+    };
+  };
+  putCartItem: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The ID of the cart. */
+        id: string;
+        /** @description The UPC of the item. */
+        upc: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["carts.cartItemPutRequestModel"];
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["APIError"]
+            | components["schemas"]["Invalid_UPC"]
+            | components["schemas"]["Invalid_modality"]
+            | components["schemas"]["Invalid_parameters"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.unauthorized"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.forbidden"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.notfFulfillable"];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.serverError"];
+        };
+      };
+    };
+  };
+  deleteCartItem: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The ID of the cart. */
+        id: string;
+        /** @description The UPC of the item. */
+        upc: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["APIError"]
+            | components["schemas"]["Invalid_UPC"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.unauthorized"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.forbidden"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.notfFulfillable"];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["APIError.cart.serverError"];
+        };
+      };
+    };
+  };
   putCarts: {
     parameters: {
       query?: never;
@@ -147,9 +902,9 @@ export interface operations {
         content: {
           "application/json":
             | components["schemas"]["APIError"]
-            | components["schemas"]["Invalid.UPC"]
-            | components["schemas"]["Invalid.modality"]
-            | components["schemas"]["Invalid.parameters"];
+            | components["schemas"]["Invalid_UPC"]
+            | components["schemas"]["Invalid_modality"]
+            | components["schemas"]["Invalid_parameters"];
         };
       };
       /** @description Unauthorized */
