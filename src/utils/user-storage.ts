@@ -428,6 +428,23 @@ export class CartMirrorStorage {
 }
 
 /**
+ * Kroger Cart ID Storage — remembers the user's live Kroger cart UUID so
+ * view_cart can read the real cart without the model re-supplying it.
+ * The value is a plain string, not JSON.
+ */
+export class CartIdStorage {
+  constructor(private kv: KVNamespace) {}
+
+  async get(userId: string): Promise<string | null> {
+    return this.kv.get(getKey(userId, "kroger-cart-id"));
+  }
+
+  async set(userId: string, cartId: string): Promise<void> {
+    await this.kv.put(getKey(userId, "kroger-cart-id"), cartId);
+  }
+}
+
+/**
  * Order History Storage - tracks past orders
  */
 export class OrderHistoryStorage {
@@ -474,5 +491,6 @@ export function createUserStorage(kv: KVNamespace) {
     shoppingList: new ShoppingListStorage(kv),
     cartSnapshot: new CartSnapshotStorage(kv),
     cartMirror: new CartMirrorStorage(kv),
+    cartId: new CartIdStorage(kv),
   };
 }

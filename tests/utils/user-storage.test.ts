@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CartIdStorage,
   CartMirrorStorage,
   CartSnapshotStorage,
   EquipmentStorage,
@@ -565,6 +566,32 @@ describe("CartMirrorStorage", () => {
   });
 });
 
+// ----- CartIdStorage -----
+
+describe("CartIdStorage", () => {
+  let kv: KVNamespace;
+  let storage: CartIdStorage;
+
+  beforeEach(() => {
+    kv = createMockKV();
+    storage = new CartIdStorage(kv);
+  });
+
+  it("set then get round-trips the cart id", async () => {
+    await storage.set("user1", "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4");
+    expect(await storage.get("user1")).toBe("2b9b3963-5cac-42f8-9d28-7bebdec0b9e4");
+  });
+
+  it("get returns null when no cart id is stored", async () => {
+    expect(await storage.get("user1")).toBeNull();
+  });
+
+  it("namespaces the key by user id", async () => {
+    await storage.set("user1", "cart-a");
+    expect(await storage.get("user2")).toBeNull();
+  });
+});
+
 // ----- OrderHistoryStorage -----
 
 describe("OrderHistoryStorage", () => {
@@ -694,6 +721,7 @@ describe("createUserStorage", () => {
     expect(storage.shoppingList).toBeInstanceOf(ShoppingListStorage);
     expect(storage.cartSnapshot).toBeInstanceOf(CartSnapshotStorage);
     expect(storage.cartMirror).toBeInstanceOf(CartMirrorStorage);
+    expect(storage.cartId).toBeInstanceOf(CartIdStorage);
     expect(storage.shoppingList).not.toBe(storage.cartSnapshot);
   });
 });

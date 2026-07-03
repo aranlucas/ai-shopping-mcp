@@ -166,6 +166,10 @@ export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
         items.map((item) => ({ ...item, addedAt })),
       clear: async () => {},
     },
+    cartId: {
+      get: async () => null,
+      set: async () => {},
+    },
     preferredLocation: {
       set: async (_userId: string, location: PreferredLocation) => {
         preferredLocations.push(location);
