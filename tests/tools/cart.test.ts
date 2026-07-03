@@ -765,6 +765,37 @@ describe("view_cart tool", () => {
     expect(text).toContain("Organic Whole Milk x2");
   });
 
+  it("falls back to the mirror and names the failed cartId when the stored cartId's live read errors", async () => {
+    const storage = makeStorage(
+      null,
+      null,
+      [],
+      null,
+      [],
+      [
+        {
+          upc: "0001111042578",
+          quantity: 2,
+          modality: "PICKUP",
+          productName: "Organic Whole Milk",
+          addedAt: "2026-06-30T00:00:00.000Z",
+        },
+      ],
+      "stored-cart-id",
+    );
+    const { context } = makeContext(storage, { status: 204 }, { status: 404 });
+    registerCartTools(context);
+
+    const result = await getCapturedHandler("view_cart")({});
+
+    expect(isErrorResult(result)).toBe(false);
+    const text = textFromResult(result);
+    expect(text).not.toContain("cartId=stored-cart-id");
+    expect(text).toContain("Live cart read failed");
+    expect(text).toContain("in-store/app changes are not shown");
+    expect(text).toContain("Organic Whole Milk x2");
+  });
+
   it("declares openWorldHint true now that it can call the Kroger API", () => {
     const { context } = makeContext(makeStorage());
     registerCartTools(context);

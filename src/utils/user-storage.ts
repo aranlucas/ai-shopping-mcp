@@ -378,10 +378,12 @@ export class CartSnapshotStorage {
 
 /**
  * Cart Mirror Storage - a per-user rolling log of items this assistant has
- * added to the Kroger cart. Kroger's Cart API is write-only (no read
- * endpoint), so this mirror is the only way `view_cart` can answer "what's in
- * my cart?" — it necessarily excludes anything added or removed outside this
- * assistant (in-store, the Kroger app, kroger.com).
+ * added to the Kroger cart. Kroger's Public Cart API has no read endpoint;
+ * the Partner API's `GET /v1/carts/{id}` read only works once a cart ID is
+ * known (see `CartIdStorage` below). So this mirror remains the fallback
+ * `view_cart` uses when no cart ID is available or the live read fails — it
+ * necessarily excludes anything added or removed outside this assistant
+ * (in-store, the Kroger app, kroger.com).
  *
  * Capped at the most recent `CART_MIRROR_MAX_ITEMS` line items and expires
  * from KV after `CART_MIRROR_TTL_SECONDS` (7 days) so a stale mirror doesn't
