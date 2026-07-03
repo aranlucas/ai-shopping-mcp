@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Products API",
-    "description": "The Products API allows you to search the Kroger product catalog. <br><br>\n\n### Rate Limit\n\nThe Public Products API has a **10,000 call per day** rate limit. \n\nFor all Public APIs, we enforce the rate limit by the number of calls the client makes to the endpoint, not individual API operations. This means you can distribute the 10,000 calls across all API operations using the `/products` endpoint as you see fit. <br><br>\n\n### Pagination\n\nThe Product Search operation supports pagination with a default value of 10 results per page. Using the following parameters, you can extend and skip results in the response:\n\n`filter.limit` - Sets a limit on the number of products returned.<br>\n`filter.start` - Sets a number of results to skip in the response. \n\n**Note**: Since searching by a term acts as a fuzzy search, the order of the results can change with each new request.  <br><br>\n\n### API Operations\n\nThe Products API supports the following operations: <br>\n<table>\n<tr>\n    <th>Name</th>\n    <th>Method</th>\n    <th>Description</th>\n</tr>\n<tr>\n    <td>Product search</td>\n    <td>GET</td>\n    <td>Allows you to find products by passing in either a search term or product Id.</td>\n</tr>\n<tr>\n    <td>Product details</td>\n    <td>GET</td>\n    <td>Returns product details for a specific product.</td>\n</tr>\n</table><br><br>\n\n### Additional Response Data \n\nTo return the following data from the `/products` endpoint, you must include a <code>locationId</code> in the request. All operations for the products endpoint accept the <code>filter.locationId</code> query parameter.<br><br>\n<ul>\n<li>Price<br><br>Returns the following price objects:<br><br><code>price</code> - Includes both the <code>regular</code> price of the item and the <code>promo</code> price of the item.<br><code>nationalPrice</code> - Includes both the <code>regular</code> national price of the item and the national <code>promo</code> price of the item.<br><br><b>Note</b>: Seasonal products only return a price when available. Some items may not have a national prices available.</li><br>\n\n<li>Fulfillment Type<br><br>Returns the following boolean objects to indicate an item's fulfillment availability:<br><br><code>instore</code> - The item is sold in store at the given location.<br><code>shiptohome</code> - The item is available to be shipped to home.<br><code>delivery</code> - The item is available for delivery from the given location.<br><code>curbside</code> - The item is available for curbside pickup from the given location.<br><br> <b>Note</b>: The <code>instore</code> fulfillment type only indicated that the item is sold by the given location, not that it is in stock.</li><br>\n\n<li>Aisle Locations<br><br>Returns the aisle locations of the item for the given location.</li><br>\n\n<li>Inventory<br><br>Returns the <code>stockLevel</code> of the item. This property is omitted when unavailable:<br><br><code>HIGH</code> - The stock level is high.<br><code>LOW</code> - The stock level is low.<br><code>TEMPORARILY_OUT_OF_STOCK</code> - The item is temporarily out of stock.</li>\n</ul>\n",
+    "description": "The Products API allows you to search the Kroger product catalog. \n\n### Pagination\n\nThe Product Search operation supports pagination with a default value of 10 results per page. Using the following parameters, you can extend and skip results in the response:\n\n`filter.limit` - Sets a limit on the number of products returned.<br>\n`filter.start` - Sets a number of results to skip in the response. \n\n**Note**: Since searching by a term acts as a fuzzy search, the order of the results can change with each new request.  \n\n### API Operations\n\nThe Products API supports the following operations: <br>\n<table>\n<tr>\n    <th>Name</th>\n    <th>Method</th>\n    <th>Description</th>\n</tr>\n<tr>\n    <td>Product search</td>\n    <td>GET</td>\n    <td>Allows you to find products by passing in either a search term or product Id.</td>\n</tr>\n<tr>\n    <td>Product details</td>\n    <td>GET</td>\n    <td>Returns product details for a specific product.</td>\n</tr>\n</table><br><br>\n\n### Additional Response Data \n\nTo return the following data from the `/products` endpoint, you must include a <code>locationId</code> in the request. All operations for the products endpoint accept the <code>filter.locationId</code> query parameter.<br><br>\n<ul>\n<li>Price<br><br>Returns the following price objects:<br><br><code>price</code> - Includes both the <code>regular</code> price of the item and the <code>promo</code> price of the item.<br><code>nationalPrice</code> - Includes both the <code>regular</code> national price of the item and the national <code>promo</code> price of the item.<br><br><b>Note</b>: Seasonal products only return a price when available. Some items may not have a national prices available.</li><br>\n\n<li>Fulfillment Type<br><br>Returns the following boolean objects to indicate an item's fulfillment availability:<br><br><code>instore</code> - The item is sold in store at the given location.<br><code>shiptohome</code> - The item is available to be shipped to home.<br><code>delivery</code> - The item is available for delivery from the given location.<br><code>curbside</code> - The item is available for curbside pickup from the given location.<br><br> <b>Note</b>: The <code>instore</code> fulfillment type only indicated that the item is sold by the given location, not that it is in stock.</li><br>\n\n<li>Aisle Locations<br><br>Returns the aisle locations of the item for the given location.</li><br>\n\n<li>Inventory<br><br>Returns the <code>stockLevel</code> of the item. This property is omitted when unavailable:<br><br><code>HIGH</code> - The stock level is high.<br><code>LOW</code> - The stock level is low.<br><code>TEMPORARILY_OUT_OF_STOCK</code> - The item is temporarily out of stock.</li>\n</ul>\n",
     "termsOfService": "https://developer.kroger.com/terms",
     "contact": {
       "name": "API Support",
@@ -23,7 +23,10 @@
   ],
   "security": [
     {
-      "ClientContext": ["product.compact"]
+      "CustomerContext": ["product.personalized"]
+    },
+    {
+      "ClientContext": ["product.basic"]
     }
   ],
   "paths": {
@@ -90,7 +93,7 @@
             "in": "query",
             "description": "The number of products to skip.",
             "schema": {
-              "maximum": 250,
+              "maximum": 1000,
               "minimum": 1,
               "type": "integer"
             }
@@ -173,7 +176,10 @@
         },
         "security": [
           {
-            "ClientContext": ["product.compact"]
+            "CustomerContext": ["product.personalized"]
+          },
+          {
+            "ClientContext": ["product.basic"]
           }
         ],
         "x-code-samples": [
@@ -295,7 +301,10 @@
         },
         "security": [
           {
-            "ClientContext": ["product.compact"]
+            "CustomerContext": ["product.personalized"]
+          },
+          {
+            "ClientContext": ["product.basic"]
           }
         ],
         "x-code-samples": [
@@ -629,6 +638,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/products.productImageModel"
+            }
+          },
+          "taxonomies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/products.productTaxonomyModel"
             }
           },
           "upc": {
@@ -1104,6 +1119,56 @@
           }
         }
       },
+      "products.productTaxonomyModel": {
+        "type": "object",
+        "properties": {
+          "department": {
+            "$ref": "#/components/schemas/products.productTaxonomyDepartmentModel"
+          },
+          "commodity": {
+            "$ref": "#/components/schemas/products.productTaxonomyCommodityModel"
+          },
+          "subCommodity": {
+            "$ref": "#/components/schemas/products.productTaxonomySubCommodityModel"
+          }
+        }
+      },
+      "products.productTaxonomyDepartmentModel": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "Grocery"
+          }
+        }
+      },
+      "products.productTaxonomyCommodityModel": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "Beverages"
+          }
+        }
+      },
+      "products.productTaxonomySubCommodityModel": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "Milk & Milk Substitutes"
+          }
+        }
+      },
       "products.productTemperatureModel": {
         "type": "object",
         "description": "Information about the item's temperature requirements.",
@@ -1129,14 +1194,27 @@
       }
     },
     "securitySchemes": {
+      "CustomerContext": {
+        "type": "oauth2",
+        "description": "To make an API request that returns either personalized customer data or acts on behalf of a customer, the customer's consent is required using the [Authorization Code Grant Type](https://developer.kroger.com/reference/api/authorization-endpoints-partner#tag/OAuth2/operation/authorizationCode).\n",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://api.kroger.com/v1/connect/oauth2/authorize",
+            "tokenUrl": "https://api.kroger.com/v1/connect/oauth2/token",
+            "scopes": {
+              "product.personalized": "Grants read access to personalized product information."
+            }
+          }
+        }
+      },
       "ClientContext": {
         "type": "oauth2",
-        "description": "To make an API request that interacts with generalized information and does not require customer consent, use the [Client Credentials Grant Type](https://developer.kroger.com/reference/api/authorization-endpoints-public#tag/OAuth2/operation/accessToken) to authenticate your OAuth2 application.\n",
+        "description": "To make an API request that interacts with generalized information and does not require customer consent, use the [Client Credentials Grant Type](https://developer.kroger.com/reference/api/authorization-endpoints-partner#tag/OAuth2/operation/accessToken) to authenticate your OAuth2 application.\n",
         "flows": {
           "clientCredentials": {
             "tokenUrl": "https://api.kroger.com/v1/connect/oauth2/token",
             "scopes": {
-              "product.compact": "Grants read access to general product information."
+              "product.basic": "Grants read access to general product information."
             }
           }
         }

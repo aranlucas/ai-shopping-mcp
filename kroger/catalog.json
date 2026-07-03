@@ -1,0 +1,1950 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Catalog API V2",
+    "description": "# Introduction\nCatalog API integration let partners to access Kroger's catalog data via available product endpoints. The catalog can be customized for the partners based on their needs and requirements.\n",
+    "termsOfService": "https://developer.kroger.com/terms",
+    "contact": {
+      "name": "API Support",
+      "email": "APISupport@kroger.com",
+      "url": "https://developer.kroger.com/"
+    },
+    "license": {
+      "name": "LICENSED",
+      "url": "https://developer.kroger.com/license"
+    },
+    "version": "1.5.5"
+  },
+  "servers": [
+    {
+      "url": "https://api.kroger.com",
+      "description": "Production Environment"
+    },
+    {
+      "url": "https://api-ce.kroger.com",
+      "description": "Certification Environment"
+    }
+  ],
+  "security": [
+    {
+      "Client-Context": ["urn:com:kroger:partner:catalog:products:read"]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Catalog V2",
+      "description": "The Catalog V2 API allows you to access Kroger's catalog data. The catalog can be customized for clients based on their needs and requirements.<br><br>\n### <b>Pagination</b>\nProduct search supports <code>pagination</code> with a default value of <code>20</code> results per page. \nUsing the following parameters in the request, you can configure the <code>size</code> and <code>offset</code> of the response:<br><br>\n  <li><code>page.size</code> - Sets a number of products to be listed in the response.<br></li>\n  <li><code>page.offset</code> - Sets a number of products to skip in the response.</li><br><br></li></ul><br><br>\n\n### API Operations\n \n<table>\n<tr>\n  <th>Name</th>\n  <th>Method</th>\n  <th>Description</th>\n</tr>\n<tr>\n  <td>Catalog Search</td>\n  <td>GET</td>\n  <td>Returns a list of products and their core information.</td>\n</tr>\n<tr>\n  <td>Catalog Inventory</td>\n  <td>GET</td>\n  <td>Returns inventory details for one or more products.</td>\n</tr>\n<tr>\n    <td>Deleted Items</td>\n    <td>GET</td>\n    <td>Returns a list of disabled products within a specified time range.</td>\n</tr>"
+    }
+  ],
+  "paths": {
+    "/catalog/v2/products": {
+      "get": {
+        "tags": ["Catalog V2"],
+        "summary": "Catalog Search",
+        "description": "Search the product catalog based upon specified criteria.",
+        "parameters": [
+          {
+            "name": "filter.upc.in",
+            "in": "query",
+            "description": "Exact match to product identifier, typically UPC, or GTIN.\n\nDuplicate UPCs if present in the request parameter are ignored.\n\nMax allowed non-duplicate UPCs per request: 50",
+            "schema": {
+              "type": "string",
+              "format": "comma-separated",
+              "maximum": 20,
+              "example": "0942190607831"
+            }
+          },
+          {
+            "name": "filter.locations.id.eq",
+            "in": "query",
+            "required": true,
+            "description": "Exact match to the 8-character locationId for the store or distribution center.\n\n(filter.storeId.eq in the original Catalog Search endpoint.)",
+            "schema": {
+              "type": "string",
+              "example": "02900520"
+            }
+          },
+          {
+            "name": "filter.locations.fulfillment.eq",
+            "in": "query",
+            "required": true,
+            "description": "Exact match to product fulfillment option.\n\nMust be one of: DELIVERY, SHIP, PICKUP, or INSTORE.\n\n(filter.modality.eq in the original Catalog Search endpoint.)",
+            "schema": {
+              "type": "string",
+              "example": "DELIVERY"
+            }
+          },
+          {
+            "name": "filter.postalCode.eq",
+            "in": "query",
+            "description": "Exact match to postal code or ZIP code. (When filter.modality is set to DELIVERY for Ocado stores.)\n\n**This is a required field to request Ocado DELIVERY store products.**\n\n**Note:** For US addresses, one can use either the 5-digit or 9-digit ZIP+4.",
+            "schema": {
+              "type": "string",
+              "example": "45402"
+            }
+          },
+          {
+            "name": "filter.updatedAt.range",
+            "in": "query",
+            "description": "The updated date range provided as a comma separated set with the start date and end date in that order. \n\nProducts updated within this range (inclusive) will be returned.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2022-01-01T00:00:12.008Z,2022-02-01T00:00:12.008Z"
+            }
+          },
+          {
+            "name": "option.missingPrices",
+            "in": "query",
+            "required": false,
+            "description": "Controls whether items without pricing information are included in the response.\n\n- If omitted or set to `false`, only items with pricing information available will be returned.\n- If set to `true`, all items will be included. Items without pricing details will also appear in the API response.\n\n**Note:** Use this parameter when you want to include UPCs that don't have any associated pricing data.",
+            "schema": {
+              "type": "boolean",
+              "example": true
+            }
+          },
+          {
+            "$ref": "#/components/parameters/catalog_v2_page.offset"
+          },
+          {
+            "$ref": "#/components/parameters/catalog_v2_page.size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.products.response"
+                },
+                "examples": {
+                  "Get product(s) details": {
+                    "$ref": "#/components/examples/get.products.details"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.clientError.400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.serverError.500"
+                }
+              }
+            }
+          }
+        },
+        "x-code-samples": [
+          {
+            "lang": "Shell",
+            "source": "curl --location --request GET 'https://api.kroger.com/catalog/v2/products?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP' \\\n--header 'Authorization: Bearer {{TOKEN}}'"
+          },
+          {
+            "lang": "Go",
+            "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io/ioutil\"\n\t\"net/http\"\n)\n\nfunc main() {\n\turl := \"https://api.kroger.com/catalog/v2/products?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP\"\n\treq, _ := http.NewRequest(\"GET\", url, nil)\n\treq.Header.Add(\"Content-Type\", \"application/x-www-form-urlencoded\")\n\treq.Header.Add(\"Authorization\", \"Bearer {{TOKEN}}\")\n\tres, _ := http.DefaultClient.Do(req)\n\tdefer res.Body.Close()\n\tbody, _ := ioutil.ReadAll(res.Body)\n\tfmt.Println(res)\n\tfmt.Println(string(body))\n}\n"
+          },
+          {
+            "lang": "Java",
+            "source": "import okhttp3.*;\nimport java.io.*;\npublic class Test {\npublic static void main(String[] args) {\nOkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder().url(\"https://api.kroger.com/catalog/v2/products?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP\").get()\n.addHeader(\"Content-Type\", \"application/x-www-form-urlencoded\")\n.addHeader(\"Authorization\",\"Bearer {{TOKEN}}\")\n.build();\ntry {\nResponseBody responseBody = client.newCall(request).execute().body();\nSystem.out.println(responseBody.string());\n} catch (IOException e) {\nSystem.out.println(e.getMessage());\n}\n}\n}\n"
+          },
+          {
+            "lang": "NodeJs",
+            "source": "const axios = require('axios');\nlet config = {\n  headers: {\n    \"Content-Type\": \"application/x-www-form-urlencoded\",\n    \"Authorization\": \"Bearer {{TOKEN}}\"\n  },\n}\naxios.get('https://api.kroger.com/catalog/v2/products?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP',config)\n.then(response => {\n    console.log(response.data);\n})\n.catch(error => {\n    console.log(error);\n});"
+          }
+        ]
+      }
+    },
+    "/catalog/v2/products-inventory": {
+      "get": {
+        "tags": ["Catalog V2"],
+        "summary": "Catalog Inventory",
+        "description": "Search a location's product catalog for inventory-specific details. Current stock levels, fulfillment status, and active promotions are included.",
+        "parameters": [
+          {
+            "name": "filter.upc.in",
+            "in": "query",
+            "description": "Exact match to product identifier, typically UPC, or GTIN.<br><br>Duplicate UPCs if present in the request parameter are ignored. <br><br>Max allowed non-duplicate UPCs per request: 50",
+            "schema": {
+              "type": "string",
+              "format": "comma-separated",
+              "maximum": 20,
+              "example": "0942190607831"
+            }
+          },
+          {
+            "name": "filter.locations.id.eq",
+            "in": "query",
+            "required": true,
+            "description": "Exact match to the 8-character locationId for the store or distribution center.\n\n(filter.storeId.eq in the original Catalog Search endpoint.)",
+            "schema": {
+              "type": "string",
+              "example": "02900520"
+            }
+          },
+          {
+            "name": "filter.locations.fulfillment.eq",
+            "in": "query",
+            "required": true,
+            "description": "Exact match to product fulfillment option.<br><br>Must be one of: DELIVERY, SHIP, PICKUP, or INSTORE.\n\n(filter.modality.eq in the original Catalog Search endpoint.)",
+            "schema": {
+              "type": "string",
+              "example": "DELIVERY"
+            }
+          },
+          {
+            "name": "filter.stockLevelUpdatedAt.range",
+            "in": "query",
+            "description": "The last stock level updated date range provided as a comma separated set with the start date and end date in that order. Products with stock levels updated within this range (inclusive) will be returned.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2022-01-01T00:00:12.008Z,2022-02-02T00:00:12.008Z"
+            }
+          },
+          {
+            "name": "filter.fulfillmentUpdatedAt.range",
+            "in": "query",
+            "description": "The last fulfillment updated date range provided as a comma separated set with the start date and end date in that order. Products with fulfillment updated within this range (inclusive) will be returned.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2022-01-01T00:00:12.008Z,2022-02-02T00:00:12.008Z"
+            }
+          },
+          {
+            "name": "filter.updatedAt.range",
+            "in": "query",
+            "description": "The updated date range provided as a comma separated set with the start date and end date in that order. Products updated within this range (inclusive) will be returned.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2022-01-01T00:00:12.008Z,2022-02-02T00:00:12.008Z"
+            }
+          },
+          {
+            "name": "filter.postalCode.eq",
+            "in": "query",
+            "description": "Exact match to postal code or ZIP code. (When filter.modality is set to DELIVERY for Ocado stores.)\n\n**This is a required field to request Ocado DELIVERY store products.**\n\n**Note:** For US addresses, one can use either the 5-digit or 9-digit ZIP+4.",
+            "schema": {
+              "type": "string",
+              "example": "45402"
+            }
+          },
+          {
+            "name": "option.missingPrices",
+            "in": "query",
+            "required": false,
+            "description": "Controls whether items without pricing information are included in the response.\n\n- If omitted or set to `false`, only items with pricing information available will be returned.\n- If set to `true`, all items will be included. Items without pricing details will still appear, with their `prices` field set to an empty array `[]`.\n\n**Note:** Use this parameter when you want to include UPCs that don't have any associated pricing data.",
+            "schema": {
+              "type": "boolean",
+              "example": true
+            }
+          },
+          {
+            "$ref": "#/components/parameters/catalog_v2_page.offset"
+          },
+          {
+            "$ref": "#/components/parameters/catalog_v2_page.size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.products-inventory.response"
+                },
+                "examples": {
+                  "Get product(s) inventory": {
+                    "$ref": "#/components/examples/get.products-inventory"
+                  },
+                  "Get product(s) inventory store location(s) details": {
+                    "$ref": "#/components/examples/get.products-inventory.locations"
+                  },
+                  "Get products(s) inventory for ocado stores": {
+                    "$ref": "#/components/examples/get.products-inventory.ocadoResponse"
+                  },
+                  "Get product(s) inventory with price drop or price cut": {
+                    "$ref": "#/components/examples/get.products-inventory.priceDrop"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.clientError.400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.serverError.500"
+                }
+              }
+            }
+          }
+        },
+        "x-code-samples": [
+          {
+            "lang": "Shell",
+            "source": "curl -X GET \\\n'https://api.kroger.com/catalog/v2/products-inventory?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP' \\\n-H 'Content-Type: application/x-www-form-urlencoded' \\\n-H 'Authorization: Bearer {{TOKEN}}' \\\n"
+          },
+          {
+            "lang": "Go",
+            "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io/ioutil\"\n\t\"net/http\"\n)\n\nfunc main() {\n\turl := \"https://api.kroger.com/catalog/v2/products-inventory?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP\"\n\treq, _ := http.NewRequest(\"GET\", url, nil)\n\treq.Header.Add(\"Content-Type\", \"application/x-www-form-urlencoded\")\n\treq.Header.Add(\"Authorization\", \"Bearer {{TOKEN}}\")\n\tres, _ := http.DefaultClient.Do(req)\n\tdefer res.Body.Close()\n\tbody, _ := ioutil.ReadAll(res.Body)\n\tfmt.Println(res)\n\tfmt.Println(string(body))\n}\n"
+          },
+          {
+            "lang": "Java",
+            "source": "import okhttp3.*;\nimport java.io.*;\npublic class Test {\n    public static void main(String[] args) {\n        OkHttpClient client = new OkHttpClient();\n        Request request = new Request.Builder().url(\"https://api.kroger.com/catalog/v2/products-inventory?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP\").get()\n                .addHeader(\"Content-Type\", \"application/x-www-form-urlencoded\")\n                .addHeader(\"Authorization\",\"Bearer {{TOKEN}}\")\n                .build();\n        try {\n            ResponseBody responseBody = client.newCall(request).execute().body();\n            System.out.println(responseBody.string());\n        } catch (IOException e) {\n            System.out.println(e.getMessage());\n        }\n    }\n}\n"
+          },
+          {
+            "lang": "NodeJs",
+            "source": "const axios = require('axios');\nlet config = {\n  headers: {\n    \"Content-Type\": \"application/x-www-form-urlencoded\",\n    \"Authorization\": \"Bearer {{TOKEN}}\"\n  },\n}\naxios.get('https://api.kroger.com/catalog/v2/products-inventory?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP',config)\n.then(response => {\n    console.log(response.data);\n})\n.catch(error => {\n    console.log(error);\n});"
+          }
+        ]
+      }
+    },
+    "/catalog/v2/deleted-items": {
+      "get": {
+        "tags": ["Catalog V2"],
+        "summary": "Disabled Items",
+        "description": "Returns the disabled items based upon specified criteria.",
+        "parameters": [
+          {
+            "name": "filter.locations.id.eq",
+            "in": "query",
+            "required": true,
+            "description": "Exact match to the 8-character locationId for the store or distribution center.\n\n(filter.storeId.eq in the original Catalog Search endpoint.)",
+            "schema": {
+              "type": "string",
+              "example": "02900520"
+            }
+          },
+          {
+            "name": "filter.locations.fulfillment.eq",
+            "in": "query",
+            "required": true,
+            "description": "Exact match to product fulfillment option.\n\nMust be one of: DELIVERY, SHIP, PICKUP, or INSTORE.\n\n(filter.modality.eq in the original Catalog Search endpoint.)",
+            "schema": {
+              "type": "string",
+              "example": "DELIVERY"
+            }
+          },
+          {
+            "name": "filter.deletedAt.range",
+            "in": "query",
+            "required": true,
+            "description": "The deleted date range provided as a comma separated set with the start date and end date in that order. \n\nProducts disabled within this range (inclusive) will be returned.\n\nNote: The maximum supported range for this parameter is 2 days.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2022-01-01T00:00:12.008Z,2022-02-01T00:00:12.008Z"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.deleted-items.response"
+                },
+                "examples": {
+                  "Get disabled items": {
+                    "$ref": "#/components/examples/get.deleted-items"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.clientError.400"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/catalog_v2.serverError.500"
+                }
+              }
+            }
+          }
+        },
+        "x-code-samples": [
+          {
+            "lang": "Shell",
+            "source": "curl --location --request GET 'https://api.kroger.com/catalog/v2/deleted-items?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP' \\\n--header 'Authorization: Bearer {{TOKEN}}'"
+          },
+          {
+            "lang": "Go",
+            "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io/ioutil\"\n\t\"net/http\"\n)\n\nfunc main() {\n\turl := \"https://api.kroger.com/catalog/v2/deleted-items?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP\"\n\treq, _ := http.NewRequest(\"GET\", url, nil)\n\treq.Header.Add(\"Content-Type\", \"application/x-www-form-urlencoded\")\n\treq.Header.Add(\"Authorization\", \"Bearer {{TOKEN}}\")\n\tres, _ := http.DefaultClient.Do(req)\n\tdefer res.Body.Close()\n\tbody, _ := ioutil.ReadAll(res.Body)\n\tfmt.Println(res)\n\tfmt.Println(string(body))\n}\n"
+          },
+          {
+            "lang": "Java",
+            "source": "import okhttp3.*;\nimport java.io.*;\npublic class Test {\npublic static void main(String[] args) {\nOkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder().url(\"https://api.kroger.com/catalog/v2/deleted-items?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP\").get()\n.addHeader(\"Content-Type\", \"application/x-www-form-urlencoded\")\n.addHeader(\"Authorization\",\"Bearer {{TOKEN}}\")\n.build();\ntry {\nResponseBody responseBody = client.newCall(request).execute().body();\nSystem.out.println(responseBody.string());\n} catch (IOException e) {\nSystem.out.println(e.getMessage());\n}\n}\n}\n"
+          },
+          {
+            "lang": "NodeJs",
+            "source": "const axios = require('axios');\nlet config = {\n  headers: {\n    \"Content-Type\": \"application/x-www-form-urlencoded\",\n    \"Authorization\": \"Bearer {{TOKEN}}\"\n  },\n}\naxios.get('https://api.kroger.com/catalog/v2/deleted-items?filter.locations.id.eq=MKTPLACE&filter.locations.fulfillment.eq=SHIP',config)\n.then(response => {\n    console.log(response.data);\n})\n.catch(error => {\n    console.log(error);\n});"
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "catalog_v2_page.size": {
+        "name": "page.size",
+        "in": "query",
+        "description": "Number of products obtained per page.<br><br>Allowed range: [1 - 50]",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        },
+        "example": 25
+      },
+      "catalog_v2_page.offset": {
+        "name": "page.offset",
+        "in": "query",
+        "description": "Starting point for paginated results.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "example": 50
+      }
+    },
+    "schemas": {
+      "catalog_v2.products-inventory.response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/catalog_v2.products-inventory.data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/catalog_v2.products.meta"
+          }
+        }
+      },
+      "catalog_v2.products.response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/catalog_v2.products.data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/catalog_v2.products.meta"
+          }
+        }
+      },
+      "catalog_v2.products-inventory.data": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/catalog_v2.products-inventory"
+        }
+      },
+      "catalog_v2.products.data": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/catalog_v2.products"
+        }
+      },
+      "catalog_v2.products": {
+        "type": "object",
+        "properties": {
+          "upc": {
+            "description": "Product identifier, usually an UPC/GTIN.",
+            "type": "string",
+            "example": "0081801301354"
+          },
+          "aliasUPCs": {
+            "description": "An array of alternate UPCs or GTINs associated with the product.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "00812396017148",
+              "00882645000955",
+              "00033074301018",
+              "00705123040932",
+              "00851339002179"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Product name.",
+            "example": "Simple Truth™ Paso Robles Cabernet Sauvignon"
+          },
+          "description": {
+            "type": "string",
+            "description": "Product description.",
+            "example": "Our organic Cabernet Sauvignon grapes are grown on one of California's largest organic vineyards, in the hills of Paso Robles on the Central Coast. With its wide day-to-night temperature swings and fossil-rich marine limestones, this growing region provides unique stressors that produce deep, intense flavors with structure and elegance."
+          },
+          "updatedAt": {
+            "description": "Product last updated timestamp.",
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2020-04-17T08:11:34.021Z"
+              },
+              "timezone": {
+                "type": "string",
+                "example": "UTC"
+              }
+            }
+          },
+          "productPageURL": {
+            "type": "string",
+            "description": "Product Description Page URL.",
+            "example": "https://www.kroger.com/p/reed-s-original-real-ginger-ale-4-cans/0000827466500?cid=dis.api.tpi_catalog-api_20250501_b:all_c:p_t:3t0yu6vjv8"
+          },
+          "brand": {
+            "$ref": "#/components/schemas/catalog_v2.products.brand"
+          },
+          "categories": {
+            "$ref": "#/components/schemas/catalog_v2.products.categories"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/catalog_v2.products.metadata"
+          },
+          "images": {
+            "description": "Product images.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog_v2.image"
+              }
+            ]
+          },
+          "receiptDescription": {
+            "type": "string",
+            "description": "A brief description of the item as displayed on the receipt.",
+            "example": "MCDONALDS VL GC"
+          }
+        },
+        "xml": {
+          "name": "Product"
+        }
+      },
+      "catalog_v2.deleted-items.response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "catalog_v2.products-inventory": {
+        "type": "object",
+        "properties": {
+          "upc": {
+            "description": "Product identifier, usually an UPC/GTIN.",
+            "type": "string",
+            "example": "0081801301354"
+          },
+          "name": {
+            "type": "string",
+            "description": "Product name.",
+            "example": "Simple Truth™ Paso Robles Cabernet Sauvignon"
+          },
+          "locations": {
+            "$ref": "#/components/schemas/catalog_v2.products.locations"
+          },
+          "stockLevelUpdatedAt": {
+            "description": "Product stocklevel last updated timestamp.",
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2020-04-17T08:11:34.021Z"
+              },
+              "timezone": {
+                "type": "string",
+                "example": "UTC"
+              }
+            }
+          },
+          "fulfillmentUpdatedAt": {
+            "description": "Product fulfillment last updated timestamp.",
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2020-04-17T08:11:34.021Z"
+              },
+              "timezone": {
+                "type": "string",
+                "example": "UTC"
+              }
+            }
+          },
+          "priceUpdatedAt": {
+            "description": "Product price last updated timestamp.",
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2020-04-17T08:11:34.021Z"
+              },
+              "timezone": {
+                "type": "string",
+                "example": "UTC"
+              }
+            }
+          },
+          "updatedAt": {
+            "description": "Product stock or stocklevel or fulfillment last updated timestamp.",
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2020-04-17T08:11:34.021Z"
+              },
+              "timezone": {
+                "type": "string",
+                "example": "UTC"
+              }
+            }
+          },
+          "postalCodes": {
+            "type": "array",
+            "description": "Prices based on postal codes",
+            "items": {
+              "type": "object",
+              "properties": {
+                "postalCode": {
+                  "type": "string",
+                  "description": "Postal code",
+                  "example": "75201"
+                },
+                "prices": {
+                  "type": "array",
+                  "description": "List of prices available for this postal code",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "discountLabel": {
+                        "type": "string",
+                        "description": "Complex Promo language (tags) from upstream - Support for store-level pricing indicators.",
+                        "example": "YellowTag"
+                      },
+                      "referencePriceAmt": {
+                        "type": "string",
+                        "description": "Previous reference price amount for PriceDrop/PriceCut promotions.",
+                        "example": "USD 2.69"
+                      },
+                      "referenceNForCnt": {
+                        "type": "integer",
+                        "description": "Previous N-for quantity for PriceDrop/PriceCut promotions.",
+                        "example": 4
+                      },
+                      "soldBy": {
+                        "type": "string",
+                        "description": "Sold by unit or weight",
+                        "example": "UNIT"
+                      },
+                      "regular": {
+                        "type": "object",
+                        "description": "Regular price information",
+                        "properties": {
+                          "defaultDescription": {
+                            "type": "string",
+                            "description": "Default price description",
+                            "example": "$4.99"
+                          },
+                          "nFor": {
+                            "type": "object",
+                            "description": "Number of items for the given price",
+                            "properties": {
+                              "price": {
+                                "type": "string",
+                                "description": "Price",
+                                "example": "USD 4.99"
+                              },
+                              "quantity": {
+                                "type": "integer",
+                                "description": "Quantity",
+                                "example": 1
+                              }
+                            }
+                          },
+                          "price": {
+                            "type": "string",
+                            "description": "Price",
+                            "example": "USD 4.99"
+                          }
+                        }
+                      },
+                      "promo": {
+                        "type": "object",
+                        "description": "Promo price information. ",
+                        "properties": {
+                          "defaultDescription": {
+                            "type": "string",
+                            "description": "Human-readable promo price description.",
+                            "example": "$3.99"
+                          },
+                          "nFor": {
+                            "type": "object",
+                            "description": "Number of items for the given price",
+                            "properties": {
+                              "price": {
+                                "type": "string",
+                                "description": "Price",
+                                "example": "USD 3.99"
+                              },
+                              "quantity": {
+                                "type": "integer",
+                                "description": "Quantity",
+                                "example": 1
+                              }
+                            }
+                          },
+                          "price": {
+                            "type": "string",
+                            "description": "Price",
+                            "example": "USD 3.99"
+                          },
+                          "effectiveDate": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Start date and time when the promo price is effective.",
+                            "example": "2024-08-09T00:00:00Z"
+                          },
+                          "expiredDate": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Date and time when the promo price expires.",
+                            "example": "2024-08-16T23:59:59Z"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "xml": {
+          "name": "Product"
+        }
+      },
+      "catalog_v2.products.brand": {
+        "type": "object",
+        "description": "Product brand",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Brand name.",
+            "example": "Simple Truth"
+          },
+          "metadata": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/catalog_v2.products.brand.metadata"
+              }
+            ]
+          }
+        },
+        "xml": {
+          "name": "Brand"
+        }
+      },
+      "catalog_v2.products.brand.metadata": {
+        "type": "object",
+        "properties": {
+          "marketingName": {
+            "description": "Kroger's marketing brand name.",
+            "type": "string",
+            "example": "Simple Truth"
+          }
+        }
+      },
+      "catalog_v2.products.category": {
+        "type": "object",
+        "properties": {
+          "parent": {
+            "type": "object",
+            "properties": {
+              "department": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Department name.",
+                    "example": "Natural & Organic"
+                  },
+                  "code": {
+                    "description": "Department code",
+                    "type": "string",
+                    "example": "18"
+                  }
+                }
+              },
+              "commodity": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Commodity name.",
+                    "example": "Grocery"
+                  },
+                  "code": {
+                    "description": "Commodity code",
+                    "type": "string",
+                    "example": "012"
+                  }
+                }
+              },
+              "subCommodity": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Sub commodity name.",
+                    "example": "Bars"
+                  },
+                  "code": {
+                    "description": "Sub commodity code",
+                    "type": "string",
+                    "example": "00014"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "xml": {
+          "name": "Category"
+        }
+      },
+      "catalog_v2.products.locations": {
+        "type": "array",
+        "maxItems": 20,
+        "description": "Product locations.",
+        "items": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Unique identifier for Kroger store or distribution center location.",
+              "example": "70100485"
+            },
+            "aisleLocations": {
+              "$ref": "#/components/schemas/catalog_v2.products.locations.aisleLocations"
+            },
+            "inventory": {
+              "$ref": "#/components/schemas/catalog_v2.products.locations.inventory"
+            },
+            "fulfillment": {
+              "$ref": "#/components/schemas/catalog_v2.products.locations.fulfillment"
+            },
+            "restriction": {
+              "$ref": "#/components/schemas/catalog_v2.products.locations.restriction"
+            }
+          }
+        }
+      },
+      "catalog_v2.products.locations.restriction": {
+        "type": "object",
+        "description": "Order quantity restrictions for the location. ",
+        "properties": {
+          "maxOrderQuantity": {
+            "type": "integer",
+            "description": "Maximum order quantity.",
+            "example": 4
+          }
+        }
+      },
+      "catalog_v2.products.metadata": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "$ref": "#/components/schemas/catalog_v2.products.metadata.package"
+          },
+          "size": {
+            "description": "Product quantity.",
+            "type": "string",
+            "example": "1 lb"
+          },
+          "gtin14": {
+            "description": "Product gtin14.",
+            "type": "string",
+            "example": "00052100071039"
+          },
+          "nutritionalPreferences": {
+            "description": "Product nutritional preferences.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["GLUTEN_FREE", "LIVE_NATURALLY", "ORGANIC", "NON_GMO"],
+              "example": ["GLUTEN_FREE", "LIVE_NATURALLY"]
+            }
+          },
+          "countryOfOrigin": {
+            "description": "Product's country of origin",
+            "type": "string",
+            "example": "UNITED STATES"
+          },
+          "temperature": {
+            "$ref": "#/components/schemas/catalog_v2.products.metadata.temperature"
+          },
+          "snapEligible": {
+            "description": "Indicates if an item is eligible for Supplemental Nutrition Assistance Program (SNAP) or not.",
+            "type": "boolean",
+            "example": true
+          },
+          "alcoholic": {
+            "description": "Indicates if an item is alcoholic",
+            "type": "boolean",
+            "example": true
+          },
+          "alcoholProof": {
+            "description": "Identifies the alcohol proof of the product.",
+            "type": "number",
+            "example": 84
+          },
+          "restrictedItem": {
+            "description": "Indicates if an item has any restriction or not",
+            "type": "boolean",
+            "example": true
+          },
+          "ageRestrictionFlag": {
+            "description": "Indicates if an item has age restriction",
+            "type": "boolean",
+            "example": true
+          },
+          "averageWeightPerUnit": {
+            "description": "Average weight per unit of the product ( This field is calculated when the Order by is unit and the Sell by is weight ).",
+            "type": "string",
+            "example": "0.3 [lb_av]"
+          }
+        }
+      },
+      "catalog_v2.products.metadata.temperature": {
+        "type": "object",
+        "description": "Temparature information of a product",
+        "properties": {
+          "heatSensitive": {
+            "type": "boolean",
+            "description": "Indicates if an item is heat sensitive or not",
+            "example": true
+          },
+          "indicator": {
+            "type": "string",
+            "description": "Temparature indicator of a product",
+            "example": "Refrigerated"
+          }
+        }
+      },
+      "catalog_v2.products.metadata.package": {
+        "type": "object",
+        "description": "Package details like dimensions and weight.",
+        "properties": {
+          "length": {
+            "type": "string",
+            "description": "Product length.",
+            "example": "3.55 [in_i]"
+          },
+          "width": {
+            "type": "string",
+            "description": "Product width.",
+            "example": "8.85 [in_i]"
+          },
+          "height": {
+            "type": "string",
+            "description": "Product height.",
+            "example": "13.4 [in_i]"
+          },
+          "shape": {
+            "type": "string",
+            "description": "Product shape.",
+            "example": "Cylindrical"
+          },
+          "weight": {
+            "type": "string",
+            "description": "Product weight.",
+            "example": "4.2 [lb_av]"
+          }
+        }
+      },
+      "catalog_v2.products.meta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "$ref": "#/components/schemas/catalog_v2.products.meta.page"
+          }
+        }
+      },
+      "catalog_v2.image": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "perspective": {
+              "type": "string",
+              "enum": ["FRONT", "BACK", "LEFT", "RIGHT"]
+            },
+            "default": {
+              "type": "boolean",
+              "example": true
+            },
+            "sizes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/catalog_v2.image.resolution.sizes"
+              }
+            }
+          }
+        }
+      },
+      "catalog_v2.image.resolution.sizes": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "http://www.example.com/image.jpg"
+          },
+          "descriptor": {
+            "type": "string",
+            "example": "medium"
+          }
+        }
+      },
+      "catalog_v2.products.locations.inventory": {
+        "type": "array",
+        "description": "Product inventory",
+        "items": {
+          "properties": {
+            "stock": {
+              "$ref": "#/components/schemas/catalog_v2.products.locations.inventory.stock"
+            },
+            "instock": {
+              "type": "boolean",
+              "description": "Indicates if a product is instock at a store location or not.",
+              "example": true
+            },
+            "prices": {
+              "$ref": "#/components/schemas/catalog_v2.products.locations.inventory.prices"
+            }
+          }
+        }
+      },
+      "catalog_v2.products.locations.inventory.stock": {
+        "type": "object",
+        "properties": {
+          "availableToSell": {
+            "type": "integer",
+            "description": "Number of products instock.",
+            "example": 4
+          },
+          "level": {
+            "type": "string",
+            "description": "Level of stock of particular product.",
+            "example": "HIGH"
+          }
+        }
+      },
+      "catalog_v2.products.locations.inventory.prices.price.nFor": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "string",
+            "description": "Number of product units",
+            "example": 4
+          },
+          "price": {
+            "type": "string",
+            "description": "Product price if given quantity is bought.",
+            "example": "USD 18.00"
+          }
+        }
+      },
+      "catalog_v2.products.locations.aisleLocations": {
+        "type": "array",
+        "description": "Product aisleLocations in a given store location.",
+        "items": {
+          "properties": {
+            "aisle": {
+              "type": "string",
+              "description": "Product aisle.",
+              "example": "aisle"
+            },
+            "aisleDescription": {
+              "type": "string"
+            },
+            "aisleSide": {
+              "type": "string"
+            },
+            "shelf": {
+              "type": "string",
+              "description": "Product shelf.",
+              "example": "shelf"
+            },
+            "position": {
+              "type": "string",
+              "description": "Product position.",
+              "example": "position"
+            },
+            "bayNumber": {
+              "type": "string"
+            },
+            "numberOfFacings": {
+              "type": "string"
+            },
+            "departmentCode": {
+              "type": "string",
+              "description": "A 2-character string representing the department where the item is located.",
+              "example": "GR"
+            },
+            "departmentDescription": {
+              "type": "string",
+              "description": "A long-form string providing the full name of the department where the item is located.",
+              "example": "Grocery"
+            },
+            "areaId": {
+              "type": "string",
+              "description": "A 3-character numeric ID representing the area where the item is placed.",
+              "example": "010"
+            },
+            "areaTypeCode": {
+              "type": "string",
+              "description": "A 2-character code that defines the type of area where the item is stored or displayed.",
+              "example": "AL"
+            },
+            "areaTypeDescription": {
+              "type": "string",
+              "description": "A long-form description of the area type.",
+              "example": "Aisle"
+            },
+            "subAreaId": {
+              "type": "string",
+              "description": "A 2 or 3 character numeric ID representing the sub-area within an aisle or section.",
+              "example": "001"
+            },
+            "subAreaTypeCode": {
+              "type": "string",
+              "description": "A 2-character code representing a subsection within the main area.",
+              "example": "EC"
+            },
+            "subAreaTypeDescription": {
+              "type": "string",
+              "description": "A long-form description of the sub-area where the product is stored or displayed.",
+              "example": "Endcap"
+            },
+            "orientationCode": {
+              "type": "string",
+              "description": "A code representing the side or orientation of the fixture where the item is placed",
+              "example": "L"
+            },
+            "orientationDescription": {
+              "type": "string",
+              "description": "A human-readable description of the product’s orientation within the fixture.",
+              "example": "Left"
+            },
+            "fixtureNumber": {
+              "type": "string",
+              "description": "A numeric string representing the identifier of the fixture (e.g., a shelf) within the bay where the item is located. It resembles the legacy shelfNumber field and helps pinpoint the exact placement of the product.",
+              "example": "4"
+            },
+            "fixLocAbbreviated": {
+              "type": "string",
+              "description": "An abbreviated code used to represent the fixture location concisely.",
+              "example": "DRAL010EC001F006"
+            },
+            "locationType": {
+              "type": "string",
+              "description": "The type of location where the product is stored/displayed.",
+              "example": "displayLocation"
+            }
+          }
+        }
+      },
+      "catalog_v2.products.locations.inventory.prices": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "discountLabel": {
+              "type": "string",
+              "description": "Complex Promo language (tags) from upstream - Support for store-level pricing indicators.",
+              "example": "YellowTag"
+            },
+            "referencePriceAmt": {
+              "type": "string",
+              "description": "Previous reference price amount for PriceDrop/PriceCut promotions.",
+              "example": "USD 2.69"
+            },
+            "referenceNForCnt": {
+              "type": "integer",
+              "description": "Previous N-for quantity for PriceDrop/PriceCut promotions.",
+              "example": 4
+            },
+            "regular": {
+              "$ref": "#/components/schemas/catalog_v2.products.locations.inventory.prices.price"
+            },
+            "promo": {
+              "$ref": "#/components/schemas/catalog_v2.products.locations.inventory.prices.price"
+            }
+          }
+        }
+      },
+      "catalog_v2.products.locations.inventory.prices.price": {
+        "type": "object",
+        "description": "Pricing details for the product.",
+        "properties": {
+          "unit": {
+            "type": "string",
+            "description": "Unit price of product",
+            "example": "USD 5.00"
+          },
+          "description": {
+            "type": "string",
+            "description": "Product price description",
+            "example": "Offer price"
+          },
+          "defaultDescription": {
+            "type": "string",
+            "description": "Default price description",
+            "example": "$4.99"
+          },
+          "promoDescription": {
+            "type": "string",
+            "description": "Promo price description.",
+            "example": "$19.88"
+          },
+          "nFor": {
+            "$ref": "#/components/schemas/catalog_v2.products.locations.inventory.prices.price.nFor"
+          },
+          "soldBy": {
+            "description": "Sold by unit or weight.",
+            "type": "string",
+            "enum": ["UNIT", "WEIGHT"],
+            "example": "UNIT"
+          },
+          "effectiveDate": {
+            "type": "object",
+            "description": "Product price type effective date. If there's a promo price, the effective date is associated with it; otherwise, it's associated with the regular price.",
+            "properties": {
+              "value": {
+                "type": "string",
+                "example": "2020-04-09T14:23:41Z"
+              },
+              "timezone": {
+                "type": "string",
+                "example": "IST"
+              }
+            }
+          },
+          "expiredDate": {
+            "type": "object",
+            "description": "Product price type expired date. If there's a promo price, the expiry date is associated with it; otherwise, it's associated with the regular price.",
+            "properties": {
+              "value": {
+                "type": "string",
+                "example": "2020-04-13T14:23:41Z"
+              },
+              "timezone": {
+                "type": "string",
+                "example": "IST"
+              }
+            }
+          }
+        }
+      },
+      "catalog_v2.products.locations.fulfillment": {
+        "type": "object",
+        "description": "Product fulfilment",
+        "properties": {
+          "delivery": {
+            "type": "boolean",
+            "example": true
+          },
+          "ship": {
+            "type": "boolean",
+            "example": false
+          },
+          "pickup": {
+            "type": "boolean",
+            "example": true
+          },
+          "instore": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+      "catalog_v2.products.categories": {
+        "description": "Product categories.",
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/catalog_v2.products.category"
+        }
+      },
+      "catalog_v2.products.meta.page": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "description": "Starting point for paginated results.",
+            "example": 0
+          },
+          "size": {
+            "type": "integer",
+            "description": "Number of products per page.",
+            "example": 20
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "An optional flag to indicate if there are more products available beyond the current page to retrieve."
+          }
+        }
+      },
+      "catalog_v2.clientError.400": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "$ref": "#/components/schemas/catalog_v2.APIError.clientError"
+          }
+        }
+      },
+      "catalog_v2.APIError.clientError": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "example": "Invalid Parameter"
+            },
+            "reason": {
+              "type": "string",
+              "example": "Incorrect value for parameter: locations.id"
+            },
+            "datetime": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "example": "2020-04-09T14:23:41Z"
+                },
+                "timezone": {
+                  "type": "string",
+                  "example": "IST"
+                }
+              }
+            }
+          }
+        }
+      },
+      "catalog_v2.serverError.500": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "example": "Internal Server Error"
+                },
+                "reason": {
+                  "type": "string",
+                  "example": "Sorry, an unexpected error has occurred. Please try again later."
+                },
+                "datetime": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "example": "2020-04-09T14:23:41Z"
+                    },
+                    "timezone": {
+                      "type": "string",
+                      "example": "IST"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "examples": {
+      "get.products.details": {
+        "value": {
+          "data": [
+            {
+              "upc": "0081801301354",
+              "aliasUPCs": [
+                "00812396017148",
+                "00882645000955",
+                "00033074301018",
+                "00705123040932",
+                "00851339002179"
+              ],
+              "name": "Simple Truth™ Paso Robles Cabernet Sauvignon",
+              "description": "Our organic Cabernet Sauvignon grapes are grown on one of California's largest organic vineyards, in the hills of Paso Robles on the Central Coast. With its wide day-to-night temperature swings and fossil-rich marine limestones, this growing region provides unique stressors that produce deep, intense flavors with structure and elegance.",
+              "productPageURL": "https://www.kroger.com/p/reed-s-original-real-ginger-ale-4-cans/0000827466500?cid=dis.api.tpi_catalog-api_20250501_b:all_c:p_t:3t0yu6vjv8",
+              "brand": {
+                "name": "Simple Truth",
+                "metadata": {
+                  "marketingName": "Simple Truth"
+                }
+              },
+              "categories": [
+                {
+                  "department": {
+                    "code": "08",
+                    "name": "Beer, Wine & Liquor"
+                  },
+                  "commodity": {
+                    "code": "120",
+                    "name": "Red Wine"
+                  },
+                  "subCommodity": {
+                    "code": "00571",
+                    "name": "Cabernet Sauvignon Wine"
+                  }
+                },
+                {
+                  "department": {
+                    "code": "18",
+                    "name": "Natural & Organic"
+                  },
+                  "commodity": {
+                    "code": "012",
+                    "name": "Grocery"
+                  },
+                  "subCommodity": {
+                    "code": "00001",
+                    "name": "Snacks"
+                  }
+                }
+              ],
+              "metadata": {
+                "gtin14": "00818013013548",
+                "size": "750 mL",
+                "alcoholic": true,
+                "alcoholProof": 84,
+                "snapEligible": false,
+                "nutritionalPreferences": ["LIVE_NATURALLY", "NON_GMO", "GLUTEN_FREE"],
+                "package": {
+                  "length": "3.02 [in_i]",
+                  "width": "3.02 [in_i]",
+                  "height": "12.04 [in_i]",
+                  "weight": "2.8 [lb_av]"
+                },
+                "temperature": {
+                  "indicator": "Ambient"
+                },
+                "countryOfOrigin": "NEW ZEALAND",
+                "restrictedItem": true,
+                "ageRestrictionFlag": true,
+                "averageWeightPerUnit": "0.3 [lb_av]"
+              },
+              "images": [
+                {
+                  "default": true,
+                  "perspective": "FRONT",
+                  "sizes": [
+                    {
+                      "url": "https://www.kroger.com/product/images/xlarge/left/0081801301354",
+                      "descriptor": "xlarge"
+                    },
+                    {
+                      "url": "https://www.kroger.com/product/images/large/left/0081801301354",
+                      "descriptor": "large"
+                    },
+                    {
+                      "url": "https://www.kroger.com/product/images/medium/left/0081801301354",
+                      "descriptor": "medium"
+                    },
+                    {
+                      "url": "https://www.kroger.com/product/images/small/left/0081801301354",
+                      "descriptor": "small"
+                    },
+                    {
+                      "url": "https://www.kroger.com/product/images/thumbnail/left/0081801301354",
+                      "descriptor": "thumbnail"
+                    }
+                  ]
+                }
+              ],
+              "receiptDescription": "MCDONALDS VL GC"
+            }
+          ],
+          "meta": {
+            "page": {
+              "page": {
+                "offset": 0,
+                "size": 20,
+                "hasMore": false
+              }
+            }
+          }
+        }
+      },
+      "get.products-inventory": {
+        "value": {
+          "data": [
+            {
+              "upc": "0081801301354",
+              "name": "Simple Truth™ Paso Robles Cabernet Sauvignon",
+              "stockLevelUpdatedAt": {
+                "value": "2022-01-02T50:53:40Z",
+                "timezone": "UTC"
+              },
+              "fulfillmentUpdatedAt": {
+                "value": "2022-01-01T59:53:40Z",
+                "timezone": "UTC"
+              },
+              "priceUpdatedAt": {
+                "value": "2022-01-01T10:53:40Z",
+                "timezone": "UTC"
+              },
+              "updatedAt": {
+                "value": "2020-01-02T50:53:40Z",
+                "timezone": "UTC"
+              },
+              "locations": [
+                {
+                  "id": "02600895",
+                  "inventory": [
+                    {
+                      "sellerID": "KR001",
+                      "sellerName": "Kroger",
+                      "stock": {
+                        "availableToSell": 6,
+                        "level": "HIGH"
+                      },
+                      "instock": true,
+                      "prices": [
+                        {
+                          "discountLabel": "YellowTag",
+                          "soldBy": "UNIT",
+                          "regular": {
+                            "currency": "USD",
+                            "defaultDescription": "$19.88",
+                            "nfor": [
+                              {
+                                "quantity": 1,
+                                "price": 19.88
+                              }
+                            ],
+                            "unit": 19.88
+                          },
+                          "promo": {
+                            "currency": "USD",
+                            "effectiveDate": {
+                              "value": "2023-03-12T00:00:00Z",
+                              "timezone": "UTC"
+                            },
+                            "expiredDate": {
+                              "value": "2023-03-15T00:00:00Z",
+                              "timezone": "UTC"
+                            },
+                            "nfor": [
+                              {
+                                "quantity": 1,
+                                "price": 19.88
+                              }
+                            ],
+                            "promoDescription": "$19.88",
+                            "unit": 19.88
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "aisleLocations": [
+                    {
+                      "aisle": "5",
+                      "aisleDescription": "AISLE 5",
+                      "aisleSide": "R",
+                      "bayNumber": "001",
+                      "numberOfFacings": "2",
+                      "shelf": "2",
+                      "position": "8",
+                      "departmentCode": "GR",
+                      "departmentDescription": "Grocery",
+                      "areaId": "010",
+                      "areaTypeCode": "AL",
+                      "areaTypeDescription": "Aisle",
+                      "subAreaTypeCode": "EC",
+                      "subAreaId": "001",
+                      "subAreaTypeDescription": "Endcap",
+                      "orientationCode": "R",
+                      "orientationDescription": "Right",
+                      "fixtureNumber": "3",
+                      "fixLocAbbreviated": "DRAL010EC002F003",
+                      "locationType": "displayLocation"
+                    }
+                  ],
+                  "fulfillment": {
+                    "delivery": true,
+                    "ship": false,
+                    "pickup": true,
+                    "instore": true
+                  },
+                  "restriction": {
+                    "maxOrderQuantity": 4
+                  }
+                }
+              ]
+            }
+          ],
+          "meta": {
+            "page": {
+              "offset": 0,
+              "size": 20,
+              "hasMore": false
+            }
+          }
+        }
+      },
+      "get.products-inventory.ocadoResponse": {
+        "value": {
+          "data": [
+            {
+              "upc": "0081801301354",
+              "name": "Simple Truth™ Paso Robles Cabernet Sauvignon",
+              "stockLevelUpdatedAt": {
+                "value": "2022-01-02T50:53:40Z",
+                "timezone": "UTC"
+              },
+              "fulfillmentUpdatedAt": {
+                "value": "2022-01-01T59:53:40Z",
+                "timezone": "UTC"
+              },
+              "priceUpdatedAt": {
+                "value": "2022-01-01T10:53:40Z",
+                "timezone": "UTC"
+              },
+              "updatedAt": {
+                "value": "2020-01-02T50:53:40Z",
+                "timezone": "UTC"
+              },
+              "locations": [
+                {
+                  "id": "02600895",
+                  "inventory": [
+                    {
+                      "sellerID": "KR001",
+                      "sellerName": "Kroger",
+                      "stock": {
+                        "availableToSell": 6,
+                        "level": "HIGH"
+                      },
+                      "instock": true,
+                      "prices": "null"
+                    }
+                  ],
+                  "aisleLocations": [
+                    {
+                      "aisle": "5",
+                      "aisleDescription": "AISLE 5",
+                      "aisleSide": "R",
+                      "bayNumber": "001",
+                      "numberOfFacings": "2",
+                      "shelf": "2",
+                      "position": "8"
+                    }
+                  ],
+                  "fulfillment": {
+                    "delivery": true,
+                    "ship": false,
+                    "pickup": true,
+                    "instore": true
+                  },
+                  "restriction": {
+                    "maxOrderQuantity": 4
+                  }
+                }
+              ],
+              "postalCodes": [
+                {
+                  "postalCode": "32030",
+                  "prices": [
+                    {
+                      "discountLabel": "YellowTag",
+                      "soldBy": "UNIT",
+                      "regular": {
+                        "defaultDescription": "$4.99",
+                        "nFor": {
+                          "price": "USD 4.99",
+                          "quantity": 1
+                        },
+                        "price": "USD 4.99"
+                      },
+                      "promo": {
+                        "defaultDescription": "$3.99",
+                        "nFor": {
+                          "price": "USD 3.99",
+                          "quantity": 1
+                        },
+                        "price": "USD 3.99"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "meta": {
+            "page": {
+              "offset": 0,
+              "size": 20,
+              "hasMore": false
+            }
+          }
+        }
+      },
+      "get.deleted-items": {
+        "value": {
+          "data": [
+            "0081801301354",
+            "0081801301355",
+            "8244452001046",
+            "8244452001048",
+            "8244453001046",
+            "0081801301359",
+            "0081801301456"
+          ]
+        }
+      },
+      "get.products-inventory.locations": {
+        "value": {
+          "data": [
+            {
+              "upc": "0081801301354",
+              "name": "Simple Truth™ Paso Robles Cabernet Sauvignon",
+              "locations": [
+                {
+                  "id": "02600895",
+                  "inventory": [
+                    {
+                      "stock": {
+                        "availableToSell": 6,
+                        "level": "HIGH"
+                      },
+                      "instock": true,
+                      "prices": [
+                        {
+                          "discountLabel": "YellowTag",
+                          "soldBy": "UNIT",
+                          "regular": {
+                            "currency": "USD",
+                            "defaultDescription": "$19.88",
+                            "nfor": [
+                              {
+                                "quantity": 1,
+                                "price": 19.88
+                              }
+                            ],
+                            "unit": 19.88
+                          },
+                          "promo": {
+                            "currency": "USD",
+                            "effectiveDate": {
+                              "value": "2023-03-12T00:00:00Z",
+                              "timezone": "UTC"
+                            },
+                            "expiredDate": {
+                              "value": "2023-03-15T00:00:00Z",
+                              "timezone": "UTC"
+                            },
+                            "nfor": [
+                              {
+                                "quantity": 1,
+                                "price": 19.88
+                              }
+                            ],
+                            "promoDescription": "$19.88",
+                            "unit": 19.88
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "aisleLocations": [
+                    {
+                      "aisle": "5",
+                      "aisleDescription": "AISLE 5",
+                      "aisleSide": "R",
+                      "bayNumber": "001",
+                      "numberOfFacings": "2",
+                      "shelf": "2",
+                      "position": "8"
+                    }
+                  ],
+                  "fulfillment": {
+                    "delivery": true,
+                    "ship": false,
+                    "pickup": true,
+                    "instore": true
+                  },
+                  "restriction": {
+                    "maxOrderQuantity": 4
+                  }
+                }
+              ]
+            }
+          ],
+          "meta": {
+            "page": {
+              "offset": 0,
+              "size": 1,
+              "hasMore": false
+            }
+          }
+        }
+      },
+      "get.products-inventory.priceDrop": {
+        "value": {
+          "data": [
+            {
+              "upc": "0001111041700",
+              "name": "Private Selection™ Kona Blend Coffee",
+              "stockLevelUpdatedAt": {
+                "value": "2022-01-02T50:53:40Z",
+                "timezone": "UTC"
+              },
+              "fulfillmentUpdatedAt": {
+                "value": "2022-01-01T59:53:40Z",
+                "timezone": "UTC"
+              },
+              "priceUpdatedAt": {
+                "value": "2022-01-01T10:53:40Z",
+                "timezone": "UTC"
+              },
+              "updatedAt": {
+                "value": "2020-01-02T50:53:40Z",
+                "timezone": "UTC"
+              },
+              "locations": [
+                {
+                  "id": "02600895",
+                  "inventory": [
+                    {
+                      "sellerID": "KR001",
+                      "sellerName": "Kroger",
+                      "stock": {
+                        "availableToSell": 12,
+                        "level": "HIGH"
+                      },
+                      "instock": true,
+                      "prices": [
+                        {
+                          "discountLabel": "PriceCut",
+                          "referencePriceAmt": "USD 6.99",
+                          "referenceNForCnt": 1,
+                          "soldBy": "UNIT",
+                          "regular": {
+                            "currency": "USD",
+                            "defaultDescription": "$5.99",
+                            "nfor": [
+                              {
+                                "quantity": 1,
+                                "price": 5.99
+                              }
+                            ],
+                            "unit": 5.99
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "aisleLocations": [
+                    {
+                      "aisle": "8",
+                      "aisleDescription": "AISLE 8",
+                      "aisleSide": "L",
+                      "bayNumber": "005",
+                      "numberOfFacings": "3",
+                      "shelf": "4",
+                      "position": "12"
+                    }
+                  ],
+                  "fulfillment": {
+                    "delivery": true,
+                    "ship": false,
+                    "pickup": true,
+                    "instore": true
+                  },
+                  "restriction": {
+                    "maxOrderQuantity": 10
+                  }
+                }
+              ]
+            }
+          ],
+          "meta": {
+            "page": {
+              "offset": 0,
+              "size": 1,
+              "hasMore": false
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Client-Context": {
+        "type": "oauth2",
+        "description": "To make an API request that interacts with generalized information and does not require customer consent, use the [Client Credentials Grant Type](https://developer.kroger.com/reference/api/authorization-endpoints-partner#tag/OAuth2/operation/accessToken) to authenticate your OAuth2 application.\n",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "https://api.kroger.com/v1/connect/oauth2/token",
+            "scopes": {
+              "urn:com:kroger:partner:catalog:products:read": "Read the product information"
+            }
+          }
+        }
+      }
+    }
+  }
+}
