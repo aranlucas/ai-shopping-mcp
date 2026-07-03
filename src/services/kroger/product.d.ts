@@ -244,6 +244,7 @@ export interface components {
       itemInformation?: components["schemas"]["products.productBoxedDimensionsModel"];
       temperature?: components["schemas"]["products.productTemperatureModel"];
       images?: components["schemas"]["products.productImageModel"][];
+      taxonomies?: components["schemas"]["products.productTaxonomyModel"][];
       /**
        * @description The UPC of the product.
        * @example 0001111041700
@@ -539,6 +540,26 @@ export interface components {
        * @example https://www.kroger.com/product/images/medium/front/0001111041700
        */
       url?: string;
+    };
+    "products.productTaxonomyModel": {
+      department?: components["schemas"]["products.productTaxonomyDepartmentModel"];
+      commodity?: components["schemas"]["products.productTaxonomyCommodityModel"];
+      subCommodity?: components["schemas"]["products.productTaxonomySubCommodityModel"];
+    };
+    "products.productTaxonomyDepartmentModel": {
+      code?: string;
+      /** @example Grocery */
+      name?: string;
+    };
+    "products.productTaxonomyCommodityModel": {
+      code?: string;
+      /** @example Beverages */
+      name?: string;
+    };
+    "products.productTaxonomySubCommodityModel": {
+      code?: string;
+      /** @example Milk & Milk Substitutes */
+      name?: string;
     };
     /** @description Information about the item's temperature requirements. */
     "products.productTemperatureModel": {
