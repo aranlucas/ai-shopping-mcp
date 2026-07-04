@@ -2,6 +2,8 @@
 
 Future features for the Kroger/QFC shopping MCP server, prioritized by value relative to effort. Each entry explains why it's worth building, how it fits the existing architecture, and what it depends on.
 
+This roadmap covers tool-layer features only. `docs/VISION.md` describes the wider system (agent host, frontend, free-model constraint), the host-integration audit, and a cross-cutting improvement backlog that sequences these items.
+
 A guiding constraint for everything below: the Kroger public API only exposes products, locations, cart, and identity. Coupons, pickup time slots, order history, and nutrition data are **not** available, so every feature here is designed around what we can actually reach — the public API, the QFC weekly-ad scrape, and our own KV data.
 
 ---
