@@ -102,7 +102,7 @@ Tests:
 - `tests/tools/tool-test-harness.ts`: shared harness for tool unit tests.
 - `tests/evals/harness.ts`: end-to-end eval harness (real Worker via `SELF`, real MCP client, fixture-backed Kroger API).
 
-Design/plan documents live in `docs/` (`small-model-efficiency-plan.md`, `ROADMAP.md`, `cart-api-plan.md`). When a code comment cites one, read it before changing that code.
+Design/plan documents live in `docs/` (`VISION.md`, `small-model-efficiency-plan.md`, `ROADMAP.md`, `cart-api-plan.md`). When a code comment cites one, read it before changing that code. `docs/VISION.md` is the north star: system architecture, host-integration contract, design principles (including explicitly rejected approaches), and the improvement backlog.
 
 ## Request And Server Lifecycle
 
