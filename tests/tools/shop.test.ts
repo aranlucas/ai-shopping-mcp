@@ -406,12 +406,11 @@ describe("shop_for_items", () => {
 
     function makeStubAi() {
       return {
-        run: async (_model: string, options: { text: string[] }) => ({
-          data: options.text.map((text) => {
-            if (text === "milk") return [1, 0];
-            if (text.startsWith("Whole Milk")) return [0.9, 0.1];
-            return [0, 1];
-          }),
+        run: async (_model: string, options: { contexts: { text?: string }[] }) => ({
+          response: options.contexts.map((context, index) => ({
+            id: index,
+            score: context.text?.startsWith("Whole Milk") ? 0.9 : 0.1,
+          })),
         }),
       };
     }

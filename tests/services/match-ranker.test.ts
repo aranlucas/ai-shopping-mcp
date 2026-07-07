@@ -1,30 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
-import type { EmbeddingAi, EmbeddingKv } from "../../src/services/match-ranker.js";
 
-import { isEmbeddingAiLike, rankProductMatches } from "../../src/services/match-ranker.js";
+import { rankProductMatches } from "../../src/services/match-ranker.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+type RerankerRunInput = {
+  query: string;
+  contexts: Array<{ text: string }>;
+  top_k: number;
+};
+type RerankerRunOutput = {
+  response: Array<{ id: number; score: number }>;
+};
+type RerankerRunMock = ReturnType<
+  typeof vi.fn<(model: string, options: RerankerRunInput) => Promise<RerankerRunOutput>>
+>;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Mirrors match-ranker.ts's internal cache-key derivation (SHA-256 hex of the
- * embedded text, prefixed `embed|v1|bge-small|`) so tests can pre-seed the KV
- * cache under the exact key the module will look up.
- */
-async function sha256Hex(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function embeddingCacheKey(text: string): Promise<string> {
-  return `embed|v1|bge-small|${await sha256Hex(text)}`;
-}
 
 function makeProduct(overrides: Partial<Product> = {}): Product {
   return {
@@ -35,47 +30,20 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
   };
 }
 
-/** A stub KV whose store, get, and put mocks are all inspectable from the test. */
-function makeFakeKv(): {
-  kv: EmbeddingKv;
-  store: Map<string, string>;
-  get: ReturnType<typeof vi.fn>;
-  put: ReturnType<typeof vi.fn>;
+/** A stub Ai binding whose `run` returns a caller-supplied score per context text. */
+function makeStubAi(scoreFor: (text: string, index: number) => number): {
+  ai: Ai;
+  run: RerankerRunMock;
 } {
-  const store = new Map<string, string>();
-  const get = vi.fn(async (key: string) => store.get(key) ?? null);
-  const put = vi.fn(async (key: string, value: string) => {
-    store.set(key, value);
-  });
-  return { kv: { get, put }, store, get, put };
-}
-
-/** A stub Ai binding whose `run` returns a caller-supplied vector per input text. */
-function makeStubAi(vectorFor: (text: string) => number[]): EmbeddingAi {
-  return {
-    run: vi.fn(async (_model: string, options: { text: string[] }) => ({
-      data: options.text.map(vectorFor),
+  const run = vi.fn(async (_model: string, options: RerankerRunInput) => ({
+    response: options.contexts.map((context, index) => ({
+      id: index,
+      score: scoreFor(context.text, index),
     })),
-  };
+  }));
+
+  return { ai: { run } as unknown as Ai, run };
 }
-
-// ---------------------------------------------------------------------------
-// isEmbeddingAiLike
-// ---------------------------------------------------------------------------
-
-describe("isEmbeddingAiLike", () => {
-  it("accepts an object with a run function", () => {
-    expect(isEmbeddingAiLike({ run: () => {} })).toBe(true);
-  });
-
-  it("rejects null, non-objects, and objects without run", () => {
-    expect(isEmbeddingAiLike(null)).toBe(false);
-    expect(isEmbeddingAiLike(undefined)).toBe(false);
-    expect(isEmbeddingAiLike("ai")).toBe(false);
-    expect(isEmbeddingAiLike({})).toBe(false);
-    expect(isEmbeddingAiLike({ run: "not a function" })).toBe(false);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // rankProductMatches
@@ -104,72 +72,113 @@ describe("rankProductMatches", () => {
     // the real milk match ahead of it.
     const products = [milkChocolate, milk];
 
-    const ai = makeStubAi((text) => {
-      if (text === "whole milk") return [1, 0];
-      if (text.startsWith("Whole Milk")) return [0.95, 0.05]; // close to query
-      return [0, 1]; // chocolate bar: orthogonal to the query
+    const { ai } = makeStubAi((text) => {
+      if (text.startsWith("Whole Milk")) return 0.95;
+      return 0.05;
     });
-    const { kv } = makeFakeKv();
 
-    const ranked = await rankProductMatches({ ai, kv, query: "whole milk", products });
+    const ranked = await rankProductMatches({ ai, query: "whole milk", products });
 
     expect(ranked.map((p) => p.upc)).toEqual(["2222222222222", "1111111111111"]);
   });
 
-  it("boosts pickup-available products when similarity is otherwise tied", async () => {
-    const noPickup = makeProduct({
+  it("calls the Cloudflare reranker with compact product contexts", async () => {
+    const milk = makeProduct({
       upc: "1111111111111",
-      description: "Milk",
-      items: [{ fulfillment: { curbside: false, instore: false } }],
+      description: "Whole Milk",
+      brand: "Kroger",
+      categories: ["Dairy"],
+      items: [
+        {
+          size: "1 gal",
+          inventory: { stockLevel: "HIGH" },
+          fulfillment: { curbside: true, instore: true, delivery: false },
+        },
+      ],
     });
-    const withPickup = makeProduct({
+
+    const { ai, run } = makeStubAi(() => 0.5);
+
+    await rankProductMatches({ ai, query: "whole milk", products: [milk] });
+
+    expect(run).toHaveBeenCalledWith(
+      "@cf/baai/bge-reranker-base",
+      expect.objectContaining({
+        query: "whole milk",
+        top_k: 1,
+        contexts: [
+          {
+            text: expect.stringContaining("Whole Milk | Kroger | 1 gal"),
+          },
+        ],
+      }),
+    );
+    const call = run.mock.calls[0] as [string, RerankerRunInput] | undefined;
+    expect(call?.[1].contexts[0]?.text).toContain("stock=HIGH");
+    expect(call?.[1].contexts[0]?.text).toContain("curbside=true");
+    expect(call?.[1].contexts[0]?.text).toContain("instore=true");
+  });
+
+  it("boosts in-stock pickup products ahead of a slightly better unavailable semantic match", async () => {
+    const unavailable = makeProduct({
+      upc: "1111111111111",
+      description: "Whole Milk",
+      items: [
+        {
+          inventory: { stockLevel: "TEMPORARILY_OUT_OF_STOCK" },
+          fulfillment: { curbside: false, instore: false },
+        },
+      ],
+    });
+    const available = makeProduct({
       upc: "2222222222222",
-      description: "Milk",
-      items: [{ fulfillment: { curbside: true, instore: false } }],
+      description: "Kroger 2% Milk",
+      items: [
+        {
+          inventory: { stockLevel: "HIGH" },
+          fulfillment: { curbside: true, instore: true },
+        },
+      ],
     });
 
-    // Both products embed to the same text ("Milk"), so without the pickup
-    // boost a stable sort would keep noPickup (index 0) first.
-    const products = [noPickup, withPickup];
+    const { ai } = makeStubAi((text) => (text.startsWith("Whole Milk") ? 0.9 : 0.75));
 
-    const ai = makeStubAi(() => [1, 0]);
-    const { kv } = makeFakeKv();
-
-    const ranked = await rankProductMatches({ ai, kv, query: "milk", products });
+    const ranked = await rankProductMatches({
+      ai,
+      query: "milk",
+      products: [unavailable, available],
+    });
 
     expect(ranked.map((p) => p.upc)).toEqual(["2222222222222", "1111111111111"]);
   });
 
-  it("skips re-embedding cached product texts, batching only the query and uncached texts", async () => {
-    const productA = makeProduct({ upc: "1111111111111", description: "A", items: [{}] });
-    const productB = makeProduct({ upc: "2222222222222", description: "B", items: [{}] });
+  it("keeps reranker order when availability scores are tied", async () => {
+    const first = makeProduct({
+      upc: "1111111111111",
+      description: "First Milk",
+      items: [{ fulfillment: { curbside: true, instore: true } }],
+    });
+    const second = makeProduct({
+      upc: "2222222222222",
+      description: "Second Milk",
+      items: [{ fulfillment: { curbside: true, instore: true } }],
+    });
+    const { ai } = makeStubAi((text) => (text.startsWith("Second") ? 0.8 : 0.7));
 
-    const { kv, store, put } = makeFakeKv();
-    store.set(await embeddingCacheKey("A"), JSON.stringify([1, 0]));
+    const ranked = await rankProductMatches({ ai, query: "milk", products: [first, second] });
 
-    const ai = makeStubAi(() => [0, 1]);
-
-    await rankProductMatches({ ai, kv, query: "a", products: [productA, productB] });
-
-    expect(ai.run).toHaveBeenCalledTimes(1);
-    expect(ai.run).toHaveBeenCalledWith(
-      "@cf/baai/bge-small-en-v1.5",
-      expect.objectContaining({ text: ["a", "B"] }),
-    );
-    // Only the uncached text ("B") gets written back to the cache.
-    expect(put).toHaveBeenCalledTimes(1);
+    expect(ranked.map((p) => p.upc)).toEqual(["2222222222222", "1111111111111"]);
   });
 
   it("falls back to original order when ai.run rejects", async () => {
     const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
-    const ai: EmbeddingAi = {
+    const ai = {
       run: vi.fn(async () => {
         throw new Error("boom");
       }),
-    };
-    const { kv } = makeFakeKv();
+    } as unknown as Ai;
 
-    const ranked = await rankProductMatches({ ai, kv, query: "milk", products });
+    const ranked = await rankProductMatches({ ai, query: "milk", products });
 
     expect(ranked).toEqual(products);
   });
@@ -177,43 +186,41 @@ describe("rankProductMatches", () => {
   it("falls back to original order on timeout", async () => {
     vi.useFakeTimers();
     const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
-    const ai: EmbeddingAi = {
+    const ai = {
       run: vi.fn(() => new Promise<never>(() => {})),
-    };
-    const { kv } = makeFakeKv();
+    } as unknown as Ai;
 
-    const resultPromise = rankProductMatches({ ai, kv, query: "milk", products });
+    const resultPromise = rankProductMatches({ ai, query: "milk", products });
     await vi.advanceTimersByTimeAsync(2000);
     const ranked = await resultPromise;
 
     expect(ranked).toEqual(products);
   });
 
-  it("falls back to original order on a malformed embedding response", async () => {
+  it("falls back to original order on a malformed reranker response", async () => {
     const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
-    const ai: EmbeddingAi = { run: vi.fn(async () => ({ request_id: "async-response" })) };
-    const { kv } = makeFakeKv();
+    const ai = { run: vi.fn(async () => ({ request_id: "async-response" })) } as unknown as Ai;
 
-    const ranked = await rankProductMatches({ ai, kv, query: "milk", products });
+    const ranked = await rankProductMatches({ ai, query: "milk", products });
 
     expect(ranked).toEqual(products);
   });
 
-  it("falls back to original order when the embedding response has the wrong length", async () => {
+  it("falls back to original order when the reranker response references an invalid product index", async () => {
     const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
-    const ai: EmbeddingAi = { run: vi.fn(async () => ({ data: [[1, 0]] })) };
-    const { kv } = makeFakeKv();
+    const ai = {
+      run: vi.fn(async () => ({ response: [{ id: 5, score: 0.9 }] })),
+    } as unknown as Ai;
 
-    const ranked = await rankProductMatches({ ai, kv, query: "milk", products });
+    const ranked = await rankProductMatches({ ai, query: "milk", products });
 
     expect(ranked).toEqual(products);
   });
 
   it("returns an empty array unchanged", async () => {
-    const ai = makeStubAi(() => [1, 0]);
-    const { kv } = makeFakeKv();
+    const { ai } = makeStubAi(() => 0.5);
 
-    const ranked = await rankProductMatches({ ai, kv, query: "milk", products: [] });
+    const ranked = await rankProductMatches({ ai, query: "milk", products: [] });
 
     expect(ranked).toEqual([]);
   });

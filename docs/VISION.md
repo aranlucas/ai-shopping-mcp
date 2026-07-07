@@ -57,7 +57,7 @@ orchestrates; the server provides sharp tools.
 **The corollary:** since free models are poor orchestrators, the burden shifts to making
 each primitive maximally orchestratable — ids extractable from text, next-tool hints,
 normalizing schemas, deterministic enrichment (see the small-model contract). When a
-workflow is hard for a small model, the fix is a *primitive-level* improvement (e.g. an
+workflow is hard for a small model, the fix is a _primitive-level_ improvement (e.g. an
 aisle-sorted list output) plus workflow guidance (skills), never a fused tool.
 
 ### 2. Workflows live in skills; prompts are thin wrappers
@@ -109,15 +109,15 @@ This repo's job is to make scheduled calls safe and legible.
 What this server exposes vs. what the ADK host actually sees. Verified against the code as
 of this writing.
 
-| Surface | ADK visibility | Status |
-| --- | --- | --- |
-| Tools (16) | ✅ Visible | The entire effective contract. |
-| Prompts (3, incl. store-routing) | ❌ Invisible | Content migrates to `skills/` (principle 2). |
-| Resources (5, TOON-formatted) | ❌ Invisible | Data is tool-reachable (see below); TOON is small-model-hostile if ever wired up. |
-| MCP Apps views / `_meta.ui` | ❌ Not rendered | AG-UI has its own generative UI. Harmless if the host strips it. |
-| `structuredContent` | ⚠️ Depends on host | **Token landmine** — see below. |
-| Progress notifications | ❌ Ignored | Harmless. |
-| `initialize` instructions | ⚠️ Not auto-injected | Host should inject manually. |
+| Surface                          | ADK visibility       | Status                                                                            |
+| -------------------------------- | -------------------- | --------------------------------------------------------------------------------- |
+| Tools (16)                       | ✅ Visible           | The entire effective contract.                                                    |
+| Prompts (3, incl. store-routing) | ❌ Invisible         | Content migrates to `skills/` (principle 2).                                      |
+| Resources (5, TOON-formatted)    | ❌ Invisible         | Data is tool-reachable (see below); TOON is small-model-hostile if ever wired up. |
+| MCP Apps views / `_meta.ui`      | ❌ Not rendered      | AG-UI has its own generative UI. Harmless if the host strips it.                  |
+| `structuredContent`              | ⚠️ Depends on host   | **Token landmine** — see below.                                                   |
+| Progress notifications           | ❌ Ignored           | Harmless.                                                                         |
+| `initialize` instructions        | ⚠️ Not auto-injected | Host should inject manually.                                                      |
 
 Key findings:
 
@@ -130,8 +130,9 @@ Key findings:
   JSON — into model context, those budgets are fiction for the production stack. The host
   must extract `content[0].text` only. (Host-side fix first; a server-side capability-gated
   opt-out for `structuredContent` is a candidate backlog item if needed.)
-- **`shop_for_items` embeds a selection policy.** Embedding re-rank plus a pickup-first
-  heuristic pick one winner per term; the agent never sees alternatives or their prices.
+- **`shop_for_items` embeds a selection policy.** Reranker scoring, availability
+  weighting, and a pickup-first heuristic pick one winner per term; the agent
+  never sees alternatives or their prices.
   This is an accepted opinionated shortcut, not a violation of principle 1, because the
   full-control path (`search_products` → `create_shopping_list`) exists. Skills should
   steer the agent to the primitive path for budget- or brand-sensitive workflows.
@@ -155,7 +156,7 @@ Prioritized. Each entry is phrased so it can be handed to a session as-is, one p
    contract as `item-flags.ts`). Pin with a store-routing eval: model produces an
    aisle-ordered route for a 12-item list. Unblocks the store-routing skill.
 4. **Roadmap #1, #2, #5** (deal-aware planning, pantry-aware lists, preferences). These are
-   the grounding for recipe finding: recipe *knowledge* stays in the host model's weights —
+   the grounding for recipe finding: recipe _knowledge_ stays in the host model's weights —
    we do not build a recipe database — but deals/pantry/preferences context is what turns
    generic recipes into this household's plan. Add a recipe-finding eval on top.
 5. **Headless OAuth design doc.** Design (doc before code) the auth story for a multi-user

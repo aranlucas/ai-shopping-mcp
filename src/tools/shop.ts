@@ -5,12 +5,7 @@ import type { components as ProductComponents } from "../services/kroger/product
 import type { ShoppingListItem } from "../utils/user-storage.js";
 
 import { notFoundError, validationError } from "../errors.js";
-import {
-  type EmbeddingAi,
-  isEmbeddingAiLike,
-  rankProductMatches,
-} from "../services/match-ranker.js";
-import { getUserDataKv } from "../utils/kv.js";
+import { rankProductMatches } from "../services/match-ranker.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type LineItem, addLineItemsToCart, toCartSnapshotItems } from "./cart.js";
@@ -23,18 +18,11 @@ import { type ToolContext } from "./types.js";
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 /**
- * Resolves the Workers AI binding for semantic match ranking, or null when AI
- * features are disabled. Gated by two independent conditions so tests never
- * reach the real (remote-proxied) `env.AI` binding: the binding must exist,
- * and `AI_FEATURES` must not be `"off"` (see vitest.config.ts, which sets
- * `AI_FEATURES: "off"` for the whole suite).
+ * Resolves the Workers AI binding for semantic match ranking. Ranking itself
+ * is best-effort; remote-binding failures are handled inside `rankProductMatches`.
  */
-export function getMatchRankerAi(ctx: ToolContext): EmbeddingAi {
-  const env = ctx.getEnv();
-  if (!isEmbeddingAiLike(env.AI)) {
-    throw new Error("AI binding is required for semantic match ranking");
-  }
-  return env.AI;
+export function getMatchRankerAi(ctx: ToolContext): Ai {
+  return ctx.getEnv().AI;
 }
 
 const shopItemSchema = z.object({
@@ -127,27 +115,21 @@ export function registerShopTools(ctx: ToolContext) {
       const { locationId } = resolvedLocation.value;
 
       const terms = items.map((item) => item.name);
-      const kv = getUserDataKv(ctx.getEnv());
-      if (!kv) {
-        throw new Error("USER_DATA_KV binding is required");
-      }
       const searchResults = await searchProductsForTerms(productClient, terms, {
         locationId,
         limitPerTerm: 5,
       });
 
-      // Semantic re-ranking: when AI features are enabled, each term's
-      // candidates are reordered best-match-first before the existing
-      // pickup-first heuristic runs. Disabled (the default in tests and when
-      // AI_FEATURES=off), this is a no-op and behavior is byte-identical to
-      // before. See docs/small-model-efficiency-plan.md "Server-side AI" #8.
+      // Semantic re-ranking: each term's candidates are reordered
+      // best-match-first before the existing pickup-first heuristic runs.
+      // AI errors degrade to the original search order.
+      // See docs/small-model-efficiency-plan.md "Server-side AI" #8.
       const ai = getMatchRankerAi(ctx);
       const rankedResults = await Promise.all(
         searchResults.map(async (result, index) => {
           if (result.failed || result.products.length === 0) return result;
           const ranked = await rankProductMatches({
             ai,
-            kv,
             query: terms[index],
             products: result.products,
           });

@@ -174,27 +174,22 @@ the candidates:
 
 8. **DONE (2026-07). Semantic match ranking in `shop_for_items`.**
    `src/services/match-ranker.ts` (`rankProductMatches`) reorders each term's
-   ≤5 candidates best-match-first via Workers AI embeddings
-   (`@cf/baai/bge-small-en-v1.5`, cosine over the query vs
-   `description + brand + size`), with a small score boost for
-   pickup-available items so availability still matters; `pickBestMatch`
-   still runs on the ranked list. Product-text embeddings are cached in KV
-   (`embed|v1|bge-small|<sha256>`, 30-day TTL); query embeddings are always
-   computed fresh and batched into the same `ai.run` call as the uncached
-   product texts. Gated end-to-end by `getMatchRankerAi` in `src/tools/shop.ts`
-   (`env.AI` present AND `env.AI_FEATURES !== "off"`); missing either the AI
-   binding or the KV binding, any error, a ~1.5s timeout, or a malformed
-   response falls back to the original (unranked) order — never throws.
-   `vitest.config.ts` sets `AI_FEATURES: "off"` for the whole suite so no test
-   can reach the real (remote-proxied) `env.AI` binding; AI-dependent logic is
-   unit-tested by passing a stubbed structural `Ai`-like object directly to
-   `rankProductMatches`.
-   _Gate:_ `tests/services/match-ranker.test.ts` (reordering, pickup boost,
-   cache-hit batching, every fallback path) and an adversarial case in
-   `tests/tools/shop.test.ts` (a wrong-category first result reordered
-   correctly with AI enabled, old behavior preserved with `AI_FEATURES: "off"`
-   or no KV binding). No `harness.ts`/`scenarios.ts` fixture or live-model
-   scenario was added in this pass.
+   ≤5 candidates best-match-first via Workers AI's BGE reranker
+   (`@cf/baai/bge-reranker-base`) over compact product context
+   (`description + brand + size + categories + price + availability`). The
+   reranker score is adjusted with deterministic availability weights
+   (`HIGH` stock and pickup/instore/delivery availability boost; temporarily
+   out-of-stock penalizes) so a slightly weaker semantic match that is actually
+   shoppable can win. `pickBestMatch` still runs on the ranked list. Any AI
+   error, a ~1.5s timeout, an invalid context index, or a malformed response
+   falls back to the original (unranked) order — never throws.
+   AI-dependent logic is unit-tested by passing a stubbed structural `Ai`-like
+   object directly to `rankProductMatches`.
+   _Gate:_ `tests/services/match-ranker.test.ts` (Cloudflare reranker call
+   shape, semantic reordering, availability scoring, every fallback path) and
+   an adversarial case in `tests/tools/shop.test.ts` (a wrong-category first
+   result reordered correctly). No `harness.ts`/`scenarios.ts` fixture or
+   live-model scenario was added in this pass.
 9. **DONE (2026-07). Deal ↔ item fuzzy matching** (feeds item 6):
    `src/utils/deal-match.ts` (`findDealForItem`) normalizes both the item name
    and each deal title (lowercase, strip punctuation, cheap trailing-`s`
