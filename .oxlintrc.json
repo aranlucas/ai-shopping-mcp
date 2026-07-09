@@ -1,10 +1,8 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["unicorn"],
-  "jsPlugins": ["eslint-plugin-perfectionist"],
   "categories": {},
   "rules": {
-    "perfectionist/sort-imports": "error",
     "unicorn/filename-case": ["error", { "case": "kebabCase" }]
   },
   "settings": {
