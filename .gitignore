@@ -39,3 +39,4 @@ yarn.lock
 .dev.vars
 .wrangler
 .claude/worktrees
+.worktrees/
