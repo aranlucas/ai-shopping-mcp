@@ -14,6 +14,7 @@
     "serve": "wrangler dev",
     "test": "vitest run",
     "eval:mcp": "vitest run tests/evals",
+    "test:reranker:live": "node scripts/test-reranker-live.mjs",
     "deploy": "pnpm build:views && wrangler deploy",
     "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm serve\"",
     "start": "wrangler dev",

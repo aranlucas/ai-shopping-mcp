@@ -113,6 +113,19 @@ All tools return formatted, easy-to-read responses instead of raw JSON:
 - Uses OpenAPI-generated type definitions
 - Zero `any` types throughout the codebase
 
+## Live Workers AI Reranker Test
+
+Run the direct, opt-in smoke test against the real Workers AI reranker:
+
+```bash
+pnpm test:reranker:live
+```
+
+Locally, it uses the current `wrangler login` OAuth session. In CI, set both
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The command is separate
+from `pnpm test`, incurs Workers AI usage, and verifies that “Whole Milk”
+ranks ahead of “Chocolate Milk Bar.”
+
 ## References
 
 ### Related Projects
