@@ -25,6 +25,29 @@ type StockLevel = NonNullable<NonNullable<ProductItem["inventory"]>["stockLevel"
 const RERANKER_MODEL = "@cf/baai/bge-reranker-base" as const;
 const RERANKER_TIMEOUT_MS = 1500;
 
+type RerankerInput = {
+  query: string;
+  contexts: Array<{ text: string }>;
+  top_k?: number;
+};
+
+/** The Workers AI surface this module needs from the BGE reranker binding. */
+export type RerankerAi = {
+  run(model: typeof RERANKER_MODEL, input: RerankerInput): Promise<unknown>;
+};
+
+/**
+ * Wrangler's generated model schema omits the required `query` field despite
+ * the Workers AI API requiring it. Keep the correction adjacent to the sole
+ * consumer until Cloudflare publishes a corrected schema.
+ * https://developers.cloudflare.com/workers-ai/models/bge-reranker-base/
+ */
+declare global {
+  interface Ai_Cf_Baai_Bge_Reranker_Base_Input {
+    query: string;
+  }
+}
+
 const STOCK_SCORE: Record<StockLevel, number> = {
   HIGH: 0.12,
   LOW: 0.04,
@@ -97,14 +120,13 @@ function parseRerankerResponse(value: unknown): Array<{ id: number; score: numbe
 }
 
 async function rankProductMatchesInner(params: {
-  ai: Ai;
+  ai: RerankerAi;
   query: string;
   products: Product[];
 }): Promise<Product[]> {
   const { ai, query, products } = params;
 
   const contexts = products.map((product) => ({ text: productContextText(product) }));
-  // @ts-expect-error Cloudflare's generated reranker type still omits `query`.
   const raw = await ai.run(RERANKER_MODEL, {
     query,
     contexts,
@@ -140,7 +162,7 @@ async function rankProductMatchesInner(params: {
  * (~1.5s), or a malformed reranker response — never throws.
  */
 export async function rankProductMatches(params: {
-  ai: Ai;
+  ai: RerankerAi;
   query: string;
   products: Product[];
 }): Promise<Product[]> {

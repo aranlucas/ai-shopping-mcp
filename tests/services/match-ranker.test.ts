@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 
-import { rankProductMatches } from "../../src/services/match-ranker.js";
+import { type RerankerAi, rankProductMatches } from "../../src/services/match-ranker.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 type RerankerRunInput = {
@@ -16,6 +16,10 @@ type RerankerRunOutput = {
 type RerankerRunMock = ReturnType<
   typeof vi.fn<(model: string, options: RerankerRunInput) => Promise<RerankerRunOutput>>
 >;
+
+function acceptsRerankerAi(ai: RerankerAi): RerankerAi {
+  return ai;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,7 +36,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 
 /** A stub Ai binding whose `run` returns a caller-supplied score per context text. */
 function makeStubAi(scoreFor: (text: string, index: number) => number): {
-  ai: Ai;
+  ai: RerankerAi;
   run: RerankerRunMock;
 } {
   const run = vi.fn(async (_model: string, options: RerankerRunInput) => ({
@@ -42,7 +46,7 @@ function makeStubAi(scoreFor: (text: string, index: number) => number): {
     })),
   }));
 
-  return { ai: { run } as unknown as Ai, run };
+  return { ai: acceptsRerankerAi({ run }), run };
 }
 
 // ---------------------------------------------------------------------------
