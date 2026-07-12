@@ -57,6 +57,26 @@ describe("classifyDealCategory", () => {
     ["Powerade", "Pantry, Snacks & Beverages"],
     ["Modelo, Elysian or White Claw Hard Seltzer", "Pantry, Snacks & Beverages"],
     ["Pepsi", "Pantry, Snacks & Beverages"],
+    // Cincinnati (Kroger flagship, division 014) — a second real circular
+    // pulled to avoid overfitting the keyword lists to one week's QFC data.
+    ["T-Bone Steaks", "Meat & Seafood"],
+    ["Private Selection Angus 90% Lean Ground Sirloin", "Meat & Seafood"],
+    ["Honeycrisp Apples", "Produce"],
+    ["Taylor Farms Chopped Salad Kit", "Produce"],
+    ["Kroger Butter", "Dairy & Eggs"],
+    ["Thomas' English Muffins", "Bakery"],
+    ["Häagen-Dazs Ice Cream", "Frozen"],
+    ["DiGiorno Pizza", "Frozen"],
+    ["Marie Callender's Pot Pie", "Frozen"],
+    ["Ranch Style Beans", "Pantry, Snacks & Beverages"],
+    ["Knorr Sides", "Pantry, Snacks & Beverages"],
+    ["Sparkling Ice", "Pantry, Snacks & Beverages"],
+    ["Kroger Trail Mix", "Pantry, Snacks & Beverages"],
+    ["Nissin Ramen or Chow Mein", "Pantry, Snacks & Beverages"],
+    ["Chef Boyardee", "Pantry, Snacks & Beverages"],
+    ["Frito-Lay Multipack", "Pantry, Snacks & Beverages"],
+    ["Green Mountain or McCafé K-Cups", "Pantry, Snacks & Beverages"],
+    ["7UP", "Pantry, Snacks & Beverages"],
   ];
 
   it.each(cases)("classifies %j as %j", (title, expected) => {
