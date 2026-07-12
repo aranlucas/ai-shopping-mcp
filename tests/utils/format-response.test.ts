@@ -455,7 +455,15 @@ describe("formatStoreDetailMarkdown", () => {
 describe("formatWeeklyDealsMarkdown", () => {
   it("includes a validity header and dealCount when both dates are present", () => {
     const text = formatWeeklyDealsMarkdown(
-      [{ title: "Ground Beef", details: "80% Lean", price: "$3.99/lb", savings: "Save $2.00" }],
+      [
+        {
+          title: "Ground Beef",
+          details: "80% Lean",
+          price: "$3.99/lb",
+          savings: "Save $2.00",
+          category: "Meat & Seafood",
+        },
+      ],
       "2026-06-25",
       "2026-07-01",
     );
@@ -464,7 +472,7 @@ describe("formatWeeklyDealsMarkdown", () => {
   });
 
   it("falls back to a bare dealCount header when dates are missing", () => {
-    const text = formatWeeklyDealsMarkdown([{ title: "Bananas" }]);
+    const text = formatWeeklyDealsMarkdown([{ title: "Bananas", category: "Produce" }]);
     expect(text).toContain("dealCount: 1");
     expect(text).not.toContain("Deals valid");
   });
@@ -477,5 +485,29 @@ describe("formatWeeklyDealsMarkdown", () => {
   it("handles an empty deals array", () => {
     const text = formatWeeklyDealsMarkdown([]);
     expect(text).toBe("dealCount: 0");
+  });
+
+  it("groups consecutive deals under a category label, without repeating it", () => {
+    const text = formatWeeklyDealsMarkdown([
+      { title: "Flank Steaks", price: "$6.99/lb", category: "Meat & Seafood" },
+      { title: "Ground Beef", price: "$4.99/lb", category: "Meat & Seafood" },
+      { title: "Zucchini", price: "$1.99", category: "Produce" },
+    ]);
+    const lines = text.split("\n");
+    expect(lines).toEqual([
+      "dealCount: 3",
+      "Meat & Seafood:",
+      "- Flank Steaks | $6.99/lb",
+      "- Ground Beef | $4.99/lb",
+      "Produce:",
+      "- Zucchini | $1.99",
+    ]);
+  });
+
+  it("does not use markdown heading syntax for category labels", () => {
+    const text = formatWeeklyDealsMarkdown([
+      { title: "Flank Steaks", price: "$6.99/lb", category: "Meat & Seafood" },
+    ]);
+    expect(text).not.toContain("#");
   });
 });

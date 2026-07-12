@@ -106,6 +106,20 @@ function DealCard({
   );
 }
 
+/** Groups a category-sorted deals array into consecutive same-category runs. */
+function groupDealsByCategory(deals: DealData[]): Array<{ category: string; deals: DealData[] }> {
+  const groups: Array<{ category: string; deals: DealData[] }> = [];
+  for (const deal of deals) {
+    const last = groups[groups.length - 1];
+    if (last && last.category === deal.category) {
+      last.deals.push(deal);
+    } else {
+      groups.push({ category: deal.category, deals: [deal] });
+    }
+  }
+  return groups;
+}
+
 export function WeeklyDealsView({
   data,
   app,
@@ -186,17 +200,30 @@ export function WeeklyDealsView({
         subtitle={validFrom && validTill ? `Valid ${validFrom} – ${validTill}` : undefined}
         trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {deals.map((deal) => (
-          <DealCard
-            key={deal.title}
-            deal={deal}
-            canCallTools={canCallTools}
-            onSearch={handleSearch}
-            onPlanMeal={handlePlanMeal}
-          />
-        ))}
-      </div>
+      {groupDealsByCategory(deals).map((group) => (
+        <div key={group.category} className="mb-5 last:mb-0">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              {group.category}
+            </span>
+            <span className="text-[11px] text-gray-300">·</span>
+            <span className="text-[11px] text-gray-400">
+              {group.deals.length} item{group.deals.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {group.deals.map((deal) => (
+              <DealCard
+                key={deal.title}
+                deal={deal}
+                canCallTools={canCallTools}
+                onSearch={handleSearch}
+                onPlanMeal={handlePlanMeal}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
