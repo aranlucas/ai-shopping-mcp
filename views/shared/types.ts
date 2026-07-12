@@ -58,6 +58,7 @@ export type DealData = {
   savings?: string | null;
   validFrom?: string;
   validTill?: string;
+  category: string;
 };
 
 export type WeeklyDealsContent = {

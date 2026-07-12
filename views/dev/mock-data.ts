@@ -38,30 +38,34 @@ export const mockWeeklyDeals: WeeklyDealsContent = {
   validTill: "2026-03-24",
   deals: [
     {
-      title: "Organic Whole Milk",
-      details: "1 gallon, QFC Brand",
-      price: "$3.99",
-      savings: "Save $1.50",
-      validFrom: "2026-03-18",
-      validTill: "2026-03-24",
-    },
-    {
       title: "Boneless Chicken Breast",
       details: "Per lb, family pack",
       price: "$2.99/lb",
       savings: "Save $2.00/lb",
+      category: "Meat & Seafood",
     },
     {
       title: "Strawberries",
       details: "1 lb clamshell",
       price: "$2.49",
       savings: "Save $1.00",
+      category: "Produce",
+    },
+    {
+      title: "Organic Whole Milk",
+      details: "1 gallon, QFC Brand",
+      price: "$3.99",
+      savings: "Save $1.50",
+      validFrom: "2026-03-18",
+      validTill: "2026-03-24",
+      category: "Dairy & Eggs",
     },
     {
       title: "Sourdough Bread",
       details: "24 oz loaf",
       price: "$4.49",
       savings: null,
+      category: "Bakery",
     },
   ],
 };
