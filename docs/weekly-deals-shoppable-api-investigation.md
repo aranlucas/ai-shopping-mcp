@@ -67,53 +67,65 @@ what broke and whether it's worth reviving.
    these headers reconstructed from the HAR — **succeeded, 200, full 210KB
    response.**
 
+5. **Isolating whether cookies/session actually mattered.** Repeated the
+   same in-browser call with `credentials: 'omit'` (zero cookies sent,
+   including no Akamai bot-manager cookies) — **still 200.** Then repeated
+   it a third time as a completely bare `curl` from this machine — no
+   browser, no TLS fingerprint matching Chrome, no prior page load, no
+   cookies at all, just the headers from step 4 copied verbatim — **also
+   200, full 162-ad response.**
+
 ## Correcting the "anti-bot" diagnosis
 
-The old commit's framing — "brittle LAF object bootstrapping... failing with
-anti-bot protections" — conflates two _separate_ problems, now that both are
-visible:
+Step 5 overturns the original diagnosis, not just refines it. This is **not**
+an anti-bot/WAF wall at all:
 
-- **The header/LAF-object contract itself is not a secret or a bot check.**
-  It's a normal application parameter describing what store/modality/assortment
-  you're asking for (`x-laf-object`'s `assortmentKeys`/`listingKeys`/`sources`
-  fields are just structured store identifiers, derivable from a store lookup
-  — nothing here requires solving a challenge or holding a bot-manager
-  token). The old code likely broke because it tried to _derive_ this object
-  dynamically from another endpoint that itself started failing, not because
-  Kroger added a check on the object's contents.
-- **The edge-level block from step 2 is a real, separate wall.** A bare
-  `curl`/Workers `fetch()` with no browser TLS fingerprint, no prior page
-  load, and no Akamai bot-manager cookies (`_abck`, `bm_sz`, etc. — set via
-  the `/akam/13/...` sensor script during normal browsing) gets reset before
-  the request even reaches the application layer that would check
-  `x-kroger-channel`/`x-laf-object`. That's what actually killed step 2, and
-  it's unrelated to whether you send the right headers.
+- **The header/LAF-object contract is just an ordinary application
+  parameter**, not a bot check or a security token. `x-laf-object`'s
+  `assortmentKeys`/`listingKeys`/`sources` fields are structured store
+  identifiers; sending them via bare `curl` with no session, no cookies, and
+  no browser fingerprint of any kind was sufficient. There is no bot-manager
+  gate on this endpoint to defeat.
+- **Step 2's failure (`curl` → HTTP/2 `INTERNAL_ERROR` reset) was caused by
+  the missing headers themselves**, not edge/WAF fingerprinting as
+  originally assumed. Once `x-kroger-channel`, `x-facility-id`, `x-modality`,
+  `x-modality-type`, and `x-laf-object` are all present, a plain `curl`
+  request completes normally over HTTP/2 with no special handling.
+- The old codebase's framing ("failing with anti-bot protections") was
+  likely a misdiagnosis at the time — probably because whatever it used to
+  _derive_ the `x-laf-object` value broke, and the resulting malformed/empty
+  header produced a connection-level failure that looked like bot detection
+  rather than a clean 4xx.
 
 ## What this means for this repo
 
-- **Not worth pursuing as a production data source.** Reproducing this from
-  the Cloudflare Worker this MCP server runs in would mean either (a)
-  driving a real headless browser to acquire Akamai bot-manager session
-  cookies before every call, or (b) reverse-engineering and replaying
-  whatever token/fingerprint scheme backs those cookies. Both are
-  anti-bot-evasion engineering — fragile, likely to break again exactly like
-  it did before, and not something to build into a shipped server.
-- **The response shape confirms the existing hand-typed
-  `weekly-deals.d.ts` `WeeklyDeal`/`WeeklyDealsResponse` types are accurate**
-  (validated against a real 162-ad, 14-`adGroup` response) — that typing can
-  stay as documentation of a data shape we know is real but unreachable, or
-  be deleted if it's considered dead weight; it isn't imported anywhere
-  today (`grep` confirms only `weekly-deals.d.ts` itself references it).
-- **Even if it were reachable, `departments` is coarser than what
-  `deal-category.ts` needs.** Across the 162 real ads: 68 (42%) carry
-  _multiple_ department tags, and dairy/frozen/bakery/snacks all collapse
-  into generic `GROCERY`/`DRUG/GM` buckets (Kroger has no separate
-  DAIRY/FROZEN/BAKERY department in this data) — meaning even with the real
-  field, a keyword layer would still be needed to split those buckets into
-  the meal-planning categories this feature wants. It cleanly separates
-  `MEAT`/`PKG MEAT`/`SEAFOOD`, `PRODUCE`, `LIQUOR`, `DELI/BAKE`, `GM`
-  (household), `FLORAL`, `NATURAL FOODS` — and even that has occasional
-  mistagging (one ad, "Boneless Pork Tenderloin", is tagged `SEAFOOD`).
+- **The data source is genuinely reachable from a plain server-side HTTP
+  client** — including, in principle, this repo's Cloudflare Worker
+  (`fetch()` behaves like `curl` here; no browser automation needed).
+- **The response shape matches the existing hand-typed `weekly-deals.d.ts`
+  `WeeklyDeal`/`WeeklyDealsResponse` types** (validated against a real
+  162-ad, 14-`adGroup` response) — so re-adopting this wouldn't require
+  new type authoring, just wiring.
+- **The one remaining unknown: where `assortmentKeys` comes from for an
+  arbitrary store.** In the HAR, `assortmentKeys: ["01f68952-b130-4e7f-87b8-af822d3e53c9"]`
+  is not returned by any API call — it's embedded directly in the
+  server-rendered HTML of `kroger.com/weeklyad` itself (inside the page's
+  SSR state, alongside `handoffLocation`/`sources`), computed server-side by
+  Kroger for that specific store + modality combination. To build a fully
+  store-agnostic integration, this value would need to be scraped out of
+  that SSR HTML per store (a lightweight HTML fetch + JSON-in-script
+  extraction, not a browser), or another endpoint that returns it would need
+  to be found. This wasn't chased down further in this session.
+- **`departments` is coarser than what `deal-category.ts` needs.** Across
+  the 162 real ads: 68 (42%) carry _multiple_ department tags, and
+  dairy/frozen/bakery/snacks all collapse into generic `GROCERY`/`DRUG/GM`
+  buckets (Kroger has no separate DAIRY/FROZEN/BAKERY department in this
+  data) — meaning even with the real field, a keyword layer would still be
+  needed to split those buckets into the meal-planning categories this
+  feature wants. It cleanly separates `MEAT`/`PKG MEAT`/`SEAFOOD`,
+  `PRODUCE`, `LIQUOR`, `DELI/BAKE`, `GM` (household), `FLORAL`,
+  `NATURAL FOODS` — and even that has occasional mistagging (one ad,
+  "Boneless Pork Tenderloin", is tagged `SEAFOOD`).
 
   Department distribution across the sampled circular (162 ads):
 
@@ -133,9 +145,14 @@ visible:
 
 ## Bottom line
 
-The keyword classifier shipped in `deal-category.ts` remains the right call:
-the richer data source exists, is real, and was successfully reached once —
-but only from inside a fully-authenticated real browser session, and even
-then wouldn't fully replace keyword matching. Reviving it isn't a quick
-follow-up; it's a separate, higher-risk research project this note
-deliberately stops short of.
+Reachability is solved: the endpoint works from a bare server-side HTTP
+client with the right headers, no browser or anti-bot workaround needed. The
+only unresolved piece for a production integration is deriving
+`assortmentKeys` for a store the server doesn't already have a live
+browser-rendered page for. If that gets solved, this becomes a real
+candidate to replace or sit alongside the keyword classifier — richer data,
+real prices, real `departments` — though the department taxonomy alone still
+wouldn't fully replace `deal-category.ts` for the meal-planning-category use
+case (see the coarseness note above). This is a genuine "worth scoping as
+its own feature" candidate now, not a dead end — brainstorm it separately if
+picked up.
