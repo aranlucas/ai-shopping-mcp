@@ -128,15 +128,13 @@ describe("token budget: tool responses", () => {
     });
     expect(result.isError).toBeFalsy();
 
-    // Baseline 2026-07: content=291t, structuredContent=4658t.
+    // Baseline before compact projection: content=291t, structuredContent=4658t.
     const { textTokens, structuredTokens } = report("search_products x5", result);
     expect(textTokens).toBeLessThan(600);
 
-    // structuredContent is the MCP Apps view payload, not model-facing: the
-    // consuming hosts strip it from model context (see
-    // docs/small-model-efficiency-plan.md). This cap is only a growth guard
-    // so the view payload doesn't balloon unnoticed.
-    expect(structuredTokens).toBeLessThan(8000);
+    // Some hosts expose structuredContent to the model, so this is a real
+    // small-context budget as well as an MCP Apps payload growth guard.
+    expect(structuredTokens).toBeLessThan(2000);
   });
 
   it("search_stores stays within content budget", async () => {

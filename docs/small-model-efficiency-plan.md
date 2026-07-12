@@ -11,13 +11,13 @@ in `docs/ROADMAP.md`; this plan covers the model-facing API and code health.
 
 Numbers from `EVAL_LOG=1 pnpm eval:mcp` (estimateTokens ≈ chars/4):
 
-| Surface                                                                             | Estimated tokens   | Notes                                                                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Full tool list (14 tools)                                                           | **3,455**          | Largest: `add_shopping_list_to_cart` 311, `add_to_inventory` 307, `record_order` 303, `create_shopping_list` 303. Updated post-Phase-1 items 1-2: `create_shopping_list`/`add_to_inventory` trimmed from 335/320; `get_product`/`record_order` now use `upc` consistently |
-| Server instructions                                                                 | 187                | States the golden path                                                                                                                                                                                                                                                    |
-| `search_products` ×5 terms, content text                                            | 291                | Compact markdown with `upc=` lines                                                                                                                                                                                                                                        |
-| `search_products` ×5 terms, **structuredContent**                                   | **4,658**          | ~16× the text, but not model-facing: the consuming hosts strip `structuredContent` before it reaches the model (owner decision, 2026-07). It exists for the MCP Apps views; the eval cap only guards unbounded growth                                                     |
-| `search_stores` / `get_product` / `shop_for_items` / `get_shopping_profile` content | 74 / 40 / 102 / 61 | All healthy                                                                                                                                                                                                                                                               |
+| Surface                                                                             | Estimated tokens            | Notes                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full tool list (14 tools)                                                           | **3,455**                   | Largest: `add_shopping_list_to_cart` 311, `add_to_inventory` 307, `record_order` 303, `create_shopping_list` 303. Updated post-Phase-1 items 1-2: `create_shopping_list`/`add_to_inventory` trimmed from 335/320; `get_product`/`record_order` now use `upc` consistently |
+| Server instructions                                                                 | 187                         | States the golden path                                                                                                                                                                                                                                                    |
+| `search_products` ×5 terms, content text                                            | 291                         | Compact markdown with `upc=` lines                                                                                                                                                                                                                                        |
+| `search_products` ×5 terms, **structuredContent**                                   | **4,658 before projection** | A captured host response showed that this payload can reach model context. Search results are now projected to the fields used by the MCP App and shopping flow.                                                                                                          |
+| `search_stores` / `get_product` / `shop_for_items` / `get_shopping_profile` content | 74 / 40 / 102 / 61          | All healthy                                                                                                                                                                                                                                                               |
 
 What already works well (worth protecting, which the evals now do):
 
@@ -52,8 +52,7 @@ What already works well (worth protecting, which the evals now do):
   are the two costs; the fixes are response projection (trim fields the model
   never uses), aggregation tools over CRUD tools, and result caching. This
   repo already has the aggregation-tool shape (`shop_for_items`,
-  `get_shopping_profile`), and response projection is a non-issue here because
-  the consuming hosts strip `structuredContent` from model context.
+  `get_shopping_profile`) and now projects product-search view responses.
 
 Sources: github.com/CupOfOwls/kroger-mcp, docs.instacart.com
 (developer_platform_api MCP tutorial), shopify.dev/docs/apps/build/storefront-mcp.
@@ -65,10 +64,11 @@ case) when the change lands.
 
 ### Phase 1 — Token efficiency (highest leverage)
 
-> Decision (2026-07): `structuredContent` stays as-is. The consuming hosts
-> already strip it from model context before the model sees it, so slimming it
-> buys no model-facing tokens — it exists for the MCP Apps views. The
-> token-budget eval keeps a generous cap on it purely as a growth guard.
+> Updated decision (2026-07): project `search_products.structuredContent` to
+> view-required fields. A real host capture included the full payload in model
+> context, so compact structured content is part of the small-model contract.
+> App routing uses `CallToolResult._meta["dev.aranlucas/view"]`; no `_view`
+> discriminator is sent in structured content.
 
 1. **DONE (2026-07). Trim the two heaviest tool definitions.**
    `create_shopping_list` (335t → 303t) and `add_to_inventory` (320t → 307t)
@@ -244,8 +244,6 @@ itself unit-tested behind an interface.
 
 ## 4. Non-goals
 
-- **Slimming `structuredContent`.** The consuming hosts strip it from model
-  context; it is the MCP Apps view payload, not a model-facing cost.
 - **Internal agents / sampling inside tools.** Single-shot AI-binding calls
   with heuristic fallback (items 8–9) are the ceiling; no multi-step loops,
   no server-side meal-plan generation, no re-introducing `createMessage`.

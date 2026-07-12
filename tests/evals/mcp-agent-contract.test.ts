@@ -171,49 +171,24 @@ describe("MCP agent contract", () => {
     );
   });
 
-  it("keeps UI metadata paired with output schemas and routeable view payloads", () => {
+  it("keeps UI resources paired with every app-backed tool", () => {
     const tools = registerAllTools();
-    const appBackedExamples: Record<string, Record<string, unknown>> = {
-      add_to_inventory: { _view: "pantry", items: [], actionDetail: "Added 0 item(s)" },
-      add_shopping_list_to_cart: {
-        _view: "add_shopping_list_to_cart",
-        listId: "list_abc12345",
-        name: "Dinner",
-        items: [],
-        needsUpc: [],
-      },
-      create_shopping_list: {
-        _view: "create_shopping_list",
-        listId: "list_abc12345",
-        name: "Dinner",
-        items: [{ productName: "Milk", quantity: 1 }],
-      },
-      get_product: { _view: "get_product", product: { upc: "0001112223334" } },
-      get_store: { _view: "get_store", store: { locationId: "70500847", name: "QFC" } },
-      get_weekly_deals: { _view: "get_weekly_deals", deals: [], cache: { state: "miss" } },
-      record_order: {
-        _view: "record_order",
-        orderId: "ORD-1",
-        items: [{ upc: "0001112223334", productName: "Milk", quantity: 1 }],
-        totalItems: 1,
-        placedAt: "2026-06-30T00:00:00.000Z",
-      },
-      remove_from_inventory: { _view: "pantry", items: [], actionDetail: "Removed 1 item(s)" },
-      search_products: { _view: "search_products", results: [], totalProducts: 0 },
-      search_stores: { _view: "search_stores", stores: [] },
-      set_preferred_store: {
-        _view: "set_preferred_store",
-        store: { locationId: "70500847", locationName: "QFC" },
-      },
-      shop_for_items: {
-        _view: "create_shopping_list",
-        listId: "list_abc12345",
-        name: "Dinner",
-        items: [],
-      },
-    };
+    const appBackedTools = [
+      "add_to_inventory",
+      "add_shopping_list_to_cart",
+      "create_shopping_list",
+      "get_product",
+      "get_store",
+      "get_weekly_deals",
+      "record_order",
+      "remove_from_inventory",
+      "search_products",
+      "search_stores",
+      "set_preferred_store",
+      "shop_for_items",
+    ];
 
-    for (const [name, _example] of Object.entries(appBackedExamples)) {
+    for (const name of appBackedTools) {
       const tool = toolByName(tools, name);
       expect(tool.config._meta?.ui?.resourceUri, `${name} UI resource`).toBe(APP_VIEW_URI);
     }

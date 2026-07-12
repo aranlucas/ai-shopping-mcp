@@ -16,6 +16,7 @@ import {
   toMcpError,
 } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
 import { buildShoppingListStorageKey, requestCheckoutConfirmation } from "./shopping-list.js";
 import { type Props, type ToolContext, textResult } from "./types.js";
@@ -136,8 +137,8 @@ async function handleInlineItemsCart(
             text: `Added ${items.length} item(s) to cart${locationInfo}:\n${items.map((i) => `  - ${i.upc} x${i.quantity}`).join("\n")}`,
           },
         ],
+        _meta: { [APP_VIEW_META_KEY]: "add_shopping_list_to_cart" },
         structuredContent: {
-          _view: "add_shopping_list_to_cart" as const,
           listId: undefined,
           name: "Inline items",
           items: items.map((i) => ({ upc: i.upc, quantity: i.quantity, modality })),
@@ -177,8 +178,8 @@ async function handleListIdCart(
           text: "These items were already added to your cart from this list. Create a new list with create_shopping_list if you want to add more.",
         },
       ],
+      _meta: { [APP_VIEW_META_KEY]: "add_shopping_list_to_cart" },
       structuredContent: {
-        _view: "add_shopping_list_to_cart" as const,
         listId,
         name: "",
         items: existingSnapshot,
@@ -215,8 +216,8 @@ async function handleListIdCart(
                   : ""),
             },
           ],
+          _meta: { [APP_VIEW_META_KEY]: "add_shopping_list_to_cart" },
           structuredContent: {
-            _view: "add_shopping_list_to_cart" as const,
             listId,
             name: list.name,
             items: [],
@@ -261,8 +262,8 @@ async function handleListIdCart(
 
             return {
               content: [{ type: "text" as const, text: resultParts.join("\n\n") }],
+              _meta: { [APP_VIEW_META_KEY]: "add_shopping_list_to_cart" },
               structuredContent: {
-                _view: "add_shopping_list_to_cart" as const,
                 listId,
                 name: list.name,
                 items: snapshot,

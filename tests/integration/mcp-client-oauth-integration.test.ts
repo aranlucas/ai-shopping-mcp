@@ -260,7 +260,6 @@ describe("MCP client over Worker OAuth integration", () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toMatchObject({
-      _view: "search_products",
       totalProducts: 1,
     });
   });
@@ -287,7 +286,6 @@ describe("MCP client over Worker OAuth integration", () => {
 
     expect(toolResult.isError).toBeFalsy();
     expect(toolResult.structuredContent).toMatchObject({
-      _view: "search_products",
       totalProducts: 1,
     });
 

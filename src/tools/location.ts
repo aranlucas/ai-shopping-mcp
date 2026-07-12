@@ -13,6 +13,7 @@ import {
 } from "../utils/format-response.js";
 import { fromApiResponse, getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { storeIdSchema } from "./schemas.js";
 
 export function registerLocationTools(ctx: ToolContext) {
@@ -70,7 +71,8 @@ export function registerLocationTools(ctx: ToolContext) {
       return result.match(
         (stores) => ({
           content: [{ type: "text" as const, text: formatStoreListMarkdown(stores) }],
-          structuredContent: { _view: "search_stores", stores },
+          _meta: { [APP_VIEW_META_KEY]: "search_stores" },
+          structuredContent: { stores },
         }),
         toMcpError,
       );
@@ -112,7 +114,8 @@ export function registerLocationTools(ctx: ToolContext) {
       return result.match(
         (location) => ({
           content: [{ type: "text" as const, text: formatStoreDetailMarkdown(location) }],
-          structuredContent: { _view: "get_store", store: location },
+          _meta: { [APP_VIEW_META_KEY]: "get_store" },
+          structuredContent: { store: location },
         }),
         toMcpError,
       );
@@ -169,8 +172,8 @@ export function registerLocationTools(ctx: ToolContext) {
               text: `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
             },
           ],
+          _meta: { [APP_VIEW_META_KEY]: "set_preferred_store" },
           structuredContent: {
-            _view: "set_preferred_store" as const,
             store: preferredLocation,
             actionDetail: `Preferred store set to ${preferredLocation.locationName}`,
           },

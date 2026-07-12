@@ -9,6 +9,7 @@ import { validationError } from "../errors.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
 import { type ToolContext, type UserStorage, getSessionScopedUserId } from "./types.js";
@@ -231,8 +232,8 @@ export function registerShoppingListTools(ctx: ToolContext) {
               text: `Created shopping list "${listName}" with ${enrichedItems.length} item(s). listId=${shortId}\n\n${lines}`,
             },
           ],
+          _meta: { [APP_VIEW_META_KEY]: "create_shopping_list" },
           structuredContent: {
-            _view: "create_shopping_list",
             listId: shortId,
             name: list.name,
             items: list.items,

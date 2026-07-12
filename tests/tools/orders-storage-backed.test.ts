@@ -53,7 +53,7 @@ describe("order storage-backed tools", () => {
     expect(storedOrders[0]?.orderId).toMatch(/^ORD-/);
   });
 
-  it("returns structured content with _view: 'record_order' and all order fields", async () => {
+  it("returns routed structured content with all order fields", async () => {
     registerOrderTools(makeContext());
 
     const result = await getCapturedHandler("record_order")({
@@ -63,8 +63,8 @@ describe("order storage-backed tools", () => {
     });
 
     expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "record_order" },
       structuredContent: {
-        _view: "record_order",
         items: [{ upc: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
         totalItems: 2,
         estimatedTotal: 3,
@@ -91,10 +91,10 @@ describe("order storage-backed tools", () => {
     expect(isErrorResult(result)).toBe(false);
     const sc = (
       result as {
-        structuredContent: { _view: string; estimatedTotal?: number; totalItems: number };
+        structuredContent: { estimatedTotal?: number; totalItems: number };
       }
     ).structuredContent;
-    expect(sc._view).toBe("record_order");
+    expect(result).toMatchObject({ _meta: { "dev.aranlucas/view": "record_order" } });
     expect(sc.totalItems).toBe(5);
     expect(sc.estimatedTotal).toBeUndefined();
   });

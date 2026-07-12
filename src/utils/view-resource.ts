@@ -3,8 +3,8 @@
  *
  * A single unified View HTML file (built by Vite + vite-plugin-singlefile)
  * uses @modelcontextprotocol/ext-apps/react to receive tool results
- * via ontoolresult and render them client-side.  The view routes internally
- * based on hostContext.toolInfo.tool.name.
+ * via ontoolresult and render them client-side. The view routes internally
+ * using the namespaced discriminator in CallToolResult `_meta`.
  *
  * Flow:
  *  1. At init: registerViewResource registers a single resource backed by ASSETS

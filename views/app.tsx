@@ -26,7 +26,7 @@ import {
   ProductSearchSkeleton,
   WeeklyDealsSkeleton,
 } from "./shared/status.js";
-import { parseStructuredContent } from "./shared/types.js";
+import { parseToolResult } from "./shared/types.js";
 
 function ShoppingApp() {
   const [toolResult, setToolResult] = useState<CallToolResult | null>(null);
@@ -122,15 +122,12 @@ function getPartialLoadingMessage(viewKey: string | null, args: Record<string, u
 }
 
 function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: ShoppingAppInnerProps) {
+  const toolName = hostContext?.toolInfo?.tool?.name ?? null;
   // `data` is seeded from `toolResult` but child views edit it locally (optimistic
   // updates via `setData`), so it isn't purely derived — we can't compute it inline.
   // `useResettableState` re-seeds it during render whenever a new tool result
   // arrives, which is what React recommends instead of a re-syncing Effect.
-  const [data, setData] = useResettableState(toolResult, (result) =>
-    parseStructuredContent(result?.structuredContent),
-  );
-
-  const toolName = hostContext?.toolInfo?.tool?.name ?? null;
+  const [data, setData] = useResettableState(toolResult, parseToolResult);
   const canCallTools = !!app.getHostCapabilities()?.serverTools;
 
   if (!data) {
@@ -201,7 +198,7 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
     case "record_order":
       return <OrderHistoryView data={data} />;
     default:
-      // `parseStructuredContent` only yields known views, so this is unreachable
+      // `parseToolResult` only yields known views, so this is unreachable
       // — but it keeps the switch exhaustive and avoids a silent blank render.
       return <ErrorDisplay message="This result can't be displayed." />;
   }

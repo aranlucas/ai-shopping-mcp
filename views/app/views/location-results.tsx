@@ -10,7 +10,7 @@ import {
   type StoreResultsContent,
   callTool,
   openExternalLink,
-  parseStructuredContent,
+  parseToolResult,
 } from "../../shared/types.js";
 
 function locationToMapsUrl(loc: LocationData): string | null {
@@ -238,7 +238,7 @@ export function LocationResultsView({
       arguments: { storeId: id },
     });
     if (result?.isError) throw new Error("Failed to load details");
-    const parsed = parseStructuredContent(result?.structuredContent);
+    const parsed = parseToolResult(result);
     if (parsed) setData(parsed);
   };
 

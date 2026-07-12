@@ -11,11 +11,20 @@ import {
   formatSearchProductsMarkdown,
 } from "../utils/format-response.js";
 import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+
+type SearchProduct = Pick<
+  Product,
+  "upc" | "description" | "brand" | "categories" | "aisleLocations"
+> & {
+  images?: Product["images"];
+  items?: Product["items"];
+};
 
 export type ProductSearchResult = {
   term: string;
@@ -23,6 +32,56 @@ export type ProductSearchResult = {
   count: number;
   failed: boolean;
 };
+
+/**
+ * Keep the MCP Apps payload useful without sending the complete Kroger catalog
+ * record to hosts that include structuredContent in model context.
+ */
+export function compactSearchProduct(product: Product): SearchProduct {
+  const image =
+    product.images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
+    product.images?.[0];
+  const imageSize =
+    image?.sizes?.find((size) => size.size === "thumbnail" || size.size === "small") ??
+    image?.sizes?.[0];
+  const item = product.items?.[0];
+
+  return {
+    upc: product.upc,
+    description: product.description,
+    brand: product.brand,
+    categories: product.categories,
+    aisleLocations: product.aisleLocations?.slice(0, 1),
+    images: image
+      ? [
+          {
+            perspective: image.perspective,
+            default: image.default,
+            sizes: imageSize ? [imageSize] : [],
+          },
+        ]
+      : undefined,
+    items: item
+      ? [
+          {
+            size: item.size,
+            price: item.price
+              ? { regular: item.price.regular, promo: item.price.promo }
+              : undefined,
+            fulfillment: item.fulfillment
+              ? {
+                  curbside: item.fulfillment.curbside,
+                  delivery: item.fulfillment.delivery,
+                  instore: item.fulfillment.instore,
+                  shiptohome: item.fulfillment.shiptohome,
+                }
+              : undefined,
+            inventory: item.inventory ? { stockLevel: item.inventory.stockLevel } : undefined,
+          },
+        ]
+      : undefined,
+  };
+}
 
 export const getProductInputSchema = z.object({
   upc: upcSchema.describe("UPC from search_products"),
@@ -124,7 +183,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Search Products",
       description:
-        'Searches Kroger/QFC products using 1-10 search terms in parallel, up to limitPerTerm products each, with UPCs, pricing, and pickup availability at the given or preferred store. Example: {"terms":["milk","eggs"]}',
+        'Batch product search. Put every needed item (up to 10) in one terms array; do not call once per item. Searches Kroger/QFC in parallel and returns UPCs, prices, and availability. Example: {"terms":["milk","eggs","bread"]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -137,7 +196,7 @@ export function registerProductTools(ctx: ToolContext) {
           .array(z.string().max(100))
           .min(1, { message: "At least one search term is required" })
           .max(10, { message: "Maximum 10 search terms allowed" })
-          .describe("Search terms, e.g. ['milk', 'bread', 'eggs']"),
+          .describe("All needed products in one batch, e.g. ['milk', 'bread', 'eggs']"),
         storeId: storeIdSchema
           .optional()
           .describe(
@@ -196,7 +255,14 @@ export function registerProductTools(ctx: ToolContext) {
 
       return {
         content: [{ type: "text" as const, text: formatSearchProductsMarkdown(results) }],
-        structuredContent: { _view: "search_products", results, totalProducts },
+        _meta: { [APP_VIEW_META_KEY]: "search_products" },
+        structuredContent: {
+          results: results.map((result) => ({
+            ...result,
+            products: result.products.map(compactSearchProduct),
+          })),
+          totalProducts,
+        },
       };
     },
   );
@@ -223,7 +289,8 @@ export function registerProductTools(ctx: ToolContext) {
       return result.match((product) => {
         return {
           content: [{ type: "text" as const, text: formatProductDetailMarkdown(product) }],
-          structuredContent: { _view: "get_product", product },
+          _meta: { [APP_VIEW_META_KEY]: "get_product" },
+          structuredContent: { product },
         };
       }, toMcpError);
     },

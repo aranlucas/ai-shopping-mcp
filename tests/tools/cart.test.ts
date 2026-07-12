@@ -264,7 +264,9 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(putCalls[0]?.path).toBe("/v1/cart/add");
 
       const sc = structuredContent(result);
-      expect(sc["_view"]).toBe("add_shopping_list_to_cart");
+      expect(result).toMatchObject({
+        _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
+      });
       expect(sc["listId"]).toBe(SHORT_LIST_ID);
       expect(sc["name"]).toBe("Tuesday Dinner");
       expect(sc["actionDetail"]).toContain("Tuesday Dinner");
@@ -424,7 +426,9 @@ describe("add_shopping_list_to_cart tool", () => {
         },
       });
       const sc = structuredContent(result);
-      expect(sc["_view"]).toBe("add_shopping_list_to_cart");
+      expect(result).toMatchObject({
+        _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
+      });
       expect(sc["listId"]).toBeUndefined();
       expect(textFromResult(result)).toContain("at QFC Broadway");
     });

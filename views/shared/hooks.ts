@@ -19,7 +19,7 @@ import { type Dispatch, type SetStateAction, useState } from "react";
  *
  * @example
  * const [data, setData] = useResettableState(toolResult, (r) =>
- *   parseStructuredContent(r?.structuredContent),
+ *   parseToolResult(r),
  * );
  */
 export function useResettableState<S, T>(

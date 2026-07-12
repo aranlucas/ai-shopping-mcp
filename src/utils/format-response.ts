@@ -164,8 +164,8 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 // parse and act on directly (e.g., copying a upc into another tool call).
 // TOON is unfamiliar to small models; plain markdown lines with explicit
 // `key=value` labels for the fields the model must transcribe are more
-// reliable. `structuredContent` is untouched — the React views keep reading
-// full data from there.
+// reliable. `structuredContent` is separately projected to the fields used by
+// the React views because some hosts also expose it to the model.
 // ---------------------------------------------------------------------------
 
 /** One markdown line summarizing a single product for search_products output. */

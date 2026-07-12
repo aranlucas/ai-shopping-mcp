@@ -205,13 +205,14 @@ describe("search_products content size", () => {
     // The previous image-only stripping produced up to 80 KB.
     expect(chars).toBeLessThan(15_000);
 
-    // Structured content still carries full product data including images (for UI)
+    // Structured content carries only the compact view projection.
     const sc = (
       result as {
         structuredContent?: { results?: Array<{ products: Array<{ images?: unknown }> }> };
       }
     ).structuredContent;
     expect(sc?.results?.[0]?.products?.[0]?.images).toBeDefined();
+    expect(sc?.results?.[0]?.products?.[0]).not.toHaveProperty("nutritionInformation");
   });
 
   it("stays under 60 KB for 25 terms × 10 products (worst-case bulk search)", async () => {

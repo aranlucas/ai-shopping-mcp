@@ -668,7 +668,7 @@ describe("get_weekly_deals handler", () => {
     expect([...store.keys()][0]).toContain("loc:12345678");
   });
 
-  it("returns structuredContent with _view: get_weekly_deals and cache state 'miss' on fresh fetch", async () => {
+  it("returns routed structuredContent with cache state 'miss' on fresh fetch", async () => {
     const liveData = makeMinimalDealsResponse();
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv } = makeKV();
@@ -677,9 +677,8 @@ describe("get_weekly_deals handler", () => {
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
-    const sc = (result as { structuredContent?: { _view: string; cache: { state: string } } })
-      .structuredContent;
-    expect(sc?._view).toBe("get_weekly_deals");
+    const sc = (result as { structuredContent?: { cache: { state: string } } }).structuredContent;
+    expect(result).toMatchObject({ _meta: { "dev.aranlucas/view": "get_weekly_deals" } });
     expect(sc?.cache.state).toBe("miss");
   });
 

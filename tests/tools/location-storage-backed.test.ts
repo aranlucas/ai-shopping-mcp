@@ -56,8 +56,8 @@ describe("location storage-backed tools", () => {
 
     expect(textFromResult(result)).toContain("QFC Broadway");
     expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "search_stores" },
       structuredContent: {
-        _view: "search_stores",
         stores: [{ locationId: "70500847", name: "QFC Broadway" }],
       },
     });
@@ -118,8 +118,8 @@ describe("location storage-backed tools", () => {
 
     expect(isErrorResult(result)).toBe(false);
     expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "get_store" },
       structuredContent: {
-        _view: "get_store",
         store: {
           locationId: "70500847",
           name: "QFC Broadway",
@@ -190,8 +190,8 @@ describe("location storage-backed tools", () => {
 
     expect(textFromResult(result)).toContain("Preferred location set successfully");
     expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "set_preferred_store" },
       structuredContent: {
-        _view: "set_preferred_store",
         store: {
           locationId: "70500847",
           locationName: "QFC Broadway",

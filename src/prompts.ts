@@ -29,7 +29,7 @@ export function registerPrompts(server: McpServer) {
 ${grocery_list}
 
 Please help me by:
-1. Using search_products for each item to find aisle/department locations
+1. Calling search_products once with all items in its terms array to find aisle/department locations
 2. Organizing the items by department/aisle in a logical order
 3. Suggesting an efficient route through the store
 
@@ -37,7 +37,7 @@ IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.
               : `I need help planning a shopping trip. Please help me by:
 
 1. Understanding what items I might need (you can check my pantry, order history, or ask me what I'm looking for)
-2. Once we have a list of items, use search_products for each item to find aisle/department locations
+2. Once we have a list, call search_products once with all items in its terms array to find aisle/department locations
 3. Organize the items by department/aisle in a logical order
 4. Suggest an efficient route through the store
 
@@ -107,7 +107,7 @@ This will make future shopping and product searches more convenient.`,
 
 1. Asking whether I already have a specific recipe; if not, propose a practical ingredient list for ${recipe_type}
 2. Checking my pantry context when useful so we do not buy items I already have
-3. Using search_products for missing ingredients at my preferred store
+3. Calling search_products once with all missing ingredients in its terms array at my preferred store
 4. Creating a shopping list with create_shopping_list using UPCs for the selected products
 5. Offering to add that list to my cart with add_shopping_list_to_cart after I confirm pickup or delivery
 6. Suggesting alternatives for any ingredients that are not available

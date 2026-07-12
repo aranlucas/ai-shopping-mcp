@@ -15,6 +15,7 @@ import { safeJsonParseWithSchema } from "../utils/json.js";
 import { getUserDataKv } from "../utils/kv.js";
 import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { storeIdSchema } from "./schemas.js";
 
 export type WeeklyDealsCacheEntry = {
@@ -317,8 +318,8 @@ export function formatWeeklyDealsToolResponse(
         text: formatWeeklyDealsMarkdown(deals, validFrom, validTill, result.warnings),
       },
     ],
+    _meta: { [APP_VIEW_META_KEY]: "get_weekly_deals" },
     structuredContent: {
-      _view: "get_weekly_deals",
       deals,
       validFrom,
       validTill,

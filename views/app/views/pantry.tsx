@@ -12,7 +12,7 @@ import {
   type PantryItemData,
   type PantryListContent,
   callTool,
-  parseStructuredContent,
+  parseToolResult,
   sendUserMessage,
 } from "../../shared/types.js";
 
@@ -137,7 +137,7 @@ export function PantryView({
       arguments: { inventory: "pantry", items: [{ name }] },
     });
     if (result?.isError) throw new Error("Failed to remove item");
-    const updated = parseStructuredContent(result?.structuredContent);
+    const updated = parseToolResult(result);
     if (updated) setData(updated);
   };
 

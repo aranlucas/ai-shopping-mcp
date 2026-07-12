@@ -8,6 +8,7 @@ import { notFoundError, validationError } from "../errors.js";
 import { rankProductMatches } from "../services/match-ranker.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { type LineItem, addLineItemsToCart, toCartSnapshotItems } from "./cart.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { searchProductsForTerms } from "./product.js";
@@ -200,8 +201,8 @@ export function registerShopTools(ctx: ToolContext) {
 
         const respond = () => ({
           content: [{ type: "text" as const, text: parts.join("\n") }],
+          _meta: { [APP_VIEW_META_KEY]: "create_shopping_list" },
           structuredContent: {
-            _view: "create_shopping_list" as const,
             listId: shortId,
             name: list.name,
             items: list.items,

@@ -11,7 +11,7 @@ import {
   type KitchenEquipmentContent,
   type KitchenEquipmentItemData,
   callTool,
-  parseStructuredContent,
+  parseToolResult,
 } from "../../shared/types.js";
 
 function KitchenEquipmentRow({
@@ -109,7 +109,7 @@ export function KitchenEquipmentView({
       arguments: { inventory: "equipment", items: [{ name }] },
     });
     if (result?.isError) throw new Error("Failed to remove equipment");
-    const updated = parseStructuredContent(result?.structuredContent);
+    const updated = parseToolResult(result);
     if (updated) setData(updated);
   };
 

@@ -7,6 +7,7 @@ import type { ToolContext } from "./types.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 
 const orderItemSchema = z.object({
@@ -71,8 +72,8 @@ export function registerOrderTools(ctx: ToolContext) {
             text: `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
           },
         ],
+        _meta: { [APP_VIEW_META_KEY]: "record_order" },
         structuredContent: {
-          _view: "record_order" as const,
           orderId: order.orderId,
           items: order.items,
           totalItems: order.totalItems,

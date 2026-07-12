@@ -242,18 +242,29 @@ describe("search_products", () => {
     authenticate();
   });
 
-  it("returns structuredContent with _view: search_products and correct totalProducts for a single term", async () => {
+  it("defines one-call batching explicitly for small models", () => {
+    registerProductTools(makeContext(async () => makeSearchResponse([])));
+
+    const tool = getCapturedTool("search_products");
+    const config = tool.config as { description: string };
+    expect(config.description).toContain("Put every needed item");
+    expect(config.description).toContain("do not call once per item");
+  });
+
+  it("routes through result metadata and returns the compact search payload", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeSearchResponse([product])));
 
     const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
 
     const sc = structuredContentOf(result) as {
-      _view: string;
       results: Array<{ term: string; products: Product[]; count: number; failed: boolean }>;
       totalProducts: number;
     };
-    expect(sc._view).toBe("search_products");
+    expect(sc).not.toHaveProperty("_view");
+    expect((result as { _meta?: Record<string, unknown> })._meta).toEqual({
+      "dev.aranlucas/view": "search_products",
+    });
     expect(sc.totalProducts).toBe(1);
     expect(sc.results).toHaveLength(1);
     expect(sc.results[0].term).toBe("milk");
@@ -289,7 +300,6 @@ describe("search_products", () => {
     expect(textFromResult(result)).toContain("No results.");
     expect(result).toMatchObject({
       structuredContent: {
-        _view: "search_products",
         results: [{ term: "unknownitem", products: [], count: 0, failed: false }],
         totalProducts: 0,
       },
@@ -320,11 +330,10 @@ describe("search_products", () => {
     const result = await getCapturedHandler("search_products")({ terms: ["milk", "bread"] });
 
     const sc = structuredContentOf(result) as {
-      _view: string;
       results: Array<{ term: string; failed: boolean; products: Product[]; count: number }>;
       totalProducts: number;
     };
-    expect(sc._view).toBe("search_products");
+    expect(sc).not.toHaveProperty("_view");
     expect(sc.totalProducts).toBe(1);
     expect(sc.results).toHaveLength(2);
 
@@ -449,16 +458,26 @@ describe("search_products", () => {
     expect(products[1].upc).toBe("1111111111111"); // no-pickup product sorted after
   });
 
-  it("markdown content omits itemId/images/categories; structuredContent retains them", async () => {
+  it("projects structuredContent to view fields and omits catalog-only metadata", async () => {
     const product = makeProduct();
+    product.aliasProductIds = ["alias-upc"];
+    product.allergensDescription = "Contains milk";
     registerProductTools(makeContext(async () => makeSearchResponse([product])));
 
     const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
 
-    // structuredContent keeps the full product including images and categories
     const sc = structuredContentOf(result) as { results: Array<{ products: Product[] }> };
-    expect(sc.results[0].products[0].images).toBeDefined();
-    expect(sc.results[0].products[0].categories).toBeDefined();
+    const projected = sc.results[0].products[0];
+    expect(projected).toMatchObject({
+      upc: "0001111041700",
+      description: "Test Milk",
+      categories: ["Dairy"],
+      images: [{ sizes: [{ url: "https://example.com/milk.jpg" }] }],
+      items: [{ size: "1 gal", price: { regular: 3.99, promo: 2.99 } }],
+    });
+    expect(projected).not.toHaveProperty("aliasProductIds");
+    expect(projected).not.toHaveProperty("allergensDescription");
+    expect(projected.items?.[0]).not.toHaveProperty("itemId");
 
     // markdown (model context) is compact: no itemId/images, but has upc/pickup fields
     const text = textFromResult(result);
@@ -490,7 +509,7 @@ describe("get_product", () => {
     authenticate();
   });
 
-  it("returns structuredContent with _view: get_product and full product including images", async () => {
+  it("returns routed product details with full product data including images", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
@@ -498,8 +517,8 @@ describe("get_product", () => {
       upc: "0001111041700",
     });
 
-    const sc = structuredContentOf(result) as { _view: string; product: Product };
-    expect(sc._view).toBe("get_product");
+    const sc = structuredContentOf(result) as { product: Product };
+    expect(result).toMatchObject({ _meta: { "dev.aranlucas/view": "get_product" } });
     expect(sc.product.upc).toBe("0001111041700");
     expect(sc.product.description).toBe("Test Milk");
     expect(sc.product.images).toBeDefined();

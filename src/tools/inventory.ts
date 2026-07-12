@@ -13,6 +13,7 @@ import {
 } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { computeFrequentlyPurchasedItems, computeRestockSuggestions } from "./recipes.js";
 
 const addInventoryItemSchema = z.object({
@@ -49,8 +50,8 @@ export const removeFromInventoryInputSchema = z.object({
 function pantryResponse(text: string, items: PantryItem[], actionDetail: string) {
   return {
     content: [{ type: "text" as const, text }],
+    _meta: { [APP_VIEW_META_KEY]: "pantry" },
     structuredContent: {
-      _view: "pantry" as const,
       items,
       actionDetail,
     },
@@ -60,8 +61,8 @@ function pantryResponse(text: string, items: PantryItem[], actionDetail: string)
 function equipmentResponse(text: string, items: EquipmentItem[], actionDetail: string) {
   return {
     content: [{ type: "text" as const, text }],
+    _meta: { [APP_VIEW_META_KEY]: "kitchen_equipment" },
     structuredContent: {
-      _view: "kitchen_equipment" as const,
       items,
       actionDetail,
     },

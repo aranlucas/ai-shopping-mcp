@@ -7,6 +7,7 @@ import type {
   CreateShoppingListArgs,
   RemoveFromInventoryArgs,
 } from "../../src/tools/tool-types.js";
+import { APP_VIEW_META_KEY } from "../../src/utils/view-meta.js";
 
 export type {
   AddShoppingListToCartArgs,
@@ -234,9 +235,12 @@ const VIEW_NAMES: Record<AppData["_view"], true> = {
 
 const KNOWN_VIEWS = new Set(Object.keys(VIEW_NAMES) as AppData["_view"][]);
 
-export function parseStructuredContent(raw: unknown): AppData | null {
-  if (!raw || typeof raw !== "object") return null;
-  const view = (raw as { _view?: unknown })._view;
-  if (typeof view !== "string" || !KNOWN_VIEWS.has(view as AppData["_view"])) return null;
-  return raw as AppData;
+/** Convert a wire result into the app's internal discriminated view data. */
+export function parseToolResult(result: CallToolResult | null | undefined): AppData | null {
+  const content = result?.structuredContent;
+  const view = result?._meta?.[APP_VIEW_META_KEY];
+  if (!content || typeof view !== "string" || !KNOWN_VIEWS.has(view as AppData["_view"])) {
+    return null;
+  }
+  return { ...content, _view: view } as AppData;
 }

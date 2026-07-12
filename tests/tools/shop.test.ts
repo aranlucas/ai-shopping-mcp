@@ -221,7 +221,9 @@ describe("shop_for_items", () => {
 
     expect(isErrorResult(result)).toBe(false);
     const sc = structuredContentOf(result);
-    expect(sc["_view"]).toBe("create_shopping_list");
+    expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "create_shopping_list" },
+    });
     expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
     expect((sc["items"] as Array<{ productName: string; upc?: string }>).map((i) => i.upc)).toEqual(
       ["0001111041700", "0002000000029"],

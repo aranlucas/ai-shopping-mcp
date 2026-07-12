@@ -40,8 +40,8 @@ describe("storage-backed tools", () => {
 
     expect(textFromResult(result)).toContain("Added 1 item(s) to pantry");
     expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "pantry" },
       structuredContent: {
-        _view: "pantry",
         actionDetail: "Added 1 item(s)",
         items: [
           {
@@ -86,8 +86,8 @@ describe("storage-backed tools", () => {
 
     const clearResult = await removeHandler({ inventory: "pantry", all: true });
     expect(clearResult).toMatchObject({
+      _meta: { "dev.aranlucas/view": "pantry" },
       structuredContent: {
-        _view: "pantry",
         actionDetail: "Pantry cleared",
         items: [],
       },
@@ -114,8 +114,8 @@ describe("storage-backed tools", () => {
     });
     expect(textFromResult(addResult)).toContain("Added 1 item(s) to equipment");
     expect(addResult).toMatchObject({
+      _meta: { "dev.aranlucas/view": "kitchen_equipment" },
       structuredContent: {
-        _view: "kitchen_equipment",
         actionDetail: "Added 1 item(s)",
         items: [{ equipmentName: "Dutch oven", category: "Cooking" }],
       },
@@ -127,8 +127,8 @@ describe("storage-backed tools", () => {
     });
     expect(textFromResult(removeResult)).toContain("Removed 1 item(s) from equipment");
     expect(removeResult).toMatchObject({
+      _meta: { "dev.aranlucas/view": "kitchen_equipment" },
       structuredContent: {
-        _view: "kitchen_equipment",
         actionDetail: "Removed 1 item(s)",
         items: [],
       },
@@ -137,8 +137,8 @@ describe("storage-backed tools", () => {
     const clearResult = await removeHandler({ inventory: "equipment", all: true });
     expect(textFromResult(clearResult)).toBe("Equipment cleared successfully.");
     expect(clearResult).toMatchObject({
+      _meta: { "dev.aranlucas/view": "kitchen_equipment" },
       structuredContent: {
-        _view: "kitchen_equipment",
         actionDetail: "Kitchen equipment cleared",
         items: [],
       },
@@ -295,7 +295,9 @@ describe("storage-backed tools", () => {
 
     expect(isErrorResult(result)).toBe(false);
     const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
-    expect(sc["_view"]).toBe("create_shopping_list");
+    expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "create_shopping_list" },
+    });
     expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
     expect(sc["name"]).toBe("Tuesday Dinner");
     expect((sc["items"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
@@ -485,7 +487,9 @@ describe("storage-backed tools", () => {
 
     expect(isErrorResult(result)).toBe(false);
     const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
-    expect(sc["_view"]).toBe("add_shopping_list_to_cart");
+    expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
+    });
     expect(sc["listId"]).toBe(listId);
     expect(sc["name"]).toBe("Dinner");
     expect((sc["items"] as unknown[]).length).toBe(1);
@@ -649,7 +653,9 @@ describe("storage-backed tools", () => {
 
     expect(isErrorResult(result)).toBe(false);
     const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
-    expect(sc["_view"]).toBe("add_shopping_list_to_cart");
+    expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
+    });
     expect((sc["items"] as Array<{ upc: string; quantity: number }>)[0]).toMatchObject({
       upc: "0001111042578",
       quantity: 3,
