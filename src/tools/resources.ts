@@ -14,22 +14,18 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getProps();
+      getProps();
 
-      const result = await safeStorage(() => ctx.storage.pantry.getAll(props.id), "fetch pantry");
+      const result = await safeStorage(() => ctx.storage.pantry.getAll(), "fetch pantry");
 
-      return result.match(
-        (pantry) =>
-          toonResource("shopping://user/pantry", {
-            itemCount: pantry.length,
-            items: pantry,
-            lastUpdated: new Date().toISOString(),
-          }),
-        () =>
-          toonResource("shopping://user/pantry", {
-            error: "Failed to fetch pantry data",
-          }),
-      );
+      if (result.isErr()) {
+        return toonResource("shopping://user/pantry", { error: "Failed to fetch pantry data" });
+      }
+      return toonResource("shopping://user/pantry", {
+        itemCount: result.value.length,
+        items: result.value,
+        lastUpdated: new Date().toISOString(),
+      });
     },
   );
 
@@ -42,25 +38,20 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getProps();
+      getProps();
 
-      const result = await safeStorage(
-        () => ctx.storage.equipment.getAll(props.id),
-        "fetch equipment",
-      );
+      const result = await safeStorage(() => ctx.storage.equipment.getAll(), "fetch equipment");
 
-      return result.match(
-        (equipment) =>
-          toonResource("shopping://user/kitchen-equipment", {
-            itemCount: equipment.length,
-            items: equipment,
-            lastUpdated: new Date().toISOString(),
-          }),
-        () =>
-          toonResource("shopping://user/kitchen-equipment", {
-            error: "Failed to fetch equipment data",
-          }),
-      );
+      if (result.isErr()) {
+        return toonResource("shopping://user/kitchen-equipment", {
+          error: "Failed to fetch equipment data",
+        });
+      }
+      return toonResource("shopping://user/kitchen-equipment", {
+        itemCount: result.value.length,
+        items: result.value,
+        lastUpdated: new Date().toISOString(),
+      });
     },
   );
 
@@ -73,29 +64,26 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getProps();
+      getProps();
 
       const result = await safeStorage(
-        () => ctx.storage.preferredLocation.get(props.id),
+        () => ctx.storage.preferredLocation.get(),
         "fetch preferred location",
       );
 
-      return result.match(
-        (location) => {
-          if (!location) {
-            return toonResource("shopping://user/preferred-store", {
-              message: "No preferred store set",
-              instruction:
-                "Ask the user for their zip code, then use search_stores to find nearby stores and set_preferred_store to save their choice.",
-            });
-          }
-          return toonResource("shopping://user/preferred-store", location);
-        },
-        () =>
-          toonResource("shopping://user/preferred-store", {
-            error: "Failed to fetch preferred store data",
-          }),
-      );
+      if (result.isErr()) {
+        return toonResource("shopping://user/preferred-store", {
+          error: "Failed to fetch preferred store data",
+        });
+      }
+      if (!result.value) {
+        return toonResource("shopping://user/preferred-store", {
+          message: "No preferred store set",
+          instruction:
+            "Ask the user for their zip code, then use search_stores to find nearby stores and set_preferred_store to save their choice.",
+        });
+      }
+      return toonResource("shopping://user/preferred-store", result.value);
     },
   );
 
@@ -108,25 +96,23 @@ export function registerResources(ctx: ToolContext) {
       mimeType: "text/toon",
     },
     async () => {
-      const props = getProps();
+      getProps();
 
       const result = await safeStorage(
-        () => ctx.storage.orderHistory.getRecent(props.id, 10),
+        () => ctx.storage.orderHistory.getRecent(10),
         "fetch order history",
       );
 
-      return result.match(
-        (orders) =>
-          toonResource("shopping://user/order-history", {
-            orderCount: orders.length,
-            orders,
-            lastUpdated: new Date().toISOString(),
-          }),
-        () =>
-          toonResource("shopping://user/order-history", {
-            error: "Failed to fetch order data",
-          }),
-      );
+      if (result.isErr()) {
+        return toonResource("shopping://user/order-history", {
+          error: "Failed to fetch order data",
+        });
+      }
+      return toonResource("shopping://user/order-history", {
+        orderCount: result.value.length,
+        orders: result.value,
+        lastUpdated: new Date().toISOString(),
+      });
     },
   );
 
@@ -140,11 +126,11 @@ export function registerResources(ctx: ToolContext) {
           // the in-flight prefix. The shopping list is no longer a source:
           // lists are now request-scoped via create_shopping_list, not a
           // session-persistent document.
-          const props = getProps();
+          getProps();
           const prefix = value.trim();
 
           const ordersResult = await safeStorage(
-            () => ctx.storage.orderHistory.getRecent(props.id, 20),
+            () => ctx.storage.orderHistory.getRecent(20),
             "fetch orders for completion",
           );
 
@@ -179,28 +165,20 @@ export function registerResources(ctx: ToolContext) {
 
       const upc = match[1];
 
-      const props = getProps();
-      const locationId = (
-        await safeStorage(
-          () => ctx.storage.preferredLocation.get(props.id),
-          "fetch preferred location",
-        )
-      ).match(
-        (location) => location?.locationId,
-        () => undefined,
+      getProps();
+      const locationResult = await safeStorage(
+        () => ctx.storage.preferredLocation.get(),
+        "fetch preferred location",
       );
+      const locationId = locationResult.isOk() ? locationResult.value?.locationId : undefined;
 
       const result = await ctx.productService.getProduct(upc, locationId);
 
-      return result.match(
-        (product) => toonResource(uri.href, product),
-        (error) => {
-          if (error.type === "NOT_FOUND") {
-            return toonResource(uri.href, { error: `No product found with UPC: ${upc}` });
-          }
-          return toonResource(uri.href, { error: `Failed to fetch product: ${error.message}` });
-        },
-      );
+      if (result.isOk()) return toonResource(uri.href, result.value);
+      if (result.error.type === "NOT_FOUND") {
+        return toonResource(uri.href, { error: `No product found with UPC: ${upc}` });
+      }
+      return toonResource(uri.href, { error: `Failed to fetch product: ${result.error.message}` });
     },
   );
 }

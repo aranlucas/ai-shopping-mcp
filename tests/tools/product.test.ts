@@ -509,8 +509,10 @@ describe("get_product", () => {
     authenticate();
   });
 
-  it("returns routed product details with full product data including images", async () => {
+  it("returns routed product details projected to fields used by the app", async () => {
     const product = makeProduct();
+    product.aliasProductIds = ["alias-upc"];
+    product.allergensDescription = "Contains milk";
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
     const result = await getCapturedHandler("get_product")({
@@ -521,8 +523,14 @@ describe("get_product", () => {
     expect(result).toMatchObject({ _meta: { "dev.aranlucas/view": "get_product" } });
     expect(sc.product.upc).toBe("0001111041700");
     expect(sc.product.description).toBe("Test Milk");
-    expect(sc.product.images).toBeDefined();
-    expect(sc.product.images).toHaveLength(1);
+    expect(sc.product.items?.[0]).toMatchObject({
+      itemId: "item-001",
+      size: "1 gal",
+      price: { regular: 3.99, promo: 2.99 },
+    });
+    expect(sc.product).not.toHaveProperty("images");
+    expect(sc.product).not.toHaveProperty("aliasProductIds");
+    expect(sc.product).not.toHaveProperty("allergensDescription");
   });
 
   it("returns MCP error when API response has no product data (data.data is undefined)", async () => {
@@ -566,7 +574,7 @@ describe("get_product", () => {
     expect(capturedQueries[0]["filter.locationId"]).toBe("12345678");
   });
 
-  it("strips images from markdown content but structuredContent retains them", async () => {
+  it("strips images from both model text and the detail view payload", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
@@ -574,10 +582,8 @@ describe("get_product", () => {
       upc: "0001111041700",
     });
 
-    // structuredContent preserves the full product with images
     const sc = structuredContentOf(result) as { product: Product };
-    expect(sc.product.images).toBeDefined();
-    expect(sc.product.images).toHaveLength(1);
+    expect(sc.product.images).toBeUndefined();
 
     // markdown (model context) strips the images field
     const text = textFromResult(result);

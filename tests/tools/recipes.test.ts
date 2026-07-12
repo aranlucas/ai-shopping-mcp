@@ -223,14 +223,7 @@ describe("recipe tools", () => {
       });
 
       const text = textFromResult(result);
-      expect((result as { structuredContent?: unknown }).structuredContent).toMatchObject({
-        request: {
-          numberOfMeals: 2,
-          mealType: "dinner",
-          dietaryPreferences: "vegetarian",
-          prioritizeExpiring: true,
-        },
-      });
+      expect((result as { structuredContent?: unknown }).structuredContent).toBeUndefined();
       expect(text).toContain("**Meal Plan** (2 meals - dinner)");
       expect(text).toContain("1 expired item(s) excluded: Old Yogurt");
       expect(text).toContain("Dietary preferences: vegetarian");

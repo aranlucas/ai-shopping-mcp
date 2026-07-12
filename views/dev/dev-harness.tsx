@@ -7,6 +7,7 @@ import { KitchenEquipmentView } from "../app/views/kitchen-equipment.js";
 import { LocationDetailView } from "../app/views/location-detail.js";
 import { LocationResultsView } from "../app/views/location-results.js";
 import { PantryView } from "../app/views/pantry.js";
+import { PreferredStoreView } from "../app/views/preferred-store.js";
 import { ProductDetailView } from "../app/views/product-detail.js";
 import { ProductSearchView } from "../app/views/product-search.js";
 import { ShoppingListView } from "../app/views/shopping-list.js";
@@ -17,6 +18,7 @@ import {
   mockLocationDetail,
   mockLocationResults,
   mockPantry,
+  mockPreferredStore,
   mockProductDetail,
   mockProductSearch,
   mockShoppingList,
@@ -24,11 +26,12 @@ import {
 } from "./mock-data.js";
 
 const VIEWS = [
-  "weekly_deals",
+  "get_weekly_deals",
   "search_products",
   "get_product",
   "search_stores",
   "get_store",
+  "set_preferred_store",
   "create_shopping_list",
   "add_shopping_list_to_cart",
   "pantry",
@@ -38,11 +41,12 @@ const VIEWS = [
 type ViewName = (typeof VIEWS)[number];
 
 const LABELS: Record<ViewName, string> = {
-  weekly_deals: "Weekly Deals",
+  get_weekly_deals: "Weekly Deals",
   search_products: "Product Search",
   get_product: "Product Detail",
   search_stores: "Store Results",
   get_store: "Store Detail",
+  set_preferred_store: "Preferred Store",
   create_shopping_list: "Shopping List",
   add_shopping_list_to_cart: "Cart",
   pantry: "Pantry",
@@ -53,12 +57,12 @@ const LABELS: Record<ViewName, string> = {
 const mockApp = null as unknown as App;
 
 export function DevHarness() {
-  const [activeView, setActiveView] = useState<ViewName>("weekly_deals");
+  const [activeView, setActiveView] = useState<ViewName>("get_weekly_deals");
   const [data, setData] = useState<unknown>(null);
 
   function renderView() {
     switch (activeView) {
-      case "weekly_deals":
+      case "get_weekly_deals":
         return <WeeklyDealsView data={mockWeeklyDeals} app={mockApp} canCallTools={false} />;
       case "search_products":
         return <ProductSearchView data={mockProductSearch} app={mockApp} canCallTools={false} />;
@@ -75,6 +79,8 @@ export function DevHarness() {
         );
       case "get_store":
         return <LocationDetailView data={mockLocationDetail} app={mockApp} canCallTools={false} />;
+      case "set_preferred_store":
+        return <PreferredStoreView data={mockPreferredStore} />;
       case "create_shopping_list":
         return (
           <ShoppingListView

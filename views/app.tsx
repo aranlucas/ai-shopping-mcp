@@ -14,6 +14,7 @@ import { LocationDetailView } from "./app/views/location-detail.js";
 import { LocationResultsView } from "./app/views/location-results.js";
 import { OrderHistoryView } from "./app/views/order-history.js";
 import { PantryView } from "./app/views/pantry.js";
+import { PreferredStoreView } from "./app/views/preferred-store.js";
 import { ProductDetailView } from "./app/views/product-detail.js";
 import { ProductSearchView } from "./app/views/product-search.js";
 import { ShoppingListView } from "./app/views/shopping-list.js";
@@ -104,6 +105,8 @@ function getPartialLoadingMessage(viewKey: string | null, args: Record<string, u
       return "Searching stores…";
     case "get_store":
       return "Loading store…";
+    case "set_preferred_store":
+      return "Saving preferred store…";
     case "create_shopping_list":
       return "Creating shopping list…";
     case "add_shopping_list_to_cart":
@@ -152,7 +155,7 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
     return <Loading />;
   }
 
-  switch (data._view) {
+  switch (data.view) {
     case "search_products":
       return (
         <ProductSearchView
@@ -176,6 +179,8 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
       );
     case "get_store":
       return <LocationDetailView data={data} app={app} canCallTools={canCallTools} />;
+    case "set_preferred_store":
+      return <PreferredStoreView data={data} />;
     case "create_shopping_list":
       return <ShoppingListView data={data} app={app} canCallTools={canCallTools} />;
     case "add_shopping_list_to_cart":

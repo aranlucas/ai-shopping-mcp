@@ -115,7 +115,6 @@ export function getProps(): Props {
  */
 export function safeResolveLocationId(
   storage: UserStorage,
-  userId: string,
   locationId?: string,
 ): ResultAsync<{ locationId: string; locationName?: string }, AppError> {
   if (locationId) {
@@ -124,24 +123,21 @@ export function safeResolveLocationId(
     });
   }
 
-  return ResultAsync.fromPromise(storage.preferredLocation.get(userId), (e) =>
-    storageError(
-      `Failed to fetch preferred location: ${e instanceof Error ? e.message : String(e)}`,
-      e,
-    ),
-  ).andThen((preferredLocation) => {
-    if (!preferredLocation) {
-      return err(
-        notFoundError(
-          "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
-        ),
-      );
-    }
-    return ok({
-      locationId: preferredLocation.locationId,
-      locationName: preferredLocation.locationName,
-    });
-  });
+  return safeStorage(() => storage.preferredLocation.get(), "fetch preferred location").andThen(
+    (preferredLocation) => {
+      if (!preferredLocation) {
+        return err(
+          notFoundError(
+            "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
+          ),
+        );
+      }
+      return ok({
+        locationId: preferredLocation.locationId,
+        locationName: preferredLocation.locationName,
+      });
+    },
+  );
 }
 
 // --- Storage Wrappers ---

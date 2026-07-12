@@ -6,6 +6,7 @@ import type { EquipmentItem, PantryItem } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
+import { appResult } from "../app-results.js";
 import {
   formatEquipmentListCompact,
   formatPantryListCompact,
@@ -13,7 +14,6 @@ import {
 } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { computeFrequentlyPurchasedItems, computeRestockSuggestions } from "./recipes.js";
 
 const addInventoryItemSchema = z.object({
@@ -50,22 +50,20 @@ export const removeFromInventoryInputSchema = z.object({
 function pantryResponse(text: string, items: PantryItem[], actionDetail: string) {
   return {
     content: [{ type: "text" as const, text }],
-    _meta: { [APP_VIEW_META_KEY]: "pantry" },
-    structuredContent: {
+    ...appResult("pantry", {
       items,
       actionDetail,
-    },
+    }),
   };
 }
 
 function equipmentResponse(text: string, items: EquipmentItem[], actionDetail: string) {
   return {
     content: [{ type: "text" as const, text }],
-    _meta: { [APP_VIEW_META_KEY]: "kitchen_equipment" },
-    structuredContent: {
+    ...appResult("kitchen_equipment", {
       items,
       actionDetail,
-    },
+    }),
   };
 }
 
@@ -91,22 +89,24 @@ export function registerInventoryTools(ctx: ToolContext) {
         return toMcpError(validationError("At least one item is required in 'items'."));
       }
 
-      const props = getProps();
+      getProps();
       const now = new Date().toISOString();
 
       if (inventory === "pantry") {
-        const result = await safeStorage(async () => {
-          for (const item of items) {
-            const pantryItem: PantryItem = {
-              productName: item.name,
-              quantity: item.quantity ?? 1,
-              addedAt: now,
-              expiresAt: item.expiresAt,
-            };
-            await ctx.storage.pantry.add(props.id, pantryItem);
-          }
-          return ctx.storage.pantry.getAll(props.id);
-        }, "add pantry items").map((pantry) =>
+        const result = await safeStorage(
+          () =>
+            ctx.storage.pantry.add(
+              items.map(
+                (item): PantryItem => ({
+                  productName: item.name,
+                  quantity: item.quantity ?? 1,
+                  addedAt: now,
+                  expiresAt: item.expiresAt,
+                }),
+              ),
+            ),
+          "add pantry items",
+        ).map((pantry) =>
           pantryResponse(
             `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
             pantry,
@@ -114,20 +114,22 @@ export function registerInventoryTools(ctx: ToolContext) {
           ),
         );
 
-        return result.match((response) => response, toMcpError);
+        return result.isOk() ? result.value : toMcpError(result.error);
       }
 
-      const result = await safeStorage(async () => {
-        for (const item of items) {
-          const equipmentItem: EquipmentItem = {
-            equipmentName: item.name,
-            category: item.category,
-            addedAt: now,
-          };
-          await ctx.storage.equipment.add(props.id, equipmentItem);
-        }
-        return ctx.storage.equipment.getAll(props.id);
-      }, "add equipment items").map((equipment) =>
+      const result = await safeStorage(
+        () =>
+          ctx.storage.equipment.add(
+            items.map(
+              (item): EquipmentItem => ({
+                equipmentName: item.name,
+                category: item.category,
+                addedAt: now,
+              }),
+            ),
+          ),
+        "add equipment items",
+      ).map((equipment) =>
         equipmentResponse(
           `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
           equipment,
@@ -135,7 +137,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         ),
       );
 
-      return result.match((response) => response, toMcpError);
+      return result.isOk() ? result.value : toMcpError(result.error);
     },
   );
 
@@ -156,7 +158,7 @@ export function registerInventoryTools(ctx: ToolContext) {
       inputSchema: removeFromInventoryInputSchema,
     },
     async ({ inventory, items, all }) => {
-      const props = getProps();
+      getProps();
 
       if (!all && (!items || items.length === 0)) {
         return toMcpError(
@@ -168,20 +170,17 @@ export function registerInventoryTools(ctx: ToolContext) {
 
       if (inventory === "pantry") {
         if (all) {
-          const result = await safeStorage(
-            () => ctx.storage.pantry.clear(props.id),
-            "clear pantry",
-          ).map(() => pantryResponse("Pantry cleared successfully.", [], "Pantry cleared"));
-          return result.match((response) => response, toMcpError);
+          const result = await safeStorage(() => ctx.storage.pantry.clear(), "clear pantry").map(
+            () => pantryResponse("Pantry cleared successfully.", [], "Pantry cleared"),
+          );
+          return result.isOk() ? result.value : toMcpError(result.error);
         }
 
         const removeItems = items ?? [];
-        const result = await safeStorage(async () => {
-          for (const item of removeItems) {
-            await ctx.storage.pantry.remove(props.id, item.name);
-          }
-          return ctx.storage.pantry.getAll(props.id);
-        }, "remove pantry items").map((pantry) =>
+        const result = await safeStorage(
+          () => ctx.storage.pantry.remove(removeItems.map((item) => item.name)),
+          "remove pantry items",
+        ).map((pantry) =>
           pantryResponse(
             `Removed ${removeItems.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
             pantry,
@@ -189,26 +188,24 @@ export function registerInventoryTools(ctx: ToolContext) {
           ),
         );
 
-        return result.match((response) => response, toMcpError);
+        return result.isOk() ? result.value : toMcpError(result.error);
       }
 
       if (all) {
         const result = await safeStorage(
-          () => ctx.storage.equipment.clear(props.id),
+          () => ctx.storage.equipment.clear(),
           "clear equipment",
         ).map(() =>
           equipmentResponse("Equipment cleared successfully.", [], "Kitchen equipment cleared"),
         );
-        return result.match((response) => response, toMcpError);
+        return result.isOk() ? result.value : toMcpError(result.error);
       }
 
       const removeItems = items ?? [];
-      const result = await safeStorage(async () => {
-        for (const item of removeItems) {
-          await ctx.storage.equipment.remove(props.id, item.name);
-        }
-        return ctx.storage.equipment.getAll(props.id);
-      }, "remove equipment items").map((equipment) =>
+      const result = await safeStorage(
+        () => ctx.storage.equipment.remove(removeItems.map((item) => item.name)),
+        "remove equipment items",
+      ).map((equipment) =>
         equipmentResponse(
           `Removed ${removeItems.length} item(s) from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
           equipment,
@@ -216,7 +213,7 @@ export function registerInventoryTools(ctx: ToolContext) {
         ),
       );
 
-      return result.match((response) => response, toMcpError);
+      return result.isOk() ? result.value : toMcpError(result.error);
     },
   );
 
@@ -235,73 +232,74 @@ export function registerInventoryTools(ctx: ToolContext) {
       inputSchema: z.object({}),
     },
     async () => {
-      const props = getProps();
+      getProps();
 
-      return ResultAsync.combine([
-        safeStorage(() => ctx.storage.preferredLocation.get(props.id), "fetch preferred store"),
-        safeStorage(() => ctx.storage.pantry.getAll(props.id), "fetch pantry"),
-        safeStorage(() => ctx.storage.equipment.getAll(props.id), "fetch equipment"),
-        safeStorage(() => ctx.storage.orderHistory.getRecent(props.id, 50), "fetch order history"),
-      ]).match(([preferredStore, pantry, equipment, recentOrders]) => {
-        const parts: string[] = [];
+      const profileResult = await ResultAsync.combine([
+        safeStorage(() => ctx.storage.preferredLocation.get(), "fetch preferred store"),
+        safeStorage(() => ctx.storage.pantry.getAll(), "fetch pantry"),
+        safeStorage(() => ctx.storage.equipment.getAll(), "fetch equipment"),
+        safeStorage(() => ctx.storage.orderHistory.getRecent(50), "fetch order history"),
+      ]);
+      if (profileResult.isErr()) return toMcpError(profileResult.error);
+      const [preferredStore, pantry, equipment, recentOrders] = profileResult.value;
+      const parts: string[] = [];
 
-        parts.push("## Preferred store");
-        parts.push(
-          preferredStore
-            ? formatPreferredLocationCompact(preferredStore)
-            : "none set — use search_stores + set_preferred_store",
-        );
+      parts.push("## Preferred store");
+      parts.push(
+        preferredStore
+          ? formatPreferredLocationCompact(preferredStore)
+          : "none set — use search_stores + set_preferred_store",
+      );
 
-        parts.push("\n## Pantry");
-        if (pantry.length === 0) {
-          parts.push("empty");
-        } else {
-          const now = Date.now();
-          for (const item of pantry) {
-            let expiringNote = "";
-            if (item.expiresAt) {
-              const daysUntil = Math.floor(
-                (new Date(item.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
-              );
-              if (!Number.isNaN(daysUntil) && daysUntil <= 3) expiringNote = " (expiring soon)";
-            }
-            parts.push(`- ${item.productName} x${item.quantity}${expiringNote}`);
-          }
-        }
-
-        parts.push("\n## Kitchen equipment");
-        if (equipment.length === 0) {
-          parts.push("none");
-        } else {
-          for (const item of equipment) {
-            parts.push(`- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`);
-          }
-        }
-
-        const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
-        parts.push("\n## Frequently purchased");
-        if (frequentItems.length === 0) {
-          parts.push("no order history yet");
-        } else {
-          for (const { name, count } of frequentItems) {
-            parts.push(`- ${name} (ordered ${count}x)`);
-          }
-        }
-
-        const restockSuggestions = computeRestockSuggestions(recentOrders);
-        parts.push("\n## Due to restock");
-        if (restockSuggestions.length === 0) {
-          parts.push("no restock suggestions yet");
-        } else {
-          for (const { name, daysSinceLast, medianIntervalDays } of restockSuggestions) {
-            parts.push(
-              `- ${name} (last bought ${daysSinceLast}d ago, usually every ~${medianIntervalDays}d)`,
+      parts.push("\n## Pantry");
+      if (pantry.length === 0) {
+        parts.push("empty");
+      } else {
+        const now = Date.now();
+        for (const item of pantry) {
+          let expiringNote = "";
+          if (item.expiresAt) {
+            const daysUntil = Math.floor(
+              (new Date(item.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
             );
+            if (!Number.isNaN(daysUntil) && daysUntil <= 3) expiringNote = " (expiring soon)";
           }
+          parts.push(`- ${item.productName} x${item.quantity}${expiringNote}`);
         }
+      }
 
-        return { content: [{ type: "text" as const, text: parts.join("\n") }] };
-      }, toMcpError);
+      parts.push("\n## Kitchen equipment");
+      if (equipment.length === 0) {
+        parts.push("none");
+      } else {
+        for (const item of equipment) {
+          parts.push(`- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`);
+        }
+      }
+
+      const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
+      parts.push("\n## Frequently purchased");
+      if (frequentItems.length === 0) {
+        parts.push("no order history yet");
+      } else {
+        for (const { name, count } of frequentItems) {
+          parts.push(`- ${name} (ordered ${count}x)`);
+        }
+      }
+
+      const restockSuggestions = computeRestockSuggestions(recentOrders);
+      parts.push("\n## Due to restock");
+      if (restockSuggestions.length === 0) {
+        parts.push("no restock suggestions yet");
+      } else {
+        for (const { name, daysSinceLast, medianIntervalDays } of restockSuggestions) {
+          parts.push(
+            `- ${name} (last bought ${daysSinceLast}d ago, usually every ~${medianIntervalDays}d)`,
+          );
+        }
+      }
+
+      return { content: [{ type: "text" as const, text: parts.join("\n") }] };
     },
   );
 }

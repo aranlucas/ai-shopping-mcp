@@ -2,6 +2,7 @@ import type {
   AddShoppingListToCartContent,
   KitchenEquipmentContent,
   PantryListContent,
+  PreferredStoreContent,
   ProductDetailContent,
   ProductSearchResultsContent,
   ShoppingListContent,
@@ -11,7 +12,7 @@ import type {
 } from "../shared/types.js";
 
 export const mockAddToCart: AddShoppingListToCartContent = {
-  _view: "add_shopping_list_to_cart",
+  view: "add_shopping_list_to_cart",
   listId: "list_abc12345",
   name: "Tuesday Dinner",
   items: [
@@ -33,7 +34,7 @@ export const mockAddToCart: AddShoppingListToCartContent = {
 };
 
 export const mockWeeklyDeals: WeeklyDealsContent = {
-  _view: "get_weekly_deals",
+  view: "get_weekly_deals",
   validFrom: "2026-03-18",
   validTill: "2026-03-24",
   deals: [
@@ -71,7 +72,7 @@ export const mockWeeklyDeals: WeeklyDealsContent = {
 };
 
 export const mockProductSearch: ProductSearchResultsContent = {
-  _view: "search_products",
+  view: "search_products",
   totalProducts: 3,
   results: [
     {
@@ -116,7 +117,7 @@ export const mockProductSearch: ProductSearchResultsContent = {
 };
 
 export const mockProductDetail: ProductDetailContent = {
-  _view: "get_product",
+  view: "get_product",
   product: {
     upc: "0001111042578",
     description: "Organic Whole Milk",
@@ -136,7 +137,7 @@ export const mockProductDetail: ProductDetailContent = {
 };
 
 export const mockLocationResults: StoreResultsContent = {
-  _view: "search_stores",
+  view: "search_stores",
   stores: [
     {
       locationId: "70500847",
@@ -166,7 +167,7 @@ export const mockLocationResults: StoreResultsContent = {
 };
 
 export const mockLocationDetail: StoreDetailContent = {
-  _view: "get_store",
+  view: "get_store",
   store: {
     locationId: "70500847",
     name: "QFC",
@@ -186,8 +187,20 @@ export const mockLocationDetail: StoreDetailContent = {
   },
 };
 
+export const mockPreferredStore: PreferredStoreContent = {
+  view: "set_preferred_store",
+  store: {
+    locationId: "70500847",
+    locationName: "QFC",
+    chain: "QFC",
+    address: "2746 NE 45th St, Seattle, WA 98105",
+    setAt: "2026-03-21T18:30:00.000Z",
+  },
+  actionDetail: "Preferred store set to QFC",
+};
+
 export const mockPantry: PantryListContent = {
-  _view: "pantry",
+  view: "pantry",
   items: [
     { productName: "Eggs", quantity: 12, addedAt: "2026-03-20" },
     {
@@ -208,7 +221,7 @@ export const mockPantry: PantryListContent = {
 };
 
 export const mockKitchenEquipment: KitchenEquipmentContent = {
-  _view: "kitchen_equipment",
+  view: "kitchen_equipment",
   items: [
     { equipmentName: "Dutch oven", category: "Cooking", addedAt: "2026-03-18" },
     { equipmentName: "Sheet pan", category: "Baking", addedAt: "2026-03-19" },
@@ -218,7 +231,7 @@ export const mockKitchenEquipment: KitchenEquipmentContent = {
 };
 
 export const mockShoppingList: ShoppingListContent = {
-  _view: "create_shopping_list",
+  view: "create_shopping_list",
   listId: "list_abc12345",
   name: "Tuesday Dinner",
   items: [

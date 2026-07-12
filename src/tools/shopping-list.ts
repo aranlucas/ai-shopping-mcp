@@ -5,14 +5,14 @@ import * as z from "zod/v4";
 import type { AppError } from "../errors.js";
 import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
+import { appResult } from "../app-results.js";
 import { validationError } from "../errors.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
-import { type ToolContext, type UserStorage, getSessionScopedUserId } from "./types.js";
+import { type ToolContext, type UserStorage } from "./types.js";
 
 type CheckoutConfirmationServer = {
   elicitInput(input: {
@@ -78,22 +78,22 @@ export async function requestCheckoutConfirmation(
         : new ElicitationFailedError(),
   );
 
-  return elicitResult.match(
-    (elicit) => {
-      if (
-        elicit.action === "decline" ||
-        elicit.action === "cancel" ||
-        (elicit.action === "accept" && elicit.content?.confirm === false)
-      ) {
-        return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
-      }
-      return ok(undefined);
-    },
-    (e) =>
-      e instanceof ElicitationUnsupportedError
-        ? ok(undefined) // client doesn't support elicitation — treat as implicit confirmation
-        : err(validationError("Elicitation request failed unexpectedly.")),
-  );
+  if (elicitResult.isErr()) {
+    // A client without elicitation support implicitly confirms checkout.
+    return elicitResult.error instanceof ElicitationUnsupportedError
+      ? ok(undefined)
+      : err(validationError("Elicitation request failed unexpectedly."));
+  }
+
+  const elicit = elicitResult.value;
+  if (
+    elicit.action === "decline" ||
+    elicit.action === "cancel" ||
+    (elicit.action === "accept" && elicit.content?.confirm === false)
+  ) {
+    return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+  }
+  return ok(undefined);
 }
 
 export const createShoppingListInputSchema = z.object({
@@ -122,14 +122,6 @@ export function generateShortListId(): string {
  * forged short id from another user is not readable here: the same
  * per-user isolation the old prefix-checked composite id provided.
  */
-export function buildShoppingListStorageKey(
-  userId: string,
-  sessionId: string,
-  shortId: string,
-): string {
-  return `${getSessionScopedUserId(userId, sessionId)}:list:${shortId}`;
-}
-
 export type CreateShoppingListResult = { shortId: string; list: ShoppingList };
 
 /**
@@ -139,16 +131,12 @@ export type CreateShoppingListResult = { shortId: string; list: ShoppingList };
  */
 export function createShoppingListRecord(
   storage: UserStorage,
-  userId: string,
-  sessionId: string,
   name: string,
   items: ShoppingListItem[],
 ): ResultAsync<CreateShoppingListResult, AppError> {
   const shortId = generateShortListId();
-  const storageKey = buildShoppingListStorageKey(userId, sessionId, shortId);
-
   return safeStorage(
-    () => storage.shoppingList.create(storageKey, name, items),
+    () => storage.shoppingList.create(shortId, name, items),
     "create shopping list",
   ).map((list) => ({ shortId, list }));
 }
@@ -171,7 +159,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       inputSchema: createShoppingListInputSchema,
     },
     async ({ name: listName, items }) => {
-      const props = getProps();
+      getProps();
 
       if (items.length === 0) {
         return toMcpError(validationError("Shopping list must include at least one item."));
@@ -198,13 +186,10 @@ export function registerShoppingListTools(ctx: ToolContext) {
       // resolved best-effort too — no preferred store just means no deal
       // flags, not an error for this tool.
       const [pantry, resolvedLocation] = await Promise.all([
-        getPantryForFlags(ctx, props.id),
-        safeResolveLocationId(ctx.storage, props.id, undefined),
+        getPantryForFlags(ctx),
+        safeResolveLocationId(ctx.storage, undefined),
       ]);
-      const locationId = resolvedLocation.match(
-        (resolved) => resolved.locationId,
-        () => undefined,
-      );
+      const locationId = resolvedLocation.isOk() ? resolvedLocation.value.locationId : undefined;
       const deals = await getDealsForFlags(ctx, locationId);
 
       const lines = enrichedItems
@@ -216,31 +201,22 @@ export function registerShoppingListTools(ctx: ToolContext) {
         })
         .join("\n");
 
-      const result = await createShoppingListRecord(
-        ctx.storage,
-        props.id,
-        ctx.getSessionId(),
-        listName,
-        enrichedItems,
-      );
-
-      return result.match(
-        ({ shortId, list }) => ({
-          content: [
-            {
-              type: "text" as const,
-              text: `Created shopping list "${listName}" with ${enrichedItems.length} item(s). listId=${shortId}\n\n${lines}`,
-            },
-          ],
-          _meta: { [APP_VIEW_META_KEY]: "create_shopping_list" },
-          structuredContent: {
-            listId: shortId,
-            name: list.name,
-            items: list.items,
+      const result = await createShoppingListRecord(ctx.storage, listName, enrichedItems);
+      if (result.isErr()) return toMcpError(result.error);
+      const { shortId, list } = result.value;
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Created shopping list "${listName}" with ${enrichedItems.length} item(s). listId=${shortId}\n\n${lines}`,
           },
+        ],
+        ...appResult("create_shopping_list", {
+          listId: shortId,
+          name: list.name,
+          items: list.items,
         }),
-        toMcpError,
-      );
+      };
     },
   );
 }

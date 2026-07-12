@@ -25,7 +25,7 @@ describe("order storage-backed tools", () => {
     const storedOrders: OrderRecord[] = [];
     const storage = makeStorage({
       orderHistory: {
-        add: async (_userId: string, order: OrderRecord) => {
+        add: async (order: OrderRecord) => {
           storedOrders.push(order);
         },
         getAll: async () => storedOrders,

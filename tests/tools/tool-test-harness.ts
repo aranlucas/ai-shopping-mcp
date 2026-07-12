@@ -98,14 +98,16 @@ export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
 
   const storage = {
     pantry: {
-      add: async (_userId: string, item: PantryItem) => {
-        pantryItems.push(item);
+      add: async (items: PantryItem | PantryItem[]) => {
+        pantryItems.push(...(Array.isArray(items) ? items : [items]));
+        return pantryItems;
       },
-      remove: async (_userId: string, productName: string) => {
-        const index = pantryItems.findIndex((item) => item.productName === productName);
-        if (index >= 0) {
-          pantryItems.splice(index, 1);
+      remove: async (names: string | string[]) => {
+        for (const productName of Array.isArray(names) ? names : [names]) {
+          const index = pantryItems.findIndex((item) => item.productName === productName);
+          if (index >= 0) pantryItems.splice(index, 1);
         }
+        return pantryItems;
       },
       clear: async () => {
         pantryItems.length = 0;
@@ -113,14 +115,16 @@ export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
       getAll: async () => pantryItems,
     },
     equipment: {
-      add: async (_userId: string, item: EquipmentItem) => {
-        equipmentItems.push(item);
+      add: async (items: EquipmentItem | EquipmentItem[]) => {
+        equipmentItems.push(...(Array.isArray(items) ? items : [items]));
+        return equipmentItems;
       },
-      remove: async (_userId: string, equipmentName: string) => {
-        const index = equipmentItems.findIndex((item) => item.equipmentName === equipmentName);
-        if (index >= 0) {
-          equipmentItems.splice(index, 1);
+      remove: async (names: string | string[]) => {
+        for (const equipmentName of Array.isArray(names) ? names : [names]) {
+          const index = equipmentItems.findIndex((item) => item.equipmentName === equipmentName);
+          if (index >= 0) equipmentItems.splice(index, 1);
         }
+        return equipmentItems;
       },
       clear: async () => {
         equipmentItems.length = 0;
@@ -128,11 +132,12 @@ export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
       getAll: async () => equipmentItems,
     },
     orderHistory: {
-      add: async (_userId: string, order: OrderRecord) => {
+      add: async (order: OrderRecord) => {
         orders.push(order);
+        return orders;
       },
       getAll: async () => orders,
-      getRecent: async (_userId: string, limit = 10) => orders.slice(0, limit),
+      getRecent: async (limit = 10) => orders.slice(0, limit),
     },
     shoppingList: {
       create: async (id: string, name: string, items: ShoppingListItem[]) => {
@@ -162,7 +167,7 @@ export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
     },
     cartMirror: {
       getAll: async () => [],
-      append: async (_userId: string, items: CartSnapshotItem[], addedAt: string) =>
+      append: async (items: CartSnapshotItem[], addedAt: string) =>
         items.map((item) => ({ ...item, addedAt })),
       clear: async () => {},
     },
@@ -171,7 +176,7 @@ export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
       set: async () => {},
     },
     preferredLocation: {
-      set: async (_userId: string, location: PreferredLocation) => {
+      set: async (location: PreferredLocation) => {
         preferredLocations.push(location);
       },
       get: async () => preferredLocations.at(-1) ?? null,

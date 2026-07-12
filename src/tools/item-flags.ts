@@ -15,9 +15,9 @@ import { type ToolContext } from "./types.js";
 import { buildWeeklyDealsCacheKey, parseCacheEntry } from "./weekly-deals.js";
 
 /** Best-effort pantry fetch: any storage error yields an empty list, never a throw. */
-export async function getPantryForFlags(ctx: ToolContext, userId: string): Promise<PantryItem[]> {
+export async function getPantryForFlags(ctx: ToolContext): Promise<PantryItem[]> {
   try {
-    return await ctx.storage.pantry.getAll(userId);
+    return await ctx.storage.pantry.getAll();
   } catch {
     return [];
   }

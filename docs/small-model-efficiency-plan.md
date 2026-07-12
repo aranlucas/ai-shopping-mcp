@@ -69,6 +69,9 @@ case) when the change lands.
 > context, so compact structured content is part of the small-model contract.
 > App routing uses `CallToolResult._meta["dev.aranlucas/view"]`; no `_view`
 > discriminator is sent in structured content.
+> `get_product`, `search_stores`, and `get_store` likewise project raw Kroger
+> records to view-required fields, and `get_meal_planning_context` returns only
+> its compact model-facing text instead of duplicating it in structured JSON.
 
 1. **DONE (2026-07). Trim the two heaviest tool definitions.**
    `create_shopping_list` (335t → 303t) and `add_to_inventory` (320t → 307t)

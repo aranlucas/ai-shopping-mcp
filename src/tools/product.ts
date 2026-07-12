@@ -5,26 +5,19 @@ import * as z from "zod/v4";
 import type { AppError } from "../errors.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
+import type { ProductData } from "../app-results.js";
 
+import { appResult } from "../app-results.js";
 import {
   formatProductDetailMarkdown,
   formatSearchProductsMarkdown,
 } from "../utils/format-response.js";
-import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
-import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
+import { fromApiResponse, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
-
-type SearchProduct = Pick<
-  Product,
-  "upc" | "description" | "brand" | "categories" | "aisleLocations"
-> & {
-  images?: Product["images"];
-  items?: Product["items"];
-};
 
 export type ProductSearchResult = {
   term: string;
@@ -37,7 +30,7 @@ export type ProductSearchResult = {
  * Keep the MCP Apps payload useful without sending the complete Kroger catalog
  * record to hosts that include structuredContent in model context.
  */
-export function compactSearchProduct(product: Product): SearchProduct {
+export function compactSearchProduct(product: Product): ProductData {
   const image =
     product.images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
     product.images?.[0];
@@ -80,6 +73,31 @@ export function compactSearchProduct(product: Product): SearchProduct {
           },
         ]
       : undefined,
+  };
+}
+
+/** Product fields rendered by the detail app; excludes catalog-only metadata. */
+export function compactProductDetail(product: Product): ProductData {
+  return {
+    upc: product.upc,
+    description: product.description,
+    brand: product.brand,
+    categories: product.categories,
+    aisleLocations: product.aisleLocations,
+    items: product.items?.map((item) => ({
+      itemId: item.itemId,
+      size: item.size,
+      price: item.price ? { regular: item.price.regular, promo: item.price.promo } : undefined,
+      fulfillment: item.fulfillment
+        ? {
+            curbside: item.fulfillment.curbside,
+            delivery: item.fulfillment.delivery,
+            instore: item.fulfillment.instore,
+            shiptohome: item.fulfillment.shiptohome,
+          }
+        : undefined,
+      inventory: item.inventory ? { stockLevel: item.inventory.stockLevel } : undefined,
+    })),
   };
 }
 
@@ -215,13 +233,8 @@ export function registerProductTools(ctx: ToolContext) {
       // Resolve storeId: explicit arg → preferred store → omit filter
       let resolvedLocationId: string | undefined = storeId;
       if (!resolvedLocationId) {
-        const resolved = await safeResolveLocationId(ctx.storage, getProps().id, undefined);
-        resolved.match(
-          (location) => {
-            resolvedLocationId = location.locationId;
-          },
-          () => undefined,
-        );
+        const resolved = await safeResolveLocationId(ctx.storage, undefined);
+        if (resolved.isOk()) resolvedLocationId = resolved.value.locationId;
       }
 
       const progressToken = extra?._meta?.progressToken;
@@ -255,14 +268,13 @@ export function registerProductTools(ctx: ToolContext) {
 
       return {
         content: [{ type: "text" as const, text: formatSearchProductsMarkdown(results) }],
-        _meta: { [APP_VIEW_META_KEY]: "search_products" },
-        structuredContent: {
+        ...appResult("search_products", {
           results: results.map((result) => ({
             ...result,
             products: result.products.map(compactSearchProduct),
           })),
           totalProducts,
-        },
+        }),
       };
     },
   );
@@ -286,13 +298,12 @@ export function registerProductTools(ctx: ToolContext) {
     async ({ upc, storeId }) => {
       const result = await ctx.productService.getProduct(upc, storeId);
 
-      return result.match((product) => {
-        return {
-          content: [{ type: "text" as const, text: formatProductDetailMarkdown(product) }],
-          _meta: { [APP_VIEW_META_KEY]: "get_product" },
-          structuredContent: { product },
-        };
-      }, toMcpError);
+      if (result.isErr()) return toMcpError(result.error);
+      const product = result.value;
+      return {
+        content: [{ type: "text" as const, text: formatProductDetailMarkdown(product) }],
+        ...appResult("get_product", { product: compactProductDetail(product) }),
+      };
     },
   );
 }

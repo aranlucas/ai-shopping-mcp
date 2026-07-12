@@ -19,10 +19,7 @@ import {
 } from "./tool-test-harness.js";
 import { registerCartTools } from "../../src/tools/cart.js";
 import { registerInventoryTools } from "../../src/tools/inventory.js";
-import {
-  buildShoppingListStorageKey,
-  registerShoppingListTools,
-} from "../../src/tools/shopping-list.js";
+import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 
 describe("storage-backed tools", () => {
@@ -561,11 +558,7 @@ describe("storage-backed tools", () => {
     registerCartTools(ctx);
 
     const listId = "list_deadbeef";
-    // buildShoppingListStorageKey scopes by (userId, sessionId) internally —
-    // pass the raw userId/sessionId the harness authenticates as, not a
-    // pre-scoped id.
-    const storageKey = buildShoppingListStorageKey("user-123", "session-1", listId);
-    await storage.shoppingList.create(storageKey, "No UPCs", [
+    await storage.shoppingList.create(listId, "No UPCs", [
       { productName: "Strawberries", quantity: 2 },
     ]);
 

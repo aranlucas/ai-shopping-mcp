@@ -142,8 +142,9 @@ describe("token budget: tool responses", () => {
     expect(result.isError).toBeFalsy();
 
     // Baseline 2026-07: 74t.
-    const { textTokens } = report("search_stores", result);
+    const { textTokens, structuredTokens } = report("search_stores", result);
     expect(textTokens).toBeLessThan(150);
+    expect(structuredTokens).toBeLessThan(500);
   });
 
   it("get_product stays within content budget", async () => {
@@ -154,8 +155,9 @@ describe("token budget: tool responses", () => {
     expect(result.isError).toBeFalsy();
 
     // Baseline 2026-07: 40t.
-    const { textTokens } = report("get_product", result);
+    const { textTokens, structuredTokens } = report("get_product", result);
     expect(textTokens).toBeLessThan(100);
+    expect(structuredTokens).toBeLessThan(500);
   });
 
   it("shop_for_items stays within content budget", async () => {

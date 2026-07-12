@@ -152,7 +152,7 @@ describe("getPantryForFlags", () => {
       storage: { pantry: { getAll: async () => pantry } },
     } as unknown as ToolContext;
 
-    expect(await getPantryForFlags(ctx, "user-1")).toEqual(pantry);
+    expect(await getPantryForFlags(ctx)).toEqual(pantry);
   });
 
   it("returns an empty list when storage throws", async () => {
@@ -166,7 +166,7 @@ describe("getPantryForFlags", () => {
       },
     } as unknown as ToolContext;
 
-    expect(await getPantryForFlags(ctx, "user-1")).toEqual([]);
+    expect(await getPantryForFlags(ctx)).toEqual([]);
   });
 });
 

@@ -1,37 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getSessionScopedUserId, textResult } from "../../src/tools/types.js";
-
-// ----- getSessionScopedUserId -----
-
-describe("getSessionScopedUserId", () => {
-  it("combines user and session identifiers into a namespaced key", () => {
-    expect(getSessionScopedUserId("user-123", "session-456")).toBe("user-123:session:session-456");
-  });
-
-  it("produces distinct keys for different sessions of the same user", () => {
-    const key1 = getSessionScopedUserId("user-abc", "sess-1");
-    const key2 = getSessionScopedUserId("user-abc", "sess-2");
-    expect(key1).not.toBe(key2);
-  });
-
-  it("produces distinct keys for different users in the same session", () => {
-    const key1 = getSessionScopedUserId("user-a", "shared-session");
-    const key2 = getSessionScopedUserId("user-b", "shared-session");
-    expect(key1).not.toBe(key2);
-  });
-
-  it("always includes the literal :session: separator", () => {
-    const key = getSessionScopedUserId("u", "s");
-    expect(key).toContain(":session:");
-  });
-
-  it("preserves user id as a prefix so keys can be grouped by user", () => {
-    const userId = "user-xyz";
-    const key = getSessionScopedUserId(userId, "some-session");
-    expect(key.startsWith(userId)).toBe(true);
-  });
-});
+import { textResult } from "../../src/tools/types.js";
 
 // ----- textResult -----
 

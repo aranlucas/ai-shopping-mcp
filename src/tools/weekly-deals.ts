@@ -8,14 +8,14 @@ import type { KvLike } from "../utils/kv.js";
 import type { ToolContext } from "./types.js";
 
 import { networkError, notFoundError, storageError } from "../errors.js";
+import { appResult } from "../app-results.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { DEAL_CATEGORIES, classifyDealCategory } from "../utils/deal-category.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 import { safeJsonParseWithSchema } from "../utils/json.js";
 import { getUserDataKv } from "../utils/kv.js";
-import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import { safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { storeIdSchema } from "./schemas.js";
 
 export type WeeklyDealsCacheEntry = {
@@ -198,7 +198,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
     async ({ storeId, limit, pageLimit }) => {
       let resolvedStoreId = storeId;
       if (!resolvedStoreId) {
-        const resolved = await safeResolveLocationId(ctx.storage, getProps().id, undefined);
+        const resolved = await safeResolveLocationId(ctx.storage, undefined);
         if (resolved.isErr()) {
           return toMcpError(
             notFoundError(
@@ -221,10 +221,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
 
       let staleEntry: WeeklyDealsCacheEntry | null = null;
 
-      const cached = cacheResult.match(
-        (value) => value,
-        () => null,
-      );
+      const cached = cacheResult.isOk() ? cacheResult.value : null;
       if (cached) {
         if (cached.kind === "fresh") {
           const result = addCacheWarning(cached.entry.data, "Served from KV cache.");
@@ -269,19 +266,15 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           ),
       );
 
-      return liveResult.match(
-        (liveData) => formatWeeklyDealsToolResponse(liveData, "miss"),
-        (error) => {
-          if (staleEntry) {
-            const staleData = addCacheWarning(
-              staleEntry.data,
-              `Live refresh failed; served stale KV cache. (${error.message})`,
-            );
-            return formatWeeklyDealsToolResponse(staleData, "stale");
-          }
-          return toMcpError(error);
-        },
-      );
+      if (liveResult.isOk()) return formatWeeklyDealsToolResponse(liveResult.value, "miss");
+      if (staleEntry) {
+        const staleData = addCacheWarning(
+          staleEntry.data,
+          `Live refresh failed; served stale KV cache. (${liveResult.error.message})`,
+        );
+        return formatWeeklyDealsToolResponse(staleData, "stale");
+      }
+      return toMcpError(liveResult.error);
     },
   );
 }
@@ -318,12 +311,11 @@ export function formatWeeklyDealsToolResponse(
         text: formatWeeklyDealsMarkdown(deals, validFrom, validTill, result.warnings),
       },
     ],
-    _meta: { [APP_VIEW_META_KEY]: "get_weekly_deals" },
-    structuredContent: {
+    ...appResult("get_weekly_deals", {
       deals,
       validFrom,
       validTill,
       cache: { state: cacheState },
-    },
+    }),
   };
 }

@@ -291,7 +291,7 @@ describe("safeResolveLocationId", () => {
 
   it("returns Ok with provided locationId without touching storage", async () => {
     const storage = mockStorage();
-    const result = await safeResolveLocationId(storage, "user1", "70500847");
+    const result = await safeResolveLocationId(storage, "70500847");
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({ locationId: "70500847" });
   });
@@ -301,7 +301,7 @@ describe("safeResolveLocationId", () => {
       locationId: "70500847",
       locationName: "QFC #815",
     });
-    const result = await safeResolveLocationId(storage, "user1");
+    const result = await safeResolveLocationId(storage);
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({
       locationId: "70500847",
@@ -311,7 +311,7 @@ describe("safeResolveLocationId", () => {
 
   it("returns NOT_FOUND error when no location provided and no preferred location set", async () => {
     const storage = mockStorage(null);
-    const result = await safeResolveLocationId(storage, "user1");
+    const result = await safeResolveLocationId(storage);
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NOT_FOUND");
@@ -324,7 +324,7 @@ describe("safeResolveLocationId", () => {
         get: vi.fn().mockRejectedValue(new Error("KV unavailable")),
       },
     } as unknown as UserStorage;
-    const result = await safeResolveLocationId(storage, "user1");
+    const result = await safeResolveLocationId(storage);
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");

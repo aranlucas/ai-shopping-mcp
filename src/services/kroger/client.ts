@@ -176,16 +176,12 @@ export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: numbe
       if (!kv || request.method !== "GET") return;
 
       const key = krogerCacheKeyFor(request.url);
-      const raw = await safeStorage(() => kv.get(key), "read Kroger response cache").match(
-        (value) => value,
-        () => null,
-      );
+      const cacheResult = await safeStorage(() => kv.get(key), "read Kroger response cache");
+      const raw = cacheResult.isOk() ? cacheResult.value : null;
       if (!raw) return;
 
-      const entry = safeJsonParseWithSchema(raw, krogerCacheEntrySchema).match(
-        (value): KrogerCacheEntry => value,
-        () => null,
-      );
+      const parseResult = safeJsonParseWithSchema(raw, krogerCacheEntrySchema);
+      const entry: KrogerCacheEntry | null = parseResult.isOk() ? parseResult.value : null;
       if (!entry) return;
 
       return new Response(entry.body, {

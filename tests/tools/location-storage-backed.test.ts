@@ -33,6 +33,8 @@ describe("location storage-backed tools", () => {
         state: "WA",
         zipCode: "98102",
       },
+      geolocation: { latitude: 47.6, longitude: -122.3 },
+      hours: { timezone: "America/Los_Angeles" },
     };
     const context = makeContext();
     context.clients = {
@@ -61,6 +63,10 @@ describe("location storage-backed tools", () => {
         stores: [{ locationId: "70500847", name: "QFC Broadway" }],
       },
     });
+    const store = (result as { structuredContent: { stores: Array<Record<string, unknown>> } })
+      .structuredContent.stores[0];
+    expect(store).not.toHaveProperty("geolocation");
+    expect(store).not.toHaveProperty("hours");
     expect(getCalls[0]).toMatchObject({
       params: {
         query: {
@@ -100,6 +106,8 @@ describe("location storage-backed tools", () => {
         state: "WA",
         zipCode: "98102",
       },
+      departments: [{ name: "Bakery", phone: "206-555-9999", hours: { open24: false } }],
+      geolocation: { latitude: 47.6, longitude: -122.3 },
     };
     const context = makeContext();
     context.clients = {
@@ -125,9 +133,13 @@ describe("location storage-backed tools", () => {
           name: "QFC Broadway",
           chain: "QFC",
           phone: "206-555-1234",
+          departments: [{ name: "Bakery" }],
         },
       },
     });
+    const store = (result as { structuredContent: { store: Record<string, unknown> } })
+      .structuredContent.store;
+    expect(store).not.toHaveProperty("geolocation");
   });
 
   it("returns an error when location details are missing", async () => {
@@ -155,7 +167,7 @@ describe("location storage-backed tools", () => {
     const context = makeContext(
       makeStorage({
         preferredLocation: {
-          set: async (_userId: string, location: PreferredLocation) => {
+          set: async (location: PreferredLocation) => {
             savedLocations.push(location);
           },
           get: async () => savedLocations.at(-1) ?? null,

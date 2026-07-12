@@ -4,17 +4,40 @@ import * as z from "zod/v4";
 
 import type { PreferredLocation } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
+import type { components as LocationComponents } from "../services/kroger/location.js";
+import type { LocationData } from "../app-results.js";
 
+import { appResult } from "../app-results.js";
 import { notFoundError } from "../errors.js";
 import {
   formatPreferredLocationCompact,
   formatStoreDetailMarkdown,
   formatStoreListMarkdown,
 } from "../utils/format-response.js";
-import { fromApiResponse, getProps, safeStorage, toMcpError } from "../utils/result.js";
+import { fromApiResponse, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { storeIdSchema } from "./schemas.js";
+
+type Location = LocationComponents["schemas"]["locations.location"];
+
+/** Location fields rendered by the store list and detail views. */
+export function compactLocation(location: Location): LocationData {
+  return {
+    locationId: location.locationId,
+    name: location.name,
+    chain: location.chain,
+    address: location.address
+      ? {
+          addressLine1: location.address.addressLine1,
+          city: location.address.city,
+          state: location.address.state,
+          zipCode: location.address.zipCode,
+        }
+      : undefined,
+    phone: location.phone,
+    departments: location.departments?.map((department) => ({ name: department.name })),
+  };
+}
 
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
@@ -68,14 +91,12 @@ export function registerLocationTools(ctx: ToolContext) {
         "search locations",
       ).map((data) => data?.data || []);
 
-      return result.match(
-        (stores) => ({
-          content: [{ type: "text" as const, text: formatStoreListMarkdown(stores) }],
-          _meta: { [APP_VIEW_META_KEY]: "search_stores" },
-          structuredContent: { stores },
-        }),
-        toMcpError,
-      );
+      if (result.isErr()) return toMcpError(result.error);
+      const stores = result.value;
+      return {
+        content: [{ type: "text" as const, text: formatStoreListMarkdown(stores) }],
+        ...appResult("search_stores", { stores: stores.map(compactLocation) }),
+      };
     },
   );
 
@@ -111,14 +132,12 @@ export function registerLocationTools(ctx: ToolContext) {
         return ok(location);
       });
 
-      return result.match(
-        (location) => ({
-          content: [{ type: "text" as const, text: formatStoreDetailMarkdown(location) }],
-          _meta: { [APP_VIEW_META_KEY]: "get_store" },
-          structuredContent: { store: location },
-        }),
-        toMcpError,
-      );
+      if (result.isErr()) return toMcpError(result.error);
+      const location = result.value;
+      return {
+        content: [{ type: "text" as const, text: formatStoreDetailMarkdown(location) }],
+        ...appResult("get_store", { store: compactLocation(location) }),
+      };
     },
   );
 
@@ -141,7 +160,6 @@ export function registerLocationTools(ctx: ToolContext) {
       }),
     },
     async ({ storeId }) => {
-      const props = getProps();
       const result = await fromApiResponse(
         locationClient.GET("/v1/locations/{locationId}", {
           params: { path: { locationId: storeId } },
@@ -163,7 +181,7 @@ export function registerLocationTools(ctx: ToolContext) {
         };
 
         return safeStorage(
-          () => ctx.storage.preferredLocation.set(props.id, preferredLocation),
+          () => ctx.storage.preferredLocation.set(preferredLocation),
           "save preferred location",
         ).map(() => ({
           content: [
@@ -172,15 +190,14 @@ export function registerLocationTools(ctx: ToolContext) {
               text: `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
             },
           ],
-          _meta: { [APP_VIEW_META_KEY]: "set_preferred_store" },
-          structuredContent: {
+          ...appResult("set_preferred_store", {
             store: preferredLocation,
             actionDetail: `Preferred store set to ${preferredLocation.locationName}`,
-          },
+          }),
         }));
       });
 
-      return result.match((response) => response, toMcpError);
+      return result.isOk() ? result.value : toMcpError(result.error);
     },
   );
 }

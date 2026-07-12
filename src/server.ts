@@ -25,7 +25,8 @@ import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { getUserDataKv } from "./utils/kv.js";
-import { createUserStorage } from "./utils/user-storage.js";
+import { getProps } from "./utils/result.js";
+import { createShoppingPersistence } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
 /**
@@ -75,7 +76,10 @@ function buildServer(env: Env, sessionId: string): McpServer {
     return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
   }, getUserDataKv(env));
 
-  const storage = createUserStorage(env.USER_DATA_KV);
+  const storage = createShoppingPersistence(env.USER_DATA_KV, () => ({
+    userId: getProps().id,
+    sessionId,
+  }));
   const productService = new ProductService(clients.productClient);
 
   const ctx: ToolContext = {

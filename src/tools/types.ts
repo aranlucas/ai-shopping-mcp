@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { ProductService } from "../services/kroger/product-service.js";
-import type { createUserStorage } from "../utils/user-storage.js";
+import type { ShoppingPersistence } from "../utils/user-storage.js";
 
 // Props stored in the access token and exposed through the MCP auth context.
 // Only contains what's needed for runtime API calls — no refresh credentials.
@@ -21,7 +21,7 @@ export type GrantProps = Props & {
 };
 
 /** Storage instance type, created once and shared via ToolContext */
-export type UserStorage = ReturnType<typeof createUserStorage>;
+export type UserStorage = Pick<ShoppingPersistence, keyof ShoppingPersistence>;
 
 // Shared context passed to all tool registration functions.
 // Infrastructure dependencies only. Auth is accessed via getMcpAuthContext() from agents/mcp.
@@ -42,12 +42,4 @@ export function textResult(text: string) {
 
 export function errorResult(text: string) {
   return { content: [{ type: "text" as const, text }], isError: true as const };
-}
-
-/**
- * Returns a session-scoped storage key for shopping list isolation.
- * Each MCP session (chat) gets its own shopping list.
- */
-export function getSessionScopedUserId(userId: string, sessionId: string): string {
-  return `${userId}:session:${sessionId}`;
 }

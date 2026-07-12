@@ -4,16 +4,16 @@ import * as z from "zod/v4";
 import type { components as ProductComponents } from "../services/kroger/product.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 
-import { notFoundError, validationError } from "../errors.js";
+import { appResult } from "../app-results.js";
+import { notFoundError, storageError, validationError } from "../errors.js";
 import { rankProductMatches } from "../services/match-ranker.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { type LineItem, addLineItemsToCart, toCartSnapshotItems } from "./cart.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { searchProductsForTerms } from "./product.js";
 import { coercedBooleanSchema } from "./schemas.js";
-import { buildShoppingListStorageKey, createShoppingListRecord } from "./shopping-list.js";
+import { createShoppingListRecord } from "./shopping-list.js";
 import { type ToolContext } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -103,9 +103,9 @@ export function registerShopTools(ctx: ToolContext) {
       inputSchema: shopForItemsInputSchema,
     },
     async ({ items, addToCart }) => {
-      const props = getProps();
+      getProps();
 
-      const resolvedLocation = await safeResolveLocationId(ctx.storage, props.id, undefined);
+      const resolvedLocation = await safeResolveLocationId(ctx.storage, undefined);
       if (resolvedLocation.isErr()) {
         return toMcpError(
           notFoundError(
@@ -139,7 +139,7 @@ export function registerShopTools(ctx: ToolContext) {
       );
 
       const [pantry, deals] = await Promise.all([
-        getPantryForFlags(ctx, props.id),
+        getPantryForFlags(ctx),
         getDealsForFlags(ctx, locationId),
       ]);
 
@@ -178,98 +178,93 @@ export function registerShopTools(ctx: ToolContext) {
 
       const listName = `Shopping list ${new Date().toISOString().slice(0, 10)}`;
 
-      const createResult = await createShoppingListRecord(
-        ctx.storage,
-        props.id,
-        ctx.getSessionId(),
-        listName,
-        listItems,
+      const createResult = await createShoppingListRecord(ctx.storage, listName, listItems);
+      if (createResult.isErr()) return toMcpError(createResult.error);
+      const { shortId, list } = createResult.value;
+
+      const parts: string[] = [
+        `Created shopping list "${listName}" (listId=${shortId}) with ${matched.length} item(s).`,
+        "",
+        ...matched.map((match) =>
+          formatMatchLineMarkdown(match.name, match.quantity, match.product, match.flags),
+        ),
+      ];
+
+      if (notFound.length > 0) {
+        parts.push("", `No results for: ${notFound.join(", ")}.`);
+      }
+
+      const respond = () => ({
+        content: [{ type: "text" as const, text: parts.join("\n") }],
+        ...appResult("create_shopping_list", {
+          listId: shortId,
+          name: list.name,
+          items: list.items,
+        }),
+      });
+
+      if (!addToCart) {
+        parts.push(
+          "",
+          `Review these matches, then call add_shopping_list_to_cart with listId "${shortId}" to add them to the Kroger cart.`,
+        );
+        return respond();
+      }
+
+      // addToCart: reuse the same confirm-then-PUT path as
+      // add_shopping_list_to_cart so the elicitation confirmation still
+      // gates the write.
+      const lineItems: LineItem[] = matched.flatMap((match) =>
+        match.product.upc
+          ? [
+              {
+                upc: match.product.upc,
+                quantity: match.quantity,
+                productName: match.product.description || match.name,
+              },
+            ]
+          : [],
       );
 
-      return createResult.match(async ({ shortId, list }) => {
-        const parts: string[] = [
-          `Created shopping list "${listName}" (listId=${shortId}) with ${matched.length} item(s).`,
+      if (lineItems.length === 0) {
+        parts.push(
           "",
-          ...matched.map((match) =>
-            formatMatchLineMarkdown(match.name, match.quantity, match.product, match.flags),
+          `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${shortId}"} once available.`,
+        );
+        return respond();
+      }
+
+      const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, "PICKUP");
+      if (addResult.isErr()) {
+        parts.push(
+          "",
+          `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${shortId}"}.`,
+        );
+        return respond();
+      }
+
+      // Persist the cart snapshot under the same storage key
+      // add_shopping_list_to_cart checks, so a follow-up call with this
+      // listId short-circuits instead of double-adding.
+      const snapshot = toCartSnapshotItems(lineItems, "PICKUP");
+      const snapshotResult = await safeStorage(
+        () => ctx.storage.cartSnapshot.set(shortId, snapshot),
+        "persist cart snapshot",
+      );
+      if (snapshotResult.isErr()) {
+        return toMcpError(
+          storageError(
+            "Kroger accepted the cart add, but its local retry receipt could not be saved. The outcome is ambiguous; do not retry because that may add duplicates. Check the Kroger cart first.",
+            snapshotResult.error,
           ),
-        ];
-
-        if (notFound.length > 0) {
-          parts.push("", `No results for: ${notFound.join(", ")}.`);
-        }
-
-        const respond = () => ({
-          content: [{ type: "text" as const, text: parts.join("\n") }],
-          _meta: { [APP_VIEW_META_KEY]: "create_shopping_list" },
-          structuredContent: {
-            listId: shortId,
-            name: list.name,
-            items: list.items,
-          },
-        });
-
-        if (!addToCart) {
-          parts.push(
-            "",
-            `Review these matches, then call add_shopping_list_to_cart with listId "${shortId}" to add them to the Kroger cart.`,
-          );
-          return respond();
-        }
-
-        // addToCart: reuse the same confirm-then-PUT path as
-        // add_shopping_list_to_cart so the elicitation confirmation still
-        // gates the write.
-        const lineItems: LineItem[] = matched.flatMap((match) =>
-          match.product.upc
-            ? [
-                {
-                  upc: match.product.upc,
-                  quantity: match.quantity,
-                  productName: match.product.description || match.name,
-                },
-              ]
-            : [],
         );
+      }
 
-        if (lineItems.length === 0) {
-          parts.push(
-            "",
-            `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${shortId}"} once available.`,
-          );
-          return respond();
-        }
-
-        const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, "PICKUP", props.id);
-
-        return addResult.match(
-          async () => {
-            // Persist the cart snapshot under the same storage key
-            // add_shopping_list_to_cart checks, so a follow-up call with this
-            // listId short-circuits instead of double-adding.
-            const snapshot = toCartSnapshotItems(lineItems, "PICKUP");
-            const storageKey = buildShoppingListStorageKey(props.id, ctx.getSessionId(), shortId);
-
-            return safeStorage(
-              () => ctx.storage.cartSnapshot.set(storageKey, snapshot),
-              "persist cart snapshot",
-            ).match(() => {
-              parts.push(
-                "",
-                `Added ${lineItems.length} item(s) to your Kroger cart (no need to call add_shopping_list_to_cart).`,
-              );
-              return respond();
-            }, toMcpError);
-          },
-          () => {
-            parts.push(
-              "",
-              `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${shortId}"}.`,
-            );
-            return respond();
-          },
-        );
-      }, toMcpError);
+      parts.push(
+        "",
+        `Added ${lineItems.length} item(s) to your Kroger cart (no need to call add_shopping_list_to_cart).`,
+      );
+      return respond();
     },
   );
 }

@@ -4,10 +4,12 @@ import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
+
+import { appResult } from "../app-results.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { CartSnapshotItem, ShoppingListItem } from "../utils/user-storage.js";
 
-import { validationError } from "../errors.js";
+import { storageError, validationError } from "../errors.js";
 import {
   fromApiResponse,
   getProps,
@@ -16,10 +18,9 @@ import {
   toMcpError,
 } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
-import { buildShoppingListStorageKey, requestCheckoutConfirmation } from "./shopping-list.js";
-import { type Props, type ToolContext, textResult } from "./types.js";
+import { requestCheckoutConfirmation } from "./shopping-list.js";
+import { type ToolContext, textResult } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -76,7 +77,6 @@ export async function addLineItemsToCart(
   cartClient: KrogerClients["cartClient"],
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
-  userId: string,
 ) {
   const confirmation = await requestCheckoutConfirmation(
     ctx.server.server,
@@ -107,7 +107,7 @@ export async function addLineItemsToCart(
   const mirrorItems = toCartSnapshotItems(lineItems, modality);
 
   await safeStorage(
-    () => ctx.storage.cartMirror.append(userId, mirrorItems, new Date().toISOString()),
+    () => ctx.storage.cartMirror.append(mirrorItems, new Date().toISOString()),
     "append cart mirror",
   ).orTee((e) => console.warn("Cart mirror append failed (non-fatal):", e.message));
 
@@ -117,58 +117,52 @@ export async function addLineItemsToCart(
 async function handleInlineItemsCart(
   ctx: ToolContext,
   cartClient: KrogerClients["cartClient"],
-  props: Props,
   items: Array<{ upc: string; quantity: number }>,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
 ) {
-  return safeResolveLocationId(ctx.storage, props.id, storeId).match(async (resolved) => {
-    const addResult = await addLineItemsToCart(ctx, cartClient, items, modality, props.id);
+  const locationResult = await safeResolveLocationId(ctx.storage, storeId);
+  if (locationResult.isErr()) return toMcpError(locationResult.error);
 
-    return addResult.match(() => {
-      const locationInfo = resolved.locationName
-        ? ` at ${resolved.locationName}`
-        : ` (Store: ${resolved.locationId})`;
+  const addResult = await addLineItemsToCart(ctx, cartClient, items, modality);
+  if (addResult.isErr()) return toMcpError(addResult.error);
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Added ${items.length} item(s) to cart${locationInfo}:\n${items.map((i) => `  - ${i.upc} x${i.quantity}`).join("\n")}`,
-          },
-        ],
-        _meta: { [APP_VIEW_META_KEY]: "add_shopping_list_to_cart" },
-        structuredContent: {
-          listId: undefined,
-          name: "Inline items",
-          items: items.map((i) => ({ upc: i.upc, quantity: i.quantity, modality })),
-          needsUpc: [],
-          actionDetail: `Added ${items.length} item(s) to cart`,
-        },
-      };
-    }, toMcpError);
-  }, toMcpError);
+  const resolved = locationResult.value;
+  const locationInfo = resolved.locationName
+    ? ` at ${resolved.locationName}`
+    : ` (Store: ${resolved.locationId})`;
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: `Added ${items.length} item(s) to cart${locationInfo}:\n${items.map((i) => `  - ${i.upc} x${i.quantity}`).join("\n")}`,
+      },
+    ],
+    ...appResult("add_shopping_list_to_cart", {
+      listId: undefined,
+      name: "Inline items",
+      items: items.map((i) => ({ upc: i.upc, quantity: i.quantity, modality })),
+      needsUpc: [],
+      actionDetail: `Added ${items.length} item(s) to cart`,
+    }),
+  };
 }
 
 async function handleListIdCart(
   ctx: ToolContext,
   cartClient: KrogerClients["cartClient"],
-  props: Props,
   listId: string,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
 ) {
-  const storageKey = buildShoppingListStorageKey(props.id, ctx.getSessionId(), listId);
-
   const existingSnapshotResult = await safeStorage(
-    () => ctx.storage.cartSnapshot.get(storageKey),
+    () => ctx.storage.cartSnapshot.get(listId),
     "check existing cart snapshot",
   );
 
-  const existingSnapshot = existingSnapshotResult.match(
-    (snapshot) => snapshot,
-    () => null,
-  );
+  if (existingSnapshotResult.isErr()) return toMcpError(existingSnapshotResult.error);
+  const existingSnapshot = existingSnapshotResult.value;
 
   if (existingSnapshot && existingSnapshot.length > 0) {
     return {
@@ -178,108 +172,115 @@ async function handleListIdCart(
           text: "These items were already added to your cart from this list. Create a new list with create_shopping_list if you want to add more.",
         },
       ],
-      _meta: { [APP_VIEW_META_KEY]: "add_shopping_list_to_cart" },
-      structuredContent: {
+      ...appResult("add_shopping_list_to_cart", {
         listId,
         name: "",
         items: existingSnapshot,
         needsUpc: [],
         actionDetail: "Already added to cart from this list",
-      },
+      }),
     };
   }
 
-  return safeStorage(() => ctx.storage.shoppingList.get(storageKey), "fetch shopping list").match(
-    async (list) => {
-      if (!list) {
-        return toMcpError(
-          validationError(
-            `No shopping list found for listId "${listId}". Create one with create_shopping_list first.`,
-          ),
-        );
-      }
-
-      const withUpc = list.items.filter((item): item is ShoppingListItem & { upc: string } =>
-        Boolean(item.upc),
-      );
-      const withoutUpc = list.items.filter((item) => !item.upc);
-
-      if (withUpc.length === 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text:
-                `Shopping list "${list.name}" has no items with a UPC ready to add to the cart.\n` +
-                (withoutUpc.length > 0
-                  ? `Use search_products to find UPCs for: ${withoutUpc.map((i) => i.productName).join(", ")}.`
-                  : ""),
-            },
-          ],
-          _meta: { [APP_VIEW_META_KEY]: "add_shopping_list_to_cart" },
-          structuredContent: {
-            listId,
-            name: list.name,
-            items: [],
-            needsUpc: withoutUpc.map((i) => ({ productName: i.productName, quantity: i.quantity })),
-            actionDetail: "No items with UPCs to add",
-          },
-        };
-      }
-
-      return safeResolveLocationId(ctx.storage, props.id, storeId).match(async (resolved) => {
-        const lineItems: LineItem[] = withUpc.map((item) => ({
-          upc: item.upc,
-          quantity: item.quantity,
-          productName: item.productName,
-        }));
-
-        const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality, props.id);
-
-        return addResult.match(async () => {
-          // Persist the cart snapshot keyed by the namespaced storage key so a
-          // retried call with the same listId short-circuits instead of
-          // re-adding the same items to the cart.
-          const snapshot = toCartSnapshotItems(lineItems, modality);
-
-          return safeStorage(
-            () => ctx.storage.cartSnapshot.set(storageKey, snapshot),
-            "persist cart snapshot",
-          ).match(() => {
-            const locationInfo = resolved.locationName
-              ? ` at ${resolved.locationName}`
-              : ` (Store: ${resolved.locationId})`;
-
-            const resultParts: string[] = [
-              `Added ${withUpc.length} item(s) from list "${list.name}" to cart${locationInfo}:\n${withUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
-            ];
-
-            if (withoutUpc.length > 0) {
-              resultParts.push(
-                `${withoutUpc.length} item(s) need a UPC before checkout (use search_products to find them, then create a new shopping list with create_shopping_list):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
-              );
-            }
-
-            return {
-              content: [{ type: "text" as const, text: resultParts.join("\n\n") }],
-              _meta: { [APP_VIEW_META_KEY]: "add_shopping_list_to_cart" },
-              structuredContent: {
-                listId,
-                name: list.name,
-                items: snapshot,
-                needsUpc: withoutUpc.map((i) => ({
-                  productName: i.productName,
-                  quantity: i.quantity,
-                })),
-                actionDetail: `Added ${withUpc.length} item(s) from list "${list.name}" to cart`,
-              },
-            };
-          }, toMcpError);
-        }, toMcpError);
-      }, toMcpError);
-    },
-    toMcpError,
+  const listResult = await safeStorage(
+    () => ctx.storage.shoppingList.get(listId),
+    "fetch shopping list",
   );
+  if (listResult.isErr()) return toMcpError(listResult.error);
+  const list = listResult.value;
+  if (!list) {
+    return toMcpError(
+      validationError(
+        `No shopping list found for listId "${listId}". Create one with create_shopping_list first.`,
+      ),
+    );
+  }
+
+  const withUpc = list.items.filter((item): item is ShoppingListItem & { upc: string } =>
+    Boolean(item.upc),
+  );
+  const withoutUpc = list.items.filter((item) => !item.upc);
+
+  if (withUpc.length === 0) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text:
+            `Shopping list "${list.name}" has no items with a UPC ready to add to the cart.\n` +
+            (withoutUpc.length > 0
+              ? `Use search_products to find UPCs for: ${withoutUpc.map((i) => i.productName).join(", ")}.`
+              : ""),
+        },
+      ],
+      ...appResult("add_shopping_list_to_cart", {
+        listId,
+        name: list.name,
+        items: [],
+        needsUpc: withoutUpc.map((i) => ({ productName: i.productName, quantity: i.quantity })),
+        actionDetail: "No items with UPCs to add",
+      }),
+    };
+  }
+
+  const locationResult = await safeResolveLocationId(ctx.storage, storeId);
+  if (locationResult.isErr()) return toMcpError(locationResult.error);
+  const resolved = locationResult.value;
+
+  const lineItems: LineItem[] = withUpc.map((item) => ({
+    upc: item.upc,
+    quantity: item.quantity,
+    productName: item.productName,
+  }));
+
+  const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality);
+  if (addResult.isErr()) return toMcpError(addResult.error);
+
+  // Persist the cart snapshot keyed by the namespaced storage key so a
+  // retried call with the same listId short-circuits instead of
+  // re-adding the same items to the cart.
+  const snapshot = toCartSnapshotItems(lineItems, modality);
+
+  const snapshotResult = await safeStorage(
+    () => ctx.storage.cartSnapshot.set(listId, snapshot),
+    "persist cart snapshot",
+  );
+  if (snapshotResult.isErr()) {
+    return toMcpError(
+      storageError(
+        "Kroger accepted the cart add, but its local retry receipt could not be saved. The outcome is ambiguous; do not retry add_shopping_list_to_cart because that may add duplicates. Check the Kroger cart first.",
+        snapshotResult.error,
+      ),
+    );
+  }
+
+  const locationInfo = resolved.locationName
+    ? ` at ${resolved.locationName}`
+    : ` (Store: ${resolved.locationId})`;
+
+  const resultParts: string[] = [
+    `Added ${withUpc.length} item(s) from list "${list.name}" to cart${locationInfo}:\n${withUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+  ];
+
+  if (withoutUpc.length > 0) {
+    resultParts.push(
+      `${withoutUpc.length} item(s) need a UPC before checkout (use search_products to find them, then create a new shopping list with create_shopping_list):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+    );
+  }
+
+  return {
+    content: [{ type: "text" as const, text: resultParts.join("\n\n") }],
+    ...appResult("add_shopping_list_to_cart", {
+      listId,
+      name: list.name,
+      items: snapshot,
+      needsUpc: withoutUpc.map((i) => ({
+        productName: i.productName,
+        quantity: i.quantity,
+      })),
+      actionDetail: `Added ${withUpc.length} item(s) from list "${list.name}" to cart`,
+    }),
+  };
 }
 
 const viewCartInputSchema = z.object({
@@ -312,27 +313,28 @@ function formatLiveCart(cart: LiveCart, cartId: string): string {
  * Mirror fallback for view_cart: shows what this assistant added to the cart.
  * `note` (when set) explains why the live cart is not being shown.
  */
-function mirrorFallbackResult(ctx: ToolContext, userId: string, note?: string) {
-  return safeStorage(() => ctx.storage.cartMirror.getAll(userId), "fetch cart mirror").match(
-    (items) => {
-      const parts: string[] = note ? [note] : [];
-      if (items.length === 0) {
-        parts.push(
-          "No items added to your cart through this assistant yet. Use shop_for_items to search for items and add them to your Kroger cart.",
-        );
-      } else {
-        const lines = items.map(
-          (item) =>
-            `- ${item.productName ?? item.upc} x${item.quantity} | upc=${item.upc} | ${item.modality}`,
-        );
-        parts.push(
-          `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
-        );
-      }
-      return textResult(parts.join("\n\n"));
-    },
-    toMcpError,
+async function mirrorFallbackResult(ctx: ToolContext, note?: string) {
+  const mirrorResult = await safeStorage(
+    () => ctx.storage.cartMirror.getAll(),
+    "fetch cart mirror",
   );
+  if (mirrorResult.isErr()) return toMcpError(mirrorResult.error);
+
+  const parts: string[] = note ? [note] : [];
+  if (mirrorResult.value.length === 0) {
+    parts.push(
+      "No items added to your cart through this assistant yet. Use shop_for_items to search for items and add them to your Kroger cart.",
+    );
+  } else {
+    const lines = mirrorResult.value.map(
+      (item) =>
+        `- ${item.productName ?? item.upc} x${item.quantity} | upc=${item.upc} | ${item.modality}`,
+    );
+    parts.push(
+      `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
+    );
+  }
+  return textResult(parts.join("\n\n"));
 }
 
 export function registerCartTools(ctx: ToolContext) {
@@ -355,14 +357,13 @@ export function registerCartTools(ctx: ToolContext) {
       inputSchema: addShoppingListToCartInputSchema,
     },
     async ({ listId, items, storeId, modality }) => {
-      const props = getProps();
-
+      getProps();
       if (listId) {
-        return handleListIdCart(ctx, cartClient, props, listId, storeId, modality);
+        return handleListIdCart(ctx, cartClient, listId, storeId, modality);
       }
 
       if (items) {
-        return handleInlineItemsCart(ctx, cartClient, props, items, storeId, modality);
+        return handleInlineItemsCart(ctx, cartClient, items, storeId, modality);
       }
 
       return toMcpError(
@@ -388,19 +389,16 @@ export function registerCartTools(ctx: ToolContext) {
       inputSchema: viewCartInputSchema,
     },
     async ({ cartId }) => {
-      const props = getProps();
-
-      const resolvedId =
-        cartId ??
-        (await safeStorage(() => ctx.storage.cartId.get(props.id), "read stored cart id").match(
-          (value) => value,
-          () => null,
-        ));
+      getProps();
+      const storedIdResult = await safeStorage(
+        () => ctx.storage.cartId.get(),
+        "read stored cart id",
+      );
+      const resolvedId = cartId ?? (storedIdResult.isOk() ? storedIdResult.value : null);
 
       if (!resolvedId) {
         return mirrorFallbackResult(
           ctx,
-          props.id,
           "No live cart id known — pass cartId to view_cart once to enable live cart reads.",
         );
       }
@@ -410,23 +408,19 @@ export function registerCartTools(ctx: ToolContext) {
         "read live cart",
       );
 
-      return liveResult.match(
-        async (payload) => {
-          await safeStorage(
-            () => ctx.storage.cartId.set(props.id, resolvedId),
-            "store cart id",
-          ).orTee((error) => console.warn("Cart id store failed (non-fatal):", error.message));
-          return textResult(formatLiveCart(payload.data ?? {}, resolvedId));
-        },
-        (error) =>
-          mirrorFallbackResult(
-            ctx,
-            props.id,
-            cartId
-              ? `Live cart read failed for cartId=${cartId} — the id may be stale or wrong. Showing items added through this assistant instead.`
-              : `Live cart read failed (${error.message}). Showing items added through this assistant instead.`,
-          ),
+      if (liveResult.isErr()) {
+        return mirrorFallbackResult(
+          ctx,
+          cartId
+            ? `Live cart read failed for cartId=${cartId} — the id may be stale or wrong. Showing items added through this assistant instead.`
+            : `Live cart read failed (${liveResult.error.message}). Showing items added through this assistant instead.`,
+        );
+      }
+
+      await safeStorage(() => ctx.storage.cartId.set(resolvedId), "store cart id").orTee((error) =>
+        console.warn("Cart id store failed (non-fatal):", error.message),
       );
+      return textResult(formatLiveCart(liveResult.value.data ?? {}, resolvedId));
     },
   );
 }

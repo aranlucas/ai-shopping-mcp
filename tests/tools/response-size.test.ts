@@ -16,7 +16,7 @@ import type { ToolContext } from "../../src/tools/types.js";
 import { createKrogerClients } from "../../src/services/kroger/client.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerProductTools } from "../../src/tools/product.js";
-import { createUserStorage } from "../../src/utils/user-storage.js";
+import { createShoppingPersistence } from "../../src/utils/user-storage.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
@@ -180,7 +180,10 @@ describe("search_products content size", () => {
       } as Awaited<ReturnType<typeof clients.productClient.GET>>;
     });
 
-    const storage = createUserStorage(createMockKV());
+    const storage = createShoppingPersistence(createMockKV(), {
+      userId: "response-size-user",
+      sessionId: "session-size",
+    });
     registerProductTools({
       server: {} as unknown as ToolContext["server"],
       clients,

@@ -8,7 +8,6 @@ import type {
 } from "../../src/utils/user-storage.js";
 
 import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
-import { getSessionScopedUserId } from "../../src/tools/types.js";
 
 function stubProductService(): ToolContext["productService"] {
   return {
@@ -54,9 +53,7 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
 
 const USER_ID = "user-123";
 const SESSION_ID = "session-1";
-const SCOPED_ID = getSessionScopedUserId(USER_ID, SESSION_ID);
 const SHORT_LIST_ID = "list_abc12345";
-const SHOPPING_LIST_STORAGE_KEY = `${SCOPED_ID}:list:${SHORT_LIST_ID}`;
 const LOCATION_ID = "70500847";
 
 function authenticate(userId = USER_ID) {
@@ -88,7 +85,7 @@ function structuredContent(result: unknown): Record<string, unknown> {
 
 function listFixture(overrides: Partial<ShoppingList> = {}): ShoppingList {
   return {
-    id: SHOPPING_LIST_STORAGE_KEY,
+    id: `${USER_ID}:session:${SESSION_ID}:list:${SHORT_LIST_ID}`,
     name: "Tuesday Dinner",
     createdAt: new Date().toISOString(),
     items: [
@@ -128,7 +125,7 @@ function makeStorage(
       set: async () => {},
     } as unknown as UserStorage["preferredLocation"],
     shoppingList: {
-      get: async (id: string) => (id === storedList?.id ? storedList : null),
+      get: async (id: string) => (id === SHORT_LIST_ID ? storedList : null),
       create: async () => storedList ?? listFixture(),
       clear: async () => {},
     } as unknown as UserStorage["shoppingList"],
@@ -141,16 +138,16 @@ function makeStorage(
     } as unknown as UserStorage["cartSnapshot"],
     cartMirror: {
       getAll: async () => mirrorItems,
-      append: async (userId: string, items: CartSnapshotItem[], addedAt: string) => {
-        mirrorAppendCalls.push([userId, items, addedAt]);
+      append: async (items: CartSnapshotItem[], addedAt: string) => {
+        mirrorAppendCalls.push([items, addedAt]);
         return [...mirrorItems, ...items.map((item) => ({ ...item, addedAt }))];
       },
       clear: async () => {},
     } as unknown as UserStorage["cartMirror"],
     cartId: {
       get: async () => storedCartId,
-      set: async (userId: string, cartId: string) => {
-        cartIdSetCalls.push([userId, cartId]);
+      set: async (cartId: string) => {
+        cartIdSetCalls.push([cartId]);
       },
     } as unknown as UserStorage["cartId"],
   } as unknown as UserStorage;
@@ -271,7 +268,44 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(sc["name"]).toBe("Tuesday Dinner");
       expect(sc["actionDetail"]).toContain("Tuesday Dinner");
       expect(snapshotSetCalls).toHaveLength(1);
-      expect(snapshotSetCalls[0]?.[0]).toBe(SHOPPING_LIST_STORAGE_KEY);
+      expect(snapshotSetCalls[0]?.[0]).toBe(SHORT_LIST_ID);
+    });
+
+    it("blocks the Kroger write when the retry receipt cannot be read", async () => {
+      const storage = makeStorage(listFixture());
+      storage.cartSnapshot.get = async () => {
+        throw new Error("KV unavailable");
+      };
+      const { context, putCalls } = makeContext(storage);
+      registerCartTools(context);
+
+      const result = await getCapturedHandler("add_shopping_list_to_cart")({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
+
+      expect(isErrorResult(result)).toBe(true);
+      expect(textFromResult(result)).toContain("KV unavailable");
+      expect(putCalls).toHaveLength(0);
+    });
+
+    it("reports an ambiguous completed mutation when the receipt write fails", async () => {
+      const storage = makeStorage(listFixture());
+      storage.cartSnapshot.set = async () => {
+        throw new Error("KV unavailable");
+      };
+      const { context, putCalls } = makeContext(storage);
+      registerCartTools(context);
+
+      const result = await getCapturedHandler("add_shopping_list_to_cart")({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
+
+      expect(putCalls).toHaveLength(1);
+      expect(isErrorResult(result)).toBe(true);
+      expect(textFromResult(result)).toContain("outcome is ambiguous");
+      expect(textFromResult(result)).toContain("do not retry");
     });
 
     it("uses preferred location from storage when storeId is omitted", async () => {
@@ -452,8 +486,7 @@ describe("add_shopping_list_to_cart tool", () => {
       await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID, modality: "PICKUP" });
 
       expect(mirrorAppendCalls).toHaveLength(1);
-      expect(mirrorAppendCalls[0]?.[0]).toBe(USER_ID);
-      expect(mirrorAppendCalls[0]?.[1]).toEqual([
+      expect(mirrorAppendCalls[0]?.[0]).toEqual([
         {
           upc: "0001111042578",
           quantity: 2,
@@ -488,7 +521,7 @@ describe("add_shopping_list_to_cart tool", () => {
       await handler(parsed as unknown as Record<string, unknown>);
 
       expect(mirrorAppendCalls).toHaveLength(1);
-      expect(mirrorAppendCalls[0]?.[1]).toEqual([
+      expect(mirrorAppendCalls[0]?.[0]).toEqual([
         { upc: "0001111042578", quantity: 3, modality: "PICKUP", productName: undefined },
       ]);
     });
@@ -698,7 +731,7 @@ describe("view_cart tool", () => {
 
     await getCapturedHandler("view_cart")({ cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4" });
 
-    expect(cartIdSetCalls).toEqual([[USER_ID, "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4"]]);
+    expect(cartIdSetCalls).toEqual([["2b9b3963-5cac-42f8-9d28-7bebdec0b9e4"]]);
   });
 
   it("uses the stored cartId for a live read when no cartId is passed", async () => {

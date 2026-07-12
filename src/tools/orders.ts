@@ -4,10 +4,10 @@ import * as z from "zod/v4";
 import type { OrderRecord } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
+import { appResult } from "../app-results.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { APP_VIEW_META_KEY } from "../utils/view-meta.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 
 const orderItemSchema = z.object({
@@ -44,7 +44,7 @@ export function registerOrderTools(ctx: ToolContext) {
       inputSchema: recordOrderInputSchema,
     },
     async ({ items, storeId, notes }) => {
-      const props = getProps();
+      getProps();
       const orderId = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
       const estimatedTotal = items.reduce(
@@ -63,7 +63,7 @@ export function registerOrderTools(ctx: ToolContext) {
       };
 
       const result = await safeStorage(
-        () => ctx.storage.orderHistory.add(props.id, order),
+        () => ctx.storage.orderHistory.add(order),
         "record order",
       ).map(() => ({
         content: [
@@ -72,8 +72,7 @@ export function registerOrderTools(ctx: ToolContext) {
             text: `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
           },
         ],
-        _meta: { [APP_VIEW_META_KEY]: "record_order" },
-        structuredContent: {
+        ...appResult("record_order", {
           orderId: order.orderId,
           items: order.items,
           totalItems: order.totalItems,
@@ -81,10 +80,10 @@ export function registerOrderTools(ctx: ToolContext) {
           placedAt: order.placedAt,
           locationId: order.locationId,
           notes: order.notes,
-        },
+        }),
       }));
 
-      return result.match((response) => response, toMcpError);
+      return result.isOk() ? result.value : toMcpError(result.error);
     },
   );
 }
