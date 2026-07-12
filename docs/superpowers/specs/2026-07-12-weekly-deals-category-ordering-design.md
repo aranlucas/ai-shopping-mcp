@@ -101,6 +101,7 @@ sorted array — one source of truth, no duplicate classification.
 ### 3. `src/utils/format-response.ts` — `formatWeeklyDealsMarkdown`
 
 `WeeklyDealMarkdownItem` gains `category: string`. The function walks the
+<<<<<<< HEAD
 (already sorted) deals array once, emitting a `{category}:` label line
 whenever the category changes from the previous deal, then that deal's
 existing `formatWeeklyDealLineMarkdown` line. Label line only appears when
@@ -118,10 +119,19 @@ pre-existing exception with its own calibrated token budget
 (`tests/utils/format-response.test.ts`, `tests/tools/storage-backed-tools.test.ts`)
 — out of scope here; changing it is a separate follow-up.
 
-Example:
+=======
+(already sorted) deals array once, emitting a `### {category}` line whenever
+the category changes from the previous deal, then that deal's existing
+`formatWeeklyDealLineMarkdown` line. Header line only appears when there's at
+least one deal in that category — no empty-category headers. The
+`dealCount`/`warnings` header lines are unchanged.
+
+> > > > > > > 21e64b7 (docs: add weekly deals category ordering design)
+> > > > > > > Example:
 
 ```
 Deals valid 2026-07-08 to 2026-07-15. dealCount: 6
+<<<<<<< HEAD
 Meat & Seafood:
 - Flank Steaks | $6.99/lb | Save $2.00 (was $8.99/lb)
 - Fresh Wild-Caught Alaska Sockeye Salmon Fillets | $9.99/lb
@@ -130,6 +140,16 @@ Produce:
 Dairy & Eggs:
 - Kroger Cheese | $3.49
 Pantry, Snacks & Beverages:
+=======
+### Meat & Seafood
+- Flank Steaks | $6.99/lb | Save $2.00 (was $8.99/lb)
+- Fresh Wild-Caught Alaska Sockeye Salmon Fillets | $9.99/lb
+### Produce
+- Zucchini or Yellow Squash | 2/$3.00
+### Dairy & Eggs
+- Kroger Cheese | $3.49
+### Pantry, Snacks & Beverages
+>>>>>>> 21e64b7 (docs: add weekly deals category ordering design)
 - Doritos | 2/$6.00
 - Coca-Cola | $5.99
 ```
