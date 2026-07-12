@@ -9,6 +9,7 @@ import type { ToolContext } from "./types.js";
 
 import { networkError, notFoundError, storageError } from "../errors.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
+import { DEAL_CATEGORIES, classifyDealCategory } from "../utils/deal-category.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 import { safeJsonParseWithSchema } from "../utils/json.js";
 import { getUserDataKv } from "../utils/kv.js";
@@ -297,14 +298,17 @@ export function formatWeeklyDealsToolResponse(
     result.shoppableCircular?.eventEndDate ??
     result.deals.find((d) => d.validTill)?.validTill;
 
-  const deals = result.deals.map((deal) => ({
-    title: deal.title,
-    details: deal.details,
-    price: deal.price,
-    savings: deal.savings,
-    validFrom: deal.validFrom,
-    validTill: deal.validTill,
-  }));
+  const deals = result.deals
+    .map((deal) => ({
+      title: deal.title,
+      details: deal.details,
+      price: deal.price,
+      savings: deal.savings,
+      validFrom: deal.validFrom,
+      validTill: deal.validTill,
+      category: classifyDealCategory(deal.title),
+    }))
+    .sort((a, b) => DEAL_CATEGORIES.indexOf(a.category) - DEAL_CATEGORIES.indexOf(b.category));
 
   return {
     content: [

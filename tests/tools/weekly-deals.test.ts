@@ -390,6 +390,50 @@ describe("formatWeeklyDealsToolResponse", () => {
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("dealCount: 0");
   });
+
+  it("classifies and sorts deals into category order (meat before produce before pantry)", async () => {
+    const result = makeMinimalResult({
+      deals: [
+        { id: "1", title: "Zucchini", price: "$1.99", source: "print" },
+        { id: "2", title: "Flank Steaks", price: "$6.99/lb", source: "print" },
+        { id: "3", title: "Doritos", price: "$3.99", source: "print" },
+      ],
+    });
+    const response = formatWeeklyDealsToolResponse(result, "miss");
+    const text = getTextContent(response);
+
+    const meatIndex = text.indexOf("Flank Steaks");
+    const produceIndex = text.indexOf("Zucchini");
+    const pantryIndex = text.indexOf("Doritos");
+    expect(meatIndex).toBeGreaterThan(-1);
+    expect(meatIndex).toBeLessThan(produceIndex);
+    expect(produceIndex).toBeLessThan(pantryIndex);
+    expect(text).toContain("Meat & Seafood:");
+    expect(text).toContain("Produce:");
+    expect(text).toContain("Pantry, Snacks & Beverages:");
+
+    const structured = response.structuredContent as {
+      deals: Array<{ title: string; category: string }>;
+    };
+    expect(structured.deals.map((d) => d.title)).toEqual(["Flank Steaks", "Zucchini", "Doritos"]);
+    expect(structured.deals.map((d) => d.category)).toEqual([
+      "Meat & Seafood",
+      "Produce",
+      "Pantry, Snacks & Beverages",
+    ]);
+  });
+
+  it("keeps deals within the same category in their original (source) order", async () => {
+    const result = makeMinimalResult({
+      deals: [
+        { id: "1", title: "Chicken Breast", price: "$3.99/lb", source: "print" },
+        { id: "2", title: "Ground Beef", price: "$4.99/lb", source: "print" },
+      ],
+    });
+    const response = formatWeeklyDealsToolResponse(result, "miss");
+    const structured = response.structuredContent as { deals: Array<{ title: string }> };
+    expect(structured.deals.map((d) => d.title)).toEqual(["Chicken Breast", "Ground Beef"]);
+  });
 });
 
 // ---------------------------------------------------------------------------

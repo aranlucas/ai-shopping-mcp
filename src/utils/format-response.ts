@@ -322,6 +322,7 @@ export type WeeklyDealMarkdownItem = {
   details?: string;
   price?: string;
   savings?: string | null;
+  category: string;
 };
 
 /** One markdown line for a weekly deal: title, details, price, savings. */
@@ -333,7 +334,14 @@ export function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): stri
   return `- ${parts.join(" | ")}`;
 }
 
-/** Markdown for get_weekly_deals: header with validity window and deal count, then lines. */
+/**
+ * Markdown for get_weekly_deals: header with validity window and deal count,
+ * then deals grouped under a plain `{category}:` label line per category
+ * change (deals arrive pre-sorted by category — see formatWeeklyDealsToolResponse).
+ * Deliberately not a markdown heading (`#`/`##`/`###`): a plain label line
+ * costs fewer tokens and matches this file's existing `hours:`/`variants:`
+ * label convention.
+ */
 export function formatWeeklyDealsMarkdown(
   deals: WeeklyDealMarkdownItem[],
   validFrom?: string,
@@ -352,5 +360,14 @@ export function formatWeeklyDealsMarkdown(
 
   if (deals.length === 0) return lines.join("\n");
 
-  return [...lines, ...deals.map(formatWeeklyDealLineMarkdown)].join("\n");
+  let lastCategory: string | undefined;
+  for (const deal of deals) {
+    if (deal.category !== lastCategory) {
+      lines.push(`${deal.category}:`);
+      lastCategory = deal.category;
+    }
+    lines.push(formatWeeklyDealLineMarkdown(deal));
+  }
+
+  return lines.join("\n");
 }
