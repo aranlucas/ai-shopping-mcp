@@ -154,6 +154,8 @@ const CATEGORY_KEYWORDS: Record<KeywordCategory, string[]> = {
     "waffle",
     "waffles",
     "entree",
+    "pizza",
+    "pot pie",
   ],
   "Pantry, Snacks & Beverages": [
     "soda",
@@ -200,6 +202,16 @@ const CATEGORY_KEYWORDS: Record<KeywordCategory, string[]> = {
     "body armor",
     "frappuccino",
     "canada dry",
+    "ramen",
+    "chow mein",
+    "trail mix",
+    "frito-lay",
+    "sparkling ice",
+    "7up",
+    "k-cups",
+    "knorr",
+    "chef boyardee",
+    "ranch style",
   ],
 };
 
