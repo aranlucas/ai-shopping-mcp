@@ -1,7 +1,12 @@
 # Investigation: reviving the `shoppable-weekly-deals` API
 
 **Date:** 2026-07-12
-**Status:** Research note, not a design doc — no code changes implied yet.
+**Status:** Workaround found and implemented — keep the private retail endpoint
+disabled; use the DACS offer API for structured promotion details.
+
+**Last verified:** 2026-07-12. The historical HAR evidence below is from the
+repository's deleted `www.qfc.com.har` capture (the parent of commit
+`3b02350`, recorded 2026-01-02).
 
 ## Why
 
@@ -37,16 +42,14 @@ what broke and whether it's worth reviving.
    the client itself — independent of headers or auth.
 
 3. **Live browser network capture** (`claude-in-chrome`, navigating to
-   `kroger.com/weeklyad?circularId=...`). Contrary to my initial assumption,
-   **the page itself never calls `shoppable-weekly-deals` in normal
-   operation** — its "This Week's Best Deals" grid is populated by
-   `/atlas/v1/savings-coupons/v1/coupons` instead (the same endpoint this
-   repo's git history shows being adopted once, in commit `37c1327`).
-   Calling `shoppable-weekly-deals` manually from the page's own JS context
-   (`fetch(..., { credentials: 'include' })`, so real session cookies were
-   attached) still failed: `400 { "reason": "Channel Missing" }`. So the
-   block isn't cookie/session-based — it's a missing application-level
-   header the site's own fetch wrapper injects that plain `fetch()` doesn't.
+   `kroger.com/weeklyad?circularId=...`). The observed traffic varied by page
+   state: an earlier capture populated the "This Week's Best Deals" grid from
+   `/atlas/v1/savings-coupons/v1/coupons`, while a fresh 2026-07-12 session
+   also requested `shoppable-weekly-deals` after loading the weekly-ad page.
+   Calling the private endpoint without the site's application headers failed
+   with `400 { "reason": "Channel Missing" }`; supplying the reconstructed
+   headers worked only while the browser had valid Akamai state. This confirms
+   both that the endpoint is real and that it is not a stable Worker dependency.
 
 4. **User-supplied HAR capture** (`www.kroger.com.har`, a real browser
    session that successfully loaded the same `circularId`). This is what
@@ -75,47 +78,200 @@ what broke and whether it's worth reviving.
    cookies at all, just the headers from step 4 copied verbatim — **also
    200, full 162-ad response.**
 
-## Correcting the "anti-bot" diagnosis
+## Reconciling the "anti-bot" diagnosis
 
-Step 5 overturns the original diagnosis, not just refines it. This is **not**
-an anti-bot/WAF wall at all:
+The historical capture proved that the application-level contract is ordinary
+and that a correctly formed request could work without a browser session. It
+did **not** prove that the retail edge would remain available to a Worker:
 
-- **The header/LAF-object contract is just an ordinary application
-  parameter**, not a bot check or a security token. `x-laf-object`'s
-  `assortmentKeys`/`listingKeys`/`sources` fields are structured store
-  identifiers; sending them via bare `curl` with no session, no cookies, and
-  no browser fingerprint of any kind was sufficient. There is no bot-manager
-  gate on this endpoint to defeat.
-- **Step 2's failure (`curl` → HTTP/2 `INTERNAL_ERROR` reset) was caused by
-  the missing headers themselves**, not edge/WAF fingerprinting as
-  originally assumed. Once `x-kroger-channel`, `x-facility-id`, `x-modality`,
-  `x-modality-type`, and `x-laf-object` are all present, a plain `curl`
-  request completes normally over HTTP/2 with no special handling.
-- The old codebase's framing ("failing with anti-bot protections") was
-  likely a misdiagnosis at the time — probably because whatever it used to
-  _derive_ the `x-laf-object` value broke, and the resulting malformed/empty
-  header produced a connection-level failure that looked like bot detection
-  rather than a clean 4xx.
+- **The LAF object is application data, not a secret.**
+  `x-laf-object`'s `assortmentKeys`/`listingKeys`/`sources` fields identify a
+  store, facility, and assortment. They can be obtained from
+  `modality/preferences` and then supplied to the deals request.
+- **The earlier bare-client success was real but time-bound.** With all of
+  `x-kroger-channel`, `x-facility-id`, `x-modality`, `x-modality-type`, and
+  `x-laf-object` present, the historical request completed normally. That
+  explains why the old code's malformed/empty LAF request looked like a bot
+  failure at the time.
+- **The current edge behavior is a real operational blocker.** The fresh
+  2026-07-12 plain-client request returned an Akamai challenge (`429`,
+  `cpr_chlge=true`) or reset the HTTP/2 stream. A browser session that already
+  had Kroger's bot-manager state could load the page and receive `200` from
+  both `modality/preferences` and `shoppable-weekly-deals` (104 current ads),
+  but repeating the same calls from that page with `credentials: "omit"`
+  immediately returned the `429` challenge. A Worker cannot safely depend on
+  a private endpoint whose availability changes this way, and this
+  investigation does not justify adding bot-manager evasion.
+
+## The `assortmentKeys` question is solved, but the bootstrap is not stable
+
+The historical HAR in this repository supplies the missing detail. The page
+made this request before the deal/coupon calls:
+
+```text
+POST https://www.qfc.com/atlas/v1/modality/preferences?filter.restrictLafToFc=false
+```
+
+With `x-kroger-channel: WEB` and
+`x-call-origin: {"page":"all","component":"CSR"}` (the HAR contained no
+request cookies), the response was `200` and included
+`data.modalityPreferences.lafObject`. For store `70500847`, that object
+contained `facilityId: "4468"`, `listingKeys: ["70500847"]`, and
+`assortmentKeys: ["edec10f5-2d40-4941-a280-2a405a537dcb"]`. Therefore the
+server does not need to scrape SSR HTML, guess UUIDs, or receive
+`assortmentKeys` from the official `digitalads` circular endpoint. The old
+`tryBootstrapLafObjectFromQfc` implementation was aimed at the right API; its
+initial HTML fetch was not the only possible bootstrap path.
+
+However, this does not make the integration production-ready. Fresh probes on
+2026-07-12 produced the following results:
+
+- `api.kroger.com/digitalads/v1/circulars` returned the current QFC shoppable
+  circular (`id=35933009-164e-4e4f-a58f-576f9ca0ea20`, valid 2026-07-08 through
+  2026-07-15).
+- A plain HTTP/2 POST to the historical `modality/preferences` path, with the
+  historical browser-shaped headers, returned `429` with
+  `{"cpr_chlge":"true"}` and Akamai bot-manager cookies.
+- A standalone browser navigation failed with `ERR_HTTP2_PROTOCOL_ERROR`, and
+  a deal request carrying the historical LAF object from plain `curl` failed
+  with an HTTP/2 `INTERNAL_ERROR` rather than a JSON response.
+- An already-running Chrome session with valid Kroger/Akamai state did load
+  the page. In that session, `modality/preferences` returned the current
+  pickup LAF object and the deal request returned `200` with 104 ads; the same
+  browser context using `credentials: "omit"` received the `429` challenge.
+
+This reconciles the earlier notes: the endpoint was demonstrably callable from
+a bare client during the earlier capture, but the retail edge now sometimes
+challenges or resets the same class of request. The application-level header
+contract is understood; reliable server-side transport is the unresolved
+operational problem.
+
+## Online search result
+
+The public documentation search did not uncover a supported replacement or a
+stable implementation of this private endpoint:
+
+- Kroger's [official public API collection](https://www.postman.com/kroger/the-kroger-co-s-public-workspace/documentation/ki6utqb/kroger-public-apis)
+  documents the public developer surface, including Products, Locations, and
+  Cart APIs, but does not document weekly ads, digital ads, or
+  `shoppable-weekly-deals`.
+- Kroger's [official Weekly Ad FAQ](https://www.kroger.com/hc/help/faqs/ways-to-save/weekly-ads)
+  describes the supported user flow as selecting a preferred store and viewing
+  the Weekly Ad on Kroger.com; it does not expose a server API contract for
+  third-party integrations.
+- Targeted searches for the exact endpoint and its `x-laf-object` headers found
+  no public documentation or independent implementation to use as a more
+  stable source.
+
+This is not proof that Kroger has no internal successor, but it means there is
+no documented API path to substitute directly for the private retail-web
+request.
+
+## GitHub search and the real API workaround
+
+GitHub did turn up useful independent implementations, but they split into two
+categories:
+
+- [`ahornerr/krogetter`](https://github.com/ahornerr/krogetter) uses a stealth
+  browser only to warm Akamai, then reuses the cookies for plain HTTP product
+  API calls. That is a browser relay, not a Cloudflare Worker-compatible fix
+  for this endpoint.
+- [`easement/kroger-shopping-skill`](https://github.com/easement/kroger-shopping-skill/blob/main/scripts/kroger_web_capture.py)
+  uses Playwright for live capture and deliberately prefers the DACS print-ad
+  API before falling back to the private shoppable endpoint. Its fixture
+  refresh confirms the private response shape but does not make the endpoint
+  public or stable.
+- [`mohdtalal3/ads_scraper`](https://github.com/mohdtalal3/ads_scraper/blob/main/kroger_weeklyad.py)
+  exposes the important server-side path: public Digital Ads circular
+  metadata → DACS listing → DACS page → DACS offer details. It calls
+  `/api/dacs/{eventId}/offers/{offerVersionProductGroupId}` with the existing
+  DACS public API key and does not require LAF headers or the Akamai-protected
+  retail host.
+
+The last path is the workable compromise for this Worker. A live QFC probe on
+2026-07-12 confirmed that a DACS page's `mapConfig` contains an
+`offerVersionProductGroupId`. For example, the current print circular
+`fef7e80e-9e93-4d5f-bba9-de88305029c5` produced offer `1238808`, and:
+
+```text
+GET https://oms-kroger-webapp-da-classic-api-prod.przone.net/api/dacs/
+    fef7e80e-9e93-4d5f-bba9-de88305029c5/offers/1238808?location=70500847
+```
+
+returned structured data including:
+
+```text
+headline: Lipton Tea
+pricingText: BUY 3 GET 3 Of Equal or Lesser Value FREE With Card
+startDate: 2026-07-08
+endDate: 2026-07-14
+disclaimer: Select Varieties, Limit 12 Packages
+isShoppable: true
+```
+
+The Worker now performs that offer-details lookup for the selected DACS page
+offers. It uses `pricingText`, dates, disclaimers, and the offer image when
+available, and keeps the page-level deal if an individual enrichment request
+fails. This turns the existing print fallback into a structured real-API
+source without reviving LAF bootstrapping or browser automation.
+
+This is still not a cart-ready product feed: DACS's `upc` field is commonly a
+montage/image identifier such as `M_530686`, not a retail UPC. The existing
+authenticated Product API remains the correct follow-up for matching a deal
+title to concrete products and adding those products to a list or cart.
+
+## What KrogerKrazy is doing
+
+The linked [KrogerKrazy weekly-ad page](https://www.krogerkrazy.com/kroger-weekly-ad/)
+is a useful lead, but it is not an alternate Kroger data API. It is a
+WordPress page that manually publishes an ad preview:
+
+- The page is exposed through the site's public WordPress REST route,
+  `/kk_api/wp/v2/pages?slug=kroger-weekly-ad`.
+- The current response is page `id=275477`, titled
+  `Kroger Weekly Ad Preview 7/15/26-7/21/26`, modified 2026-07-10.
+- `content.rendered` contains the prose and five image blocks, with uploaded
+  JPEGs identified by `data-id` values `506555` through `506559`.
+- The media endpoint, for example
+  [`/kk_api/wp/v2/media/506555`](https://www.krogerkrazy.com/kk_api/wp/v2/media/506555),
+  returns image metadata and the original upload URL. It does not return
+  products, UPCs, store IDs, promotion rules, or structured prices.
+
+The page itself explicitly warns that the preview varies by region and that
+the official Kroger site/app is needed for local pricing and availability.
+That matches the implementation: this is a manually maintained, generic
+image archive, not a scraper of the QFC/Kroger shoppable-deals endpoint.
+
+The technically possible reuse path would be:
+
+```text
+WordPress page JSON → extract JPEG URLs → OCR/vision each ad page → normalize
+deal text and prices → optionally match products through Kroger Product API
+```
+
+That could provide generic weekly-ad inspiration, but it would be lossy and
+regionally inaccurate. It cannot replace the current QFC source for
+store-specific, shoppable results without adding a separate OCR pipeline and
+explicitly labeling the output as a non-local preview.
 
 ## What this means for this repo
 
-- **The data source is genuinely reachable from a plain server-side HTTP
-  client** — including, in principle, this repo's Cloudflare Worker
-  (`fetch()` behaves like `curl` here; no browser automation needed).
+- **The private retail data source was reachable from a plain server-side HTTP
+  client during the historical capture**, but the current retail edge
+  challenges or resets the same request. That distinction rules it out as a
+  dependable dependency for this repo's Cloudflare Worker.
+- **The DACS offer API is the concrete workaround.** It is already the source
+  of the print-ad fallback, requires no OAuth or LAF object, and now supplies
+  structured pricing text and promotion metadata through a bounded,
+  best-effort enrichment pass in `src/services/qfc-weekly-deals.ts`.
 - **The response shape matches the existing hand-typed `weekly-deals.d.ts`
   `WeeklyDeal`/`WeeklyDealsResponse` types** (validated against a real
   162-ad, 14-`adGroup` response) — so re-adopting this wouldn't require
   new type authoring, just wiring.
-- **The one remaining unknown: where `assortmentKeys` comes from for an
-  arbitrary store.** In the HAR, `assortmentKeys: ["01f68952-b130-4e7f-87b8-af822d3e53c9"]`
-  is not returned by any API call — it's embedded directly in the
-  server-rendered HTML of `kroger.com/weeklyad` itself (inside the page's
-  SSR state, alongside `handoffLocation`/`sources`), computed server-side by
-  Kroger for that specific store + modality combination. To build a fully
-  store-agnostic integration, this value would need to be scraped out of
-  that SSR HTML per store (a lightweight HTML fetch + JSON-in-script
-  extraction, not a browser), or another endpoint that returns it would need
-  to be found. This wasn't chased down further in this session.
+- **`assortmentKeys` derivation is known but no longer needed for the selected
+  path.** It is still required by the private retail endpoint, which remains
+  disabled. Do not scrape SSR HTML, hard-code the value, or add browser state
+  to this Worker.
 - **`departments` is coarser than what `deal-category.ts` needs.** Across
   the 162 real ads: 68 (42%) carry _multiple_ department tags, and
   dairy/frozen/bakery/snacks all collapse into generic `GROCERY`/`DRUG/GM`
@@ -145,14 +301,14 @@ an anti-bot/WAF wall at all:
 
 ## Bottom line
 
-Reachability is solved: the endpoint works from a bare server-side HTTP
-client with the right headers, no browser or anti-bot workaround needed. The
-only unresolved piece for a production integration is deriving
-`assortmentKeys` for a store the server doesn't already have a live
-browser-rendered page for. If that gets solved, this becomes a real
-candidate to replace or sit alongside the keyword classifier — richer data,
-real prices, real `departments` — though the department taxonomy alone still
-wouldn't fully replace `deal-category.ts` for the meal-planning-category use
-case (see the coarseness note above). This is a genuine "worth scoping as
-its own feature" candidate now, not a dead end — brainstorm it separately if
-picked up.
+The investigation is complete and the workaround is implemented. The private
+`shoppable-weekly-deals` endpoint and its LAF/Akamai dependency are understood
+but remain unsuitable for this Worker. The supported-enough server-side path
+is the public Digital Ads circular metadata plus DACS listing/page/offer APIs,
+with authenticated Product API matching when concrete UPCs are needed.
+
+Keep the DACS offer enrichment and Product Search fallback. Do not add LAF
+bootstrap code, browser cookies, stealth tooling, or anti-bot workarounds to
+the Worker. The `departments` field from the private response remains useful
+research evidence, but it is not needed for the production path and its
+taxonomy is too coarse to replace `deal-category.ts`.

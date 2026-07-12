@@ -66,6 +66,7 @@ function makeMapConfig(
   headline: string,
   bodyCopy?: string | null,
   imageURL?: string | null,
+  offerVersionProductGroupId?: number,
 ) {
   return JSON.stringify({
     content: {
@@ -73,6 +74,7 @@ function makeMapConfig(
       headline,
       bodyCopy: bodyCopy ?? null,
       imageURL: imageURL ?? null,
+      ...(offerVersionProductGroupId === undefined ? {} : { offerVersionProductGroupId }),
     },
   });
 }
@@ -210,6 +212,96 @@ describe("getQfcWeeklyDeals", () => {
 
       // MOCK_PAGE_RESPONSE has 2 Offers + 1 Banner — only 2 should appear
       expect(result.deals.every((d) => d.title !== "Store Header")).toBe(true);
+    });
+
+    it("enriches print offers with structured DACS promotion details", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+        if (url.includes("/api/dacs/evt-print-1?")) {
+          return Promise.resolve(mockOkResponse(MOCK_LISTING_RESPONSE));
+        }
+        if (url.includes("/api/dacs/evt-print-1/pages/page-1")) {
+          return Promise.resolve(
+            mockOkResponse({
+              contents: [
+                {
+                  contentType: "Offer",
+                  mapConfig: makeMapConfig(
+                    101,
+                    "Fresh Strawberries",
+                    "1 lb",
+                    "https://example.com/page.jpg",
+                    9001,
+                  ),
+                },
+              ],
+            }),
+          );
+        }
+        if (url.includes("/api/dacs/evt-print-1/offers/9001")) {
+          return Promise.resolve(
+            mockOkResponse({
+              headline: "Fresh Strawberries",
+              bodyCopy: "1 lb",
+              pricingText: "$2.99 LB With Card",
+              startDate: "2026-02-19",
+              endDate: "2026-02-25",
+              disclaimer: "While supplies last",
+              imageURL: "https://example.com/offer.jpg",
+              isShoppable: true,
+            }),
+          );
+        }
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+      const strawberry = result.deals[0];
+
+      expect(strawberry.price).toBe("$2.99 LB With Card");
+      expect(strawberry.details).toBe("1 lb • While supplies last");
+      expect(strawberry.validFrom).toBe("2026-02-19");
+      expect(strawberry.validTill).toBe("2026-02-25");
+      expect(strawberry.imageUrl).toBe("https://example.com/offer.jpg");
+      expect(strawberry.rawType).toBe("shoppable");
+    });
+
+    it("keeps the page-level deal when DACS offer enrichment fails", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+        if (url.includes("/api/dacs/evt-print-1?")) {
+          return Promise.resolve(mockOkResponse(MOCK_LISTING_RESPONSE));
+        }
+        if (url.includes("/api/dacs/evt-print-1/pages/page-1")) {
+          return Promise.resolve(
+            mockOkResponse({
+              contents: [
+                {
+                  contentType: "Offer",
+                  mapConfig: makeMapConfig(101, "Fresh Strawberries", "1 lb", null, 9002),
+                },
+              ],
+            }),
+          );
+        }
+        if (url.includes("/api/dacs/evt-print-1/offers/9002")) {
+          return Promise.resolve(mockErrorResponse(503, { error: "Unavailable" }));
+        }
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+      const strawberry = result.deals[0];
+
+      expect(strawberry.price).toBe("See print ad");
+      expect(strawberry.details).toBe("1 lb");
+      expect(strawberry.source).toBe("print");
     });
 
     it("respects the limit parameter", async () => {

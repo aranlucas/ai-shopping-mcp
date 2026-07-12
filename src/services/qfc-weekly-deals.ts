@@ -88,11 +88,25 @@ interface DacsPageResponse {
   }>;
 }
 
+const dacsOfferDetailsSchema = z.looseObject({
+  headline: z.string().optional(),
+  bodyCopy: z.string().nullable().optional(),
+  pricingText: z.string().nullable().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  imageURL: z.string().nullable().optional(),
+  disclaimer: z.string().nullable().optional(),
+  isShoppable: z.boolean().optional(),
+});
+
+type DacsOfferDetails = z.output<typeof dacsOfferDetailsSchema>;
+
 interface ParsedDacsOffer {
   id: string;
   title: string;
   details?: string;
   imageUrl?: string;
+  offerVersionProductGroupId?: string;
 }
 
 const dacsMapConfigSchema = z.looseObject({
@@ -101,6 +115,7 @@ const dacsMapConfigSchema = z.looseObject({
     headline: z.string(),
     bodyCopy: z.string().nullable().optional(),
     imageURL: z.string().nullable().optional(),
+    offerVersionProductGroupId: z.number().optional(),
   }),
 });
 
@@ -336,6 +351,43 @@ async function fetchPrintAdPage(params: {
   return data;
 }
 
+async function fetchPrintAdOfferDetails(params: {
+  eventId: string;
+  offerVersionProductGroupId: string;
+  locationId: string;
+  signal?: AbortSignal;
+}): Promise<DacsOfferDetails> {
+  const url = new URL(
+    `/api/dacs/${params.eventId}/offers/${params.offerVersionProductGroupId}`,
+    DACS_BASE,
+  );
+  url.searchParams.set("location", params.locationId);
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      accept: "*/*",
+      "user-agent": "Mozilla/5.0",
+      referer: `${QFC_WEEKLY_AD_BASE}/weeklyad`,
+      origin: QFC_WEEKLY_AD_BASE,
+      xapikey: DACS_PUBLIC_API_KEY,
+      "content-type": "application/json",
+    },
+    signal: params.signal,
+  });
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} for ${url}`);
+  }
+
+  return safeJsonParseWithSchema(text, dacsOfferDetailsSchema).match(
+    (data) => data,
+    (error) => {
+      throw new Error(`Invalid DACS offer response for ${url}: ${String(error)}`);
+    },
+  );
+}
+
 function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null {
   const parsed = safeJsonParseWithSchema(mapConfig, dacsMapConfigSchema).match(
     (value) => value,
@@ -357,6 +409,35 @@ function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null 
     title,
     details: bodyCopy,
     imageUrl: imageURL,
+    offerVersionProductGroupId:
+      content.offerVersionProductGroupId === undefined
+        ? undefined
+        : String(content.offerVersionProductGroupId),
+  };
+}
+
+function normalizeDacsText(value: string | null | undefined): string | undefined {
+  const normalized = value?.replace(/\s+/g, " ").trim();
+  return normalized || undefined;
+}
+
+function applyDacsOfferDetails(
+  deal: NormalizedWeeklyDeal,
+  offer: DacsOfferDetails,
+): NormalizedWeeklyDeal {
+  const bodyCopy = normalizeDacsText(offer.bodyCopy);
+  const disclaimer = normalizeDacsText(offer.disclaimer);
+  const details = [bodyCopy, disclaimer].filter((value): value is string => Boolean(value));
+  const pricingText = normalizeDacsText(offer.pricingText);
+
+  return {
+    ...deal,
+    details: details.length > 0 ? details.join(" • ") : deal.details,
+    price: pricingText || deal.price,
+    validFrom: offer.startDate || deal.validFrom,
+    validTill: offer.endDate || deal.validTill,
+    imageUrl: offer.imageURL || deal.imageUrl,
+    rawType: offer.isShoppable ? "shoppable" : deal.rawType,
   };
 }
 
@@ -402,13 +483,20 @@ async function normalizePrintDeals(params: {
     ),
   );
 
-  const offers: NormalizedWeeklyDeal[] = [];
+  const parsedOffers: ParsedDacsOffer[] = [];
   for (const page of pageResponses) {
     for (const content of page.contents || []) {
       if (content.contentType !== "Offer" || !content.mapConfig) continue;
       const parsed = parseDacsOfferFromMapConfig(content.mapConfig);
       if (!parsed) continue;
-      offers.push({
+      parsedOffers.push(parsed);
+    }
+  }
+
+  const selectedOffers = dedupeDealsById(parsedOffers).slice(0, limit);
+  const offers = await Promise.all(
+    selectedOffers.map(async (parsed): Promise<NormalizedWeeklyDeal> => {
+      const deal: NormalizedWeeklyDeal = {
         id: parsed.id,
         title: parsed.title,
         details: parsed.details,
@@ -417,12 +505,28 @@ async function normalizePrintDeals(params: {
         validTill: params.printCircular.eventEndDate,
         imageUrl: parsed.imageUrl,
         source: "print",
-      });
-    }
-  }
+      };
+
+      if (!parsed.offerVersionProductGroupId) return deal;
+
+      try {
+        const offer = await fetchPrintAdOfferDetails({
+          eventId: params.printCircular.eventId,
+          offerVersionProductGroupId: parsed.offerVersionProductGroupId,
+          locationId: params.locationId,
+          signal: params.signal,
+        });
+        return applyDacsOfferDetails(deal, offer);
+      } catch {
+        // Offer details are enrichment; keep the page-level deal if one offer
+        // request is unavailable or malformed.
+        return deal;
+      }
+    }),
+  );
 
   return {
-    deals: dedupeDealsById(offers).slice(0, limit),
+    deals: offers,
     pageCount: selectedPages.length,
   };
 }
