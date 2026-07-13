@@ -256,9 +256,7 @@ import { fromApiResponse, toMcpResponse } from "../utils/result.js";
 const result = await fromApiResponse(
   productClient.GET("/v1/products", {
     params: {
-      query: {
-        /* ... */
-      },
+      query: {/* ... */},
     },
   }),
   "search products",

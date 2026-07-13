@@ -8,11 +8,13 @@
   "author": "",
   "type": "module",
   "scripts": {
-    "build": "pnpm lint && pnpm build:views && tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
+    "build": "pnpm lint && pnpm build:views && pnpm typecheck",
     "build:views": "INPUT=mcp-app.html vite build",
     "watch": "NODE_ENV=development INPUT=mcp-app.html vite build --watch",
     "serve": "wrangler dev",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "eval:mcp": "vitest run tests/evals",
     "test:reranker:live": "node scripts/test-reranker-live.mjs",
     "deploy": "pnpm build:views && wrangler deploy",
@@ -28,8 +30,7 @@
     "generate:catalog": "openapi-typescript kroger/catalog.json -o src//services/kroger/catalog.d.ts",
     "generate:location": "openapi-typescript kroger/location.json -o src/services/kroger/location.d.ts",
     "generate:product": "openapi-typescript kroger/product.json -o src/services/kroger/product.d.ts",
-    "generate:identity": "openapi-typescript kroger/identity.json -o src/services/kroger/identity.d.ts",
-    "prepare": "husky"
+    "generate:identity": "openapi-typescript kroger/identity.json -o src/services/kroger/identity.d.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -74,8 +75,6 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-istanbul": "^4.1.10",
     "concurrently": "^10.0.3",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.0.8",
     "openapi-typescript": "^7.13.0",
     "oxfmt": "^0.58.0",
     "oxlint": "^1.73.0",
@@ -87,15 +86,8 @@
     "vitest": "^4.1.10",
     "wrangler": "^4.109.0"
   },
-  "overrides": {
-    "@modelcontextprotocol/sdk": "1.29.0",
-    "ws": "8.20.1"
-  },
-  "lint-staged": {
-    "*": "oxfmt --no-error-on-unmatched-pattern && pnpm lint:fix"
-  },
   "engines": {
     "node": ">=24.13.0"
   },
-  "packageManager": "pnpm@11.10.0"
+  "packageManager": "pnpm@11.12.0"
 }

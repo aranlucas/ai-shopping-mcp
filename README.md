@@ -4,6 +4,20 @@ This project implements a [Model Context Protocol (MCP)](https://modelcontextpro
 
 The goal is to allow AI models (like those in editors such as Cursor) to help manage QFC/Kroger shopping lists.
 
+## Cloudflare deployment
+
+This package lives in the `agents` pnpm monorepo and deploys independently to
+the existing `ai-meal-planner-mcp` Cloudflare Worker. Configure Workers Builds
+with:
+
+- Root directory: `apps/ai-shopping-mcp`
+- Build command: `pnpm build`
+- Deploy command: `pnpm exec wrangler deploy`
+
+Keep the Worker name, KV namespace IDs, Durable Object migration history, and
+OAuth callback URL in `wrangler.jsonc` stable so deployments continue using the
+existing production resources and secrets.
+
 ## Setup & Configuration
 
 ### Kroger Developer Portal Setup
