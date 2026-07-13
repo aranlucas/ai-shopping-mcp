@@ -610,6 +610,30 @@ describe("get_weekly_deals handler", () => {
     expect(store.size).toBe(1);
   });
 
+  it("keeps cached deals fresh through the circular and retains a 48-hour stale fallback", async () => {
+    const eventEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const liveData = makeMinimalDealsResponse({
+      printCircular: makeCircular(eventEnd),
+    });
+    mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
+    const { kv, store } = makeKV();
+
+    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+
+    await getWeeklyDealsHandler()(DEFAULT_ARGS);
+
+    const rawEntry = [...store.values()][0];
+    const entry = parseCacheEntry(rawEntry);
+    const expectedFreshUntil = Date.parse(eventEnd);
+    const expectedStaleUntil = expectedFreshUntil + 48 * 60 * 60 * 1000;
+
+    expect(entry?.freshUntil).toBe(expectedFreshUntil);
+    expect(entry?.staleUntil).toBe(expectedStaleUntil);
+    expect(kv.put).toHaveBeenCalledWith(expect.any(String), expect.any(String), {
+      expiration: Math.ceil(expectedStaleUntil / 1000),
+    });
+  });
+
   it("serves stale cache with a warning when live fetch fails and a stale entry exists", async () => {
     const staleData = makeMinimalDealsResponse({
       deals: [{ id: "s1", title: "Stale Deal", price: "$2.00", source: "print" }],
