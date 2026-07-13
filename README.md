@@ -10,9 +10,22 @@ This package lives in the `agents` pnpm monorepo and deploys independently to
 the existing `ai-meal-planner-mcp` Cloudflare Worker. Configure Workers Builds
 with:
 
-- Root directory: `apps/ai-shopping-mcp`
+- Git repository: `aranlucas/agents`
+- Root directory: `/apps/ai-shopping-mcp`
 - Build command: `pnpm build`
 - Deploy command: `pnpm exec wrangler deploy`
+- Non-production branch deploy command: `pnpm exec wrangler versions upload`
+- Production branch: `main`
+- Builds for non-production branches: enabled
+- Build watch include paths:
+  - `apps/ai-shopping-mcp/*`
+  - `pnpm-lock.yaml`
+  - `pnpm-workspace.yaml`
+  - `package.json`
+- Build cache: enabled
+
+Build-time variables and secrets can remain empty. Runtime secrets are managed
+separately in the Worker's **Variables and secrets** settings.
 
 Keep the Worker name, KV namespace IDs, Durable Object migration history, and
 OAuth callback URL in `wrangler.jsonc` stable so deployments continue using the
