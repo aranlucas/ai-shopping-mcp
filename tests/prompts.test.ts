@@ -78,6 +78,7 @@ describe("registerPrompts", () => {
       });
       const text = getText(result);
       expect(text).toContain("Milk, Eggs, Bread");
+      expect(text).toContain("include_location=true");
     });
 
     it("includes the DO NOT add items instruction when grocery_list is provided", async () => {
@@ -92,6 +93,7 @@ describe("registerPrompts", () => {
       const result = await callPrompt("plan_shopping_route", {});
       const text = getText(result);
       expect(text).toContain("check my pantry, order history");
+      expect(text).toContain("include_location=true");
       expect(text).not.toContain("I have the following grocery list");
     });
 

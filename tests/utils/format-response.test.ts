@@ -329,11 +329,38 @@ describe("formatShoppingListCompact", () => {
 // ----- Markdown formatters (model-facing content) -----
 
 describe("formatProductSearchLineMarkdown", () => {
-  it("includes upc, description, brand, size, price, pickup, and aisle", () => {
+  it("omits location details by default", () => {
     const line = formatProductSearchLineMarkdown(makeProduct());
     expect(line).toBe(
-      "- upc=0001111041700 | Kroger 2% Reduced Fat Milk | Kroger | 1 gal | $2.99 (was $3.49) | pickup: yes | aisle: 21",
+      "- upc=0001111041700 | Kroger 2% Reduced Fat Milk | Kroger | 1 gal | $2.99 (was $3.49) | pickup: yes",
     );
+  });
+
+  it("includes aisle and shelf details when location output is requested", () => {
+    const line = formatProductSearchLineMarkdown(
+      makeProduct({
+        aisleLocations: [
+          {
+            description: "AISLE 3",
+            number: "3",
+            sequenceNumber: "7",
+            bayNumber: "35",
+            side: "L",
+            shelfNumber: "4",
+            shelfPositionInBay: "2",
+          },
+        ],
+      }),
+      { includeLocation: true },
+    );
+
+    expect(line).toContain("location: AISLE 3");
+    expect(line).not.toContain("location: AISLE 3 3");
+    expect(line).toContain("route sequence: 7");
+    expect(line).toContain("bay: 35");
+    expect(line).toContain("side: L");
+    expect(line).toContain("shelf: 4");
+    expect(line).toContain("shelf position: 2");
   });
 
   it("omits the 'was' price when there is no promo", () => {
@@ -359,6 +386,15 @@ describe("formatSearchProductsMarkdown", () => {
     ]);
     expect(text).toContain("## milk");
     expect(text).toContain("upc=0001111041700");
+    expect(text).not.toContain("location:");
+  });
+
+  it("passes the location opt-in through to product lines", () => {
+    const text = formatSearchProductsMarkdown(
+      [{ term: "milk", products: [makeProduct()], count: 1, failed: false }],
+      { includeLocation: true },
+    );
+    expect(text).toContain("location: Dairy 21");
   });
 
   it("shows 'No results.' for an empty, non-failed term", () => {

@@ -40,7 +40,16 @@ export type ProductData = {
   description?: string;
   brand?: string;
   categories?: string[];
-  aisleLocations?: Array<{ description?: string; number?: string }>;
+  aisleLocations?: Array<{
+    bayNumber?: string;
+    description?: string;
+    number?: string;
+    numberOfFacings?: string;
+    sequenceNumber?: string;
+    side?: string;
+    shelfNumber?: string;
+    shelfPositionInBay?: string;
+  }>;
   images?: Array<{
     perspective?: string;
     default?: boolean;

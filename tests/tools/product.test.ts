@@ -251,6 +251,24 @@ describe("search_products", () => {
     expect(config.description).toContain("do not call once per item");
   });
 
+  it("describes shelf location output as opt-in for in-store grocery routes", () => {
+    registerProductTools(makeContext(async () => makeSearchResponse([])));
+
+    const tool = getCapturedTool("search_products");
+    const config = tool.config as {
+      inputSchema: {
+        shape: {
+          include_location: { description?: string; parse: (value: unknown) => boolean };
+        };
+      };
+    };
+    const includeLocation = config.inputSchema.shape.include_location;
+
+    expect(includeLocation.parse(undefined)).toBe(false);
+    expect(includeLocation.description).toContain("finding items on the shelf");
+    expect(includeLocation.description).toContain("in-store grocery route");
+  });
+
   it("routes through result metadata and returns the compact search payload", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeSearchResponse([product])));
@@ -477,6 +495,7 @@ describe("search_products", () => {
     });
     expect(projected).not.toHaveProperty("aliasProductIds");
     expect(projected).not.toHaveProperty("allergensDescription");
+    expect(projected).not.toHaveProperty("aisleLocations");
     expect(projected.items?.[0]).not.toHaveProperty("itemId");
 
     // markdown (model context) is compact: no itemId/images, but has upc/pickup fields
@@ -485,6 +504,50 @@ describe("search_products", () => {
     expect(text).not.toContain("images");
     expect(text).toContain("upc=0001111041700");
     expect(text).toContain("pickup: yes");
+    expect(text).not.toContain("location:");
+    expect(text).not.toContain("shelf:");
+  });
+
+  it("includes aisle and shelf location details only when include_location is true", async () => {
+    const product = makeProduct({
+      aisleLocations: [
+        {
+          description: "AISLE 3",
+          number: "3",
+          sequenceNumber: "7",
+          bayNumber: "35",
+          side: "L",
+          shelfNumber: "4",
+          shelfPositionInBay: "2",
+        },
+      ],
+    });
+    registerProductTools(makeContext(async () => makeSearchResponse([product])));
+
+    const result = await getCapturedHandler("search_products")({
+      terms: ["tortillas"],
+      include_location: true,
+    });
+
+    const sc = structuredContentOf(result) as { results: Array<{ products: Product[] }> };
+    expect(sc.results[0].products[0].aisleLocations?.[0]).toMatchObject({
+      description: "AISLE 3",
+      number: "3",
+      sequenceNumber: "7",
+      bayNumber: "35",
+      side: "L",
+      shelfNumber: "4",
+      shelfPositionInBay: "2",
+    });
+
+    const text = textFromResult(result);
+    expect(text).toContain("location: AISLE 3");
+    expect(text).not.toContain("location: AISLE 3 3");
+    expect(text).toContain("route sequence: 7");
+    expect(text).toContain("bay: 35");
+    expect(text).toContain("side: L");
+    expect(text).toContain("shelf: 4");
+    expect(text).toContain("shelf position: 2");
   });
 
   it("markdown content ends with a reminder to reuse the upc for create_shopping_list", async () => {

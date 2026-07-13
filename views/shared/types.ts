@@ -48,7 +48,10 @@ export type ToolCall =
   | { name: "remove_from_inventory"; arguments: RemoveFromInventoryArgs }
   | { name: "set_preferred_store"; arguments: { storeId: string } }
   | { name: "get_store"; arguments: { storeId: string } }
-  | { name: "search_products"; arguments: { terms: string[]; storeId?: string } };
+  | {
+      name: "search_products";
+      arguments: { terms: string[]; storeId?: string; include_location?: boolean };
+    };
 
 /** Timeout for app-initiated callServerTool() calls (ms). */
 export const TOOL_CALL_TIMEOUT_MS = 15_000;

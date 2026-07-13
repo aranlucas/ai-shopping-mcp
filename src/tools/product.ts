@@ -30,7 +30,7 @@ export type ProductSearchResult = {
  * Keep the MCP Apps payload useful without sending the complete Kroger catalog
  * record to hosts that include structuredContent in model context.
  */
-export function compactSearchProduct(product: Product): ProductData {
+export function compactSearchProduct(product: Product, includeLocation = false): ProductData {
   const image =
     product.images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
     product.images?.[0];
@@ -44,7 +44,9 @@ export function compactSearchProduct(product: Product): ProductData {
     description: product.description,
     brand: product.brand,
     categories: product.categories,
-    aisleLocations: product.aisleLocations?.slice(0, 1),
+    ...(includeLocation && product.aisleLocations
+      ? { aisleLocations: product.aisleLocations.slice(0, 1) }
+      : {}),
     images: image
       ? [
           {
@@ -227,9 +229,15 @@ export function registerProductTools(ctx: ToolContext) {
           .max(10)
           .default(5)
           .describe("Max products to return per search term (1-10)"),
+        include_location: z
+          .boolean()
+          .default(false)
+          .describe(
+            "Include aisle, route sequence, bay, side, shelf, and shelf-position details for finding items on the shelf. Important when planning an in-store grocery route.",
+          ),
       }),
     },
-    async ({ terms, storeId, limitPerTerm }, extra) => {
+    async ({ terms, storeId, limitPerTerm, include_location }, extra) => {
       // Resolve storeId: explicit arg → preferred store → omit filter
       let resolvedLocationId: string | undefined = storeId;
       if (!resolvedLocationId) {
@@ -267,11 +275,18 @@ export function registerProductTools(ctx: ToolContext) {
       }
 
       return {
-        content: [{ type: "text" as const, text: formatSearchProductsMarkdown(results) }],
+        content: [
+          {
+            type: "text" as const,
+            text: formatSearchProductsMarkdown(results, { includeLocation: include_location }),
+          },
+        ],
         ...appResult("search_products", {
           results: results.map((result) => ({
             ...result,
-            products: result.products.map(compactSearchProduct),
+            products: result.products.map((product) =>
+              compactSearchProduct(product, include_location),
+            ),
           })),
           totalProducts,
         }),

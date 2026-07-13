@@ -169,7 +169,10 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 // ---------------------------------------------------------------------------
 
 /** One markdown line summarizing a single product for search_products output. */
-export function formatProductSearchLineMarkdown(product: Product): string {
+export function formatProductSearchLineMarkdown(
+  product: Product,
+  options: { includeLocation?: boolean } = {},
+): string {
   const item = product.items?.[0];
   const parts: string[] = [
     `upc=${product.upc ?? "unknown"}`,
@@ -191,8 +194,23 @@ export function formatProductSearchLineMarkdown(product: Product): string {
   const pickup = Boolean(item?.fulfillment?.curbside || item?.fulfillment?.instore);
   parts.push(`pickup: ${pickup ? "yes" : "no"}`);
 
-  const aisle = product.aisleLocations?.[0]?.number;
-  if (aisle) parts.push(`aisle: ${aisle}`);
+  const location = product.aisleLocations?.[0];
+  if (options.includeLocation && location) {
+    const description = location.description?.trim();
+    const number = location.number?.trim();
+    const locationLabel =
+      description && number && !description.split(/\s+/).includes(number)
+        ? `${description} ${number}`
+        : (description ?? number);
+    if (locationLabel) parts.push(`location: ${locationLabel}`);
+    if (location.sequenceNumber) parts.push(`route sequence: ${location.sequenceNumber}`);
+    if (location.bayNumber) parts.push(`bay: ${location.bayNumber}`);
+    if (location.side) parts.push(`side: ${location.side}`);
+    if (location.shelfNumber) parts.push(`shelf: ${location.shelfNumber}`);
+    if (location.shelfPositionInBay) {
+      parts.push(`shelf position: ${location.shelfPositionInBay}`);
+    }
+  }
 
   return `- ${parts.join(" | ")}`;
 }
@@ -200,6 +218,7 @@ export function formatProductSearchLineMarkdown(product: Product): string {
 /** Markdown for search_products: one heading + product lines per search term. */
 export function formatSearchProductsMarkdown(
   results: Array<{ term: string; products: Product[]; count: number; failed: boolean }>,
+  options: { includeLocation?: boolean } = {},
 ): string {
   const lines: string[] = [];
 
@@ -211,7 +230,7 @@ export function formatSearchProductsMarkdown(
       lines.push("No results.");
     } else {
       for (const product of result.products) {
-        lines.push(formatProductSearchLineMarkdown(product));
+        lines.push(formatProductSearchLineMarkdown(product, options));
       }
     }
   }
