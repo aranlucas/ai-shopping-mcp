@@ -1,4 +1,4 @@
-import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
+import OAuthProvider, { GrantType, OAuthError } from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp";
 import { WorkerEntrypoint } from "cloudflare:workers";
@@ -7,6 +7,7 @@ import type { KrogerTokenInfo } from "./services/kroger/client.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 
 import { KrogerHandler } from "./kroger-handler.js";
+import { createMcpTransportStorage } from "./mcp-transport-storage.js";
 import { registerPrompts } from "./prompts.js";
 import {
   createKrogerClients,
@@ -106,11 +107,8 @@ function buildServer(env: Env, sessionId: string): McpServer {
  *
  * The MCP session id is carried by the client in the `Mcp-Session-Id` header
  * after the server issues it on `initialize`. Because each request spins up a
- * fresh `WorkerTransport`, we hand the transport a `storage` shim that rebuilds
- * the minimal `TransportState` from that header — restoring `initialized`/
- * `sessionId` so non-initialize requests validate, with no server-side state.
- * The session id only namespaces the authenticated user's KV data (the user id
- * comes from OAuth, not the header), so a client-supplied id is safe.
+ * fresh `WorkerTransport`, its minimal protocol state is persisted in the
+ * existing user-scoped KV namespace and restored on follow-up requests.
  */
 const mcpApiHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -120,11 +118,7 @@ const mcpApiHandler = {
     const handler = createMcpHandler(buildServer(env, sessionId), {
       route: "/mcp",
       sessionIdGenerator: () => sessionId,
-      storage: {
-        get: () =>
-          headerSessionId ? { sessionId: headerSessionId, initialized: true } : undefined,
-        set: () => {},
-      },
+      storage: createMcpTransportStorage(env.USER_DATA_KV, headerSessionId, () => getProps().id),
     });
 
     return handler(request, env, ctx);
@@ -140,7 +134,7 @@ class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
   }
 }
 
-export default new OAuthProvider({
+export const oauthProvider = new OAuthProvider<Env>({
   apiHandlers: {
     "/mcp": mcpApiHandler,
     "/userinfo": UserInfoHandler,
@@ -173,42 +167,88 @@ export default new OAuthProvider({
     if (grantType !== GrantType.REFRESH_TOKEN) return {};
 
     if (!refreshToken || !krogerClientId || !krogerClientSecret) {
-      return { accessTokenTTL: 1 }; // Force re-auth
+      throw new OAuthError("invalid_grant", {
+        description: "Kroger authorization is incomplete. Reconnect the MCP server.",
+      });
     }
 
     if (!isKrogerTokenExpiring(accessTokenProps.tokenExpiresAt)) {
-      return { accessTokenProps };
+      const ttl = Math.max(Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000), 60);
+      return { accessTokenProps, accessTokenTTL: ttl };
     }
 
-    return (
-      await refreshKrogerToken(refreshToken, krogerClientId, krogerClientSecret).orTee((error) =>
-        console.error("Kroger token refresh failed:", error.message),
-      )
-    ).match(
-      (result) => {
-        if (!result.refreshToken) {
-          console.error("Kroger refresh missing new refresh token (single-use). Re-auth required.");
-          return { accessTokenTTL: 1 };
-        }
-
-        return {
-          accessTokenProps: {
-            ...accessTokenProps,
-            accessToken: result.accessToken,
-            tokenExpiresAt: result.tokenExpiresAt,
-          },
-          newProps: {
-            ...accessTokenProps,
-            accessToken: result.accessToken,
-            refreshToken: result.refreshToken,
-            tokenExpiresAt: result.tokenExpiresAt,
-            krogerClientId,
-            krogerClientSecret,
-          },
-          accessTokenTTL: result.expiresIn,
-        };
-      },
-      () => ({ accessTokenTTL: 1 }),
+    const refreshResult = await refreshKrogerToken(
+      refreshToken,
+      krogerClientId,
+      krogerClientSecret,
     );
+    if (refreshResult.isErr()) {
+      const error = refreshResult.error;
+      console.error("Kroger token refresh failed:", error.message);
+
+      const upstreamCode =
+        error.type === "API_ERROR" &&
+        error.detail &&
+        typeof error.detail === "object" &&
+        !(error.detail instanceof Error) &&
+        typeof error.detail.error === "string"
+          ? error.detail.error
+          : undefined;
+
+      if (upstreamCode === "invalid_grant" || upstreamCode === "invalid_client") {
+        throw new OAuthError("invalid_grant", {
+          description: "Kroger authorization expired. Reconnect the MCP server.",
+        });
+      }
+
+      if (error.type === "API_ERROR" && error.status === 429) {
+        throw new OAuthError("temporarily_unavailable", {
+          description: "Kroger rate limited the token refresh. Try again shortly.",
+          statusCode: 429,
+          headers: { "Retry-After": "60" },
+        });
+      }
+
+      throw new OAuthError("temporarily_unavailable", {
+        description: "Kroger token refresh is temporarily unavailable. Try again shortly.",
+        statusCode: 503,
+        headers: { "Retry-After": "60" },
+      });
+    }
+
+    const result = refreshResult.value;
+    if (!result.refreshToken) {
+      console.error("Kroger refresh missing new refresh token (single-use). Re-auth required.");
+      throw new OAuthError("invalid_grant", {
+        description: "Kroger did not rotate the refresh token. Reconnect the MCP server.",
+      });
+    }
+
+    return {
+      accessTokenProps: {
+        ...accessTokenProps,
+        accessToken: result.accessToken,
+        tokenExpiresAt: result.tokenExpiresAt,
+      },
+      newProps: {
+        ...accessTokenProps,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        tokenExpiresAt: result.tokenExpiresAt,
+        krogerClientId,
+        krogerClientSecret,
+      },
+      accessTokenTTL: result.expiresIn,
+    };
   },
 });
+
+export default {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    return oauthProvider.fetch(request, env, ctx);
+  },
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    const result = await oauthProvider.purgeExpiredData(env, { batchSize: 100 });
+    console.log("OAuth KV cleanup complete:", result);
+  },
+} satisfies ExportedHandler<Env>;

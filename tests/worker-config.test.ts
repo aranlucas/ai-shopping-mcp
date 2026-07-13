@@ -12,4 +12,9 @@ describe("Worker configuration", () => {
     expect(serverSource).not.toContain("class MyMCP");
     expect(generatedTypes).not.toContain("MCP_OBJECT");
   });
+
+  it("runs daily OAuth KV cleanup without changing Worker bindings", () => {
+    expect(wranglerConfig).toContain('"crons": ["0 2 * * *"]');
+    expect(serverSource).toContain("oauthProvider.purgeExpiredData");
+  });
 });
