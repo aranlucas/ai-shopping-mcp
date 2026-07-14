@@ -94,31 +94,6 @@ body {
   background-color: var(--color-background-primary, #f9fafb);
 }
 
-/* ── MCP App design tokens ── */
-:root {
-  --app-accent: light-dark(#15803d, #4ade80);
-  --app-accent-hover: light-dark(#166534, #22c55e);
-  --app-accent-text: light-dark(#15803d, #4ade80);
-  --app-border: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.08));
-  --app-border-hover: light-dark(rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.15));
-  --app-card-bg: var(--color-background-secondary, #ffffff);
-}
-
-@keyframes app-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-view-in {
-  animation: app-fade-up 0.16s ease-out both;
-}
-
 @theme inline {
   --font-heading: var(--font-sans);
   --color-ring: var(--ring);
@@ -157,18 +132,18 @@ body {
 :root {
   --background: var(--color-background-primary, #ffffff);
   --foreground: var(--color-text-primary, #111827);
-  --card: var(--app-card-bg, #ffffff);
+  --card: var(--color-background-secondary, #ffffff);
   --card-foreground: var(--color-text-primary, #111827);
-  --primary: var(--app-accent, #15803d);
+  --primary: light-dark(#15803d, #4ade80);
   --primary-foreground: var(--color-text-on-accent, #ffffff);
   --secondary: var(--color-background-tertiary, #f3f4f6);
   --secondary-foreground: var(--color-text-secondary, #4b5563);
   --muted: var(--color-background-tertiary, #f3f4f6);
   --muted-foreground: var(--color-text-tertiary, #6b7280);
   --destructive: var(--color-red-600, #dc2626);
-  --border: var(--app-border, rgba(0, 0, 0, 0.07));
-  --input: var(--app-border, rgba(0, 0, 0, 0.07));
-  --ring: var(--app-accent, #15803d);
+  --border: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.08));
+  --input: var(--border);
+  --ring: var(--primary);
   --radius: var(--radius-card, 0.75rem);
   --font-sans:
     ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
