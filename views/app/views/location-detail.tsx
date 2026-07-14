@@ -67,7 +67,9 @@ export function LocationDetailView({
               </h1>
               {location.chain && (
                 <div className="mt-0.5">
-                  <Badge variant="gray">{location.chain}</Badge>
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-500">
+                    {location.chain}
+                  </Badge>
                 </div>
               )}
             </div>
@@ -144,7 +146,7 @@ export function LocationDetailView({
                 {location.departments
                   .filter((d) => d.name)
                   .map((d) => (
-                    <Badge key={d.name} variant="gray">
+                    <Badge key={d.name} variant="secondary" className="bg-gray-100 text-gray-500">
                       {d.name}
                     </Badge>
                   ))}

@@ -2,9 +2,9 @@ import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react
 
 import { ReactNode, useState } from "react";
 
-import { Badge } from "@/shared/ui/badge.js";
-import { Button } from "@/shared/ui/button.js";
-import { Card, CardContent, CardFooter } from "@/shared/ui/card.js";
+import { Badge } from "@agents/ui/components/badge";
+import { Button } from "@agents/ui/components/button";
+import { Card, CardContent, CardFooter } from "@agents/ui/components/card";
 
 import type { ProductData } from "./types.js";
 
@@ -90,15 +90,20 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   const item = product.items?.[0];
   if (!item?.fulfillment) return null;
 
-  const tags: Array<{ label: string; variant: "blue" | "purple" | "green" }> = [];
-  if (item.fulfillment.curbside) tags.push({ label: "Pickup", variant: "blue" });
-  if (item.fulfillment.delivery) tags.push({ label: "Delivery", variant: "purple" });
-  if (item.fulfillment.instore) tags.push({ label: "In-Store", variant: "green" });
+  const tags: Array<{ label: string; className: string }> = [];
+  if (item.fulfillment.curbside)
+    tags.push({ label: "Pickup", className: "bg-blue-50 text-blue-700" });
+  if (item.fulfillment.delivery)
+    tags.push({ label: "Delivery", className: "bg-purple-50 text-purple-700" });
+  if (item.fulfillment.instore)
+    tags.push({ label: "In-Store", className: "bg-emerald-50 text-emerald-700" });
 
   if (tags.length === 0) {
     return (
       <div className="flex flex-wrap gap-1 mt-1.5">
-        <Badge variant="red">Out of Stock</Badge>
+        <Badge variant="outline" className="bg-red-50 text-red-600">
+          Out of Stock
+        </Badge>
       </div>
     );
   }
@@ -106,7 +111,7 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   return (
     <div className="flex flex-wrap gap-1 mt-1.5">
       {tags.map((t) => (
-        <Badge key={t.label} variant={t.variant}>
+        <Badge key={t.label} variant="outline" className={t.className}>
           {t.label}
         </Badge>
       ))}
@@ -132,7 +137,9 @@ export function PriceDisplay({ product }: { product: ProductData }) {
           <span className="text-xs text-gray-400 line-through font-mono">
             ${regular?.toFixed(2)}
           </span>
-          <Badge variant="red">Sale</Badge>
+          <Badge variant="outline" className="bg-red-50 text-red-600">
+            Sale
+          </Badge>
         </>
       )}
     </span>

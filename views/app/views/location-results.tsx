@@ -86,7 +86,9 @@ function LocationCard({
           </div>
           {location.chain && (
             <div className="mt-0.5">
-              <Badge variant="gray">{location.chain}</Badge>
+              <Badge variant="secondary" className="bg-gray-100 text-gray-500">
+                {location.chain}
+              </Badge>
             </div>
           )}
         </div>

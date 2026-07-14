@@ -21,7 +21,7 @@ import { storeIdSchema } from "./schemas.js";
 type Location = LocationComponents["schemas"]["locations.location"];
 
 /** Location fields rendered by the store list and detail views. */
-export function compactLocation(location: Location): LocationData {
+function compactLocation(location: Location): LocationData {
   return {
     locationId: location.locationId,
     name: location.name,

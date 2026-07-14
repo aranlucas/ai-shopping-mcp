@@ -22,7 +22,7 @@ const SCOPES = "profile.compact cart.basic:write product.compact";
 // Kroger API fixtures
 // ---------------------------------------------------------------------------
 
-export type FixtureProductSpec = {
+type FixtureProductSpec = {
   upc: string;
   description: string;
   brand: string;
@@ -39,7 +39,7 @@ export type FixtureProductSpec = {
  * live-model runs can search freely. Terms starting with "zzz" return no
  * results (for not-found paths).
  */
-export const FIXTURE_CATALOG: Record<string, FixtureProductSpec[]> = {
+const FIXTURE_CATALOG: Record<string, FixtureProductSpec[]> = {
   milk: [
     {
       upc: "0001111041700",
@@ -143,7 +143,7 @@ export function upcsForTerm(term: string): string[] {
   return specs.map((spec) => spec.upc);
 }
 
-export const FIXTURE_STORES = [
+const FIXTURE_STORES = [
   {
     locationId: "70500847",
     chain: "QFC",
@@ -193,7 +193,7 @@ export const FIXTURE_STORES = [
 export const DEFAULT_STORE_ID = FIXTURE_STORES[0].locationId;
 
 /** Builds a full Kroger product payload, including realistic image bulk. */
-export function makeFixtureProduct(spec: FixtureProductSpec) {
+function makeFixtureProduct(spec: FixtureProductSpec) {
   const imageSizes = ["thumbnail", "small", "medium", "large", "xlarge"].map((id, index) => ({
     id,
     size: String(50 + index * 250),
@@ -297,7 +297,7 @@ function findProductByUpc(upc: string) {
 // Kroger fetch stub
 // ---------------------------------------------------------------------------
 
-export type CapturedCartItem = { upc?: string; quantity?: number; modality?: string };
+type CapturedCartItem = { upc?: string; quantity?: number; modality?: string };
 export type KrogerFetchStub = {
   /** Every PUT /v1/cart/add body, in call order. */
   cartPuts: Array<{ items: CapturedCartItem[] }>;

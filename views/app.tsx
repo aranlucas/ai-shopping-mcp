@@ -44,17 +44,14 @@ function ShoppingApp() {
       app.ontoolinputpartial = (params) => {
         setPartialArgs(params.arguments ?? {});
       };
-      app.ontoolinput = async (input) => {
-        console.info("Received tool call input:", input);
+      app.ontoolinput = async () => {
         setPartialArgs(null);
       };
       app.ontoolresult = async (result) => {
-        console.info("Received tool call result:", result);
         setPartialArgs(null);
         setToolResult(result);
       };
-      app.ontoolcancelled = (params) => {
-        console.info("Tool call cancelled:", params);
+      app.ontoolcancelled = () => {
         setPartialArgs(null);
       };
       app.onerror = console.error;

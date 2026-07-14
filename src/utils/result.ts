@@ -3,7 +3,7 @@
  * and wrapping common async operations.
  */
 import { getMcpAuthContext } from "agents/mcp";
-import { type Result, ResultAsync, err, ok, okAsync } from "neverthrow";
+import { ResultAsync, err, ok, okAsync } from "neverthrow";
 
 import type { Props, UserStorage } from "../tools/types.js";
 
@@ -25,17 +25,6 @@ type McpToolResult = {
   content: Array<{ type: "text"; text: string }>;
   isError?: true;
 };
-
-/**
- * Converts a Result<string, AppError> into an MCP tool response.
- * Ok values become textResult, Err values become errorResult.
- */
-export function toMcpResponse(result: Result<string, AppError>): McpToolResult {
-  return result.match(
-    (text) => ({ content: [{ type: "text" as const, text }] }),
-    (error) => toMcpError(error),
-  );
-}
 
 /**
  * Converts an AppError directly into an MCP error response.
@@ -152,30 +141,4 @@ export function safeStorage<T>(
   return ResultAsync.fromPromise(operation(), (e) =>
     storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
   );
-}
-
-// --- Fetch Wrapper ---
-
-/**
- * Wraps a fetch call into a ResultAsync, handling network errors and non-ok responses.
- */
-export function safeFetch(
-  input: RequestInfo,
-  init?: RequestInit,
-  context = "fetch",
-): ResultAsync<Response, AppError> {
-  return ResultAsync.fromPromise(fetch(input, init), (e) =>
-    networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
-  ).andThen((response) => {
-    if (!response.ok) {
-      return err(
-        apiError(
-          `${context} failed: ${response.status} ${response.statusText}`,
-          undefined,
-          response.status,
-        ),
-      );
-    }
-    return ok(response);
-  });
 }

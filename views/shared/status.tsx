@@ -1,11 +1,16 @@
 import type { ReactNode } from "react";
 
+import { Alert, AlertDescription, AlertTitle } from "@agents/ui/components/alert";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@agents/ui/components/empty";
+import { Skeleton } from "@agents/ui/components/skeleton";
+import { Spinner } from "@agents/ui/components/spinner";
 import { AlertCircleIcon } from "lucide-react";
-
-import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert.js";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/shared/ui/empty.js";
-import { Skeleton } from "@/shared/ui/skeleton.js";
-import { Spinner } from "@/shared/ui/spinner.js";
 
 export function Loading({ message }: { message?: string }) {
   return (
@@ -18,7 +23,7 @@ export function Loading({ message }: { message?: string }) {
 
 export function ErrorDisplay({ message }: { message: string }) {
   return (
-    <Alert variant="destructive" className="mx-3.5 my-3">
+    <Alert className="mx-3.5 my-3">
       <AlertCircleIcon />
       <AlertTitle>Something went wrong</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
@@ -38,7 +43,7 @@ export function EmptyState({
   return (
     <Empty className="py-14 border-0">
       <EmptyHeader>
-        <EmptyMedia variant="icon">{icon}</EmptyMedia>
+        <EmptyMedia>{icon}</EmptyMedia>
         <EmptyTitle>{message}</EmptyTitle>
         {description && <EmptyDescription>{description}</EmptyDescription>}
       </EmptyHeader>

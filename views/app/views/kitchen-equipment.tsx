@@ -2,7 +2,7 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { Badge } from "@/shared/ui/badge.js";
+import { Badge } from "@agents/ui/components/badge";
 
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -60,7 +60,9 @@ function KitchenEquipmentRow({
         <div className="text-[13px] font-medium text-gray-900 truncate">{item.equipmentName}</div>
         {item.category && (
           <div className="mt-0.5">
-            <Badge variant="gray">{item.category}</Badge>
+            <Badge variant="secondary" className="bg-gray-100 text-gray-500">
+              {item.category}
+            </Badge>
           </div>
         )}
       </div>

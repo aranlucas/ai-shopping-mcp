@@ -30,7 +30,7 @@ export type ProductSearchResult = {
  * Keep the MCP Apps payload useful without sending the complete Kroger catalog
  * record to hosts that include structuredContent in model context.
  */
-export function compactSearchProduct(product: Product, includeLocation = false): ProductData {
+function compactSearchProduct(product: Product, includeLocation = false): ProductData {
   const image =
     product.images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
     product.images?.[0];
@@ -79,7 +79,7 @@ export function compactSearchProduct(product: Product, includeLocation = false):
 }
 
 /** Product fields rendered by the detail app; excludes catalog-only metadata. */
-export function compactProductDetail(product: Product): ProductData {
+function compactProductDetail(product: Product): ProductData {
   return {
     upc: product.upc,
     description: product.description,
@@ -103,7 +103,7 @@ export function compactProductDetail(product: Product): ProductData {
   };
 }
 
-export const getProductInputSchema = z.object({
+const getProductInputSchema = z.object({
   upc: upcSchema.describe("UPC from search_products"),
   storeId: storeIdSchema
     .optional()

@@ -1,63 +1,62 @@
-# AI-shopping-list
+# Kroger shopping MCP
 
-This project implements a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server designed to interact with the Kroger API.
+Cloudflare Worker that exposes authenticated Kroger/QFC shopping tools over MCP. OAuth grants live in the existing `OAUTH_KV` namespace; user shopping data lives in `USER_DATA_KV`. The Worker also serves one bundled MCP App view shared by tool results.
 
-The goal is to allow AI models (like those in editors such as Cursor) to help manage QFC/Kroger shopping lists.
+## Production resources
 
-## Cloudflare deployment
+Deploy from this monorepo directory with:
 
-This package lives in the `agents` pnpm monorepo and deploys independently to
-the existing `ai-meal-planner-mcp` Cloudflare Worker. Configure Workers Builds
-with:
+```bash
+pnpm build
+pnpm exec wrangler deploy
+```
 
-- Git repository: `aranlucas/agents`
-- Root directory: `/apps/ai-shopping-mcp`
-- Build command: `pnpm build`
-- Deploy command: `pnpm exec wrangler deploy`
-- Non-production branch deploy command: `pnpm exec wrangler versions upload`
-- Production branch: `main`
-- Builds for non-production branches: enabled
-- Build watch include paths:
-  - `apps/ai-shopping-mcp/*`
-  - `pnpm-lock.yaml`
-  - `pnpm-workspace.yaml`
-  - `package.json`
-- Build cache: enabled
+Keep the Worker name, KV namespace IDs, and Durable Object migration history in `wrangler.jsonc` stable. Configure these runtime secrets in Cloudflare:
 
-Build-time variables and secrets can remain empty. Runtime secrets are managed
-separately in the Worker's **Variables and secrets** settings.
+- `KROGER_CLIENT_ID`
+- `KROGER_CLIENT_SECRET`
+- `COOKIE_ENCRYPTION_KEY`
 
-Keep the Worker name, KV namespace IDs, Durable Object migration history, and
-OAuth callback URL in `wrangler.jsonc` stable so deployments continue using the
-existing production resources and secrets.
+Register the exact production callback URL with Kroger:
 
-## Setup & Configuration
+```text
+https://ai-meal-planner-mcp.aranlucas.workers.dev/callback
+```
 
-### Kroger Developer Portal Setup
+The Kroger application must allow `profile.compact`, `cart.basic:write`, and `product.compact`.
 
-**IMPORTANT**: You must register your OAuth redirect URI in the Kroger Developer Portal:
+## MCP surface
 
-1. Go to [Kroger Developer Portal](https://developer.kroger.com/)
-2. Navigate to your application settings
-3. Add the **exact** redirect URI: `https://ai-meal-planner-mcp.aranlucas.workers.dev/callback`
-4. Save the configuration
+The server exposes 15 tools:
 
-⚠️ **Common Issues**:
+- Stores: `search_stores`, `get_store`, `set_preferred_store`
+- Products and deals: `search_products`, `get_product`, `shop_for_items`, `get_weekly_deals`
+- Profile and meal context: `add_to_inventory`, `remove_from_inventory`, `get_shopping_profile`, `get_meal_planning_context`
+- Lists, cart, and orders: `create_shopping_list`, `add_shopping_list_to_cart`, `view_cart`, `record_order`
 
-- The redirect URI must match **exactly** (including trailing slashes, protocol, etc.)
-- Make sure your `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` environment variables are correctly set
-- Verify that your application has the correct scopes enabled: `profile.compact`, `cart.basic:write`, `product.compact`
+It exposes four workflow prompts:
 
-## Connecting to Claude and other MCP Clients
+- `plan_shopping_route`
+- `set_preferred_store`
+- `shop_recipe_ingredients`
+- `plan_meals_from_pantry`
 
-You can connect your Remote MCP server to Claude and other MCP Clients via a local proxy.
+The primary small-model contract is concise text in `content[0].text`. MCP App routing metadata stays in `_meta`; do not treat `structuredContent` as the reasoning payload.
 
-Now that your MCP server is running, you can use the [mcp-remote local proxy](https://github.com/anthropics/mcp-remote) to connect Claude Desktop or other MCP clients to it — even though these tools aren't yet remote MCP clients, and don't support remote transport or authorization on the client side. This lets you test what an interaction with your MCP server will be like with a real MCP client.
+## Connect a client
+
+Clients with remote MCP and OAuth support can connect directly to:
+
+```text
+https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp
+```
+
+For a client that still needs a local proxy:
 
 ```json
 {
   "mcpServers": {
-    "ai-shopping-list": {
+    "kroger-shopping": {
       "command": "pnpm",
       "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"]
     }
@@ -65,105 +64,19 @@ Now that your MCP server is running, you can use the [mcp-remote local proxy](ht
 }
 ```
 
-Restart Claude Desktop after updating your config file to load the MCP Server. Once this is done, Claude will be able to make calls to your remote MCP server. You can test this by asking Claude to use one of your tools. For example: "Could you use the math tool to add 23 and 19?". Claude should invoke the tool and show the result generated by the MCP server.
+## Validation
 
-## Available Tools
+```bash
+pnpm build
+pnpm test
+pnpm eval:mcp
+pnpm exec wrangler types --check
+```
 
-The Kroger MCP server provides the following tools:
-
-### Shopping Cart Management
-
-- **add_to_cart** - Adds products to your Kroger shopping cart
-  - Parameters: items (array of products with UPC, quantity, and modality)
-
-### Store Locations
-
-- **search_locations** - Searches for Kroger store locations
-  - Parameters: zipCode, limit, chain (e.g., "QFC")
-- **get_location_details** - Gets detailed information about a specific store
-  - Parameters: locationId
-
-### Product Search
-
-- **search_products** - Bulk search for products using multiple terms (parallel execution)
-  - Parameters: terms (array of 1-10 search strings), locationId
-- **get_product_details** - Gets detailed information about a specific product
-  - Parameters: productId, locationId
-
-### User Data Management
-
-- **manage_pantry** - Add, remove, or clear pantry items (action discriminator)
-- **manage_equipment** - Add, remove, or clear kitchen equipment (action discriminator)
-- **mark_order_placed** - Record a completed order in history
-
-### Shopping List
-
-- **manage_shopping_list** - Add, remove, update, or clear shopping list items (action discriminator)
-- **checkout_shopping_list** - Add unchecked items with UPCs to Kroger cart
-
-### AI-Powered Tools
-
-- **search_recipes_from_web** - Search and extract recipes via web API
-- **plan_meals** - AI-powered meal suggestions from pantry, equipment, and dietary preferences
-
-## MCP Prompts
-
-The server provides guided workflow prompts for common shopping scenarios:
-
-### Shopping Assistant Prompts
-
-- **grocery_list_store_path** - Helps organize your grocery list into an optimal shopping route through the store
-  - Parameters: grocery_list (string)
-  - Creates efficient aisle-by-aisle shopping paths
-
-- **set_preferred_store** - Guides you through selecting and saving your preferred Kroger store
-  - Parameters: zip_code (optional)
-  - Displays nearby stores with addresses and distances
-
-- **add_recipe_to_cart** - Finds a recipe and automatically adds ingredients to your cart
-  - Parameters: recipe_type (default: "classic apple pie")
-  - Searches for products, suggests alternatives, and bulk-adds ingredients
-
-## Features
-
-### Human-Readable Responses
-
-All tools return formatted, easy-to-read responses instead of raw JSON:
-
-- **Products**: Markdown-formatted with pricing, availability, and aisle locations
-- **Locations**: Clean display of addresses, hours, and departments
-- **Weekly Deals**: Clear pricing with savings amounts and valid dates
-
-### Type Safety
-
-- Fully typed with TypeScript
-- Uses OpenAPI-generated type definitions
-- Zero `any` types throughout the codebase
-
-## Live Workers AI Reranker Test
-
-Run the direct, opt-in smoke test against the real Workers AI reranker:
+The live Workers AI reranker check is intentionally separate because it uses Cloudflare credentials and incurs usage:
 
 ```bash
 pnpm test:reranker:live
 ```
 
-Locally, it uses the current `wrangler login` OAuth session. In CI, set both
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The command is separate
-from `pnpm test`, incurs Workers AI usage, and verifies that “Whole Milk”
-ranks ahead of “Chocolate Milk Bar.”
-
-## References
-
-### Related Projects
-
-- **[CupOfOwls/kroger-mcp](https://github.com/CupOfOwls/kroger-mcp)** - Python-based Kroger MCP implementation
-  - Reference implementation for feature ideas and UX patterns
-  - Includes local cart tracking workaround for API limitations
-  - Built with FastMCP
-
-### Documentation
-
-- [Kroger Developer Portal](https://developer.kroger.com/) - Official API documentation
-- [Model Context Protocol](https://modelcontextprotocol.io/) - MCP specification
-- [MCP Remote Proxy](https://github.com/anthropics/mcp-remote) - Connect Claude Desktop to remote MCP servers
+Locally it uses the active Wrangler login. In CI it requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.

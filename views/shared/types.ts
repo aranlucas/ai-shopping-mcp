@@ -10,11 +10,9 @@ export type {
   KitchenEquipmentItemData,
   LocationData,
   OrderHistoryContent,
-  OrderItemData,
   PantryItemData,
   PantryListContent,
   PreferredStoreContent,
-  PreferredStoreData,
   ProductData,
   ProductDetailContent,
   ProductSearchResultsContent,
@@ -33,12 +31,7 @@ import type {
   RemoveFromInventoryArgs,
 } from "../../src/tools/tool-types.js";
 
-export type {
-  AddShoppingListToCartArgs,
-  AddToInventoryArgs,
-  CreateShoppingListArgs,
-  RemoveFromInventoryArgs,
-};
+export type { AddShoppingListToCartArgs };
 
 /** Discriminated union of callable tools used by the app UI. */
 export type ToolCall =
@@ -54,7 +47,7 @@ export type ToolCall =
     };
 
 /** Timeout for app-initiated callServerTool() calls (ms). */
-export const TOOL_CALL_TIMEOUT_MS = 15_000;
+const TOOL_CALL_TIMEOUT_MS = 15_000;
 
 export function callTool(
   app: App | null | undefined,

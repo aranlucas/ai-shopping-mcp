@@ -54,7 +54,7 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
   },
 }));
 
-export function authenticate(userId = "user-123") {
+function authenticate(userId = "user-123") {
   testState.authContext = {
     props: {
       id: userId,

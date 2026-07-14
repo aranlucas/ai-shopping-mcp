@@ -2,7 +2,7 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { Badge } from "@/shared/ui/badge.js";
+import { Badge } from "@agents/ui/components/badge";
 
 import { SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -23,7 +23,11 @@ function ShoppingItem({ item }: { item: ShoppingListItemData }) {
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className="text-[11px] text-gray-400 font-mono">×{item.quantity}</span>
-          {item.upc && <Badge variant="green">UPC ready</Badge>}
+          {item.upc && (
+            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+              UPC ready
+            </Badge>
+          )}
           {item.notes && (
             <span className="text-[11px] text-gray-400 italic truncate max-w-28">{item.notes}</span>
           )}
@@ -122,8 +126,14 @@ export function ShoppingListView({
 
       {/* Status summary */}
       <div className="flex gap-1.5 mb-3 flex-wrap">
-        <Badge variant="green">{withUpc.length} ready</Badge>
-        {withoutUpc.length > 0 && <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>}
+        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+          {withUpc.length} ready
+        </Badge>
+        {withoutUpc.length > 0 && (
+          <Badge variant="outline" className="bg-amber-50 text-amber-700">
+            {withoutUpc.length} need UPC
+          </Badge>
+        )}
       </div>
 
       {/* Quick actions */}

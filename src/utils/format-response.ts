@@ -305,7 +305,7 @@ export function formatStoreListMarkdown(stores: Location[]): string {
 }
 
 /** Markdown hours block for get_store. */
-export function formatStoreHoursMarkdown(location: Location): string {
+function formatStoreHoursMarkdown(location: Location): string {
   if (!location.hours) return "";
 
   const days = [
@@ -345,7 +345,7 @@ export type WeeklyDealMarkdownItem = {
 };
 
 /** One markdown line for a weekly deal: title, details, price, savings. */
-export function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
+function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
   const parts: string[] = [deal.title];
   if (deal.details) parts.push(deal.details);
   if (deal.price) parts.push(deal.price);

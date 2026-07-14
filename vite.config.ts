@@ -4,11 +4,6 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
-const INPUT = process.env.INPUT;
-if (!INPUT) {
-  throw new Error("INPUT environment variable is not set");
-}
-
 const isDevelopment = process.env.NODE_ENV === "development";
 
 export default defineConfig({
@@ -25,13 +20,9 @@ export default defineConfig({
     cssMinify: !isDevelopment,
     minify: !isDevelopment,
     rollupOptions: {
-      input: path.resolve(__dirname, "views", INPUT),
+      input: path.resolve(__dirname, "views/mcp-app.html"),
     },
     outDir: path.resolve(__dirname, "dist/views"),
-    emptyOutDir: false,
-  },
-  test: {
-    root: ".",
-    include: ["tests/**/*.test.ts"],
+    emptyOutDir: true,
   },
 });

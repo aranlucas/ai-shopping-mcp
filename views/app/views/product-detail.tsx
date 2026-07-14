@@ -6,9 +6,23 @@ import { addProductToCart, saveProductToList } from "../tool-calls.js";
 
 function StockBadge({ level }: { level: string | undefined }) {
   if (!level) return null;
-  if (level === "LOW") return <Badge variant="yellow">Low Stock</Badge>;
-  if (level === "TEMPORARILY_OUT_OF_STOCK") return <Badge variant="red">Out of Stock</Badge>;
-  return <Badge variant="green">In Stock</Badge>;
+  if (level === "LOW")
+    return (
+      <Badge variant="outline" className="bg-amber-50 text-amber-700">
+        Low Stock
+      </Badge>
+    );
+  if (level === "TEMPORARILY_OUT_OF_STOCK")
+    return (
+      <Badge variant="outline" className="bg-red-50 text-red-600">
+        Out of Stock
+      </Badge>
+    );
+  return (
+    <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+      In Stock
+    </Badge>
+  );
 }
 
 export function ProductDetailView({
@@ -101,7 +115,7 @@ export function ProductDetailView({
               </p>
               <div className="flex flex-wrap gap-1">
                 {product.categories.map((c) => (
-                  <Badge key={c} variant="gray">
+                  <Badge key={c} variant="secondary" className="bg-gray-100 text-gray-500">
                     {c}
                   </Badge>
                 ))}

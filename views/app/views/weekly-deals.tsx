@@ -2,8 +2,8 @@ import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react
 
 import { useEffect, useState } from "react";
 
-import { Badge } from "@/shared/ui/badge.js";
-import { Card, CardContent, CardFooter } from "@/shared/ui/card.js";
+import { Badge } from "@agents/ui/components/badge";
+import { Card, CardContent, CardFooter } from "@agents/ui/components/card";
 
 import { ActionButton, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -50,7 +50,11 @@ function DealCard({
           <span className="text-xl font-semibold text-emerald-600 font-mono leading-none">
             {deal.price || "See ad"}
           </span>
-          {deal.savings && <Badge variant="red">{deal.savings}</Badge>}
+          {deal.savings && (
+            <Badge variant="outline" className="bg-red-50 text-red-600">
+              {deal.savings}
+            </Badge>
+          )}
         </div>
       </CardContent>
       <CardFooter className="flex gap-1.5">

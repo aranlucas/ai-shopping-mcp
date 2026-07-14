@@ -1,4 +1,4 @@
-import { Badge } from "@/shared/ui/badge.js";
+import { Badge } from "@agents/ui/components/badge";
 
 import type { AddShoppingListToCartContent } from "../../shared/types.js";
 
@@ -48,8 +48,14 @@ export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) 
       {items.length > 0 && (
         <>
           <div className="flex gap-1.5 mb-3 flex-wrap">
-            <Badge variant="green">{items.length} added</Badge>
-            {needsUpc.length > 0 && <Badge variant="yellow">{needsUpc.length} need UPC</Badge>}
+            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+              {items.length} added
+            </Badge>
+            {needsUpc.length > 0 && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700">
+                {needsUpc.length} need UPC
+              </Badge>
+            )}
           </div>
 
           <div className="divide-y divide-border">

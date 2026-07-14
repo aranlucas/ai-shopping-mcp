@@ -1,5 +1,5 @@
-import { Badge } from "@/shared/ui/badge.js";
-import { Card, CardContent } from "@/shared/ui/card.js";
+import { Badge } from "@agents/ui/components/badge";
+import { Card, CardContent } from "@agents/ui/components/card";
 
 import type { OrderHistoryContent } from "../../shared/types.js";
 
@@ -19,7 +19,11 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
     <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
       <SectionHeader
         title="Order Placed"
-        badge={<Badge variant="green">Recorded</Badge>}
+        badge={
+          <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+            Recorded
+          </Badge>
+        }
         subtitle={placedDate}
       />
 

@@ -6,7 +6,7 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from "@/shared/ui/carousel.js";
+} from "@agents/ui/components/carousel";
 
 import { DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";

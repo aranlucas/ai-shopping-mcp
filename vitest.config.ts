@@ -1,6 +1,8 @@
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
+const liveEval = process.env.EVAL_LIVE === "1";
+
 export default defineConfig({
   test: {
     root: ".",
@@ -14,9 +16,17 @@ export default defineConfig({
       {
         plugins: [
           cloudflareTest({
-            remoteBindings: false,
-            wrangler: { configPath: "./wrangler.jsonc" },
+            main: "./src/server.ts",
+            remoteBindings: liveEval,
+            ...(liveEval ? { wrangler: { configPath: "./wrangler.jsonc" } } : {}),
             miniflare: {
+              ...(liveEval
+                ? {}
+                : {
+                    compatibilityDate: "2025-03-10",
+                    compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
+                    kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
+                  }),
               // Miniflare's WorkerOptions expose plain variables through
               // `bindings`, not `vars` (which is wrangler-config syntax). Using
               // `vars` here is silently ignored, so these must live under
@@ -27,9 +37,9 @@ export default defineConfig({
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
 
-                // Opt-in knobs for tests/evals: the live-model runner (Workers
-                // AI via the remote-proxied env.AI binding) only runs with
-                // EVAL_LIVE=1; EVAL_LOG prints token tables.
+                // EVAL_LIVE selects the production Wrangler config so the
+                // live-model runner can reach its explicitly remote AI
+                // binding. Normal tests define only their local KV bindings.
                 ...(process.env.EVAL_LIVE ? { EVAL_LIVE: process.env.EVAL_LIVE } : {}),
                 ...(process.env.EVAL_MODEL ? { EVAL_MODEL: process.env.EVAL_MODEL } : {}),
                 ...(process.env.EVAL_LOG ? { EVAL_LOG: process.env.EVAL_LOG } : {}),

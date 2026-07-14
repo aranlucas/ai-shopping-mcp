@@ -111,8 +111,8 @@ of this writing.
 
 | Surface                          | ADK visibility       | Status                                                                            |
 | -------------------------------- | -------------------- | --------------------------------------------------------------------------------- |
-| Tools (16)                       | ✅ Visible           | The entire effective contract.                                                    |
-| Prompts (3, incl. store-routing) | ❌ Invisible         | Content migrates to `skills/` (principle 2).                                      |
+| Tools (15)                       | ✅ Visible           | The entire effective contract.                                                    |
+| Prompts (4, incl. store-routing) | ❌ Invisible         | Content migrates to `skills/` (principle 2).                                      |
 | Resources (5, TOON-formatted)    | ❌ Invisible         | Data is tool-reachable (see below); TOON is small-model-hostile if ever wired up. |
 | MCP Apps views / `_meta.ui`      | ❌ Not rendered      | AG-UI has its own generative UI. Harmless if the host strips it.                  |
 | `structuredContent`              | ⚠️ Depends on host   | **Token landmine** — see below.                                                   |

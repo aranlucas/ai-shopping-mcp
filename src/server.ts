@@ -6,7 +6,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import type { KrogerTokenInfo } from "./services/kroger/client.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 
-import { KrogerHandler } from "./kroger-handler.js";
+import { KrogerWorker } from "./kroger-handler.js";
 import { createMcpTransportStorage } from "./mcp-transport-storage.js";
 import { registerPrompts } from "./prompts.js";
 import {
@@ -139,8 +139,7 @@ export const oauthProvider = new OAuthProvider<Env>({
     "/mcp": mcpApiHandler,
     "/userinfo": UserInfoHandler,
   },
-  // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
-  defaultHandler: KrogerHandler as any,
+  defaultHandler: KrogerWorker,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",

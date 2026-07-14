@@ -22,7 +22,7 @@ type Product = ProductComponents["schemas"]["products.productModel"];
  * Resolves the Workers AI binding for semantic match ranking. Ranking itself
  * is best-effort; remote-binding failures are handled inside `rankProductMatches`.
  */
-export function getMatchRankerAi(ctx: ToolContext): Ai {
+function getMatchRankerAi(ctx: ToolContext): Ai {
   return ctx.getEnv().AI;
 }
 

@@ -110,7 +110,7 @@ export const createShoppingListInputSchema = z.object({
 });
 
 /** Short opaque id shown to the model: `list_` + 8 hex chars, e.g. `list_a1b2c3d8`. */
-export function generateShortListId(): string {
+function generateShortListId(): string {
   return `list_${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 

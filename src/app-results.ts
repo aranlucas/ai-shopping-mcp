@@ -1,7 +1,7 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 /** Namespaced CallToolResult metadata key used to route the shared MCP App. */
-export const APP_VIEW_META_KEY = "dev.aranlucas/view";
+const APP_VIEW_META_KEY = "dev.aranlucas/view";
 
 export type DealData = {
   title: string;
@@ -27,7 +27,7 @@ export type LocationData = {
   departments?: Array<{ name?: string; phone?: string }>;
 };
 
-export type PreferredStoreData = {
+type PreferredStoreData = {
   locationId: string;
   locationName: string;
   address: string;
@@ -89,14 +89,14 @@ export type ShoppingListItemData = {
   notes?: string;
 };
 
-export type OrderItemData = {
+type OrderItemData = {
   upc: string;
   productName: string;
   quantity: number;
   price?: number;
 };
 
-export type AppResultPayloads = {
+type AppResultPayloads = {
   get_weekly_deals: {
     deals: DealData[];
     validFrom?: string;

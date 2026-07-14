@@ -2,8 +2,8 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { Badge } from "@/shared/ui/badge.js";
-import { Separator } from "@/shared/ui/separator.js";
+import { Badge } from "@agents/ui/components/badge";
+import { Separator } from "@agents/ui/components/separator";
 
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -20,9 +20,24 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
   if (!expiresAt) return null;
   const expiryDate = new Date(expiresAt);
   const daysUntil = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  if (daysUntil < 0) return <Badge variant="red">Expired</Badge>;
-  if (daysUntil === 0) return <Badge variant="red">Today</Badge>;
-  if (daysUntil <= 3) return <Badge variant="yellow">{daysUntil}d left</Badge>;
+  if (daysUntil < 0)
+    return (
+      <Badge variant="outline" className="bg-red-50 text-red-600">
+        Expired
+      </Badge>
+    );
+  if (daysUntil === 0)
+    return (
+      <Badge variant="outline" className="bg-red-50 text-red-600">
+        Today
+      </Badge>
+    );
+  if (daysUntil <= 3)
+    return (
+      <Badge variant="outline" className="bg-amber-50 text-amber-700">
+        {daysUntil}d left
+      </Badge>
+    );
   return (
     <span className="text-[11px] text-gray-400">
       Exp {expiryDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
