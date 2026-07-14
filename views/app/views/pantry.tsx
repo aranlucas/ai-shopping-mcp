@@ -39,7 +39,7 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | undefined }) {
       </Badge>
     );
   return (
-    <span className="text-[11px] text-gray-400">
+    <span className="text-xs text-gray-400">
       Exp {expiryDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
     </span>
   );
@@ -79,11 +79,11 @@ function PantryItemRow({
     >
       {/* Icon */}
       <div
-        className={`shrink-0 w-6 h-6 rounded flex items-center justify-center ${isExpiringSoon ? "bg-amber-50 text-amber-500" : "bg-gray-100 text-gray-400"}`}
+        className={`flex size-6 shrink-0 items-center justify-center rounded ${isExpiringSoon ? "bg-amber-50 text-amber-500" : "bg-gray-100 text-gray-400"}`}
       >
         <svg
           aria-hidden="true"
-          className="w-3.5 h-3.5"
+          className="size-3.5"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={1.5}
@@ -98,10 +98,10 @@ function PantryItemRow({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-gray-900 truncate">{item.productName}</div>
-        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-          <span className="text-[11px] text-gray-400 font-mono">×{item.quantity}</span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium text-gray-900">{item.productName}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
           <ExpiryBadge expiresAt={item.expiresAt} />
         </div>
       </div>
@@ -119,7 +119,7 @@ function PantryItemRow({
         icon={
           <svg
             aria-label="Remove"
-            className="w-3 h-3"
+            className="size-3"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2.5}
@@ -158,13 +158,13 @@ export function PantryView({
 
   if (items.length === 0) {
     return (
-      <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
-        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">Pantry</h1>
+      <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
+        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Pantry</h1>
         <EmptyState
           icon={
             <svg
               aria-hidden="true"
-              className="w-5 h-5"
+              className="size-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -201,10 +201,10 @@ export function PantryView({
   };
 
   return (
-    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+    <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title="Pantry"
-        badge={<span className="text-[11px] text-gray-400 font-mono">{items.length} items</span>}
+        badge={<span className="font-mono text-xs text-gray-400">{items.length} items</span>}
         subtitle={actionDetail}
       />
 
@@ -213,11 +213,11 @@ export function PantryView({
           <button
             type="button"
             onClick={handleSuggestRecipes}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--app-accent-text)] px-3 py-1 text-[11px] font-medium text-[var(--app-accent-text)] hover:bg-[var(--app-accent-text)]/5 transition-colors bg-transparent cursor-pointer"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-primary bg-transparent px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/5"
           >
             <svg
               aria-hidden="true"
-              className="w-3 h-3"
+              className="size-3"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={2}
@@ -240,7 +240,7 @@ export function PantryView({
           <div className="mb-1 flex items-center gap-2">
             <svg
               aria-hidden="true"
-              className="w-3.5 h-3.5 text-amber-500 shrink-0"
+              className="size-3.5 shrink-0 text-amber-500"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={2}
@@ -252,7 +252,7 @@ export function PantryView({
                 d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
               />
             </svg>
-            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">
+            <span className="text-xs font-semibold tracking-wider text-amber-700 uppercase">
               Use soon · {expiring.length}
             </span>
           </div>

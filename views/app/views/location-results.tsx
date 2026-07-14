@@ -61,13 +61,13 @@ function LocationCard({
   };
 
   return (
-    <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 p-3">
+    <div className="rounded-lg border border-border bg-card p-3 transition-all duration-150 hover:border-primary/20 hover:shadow-sm">
       {/* Header */}
-      <div className="flex items-start gap-2 mb-2">
-        <div className="shrink-0 w-7 h-7 rounded bg-gray-100 flex items-center justify-center text-gray-500">
+      <div className="mb-2 flex items-start gap-2">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-4 h-4"
+            className="size-4"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -81,7 +81,7 @@ function LocationCard({
           </svg>
         </div>
         <div className="min-w-0">
-          <div className="font-medium text-[13px] text-gray-900 leading-snug">
+          <div className="text-sm leading-snug font-medium text-gray-900">
             {location.name || "Unknown Store"}
           </div>
           {location.chain && (
@@ -96,10 +96,10 @@ function LocationCard({
 
       {/* Address */}
       {location.address && (
-        <div className="text-[11px] text-gray-500 flex items-start gap-1 mb-1">
+        <div className="mb-1 flex items-start gap-1 text-xs text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-3 h-3 text-gray-400 mt-0.5 shrink-0"
+            className="mt-0.5 size-3 shrink-0 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -116,7 +116,7 @@ function LocationCard({
               d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
             />
           </svg>
-          <span className="flex-1 min-w-0">
+          <span className="min-w-0 flex-1">
             {location.address.addressLine1}, {location.address.city}, {location.address.state}{" "}
             {location.address.zipCode}
           </span>
@@ -128,11 +128,11 @@ function LocationCard({
               }}
               title="Open in Maps"
               aria-label="Open in Maps"
-              className="shrink-0 text-[var(--app-accent-text)] hover:opacity-80 bg-transparent border-0 p-0 cursor-pointer"
+              className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-primary hover:opacity-80"
             >
               <svg
                 aria-hidden="true"
-                className="w-3 h-3"
+                className="size-3"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -149,10 +149,10 @@ function LocationCard({
         </div>
       )}
       {location.phone && (
-        <div className="text-[11px] text-gray-500 flex items-center gap-1 mb-1.5">
+        <div className="mb-1.5 flex items-center gap-1 text-xs text-gray-500">
           <svg
             aria-hidden="true"
-            className="w-3 h-3 text-gray-400 shrink-0"
+            className="size-3 shrink-0 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -167,10 +167,10 @@ function LocationCard({
           {location.phone}
         </div>
       )}
-      <div className="text-[9px] text-gray-300 font-mono mb-2.5">{id}</div>
+      <div className="mb-2.5 font-mono text-xs text-gray-300">{id}</div>
 
       {/* Actions */}
-      <div className="flex gap-1.5 pt-2.5 border-t border-[var(--app-border)]">
+      <div className="flex gap-1.5 border-t border-border pt-2.5">
         <ActionButton
           state={prefState}
           onClick={handleSetPreferred}
@@ -246,13 +246,13 @@ export function LocationResultsView({
 
   if (stores.length === 0) {
     return (
-      <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
-        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">Store Locations</h1>
+      <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
+        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Store Locations</h1>
         <EmptyState
           icon={
             <svg
               aria-hidden="true"
-              className="w-5 h-5"
+              className="size-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -278,13 +278,13 @@ export function LocationResultsView({
   }
 
   return (
-    <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
+    <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title="Store Locations"
-        badge={<span className="text-[11px] text-gray-400 font-mono">{stores.length} found</span>}
+        badge={<span className="font-mono text-xs text-gray-400">{stores.length} found</span>}
         trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {stores.map((loc) => (
           <LocationCard
             key={loc.locationId}

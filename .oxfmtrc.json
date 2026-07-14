@@ -1,4 +1,10 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "sortTailwindcss": {
+    "functions": ["cn", "tw"],
+    "preserveDuplicates": false,
+    "preserveWhitespace": false,
+    "stylesheet": "./views/styles.css"
+  },
   "ignorePatterns": ["worker-configuration.d.ts"]
 }

@@ -57,13 +57,13 @@ export function ProductDetailView({
   };
 
   return (
-    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
-      <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] overflow-hidden">
+    <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-[var(--app-border)]">
-          <h1 className="text-sm font-semibold text-gray-900 leading-snug">{name}</h1>
-          {brand && <p className="text-[11px] text-gray-400 mt-0.5">{brand}</p>}
-          <div className="mt-2.5 flex items-center gap-3 flex-wrap">
+        <div className="border-b border-border px-4 pt-4 pb-3">
+          <h1 className="text-sm leading-snug font-semibold text-gray-900">{name}</h1>
+          {brand && <p className="mt-0.5 text-xs text-gray-400">{brand}</p>}
+          <div className="mt-2.5 flex flex-wrap items-center gap-3">
             <PriceDisplay product={product} />
             <FulfillmentTags product={product} />
           </div>
@@ -71,7 +71,7 @@ export function ProductDetailView({
 
         {/* Actions */}
         {upc && (
-          <div className="px-4 py-3 border-b border-[var(--app-border)] flex gap-1.5">
+          <div className="flex gap-1.5 border-b border-border px-4 py-3">
             <ProductActions
               upc={upc}
               name={name}
@@ -83,13 +83,13 @@ export function ProductDetailView({
         )}
 
         {/* Details */}
-        <div className="px-4 py-3 space-y-3.5">
+        <div className="flex flex-col gap-3.5 px-4 py-3">
           {product.items && product.items.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Options
               </p>
-              <div className="space-y-1">
+              <div className="flex flex-col gap-1">
                 {product.items.map((item) => (
                   <div
                     key={item.size ?? item.itemId}
@@ -97,7 +97,7 @@ export function ProductDetailView({
                   >
                     {item.size && <span>{item.size}</span>}
                     {item.price?.regular && (
-                      <span className="text-gray-400 font-mono">
+                      <span className="font-mono text-gray-400">
                         ${item.price.regular.toFixed(2)}
                       </span>
                     )}
@@ -110,7 +110,7 @@ export function ProductDetailView({
 
           {product.categories && product.categories.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Category
               </p>
               <div className="flex flex-wrap gap-1">
@@ -125,7 +125,7 @@ export function ProductDetailView({
 
           {product.aisleLocations && product.aisleLocations.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Aisle
               </p>
               {product.aisleLocations.map((loc) => (
@@ -138,10 +138,10 @@ export function ProductDetailView({
 
           {upc && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+              <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 UPC
               </p>
-              <p className="text-xs text-gray-400 font-mono">{upc}</p>
+              <p className="font-mono text-xs text-gray-400">{upc}</p>
             </div>
           )}
         </div>

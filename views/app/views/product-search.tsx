@@ -26,9 +26,9 @@ function ProductCarousel({
 }) {
   return (
     <Carousel opts={{ align: "start" }}>
-      <CarouselContent className="-ml-2">
+      <CarouselContent className="-ms-2">
         {products.map((product) => (
-          <CarouselItem key={product.upc ?? product.description} className="pl-2 basis-52">
+          <CarouselItem key={product.upc ?? product.description} className="basis-52 ps-2">
             <ProductCard
               product={product}
               onAddToCart={onAddToCart}
@@ -38,8 +38,8 @@ function ProductCarousel({
           </CarouselItem>
         ))}
       </CarouselContent>
-      <CarouselPrevious className="left-2 bg-white/90 hover:bg-white shadow-md border-gray-200" />
-      <CarouselNext className="right-2 bg-white/90 hover:bg-white shadow-md border-gray-200" />
+      <CarouselPrevious className="inset-s-2 border-gray-200 bg-white/90 shadow-md hover:bg-white" />
+      <CarouselNext className="inset-e-2 border-gray-200 bg-white/90 shadow-md hover:bg-white" />
     </Carousel>
   );
 }
@@ -77,10 +77,10 @@ export function ProductSearchView({
   const hasResults = results.some((r) => !r.failed && r.products.length > 0);
 
   return (
-    <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
+    <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title="Product Search"
-        badge={<span className="text-[11px] text-gray-400 font-mono">{totalProducts} items</span>}
+        badge={<span className="font-mono text-xs text-gray-400">{totalProducts} items</span>}
         subtitle={`${results.length} search term${results.length !== 1 ? "s" : ""}`}
         trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
@@ -90,7 +90,7 @@ export function ProductSearchView({
           icon={
             <svg
               aria-hidden="true"
-              className="w-5 h-5"
+              className="size-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -113,11 +113,11 @@ export function ProductSearchView({
           return (
             <div
               key={result.term}
-              className="bg-red-50 rounded-lg px-3 py-2 mb-4 border border-red-100 text-xs text-red-600 flex items-center gap-1.5"
+              className="mb-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
             >
               <svg
                 aria-hidden="true"
-                className="w-3.5 h-3.5 shrink-0"
+                className="size-3.5 shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -136,24 +136,24 @@ export function ProductSearchView({
         if (result.products.length === 0) {
           return (
             <div key={result.term} className="mb-5">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                   {result.term}
                 </span>
-                <span className="text-[11px] text-gray-300">·</span>
-                <span className="text-[11px] text-gray-400">No results</span>
+                <span className="text-xs text-gray-300">·</span>
+                <span className="text-xs text-gray-400">No results</span>
               </div>
             </div>
           );
         }
         return (
           <div key={result.term} className="mb-6">
-            <div className="flex items-center gap-2 mb-2.5">
-              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="mb-2.5 flex items-center gap-2">
+              <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                 {result.term}
               </span>
-              <span className="text-[11px] text-gray-300">·</span>
-              <span className="text-[11px] text-gray-400">{result.products.length} items</span>
+              <span className="text-xs text-gray-300">·</span>
+              <span className="text-xs text-gray-400">{result.products.length} items</span>
             </div>
             <ProductCarousel
               products={result.products}

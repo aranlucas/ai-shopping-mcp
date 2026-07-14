@@ -40,10 +40,10 @@ function KitchenEquipmentRow({
     <div
       className={`flex items-center gap-2.5 py-2.5 transition-opacity duration-150 ${removeState !== "idle" ? "opacity-40" : ""}`}
     >
-      <div className="shrink-0 w-6 h-6 rounded bg-gray-100 flex items-center justify-center text-gray-400">
+      <div className="flex size-6 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-400">
         <svg
           aria-hidden="true"
-          className="w-3.5 h-3.5"
+          className="size-3.5"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={1.5}
@@ -56,8 +56,8 @@ function KitchenEquipmentRow({
           />
         </svg>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-gray-900 truncate">{item.equipmentName}</div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium text-gray-900">{item.equipmentName}</div>
         {item.category && (
           <div className="mt-0.5">
             <Badge variant="secondary" className="bg-gray-100 text-gray-500">
@@ -78,7 +78,7 @@ function KitchenEquipmentRow({
         icon={
           <svg
             aria-label="Remove"
-            className="w-3 h-3"
+            className="size-3"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2.5}
@@ -117,15 +117,15 @@ export function KitchenEquipmentView({
 
   if (items.length === 0) {
     return (
-      <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
-        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">
+      <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
+        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">
           Kitchen Equipment
         </h1>
         <EmptyState
           icon={
             <svg
               aria-hidden="true"
-              className="w-5 h-5"
+              className="size-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -146,10 +146,10 @@ export function KitchenEquipmentView({
   }
 
   return (
-    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+    <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title="Kitchen Equipment"
-        badge={<span className="text-[11px] text-gray-400 font-mono">{items.length} items</span>}
+        badge={<span className="font-mono text-xs text-gray-400">{items.length} items</span>}
         subtitle={actionDetail}
       />
       <div className="divide-y divide-border">

@@ -17,7 +17,7 @@
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
+    "lint:fix": "oxlint --fix --fix-suggestions",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "generate:apis": "pnpm generate:cart && pnpm generate:location && pnpm generate:product && pnpm generate:identity",

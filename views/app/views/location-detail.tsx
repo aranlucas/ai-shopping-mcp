@@ -40,15 +40,15 @@ export function LocationDetailView({
   };
 
   return (
-    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
-      <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] overflow-hidden">
+    <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-[var(--app-border)]">
+        <div className="border-b border-border px-4 pt-4 pb-3">
           <div className="flex items-start gap-2.5">
-            <div className="shrink-0 w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-500">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-500">
               <svg
                 aria-hidden="true"
-                className="w-4 h-4"
+                className="size-4"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={1.5}
@@ -77,16 +77,16 @@ export function LocationDetailView({
         </div>
 
         {/* Details */}
-        <div className="px-4 py-3 space-y-3">
+        <div className="flex flex-col gap-3 px-4 py-3">
           {location.address && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+              <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Address
               </p>
-              <div className="text-xs text-gray-700 flex items-start gap-1.5">
+              <div className="flex items-start gap-1.5 text-xs text-gray-700">
                 <svg
                   aria-hidden="true"
-                  className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0"
+                  className="mt-0.5 size-3.5 shrink-0 text-gray-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={2}
@@ -114,13 +114,13 @@ export function LocationDetailView({
 
           {location.phone && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+              <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Phone
               </p>
-              <div className="text-xs text-gray-700 flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-gray-700">
                 <svg
                   aria-hidden="true"
-                  className="w-3.5 h-3.5 text-gray-400 shrink-0"
+                  className="size-3.5 shrink-0 text-gray-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={2}
@@ -139,7 +139,7 @@ export function LocationDetailView({
 
           {location.departments && location.departments.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+              <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Departments · {location.departments.length}
               </p>
               <div className="flex flex-wrap gap-1">
@@ -155,15 +155,15 @@ export function LocationDetailView({
           )}
 
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
               Location ID
             </p>
-            <p className="text-[11px] text-gray-400 font-mono">{id}</p>
+            <p className="font-mono text-xs text-gray-400">{id}</p>
           </div>
         </div>
 
         {/* Action */}
-        <div className="px-4 pb-4 pt-1 flex gap-1.5">
+        <div className="flex gap-1.5 px-4 pt-1 pb-4">
           <ActionButton
             state={prefState}
             onClick={handleSetPreferred}
@@ -195,11 +195,11 @@ export function LocationDetailView({
               onClick={() => {
                 void openExternalLink(app, mapsUrl);
               }}
-              className="inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 bg-transparent cursor-pointer"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-transparent px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:border-gray-300 hover:bg-gray-50"
             >
               <svg
                 aria-hidden="true"
-                className="w-3 h-3"
+                className="size-3"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}

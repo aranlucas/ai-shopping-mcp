@@ -24,13 +24,13 @@ export function SectionHeader({
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <h1 className="text-sm font-semibold text-gray-900 tracking-tight truncate">{title}</h1>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate text-sm font-semibold tracking-tight text-gray-900">{title}</h1>
           {badge}
         </div>
         {trailing}
       </div>
-      {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
+      {subtitle && <p className="mt-0.5 text-xs text-gray-400">{subtitle}</p>}
     </div>
   );
 }
@@ -62,7 +62,7 @@ export function DisplayModeToggle({
     >
       <svg
         aria-hidden="true"
-        className="w-3.5 h-3.5"
+        className="size-3.5"
         fill="none"
         viewBox="0 0 24 24"
         strokeWidth={2}
@@ -100,7 +100,7 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
 
   if (tags.length === 0) {
     return (
-      <div className="flex flex-wrap gap-1 mt-1.5">
+      <div className="mt-1.5 flex flex-wrap gap-1">
         <Badge variant="outline" className="bg-red-50 text-red-600">
           Out of Stock
         </Badge>
@@ -109,7 +109,7 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   }
 
   return (
-    <div className="flex flex-wrap gap-1 mt-1.5">
+    <div className="mt-1.5 flex flex-wrap gap-1">
       {tags.map((t) => (
         <Badge key={t.label} variant="outline" className={t.className}>
           {t.label}
@@ -122,19 +122,19 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
 export function PriceDisplay({ product }: { product: ProductData }) {
   const item = product.items?.[0];
   if (!item?.price?.regular) {
-    return <span className="text-xs text-gray-400 font-mono">—</span>;
+    return <span className="font-mono text-xs text-gray-400">—</span>;
   }
   const { regular, promo } = item.price;
   const hasPromo = promo != null && promo !== regular;
 
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span className="text-[15px] font-medium text-emerald-600 font-mono leading-none">
+      <span className="font-mono text-base leading-none font-medium text-emerald-600">
         ${hasPromo ? promo?.toFixed(2) : regular?.toFixed(2)}
       </span>
       {hasPromo && (
         <>
-          <span className="text-xs text-gray-400 line-through font-mono">
+          <span className="font-mono text-xs text-gray-400 line-through">
             ${regular?.toFixed(2)}
           </span>
           <Badge variant="outline" className="bg-red-50 text-red-600">
@@ -195,17 +195,17 @@ export function ActionButton({
         state === "done" && variant === "primary"
           ? "bg-emerald-600 text-white hover:bg-emerald-700"
           : state === "done" && variant === "secondary"
-            ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
             : variant === "primary" && state === "idle"
-              ? "bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white border-transparent"
+              ? "border-transparent bg-primary text-white hover:bg-primary/90"
               : undefined
       }
     >
-      {icon && state === "idle" && <span className="shrink-0 w-3 h-3">{icon}</span>}
+      {icon && state === "idle" && <span className="size-3 shrink-0">{icon}</span>}
       {state === "loading" && (
         <svg
           aria-hidden="true"
-          className="animate-spin shrink-0 w-3 h-3"
+          className="size-3 shrink-0 animate-spin"
           viewBox="0 0 24 24"
           fill="none"
         >
@@ -334,7 +334,7 @@ export function ProductActions({
           }
         />
       </div>
-      {errorMsg && <div className="mt-1 text-[11px] text-red-600">{errorMsg}</div>}
+      {errorMsg && <div className="mt-1 text-xs text-red-600">{errorMsg}</div>}
     </div>
   );
 }
@@ -355,18 +355,18 @@ function ProductImage({ product }: { product: ProductData }) {
       .join("")
       .toUpperCase();
     return (
-      <div className="w-full aspect-square bg-gray-50 flex items-center justify-center">
+      <div className="flex aspect-square w-full items-center justify-center bg-gray-50">
         <span className="text-xl font-bold text-gray-300">{initials}</span>
       </div>
     );
   }
 
   return (
-    <div className="w-full aspect-square bg-gray-50 overflow-hidden">
+    <div className="aspect-square w-full overflow-hidden bg-gray-50">
       <img
         src={thumbnail}
         alt={product.description ?? "Product"}
-        className="w-full h-full object-contain p-2"
+        className="size-full object-contain p-2"
         loading="lazy"
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -396,25 +396,23 @@ export function ProductCard({
     (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
 
   return (
-    <Card size="sm" className="h-full hover:shadow-md transition-shadow duration-150">
+    <Card size="sm" className="h-full transition-shadow duration-150 hover:shadow-md">
       <ProductImage product={product} />
-      <CardContent className="flex flex-col flex-1 pt-2">
+      <CardContent className="flex flex-1 flex-col pt-2">
         <div className="flex-1">
-          <div className="font-medium text-[13px] text-gray-900 leading-snug line-clamp-2">
-            {name}
-          </div>
+          <div className="line-clamp-2 text-sm leading-snug font-medium text-gray-900">{name}</div>
           {(brand || size) && (
-            <div className="text-[11px] text-gray-400 mt-0.5">
+            <div className="mt-0.5 text-xs text-gray-400">
               {brand}
               {brand && size && " · "}
               {size}
             </div>
           )}
           {aisle && (
-            <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-0.5">
+            <div className="mt-0.5 flex items-center gap-0.5 text-xs text-gray-400">
               <svg
                 aria-hidden="true"
-                className="w-2.5 h-2.5 shrink-0"
+                className="size-2.5 shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
