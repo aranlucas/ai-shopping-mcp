@@ -229,7 +229,7 @@ export function registerProductTools(ctx: ToolContext) {
           .max(10)
           .default(5)
           .describe("Max products to return per search term (1-10)"),
-        include_location: z
+        includeLocation: z
           .boolean()
           .default(false)
           .describe(
@@ -237,7 +237,7 @@ export function registerProductTools(ctx: ToolContext) {
           ),
       }),
     },
-    async ({ terms, storeId, limitPerTerm, include_location }, extra) => {
+    async ({ terms, storeId, limitPerTerm, includeLocation }, extra) => {
       // Resolve storeId: explicit arg → preferred store → omit filter
       let resolvedLocationId: string | undefined = storeId;
       if (!resolvedLocationId) {
@@ -278,14 +278,14 @@ export function registerProductTools(ctx: ToolContext) {
         content: [
           {
             type: "text" as const,
-            text: formatSearchProductsMarkdown(results, { includeLocation: include_location }),
+            text: formatSearchProductsMarkdown(results, { includeLocation: includeLocation }),
           },
         ],
         ...appResult("search_products", {
           results: results.map((result) => ({
             ...result,
             products: result.products.map((product) =>
-              compactSearchProduct(product, include_location),
+              compactSearchProduct(product, includeLocation),
             ),
           })),
           totalProducts,

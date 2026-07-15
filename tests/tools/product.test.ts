@@ -258,11 +258,11 @@ describe("search_products", () => {
     const config = tool.config as {
       inputSchema: {
         shape: {
-          include_location: { description?: string; parse: (value: unknown) => boolean };
+          includeLocation: { description?: string; parse: (value: unknown) => boolean };
         };
       };
     };
-    const includeLocation = config.inputSchema.shape.include_location;
+    const includeLocation = config.inputSchema.shape.includeLocation;
 
     expect(includeLocation.parse(undefined)).toBe(false);
     expect(includeLocation.description).toContain("finding items on the shelf");
@@ -508,7 +508,7 @@ describe("search_products", () => {
     expect(text).not.toContain("shelf:");
   });
 
-  it("includes aisle and shelf location details only when include_location is true", async () => {
+  it("includes aisle and shelf location details only when includeLocation is true", async () => {
     const product = makeProduct({
       aisleLocations: [
         {
@@ -526,7 +526,7 @@ describe("search_products", () => {
 
     const result = await getCapturedHandler("search_products")({
       terms: ["tortillas"],
-      include_location: true,
+      includeLocation: true,
     });
 
     const sc = structuredContentOf(result) as { results: Array<{ products: Product[] }> };

@@ -138,7 +138,7 @@ Key findings:
   steer the agent to the primitive path for budget- or brand-sensitive workflows.
 - **Aisle data is opt-in.** `search_products` returns `aisleLocations` and prints aisle,
   route-sequence, bay, side, and shelf details only when called with
-  `include_location=true`. This keeps ordinary product searches compact while supporting
+  `includeLocation=true`. This keeps ordinary product searches compact while supporting
   shelf finding and in-store route planning. Shopping-list output still does not carry or
   sort by aisle, which is the store-routing gap.
 

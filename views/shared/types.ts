@@ -43,7 +43,7 @@ export type ToolCall =
   | { name: "get_store"; arguments: { storeId: string } }
   | {
       name: "search_products";
-      arguments: { terms: string[]; storeId?: string; include_location?: boolean };
+      arguments: { terms: string[]; storeId?: string; includeLocation?: boolean };
     };
 
 /** Timeout for app-initiated callServerTool() calls (ms). */
