@@ -9,7 +9,8 @@
   },
   "settings": {
     "tailwindcss": {
-      "entryPoint": "views/styles.css"
+      "entryPoint": "views/styles.css",
+      "timeout": 120000
     },
     "jsx-a11y": {
       "polymorphicPropName": null,
