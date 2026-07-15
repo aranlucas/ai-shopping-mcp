@@ -33,7 +33,7 @@
     "@modelcontextprotocol/sdk": "1.29.0",
     "@tailwindcss/vite": "^4.3.2",
     "@toon-format/toon": "^2.3.0",
-    "agents": "^0.17.3",
+    "agents": "^0.17.4",
     "embla-carousel-react": "^8.6.0",
     "hono": "^4.12.30",
     "lucide-react": "^1.24.0",
@@ -53,8 +53,8 @@
     "@vitest/coverage-istanbul": "^4.1.10",
     "concurrently": "^10.0.3",
     "openapi-typescript": "^7.13.0",
-    "oxfmt": "^0.58.0",
-    "oxlint": "^1.73.0",
+    "oxfmt": "^0.59.0",
+    "oxlint": "^1.74.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.4",
     "vite-plugin-singlefile": "^2.3.3",
@@ -64,5 +64,5 @@
   "engines": {
     "node": ">=24.13.0"
   },
-  "packageManager": "pnpm@11.10.0"
+  "packageManager": "pnpm@11.13.0"
 }
