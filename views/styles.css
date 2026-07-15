@@ -1,4 +1,14 @@
-@import "@agents/ui/globals.css";
+@import "@agents/ui/styles/primitives.css";
+
+@source "../../../packages/ui/src/components/alert.tsx";
+@source "../../../packages/ui/src/components/badge.tsx";
+@source "../../../packages/ui/src/components/button.tsx";
+@source "../../../packages/ui/src/components/card.tsx";
+@source "../../../packages/ui/src/components/carousel.tsx";
+@source "../../../packages/ui/src/components/empty.tsx";
+@source "../../../packages/ui/src/components/separator.tsx";
+@source "../../../packages/ui/src/components/skeleton.tsx";
+@source "../../../packages/ui/src/components/spinner.tsx";
 
 @custom-variant dark (&:is(.dark *));
 
