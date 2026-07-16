@@ -591,7 +591,13 @@ describe("get_product", () => {
       size: "1 gal",
       price: { regular: 3.99, promo: 2.99 },
     });
-    expect(sc.product).not.toHaveProperty("images");
+    expect(sc.product.images).toEqual([
+      {
+        perspective: "front",
+        default: true,
+        sizes: [{ id: "medium", size: "medium", url: "https://example.com/milk.jpg" }],
+      },
+    ]);
     expect(sc.product).not.toHaveProperty("aliasProductIds");
     expect(sc.product).not.toHaveProperty("allergensDescription");
   });
@@ -637,7 +643,7 @@ describe("get_product", () => {
     expect(capturedQueries[0]["filter.locationId"]).toBe("12345678");
   });
 
-  it("strips images from both model text and the detail view payload", async () => {
+  it("keeps one compact image in the detail view payload but strips it from model text", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeDetailResponse(product)));
 
@@ -646,7 +652,8 @@ describe("get_product", () => {
     });
 
     const sc = structuredContentOf(result) as { product: Product };
-    expect(sc.product.images).toBeUndefined();
+    expect(sc.product.images).toHaveLength(1);
+    expect(sc.product.images?.[0].sizes).toHaveLength(1);
 
     // markdown (model context) strips the images field
     const text = textFromResult(result);

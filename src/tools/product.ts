@@ -18,6 +18,7 @@ import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+type ProductImage = ProductComponents["schemas"]["products.productImageModel"];
 
 export type ProductSearchResult = {
   term: string;
@@ -30,13 +31,26 @@ export type ProductSearchResult = {
  * Keep the MCP Apps payload useful without sending the complete Kroger catalog
  * record to hosts that include structuredContent in model context.
  */
-function compactSearchProduct(product: Product, includeLocation = false): ProductData {
+function compactProductImages(images: ProductImage[] | undefined): ProductData["images"] {
   const image =
-    product.images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
-    product.images?.[0];
+    images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
+    images?.[0];
   const imageSize =
     image?.sizes?.find((size) => size.size === "thumbnail" || size.size === "small") ??
     image?.sizes?.[0];
+
+  return image
+    ? [
+        {
+          perspective: image.perspective,
+          default: image.default,
+          sizes: imageSize ? [imageSize] : [],
+        },
+      ]
+    : undefined;
+}
+
+function compactSearchProduct(product: Product, includeLocation = false): ProductData {
   const item = product.items?.[0];
 
   return {
@@ -47,15 +61,7 @@ function compactSearchProduct(product: Product, includeLocation = false): Produc
     ...(includeLocation && product.aisleLocations
       ? { aisleLocations: product.aisleLocations.slice(0, 1) }
       : {}),
-    images: image
-      ? [
-          {
-            perspective: image.perspective,
-            default: image.default,
-            sizes: imageSize ? [imageSize] : [],
-          },
-        ]
-      : undefined,
+    images: compactProductImages(product.images),
     items: item
       ? [
           {
@@ -86,6 +92,7 @@ function compactProductDetail(product: Product): ProductData {
     brand: product.brand,
     categories: product.categories,
     aisleLocations: product.aisleLocations,
+    images: compactProductImages(product.images),
     items: product.items?.map((item) => ({
       itemId: item.itemId,
       size: item.size,
