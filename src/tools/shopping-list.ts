@@ -109,36 +109,27 @@ export const createShoppingListInputSchema = z.object({
     .min(1, { message: "Shopping list must include at least one item" }),
 });
 
-/** Short opaque id shown to the model: `list_` + 8 hex chars, e.g. `list_a1b2c3d8`. */
-function generateShortListId(): string {
+/** Client-id hint for ShoppingStore implementations that accept caller-generated ids. */
+function generateRequestedListId(): string {
   return `list_${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 
-/**
- * Builds the namespaced KV storage key for a shopping list from the
- * authenticated user id, session id, and the short id shown to the model.
- * The user/session namespace is never sent to the model — only the short id
- * is. Because the storage key is namespaced by the authenticated user id, a
- * forged short id from another user is not readable here: the same
- * per-user isolation the old prefix-checked composite id provided.
- */
-export type CreateShoppingListResult = { shortId: string; list: ShoppingList };
+export type CreateShoppingListResult = { listId: string; list: ShoppingList };
 
 /**
- * Shared helper: persists a new shopping list snapshot and returns the short
- * id shown to the model alongside the stored record. Reused by
- * `create_shopping_list` and `shop_for_items`.
+ * Persists a list and returns the storage-owned id shown to the model. The
+ * gateway creates its own durable id, so the returned record is authoritative.
  */
 export function createShoppingListRecord(
   storage: UserStorage,
   name: string,
   items: ShoppingListItem[],
 ): ResultAsync<CreateShoppingListResult, AppError> {
-  const shortId = generateShortListId();
+  const requestedId = generateRequestedListId();
   return safeStorage(
-    () => storage.shoppingList.create(shortId, name, items),
+    () => storage.shoppingList.create(requestedId, name, items),
     "create shopping list",
-  ).map((list) => ({ shortId, list }));
+  ).map((list) => ({ listId: list.id, list }));
 }
 
 export function registerShoppingListTools(ctx: ToolContext) {
@@ -203,16 +194,16 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
       const result = await createShoppingListRecord(ctx.storage, listName, enrichedItems);
       if (result.isErr()) return toMcpError(result.error);
-      const { shortId, list } = result.value;
+      const { listId, list } = result.value;
       return {
         content: [
           {
             type: "text" as const,
-            text: `Created shopping list "${listName}" with ${enrichedItems.length} item(s). listId=${shortId}\n\n${lines}`,
+            text: `Created shopping list "${listName}" with ${enrichedItems.length} item(s). listId=${listId}\n\n${lines}`,
           },
         ],
         ...appResult("create_shopping_list", {
-          listId: shortId,
+          listId,
           name: list.name,
           items: list.items,
         }),

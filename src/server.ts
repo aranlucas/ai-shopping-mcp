@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
+import type { AppEnv } from "./env.js";
 import type { KrogerTokenInfo } from "./services/kroger/client.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 
@@ -14,6 +15,7 @@ import {
   isKrogerTokenExpiring,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
+import { createGatewayClient } from "./services/gateway/client.js";
 import { ProductService } from "./services/kroger/product-service.js";
 import { registerCartTools } from "./tools/cart.js";
 import { registerInventoryTools } from "./tools/inventory.js";
@@ -26,8 +28,9 @@ import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { getUserDataKv } from "./utils/kv.js";
+import { createGatewayShoppingStore } from "./utils/gateway-storage.js";
 import { getProps } from "./utils/result.js";
-import { createShoppingPersistence } from "./utils/user-storage.js";
+import { createCartPersistence } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
 /**
@@ -50,7 +53,7 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
 const SERVER_INFO = { name: "kroger-ai-assistant", version: "1.0.0" } as const;
 const SERVER_OPTIONS = {
   instructions:
-    "AI shopping assistant for Kroger/QFC stores. Golden path: call shop_for_items with a list of item names for one-shot shopping-list creation, OR search_products then create_shopping_list for more control — then add_shopping_list_to_cart with the returned listId to add items to the Kroger cart. Call get_shopping_profile before personalized suggestions to read the user's preferred store, pantry, kitchen equipment, and frequently purchased items. Other tools: search_stores/get_store/set_preferred_store for store lookup, add_to_inventory/remove_from_inventory for pantry and kitchen equipment, record_order to log completed purchases, get_weekly_deals for current sales, and get_meal_planning_context for recipe suggestions from pantry contents.",
+    "AI shopping assistant for Kroger/QFC stores. The user's preferred store, pantry, kitchen equipment, orders, and shopping lists are shared with their agents household library. Golden path: call shop_for_items with a list of item names for one-shot shopping-list creation, OR search_products then create_shopping_list for more control — then add_shopping_list_to_cart with the returned listId to add items to the Kroger cart. Call get_shopping_profile before personalized suggestions to read the user's preferred store, pantry, kitchen equipment, and frequently purchased items. Other tools: search_stores/get_store/set_preferred_store for store lookup, add_to_inventory/remove_from_inventory for pantry and kitchen equipment, record_order to log completed purchases, get_weekly_deals for current sales, and get_meal_planning_context for recipe suggestions from pantry contents.",
 } as const;
 
 /**
@@ -62,7 +65,7 @@ const SERVER_OPTIONS = {
  * handler's AsyncLocalStorage), so registration itself needs no auth context.
  * `sessionId` is the per-request MCP session used to scope user storage.
  */
-function buildServer(env: Env, sessionId: string): McpServer {
+function buildServer(env: AppEnv, sessionId: string): McpServer {
   const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
 
   const clients = createKrogerClients((): KrogerTokenInfo | null => {
@@ -77,7 +80,13 @@ function buildServer(env: Env, sessionId: string): McpServer {
     return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
   }, getUserDataKv(env));
 
-  const storage = createShoppingPersistence(env.USER_DATA_KV, () => ({
+  const gatewayClient = createGatewayClient(
+    env.GATEWAY_URL,
+    env.SHOPPING_SERVICE_SECRET,
+    () => getProps().id,
+  );
+  const storage = createGatewayShoppingStore(gatewayClient);
+  const carts = createCartPersistence(env.USER_DATA_KV, () => ({
     userId: getProps().id,
     sessionId,
   }));
@@ -88,6 +97,7 @@ function buildServer(env: Env, sessionId: string): McpServer {
     clients,
     productService,
     storage,
+    carts,
     getEnv: () => env,
     getSessionId: () => sessionId,
   };
@@ -111,7 +121,7 @@ function buildServer(env: Env, sessionId: string): McpServer {
  * existing user-scoped KV namespace and restored on follow-up requests.
  */
 const mcpApiHandler = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
     const headerSessionId = request.headers.get("mcp-session-id") ?? undefined;
     const sessionId = headerSessionId ?? crypto.randomUUID();
 
@@ -125,7 +135,7 @@ const mcpApiHandler = {
   },
 };
 
-class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
+class UserInfoHandler extends WorkerEntrypoint<AppEnv, Props> {
   fetch() {
     return Response.json({
       sub: this.ctx.props.id,
@@ -134,7 +144,7 @@ class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
   }
 }
 
-export const oauthProvider = new OAuthProvider<Env>({
+export const oauthProvider = new OAuthProvider<AppEnv>({
   apiHandlers: {
     "/mcp": mcpApiHandler,
     "/userinfo": UserInfoHandler,
@@ -243,11 +253,11 @@ export const oauthProvider = new OAuthProvider<Env>({
 });
 
 export default {
-  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
     return oauthProvider.fetch(request, env, ctx);
   },
-  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+  async scheduled(_controller: ScheduledController, env: AppEnv): Promise<void> {
     const result = await oauthProvider.purgeExpiredData(env, { batchSize: 100 });
     console.log("OAuth KV cleanup complete:", result);
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<AppEnv>;

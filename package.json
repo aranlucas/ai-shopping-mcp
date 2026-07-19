@@ -24,7 +24,9 @@
     "generate:cart": "openapi-typescript kroger/cart.json -o src/services/kroger/cart.d.ts",
     "generate:location": "openapi-typescript kroger/location.json -o src/services/kroger/location.d.ts",
     "generate:product": "openapi-typescript kroger/product.json -o src/services/kroger/product.d.ts",
-    "generate:identity": "openapi-typescript kroger/identity.json -o src/services/kroger/identity.d.ts"
+    "generate:identity": "openapi-typescript kroger/identity.json -o src/services/kroger/identity.d.ts",
+    "generate:gateway": "openapi-typescript ../../agents/api/openapi/grocery-gateway.yaml -o src/services/gateway/schema.d.ts",
+    "api:check": "pnpm generate:gateway && git diff --exit-code -- src/services/gateway/schema.d.ts"
   },
   "dependencies": {
     "@agents/ui": "workspace:*",
@@ -55,7 +57,7 @@
     "openapi-typescript": "^7.13.0",
     "oxfmt": "^0.59.0",
     "oxlint": "^1.74.0",
-    "typescript": "^7.0.2",
+    "typescript": "5.9.3",
     "vite": "^8.1.5",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.10",

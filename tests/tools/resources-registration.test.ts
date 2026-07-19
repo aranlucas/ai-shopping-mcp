@@ -94,6 +94,7 @@ function makeContext(storage: UserStorage, productClient: unknown = {}): ToolCon
     clients: { productClient } as unknown as ToolContext["clients"],
     productService: new ProductService(productClient as KrogerClients["productClient"]),
     storage,
+    carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
     getSessionId: () => "session-1",
   };

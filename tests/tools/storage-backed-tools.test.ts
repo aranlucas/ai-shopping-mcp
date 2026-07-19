@@ -542,6 +542,46 @@ describe("storage-backed tools", () => {
     expect(textFromResult(second)).toContain("already added to your cart from this list");
   });
 
+  it("emits and subsequently looks up the gateway-created list id", async () => {
+    const gatewayListId = `list_${"a".repeat(32)}`;
+    const lookups: string[] = [];
+    const storage = makeStorage();
+    let savedList: Awaited<ReturnType<typeof storage.shoppingList.create>> | null = null;
+    storage.shoppingList = {
+      create: async (_clientId, name, items) => {
+        savedList = { id: gatewayListId, name, items, createdAt: "2026-07-18T00:00:00.000Z" };
+        return savedList;
+      },
+      get: async (id) => {
+        lookups.push(id);
+        return id === gatewayListId ? savedList : null;
+      },
+      clear: async () => {},
+    };
+
+    const ctx = makeContextWithElicit(
+      storage,
+      { action: "accept", content: { confirm: true } },
+      204,
+      makeProductService({ "0001111042578": "Milk" }),
+    );
+    registerShoppingListTools(ctx);
+    registerCartTools(ctx);
+
+    const created = await getCapturedHandler("create_shopping_list")({
+      name: "Dinner",
+      items: [{ upc: "0001111042578", quantity: 1 }],
+    });
+    expect(textFromResult(created)).toContain(`listId=${gatewayListId}`);
+
+    const added = await getCapturedHandler("add_shopping_list_to_cart")({
+      listId: gatewayListId,
+      storeId: "70500847",
+    });
+    expect(isErrorResult(added)).toBe(false);
+    expect(lookups).toEqual([gatewayListId]);
+  });
+
   it("bails when the shopping list has no items with UPCs", async () => {
     // create_shopping_list always resolves a upc from the input now, so a
     // upc-less item can only reach the cart tool via a pre-existing stored

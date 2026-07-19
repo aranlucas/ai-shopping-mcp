@@ -3,6 +3,7 @@ import { vi } from "vitest";
 import type { ProductService } from "../../src/services/kroger/product-service.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type {
+  CartStore,
   CartSnapshotItem,
   EquipmentItem,
   OrderRecord,
@@ -88,7 +89,9 @@ export function isErrorResult(result: unknown): boolean {
   return isRecord(result) && result.isError === true;
 }
 
-export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
+export function makeStorage(
+  overrides: Partial<UserStorage & CartStore> = {},
+): UserStorage & CartStore {
   const pantryItems: PantryItem[] = [];
   const equipmentItems: EquipmentItem[] = [];
   const orders: OrderRecord[] = [];
@@ -183,7 +186,7 @@ export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
     },
   };
 
-  return { ...storage, ...overrides } as unknown as UserStorage;
+  return { ...storage, ...overrides } as unknown as UserStorage & CartStore;
 }
 
 /**
@@ -224,13 +227,14 @@ export function makeContext(
     } as unknown as ToolContext["clients"],
     productService,
     storage,
+    carts: storage,
     getEnv: () => ({}) as Env,
     getSessionId: () => "session-1",
   };
 }
 
 export function makeContextWithElicit(
-  storage: UserStorage,
+  storage: UserStorage & CartStore,
   elicitResult: ElicitResult,
   cartStatus = 204,
   productService: ProductService = makeProductService(),
@@ -254,6 +258,7 @@ export function makeContextWithElicit(
     } as unknown as ToolContext["clients"],
     productService,
     storage,
+    carts: storage,
     getEnv: () => ({}) as Env,
     getSessionId: () => "session-1",
   };

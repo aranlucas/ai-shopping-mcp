@@ -1,6 +1,6 @@
 # Kroger shopping MCP
 
-Cloudflare Worker that exposes authenticated Kroger/QFC shopping tools over MCP. OAuth grants live in the existing `OAUTH_KV` namespace; user shopping data lives in `USER_DATA_KV`. The Worker also serves one bundled MCP App view shared by tool results.
+Cloudflare Worker that exposes authenticated Kroger/QFC shopping tools over MCP. OAuth grants live in the existing `OAUTH_KV` namespace; cart retry state and the product/location cache live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
 
 ## Production resources
 
@@ -16,6 +16,13 @@ Keep the Worker name, KV namespace IDs, and Durable Object migration history in 
 - `KROGER_CLIENT_ID`
 - `KROGER_CLIENT_SECRET`
 - `COOKIE_ENCRYPTION_KEY`
+- `SHOPPING_SERVICE_SECRET` (must match the agents-gateway secret)
+
+Set the gateway credential as a Worker secret, never as a Wrangler variable:
+
+```bash
+pnpm exec wrangler secret put SHOPPING_SERVICE_SECRET
+```
 
 Register the exact production callback URL with Kroger:
 

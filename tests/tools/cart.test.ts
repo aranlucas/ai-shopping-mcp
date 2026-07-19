@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type {
+  CartStore,
   CartSnapshotItem,
   PreferredLocation,
   ShoppingList,
@@ -115,7 +116,7 @@ function makeStorage(
   mirrorItems: Array<CartSnapshotItem & { addedAt: string }> = [],
   storedCartId: string | null = null,
   cartIdSetCalls: string[][] = [],
-): UserStorage {
+): UserStorage & CartStore {
   return {
     pantry: {} as UserStorage["pantry"],
     equipment: {} as UserStorage["equipment"],
@@ -135,7 +136,7 @@ function makeStorage(
         snapshotSetCalls.push([_id, items]);
       },
       clear: async () => {},
-    } as unknown as UserStorage["cartSnapshot"],
+    } as unknown as CartStore["cartSnapshot"],
     cartMirror: {
       getAll: async () => mirrorItems,
       append: async (items: CartSnapshotItem[], addedAt: string) => {
@@ -143,14 +144,14 @@ function makeStorage(
         return [...mirrorItems, ...items.map((item) => ({ ...item, addedAt }))];
       },
       clear: async () => {},
-    } as unknown as UserStorage["cartMirror"],
+    } as unknown as CartStore["cartMirror"],
     cartId: {
       get: async () => storedCartId,
       set: async (cartId: string) => {
         cartIdSetCalls.push([cartId]);
       },
-    } as unknown as UserStorage["cartId"],
-  } as unknown as UserStorage;
+    } as unknown as CartStore["cartId"],
+  } as unknown as UserStorage & CartStore;
 }
 
 type GetCall = { path: string; options: unknown };
@@ -168,7 +169,7 @@ const LIVE_CART = {
 };
 
 function makeContext(
-  storage?: UserStorage,
+  storage?: UserStorage & CartStore,
   putConfig: { status: number; throws?: boolean } = { status: 204 },
   getConfig: { status: number; cart?: typeof LIVE_CART } = { status: 200, cart: LIVE_CART },
 ): {
@@ -219,6 +220,7 @@ function makeContext(
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
     storage: actualStorage,
+    carts: actualStorage,
     getEnv: () => ({}) as Env,
     getSessionId: () => SESSION_ID,
   };

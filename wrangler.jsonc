@@ -8,6 +8,9 @@
   "main": "src/server.ts",
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "vars": {
+    "GATEWAY_URL": "https://agents-gateway.up.railway.app",
+  },
   "build": {
     "command": "pnpm build:views",
   },

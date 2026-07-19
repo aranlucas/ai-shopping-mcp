@@ -36,6 +36,8 @@ export default defineConfig({
                 KROGER_CLIENT_ID: "test-kroger-client-id",
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
+                GATEWAY_URL: "https://gateway.example",
+                SHOPPING_SERVICE_SECRET: "test-shopping-service-secret",
 
                 // EVAL_LIVE selects the production Wrangler config so the
                 // live-model runner can reach its explicitly remote AI

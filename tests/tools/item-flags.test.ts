@@ -57,6 +57,7 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
     storage: {} as ToolContext["storage"],
+    carts: {} as ToolContext["carts"],
     getEnv: () =>
       (store
         ? {

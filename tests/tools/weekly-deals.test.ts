@@ -545,6 +545,7 @@ function makeWeeklyDealsContext(
         set: async () => {},
       },
     } as unknown as ToolContext["storage"],
+    carts: {} as ToolContext["carts"],
     getEnv: () => (kv ? { USER_DATA_KV: kv } : {}) as Env,
     getSessionId: () => "session-1",
   };

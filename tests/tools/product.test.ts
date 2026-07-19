@@ -109,6 +109,7 @@ function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolConte
     clients,
     productService: new ProductService(clients.productClient),
     storage: storage ?? makeStorage(),
+    carts: {} as ToolContext["carts"],
     getEnv: () =>
       ({
         USER_DATA_KV: { get: async () => null, put: async () => {} },

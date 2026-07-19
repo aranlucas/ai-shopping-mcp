@@ -109,6 +109,7 @@ function makeContext(storage = makeStorage()): ToolContext {
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
     storage,
+    carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
     getSessionId: () => "session-1",
   };

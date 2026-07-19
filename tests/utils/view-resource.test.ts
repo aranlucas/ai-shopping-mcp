@@ -71,6 +71,7 @@ function makeContext(env: Env): ToolContext {
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
     storage: {} as ToolContext["storage"],
+    carts: {} as ToolContext["carts"],
     getEnv: () => env,
     getSessionId: () => "session-test",
   };

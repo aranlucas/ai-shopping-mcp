@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
-import type { PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
+import type { CartStore, PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
 
 import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
@@ -133,7 +133,7 @@ function makeContext(
     pantry: {} as UserStorage["pantry"],
     equipment: {} as UserStorage["equipment"],
     orderHistory: {} as UserStorage["orderHistory"],
-  } as unknown as UserStorage;
+  } as unknown as UserStorage & CartStore;
 
   return {
     server: {
@@ -159,6 +159,7 @@ function makeContext(
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
     storage,
+    carts: storage,
     getEnv: () =>
       ({
         AI: { run: async () => ({ data: [] }) },

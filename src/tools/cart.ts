@@ -69,7 +69,7 @@ export function toCartSnapshotItems(
  * the Kroger cart. Shared by every cart-write path (listId, inline items, and
  * `shop_for_items`'s `addToCart`) so the confirm → PUT → mirror-append logic
  * lives in one place. On success, also appends to the per-user cart mirror
- * (`ctx.storage.cartMirror`) that `view_cart` reads — best-effort, a mirror
+ * (`ctx.carts.cartMirror`) that `view_cart` reads — best-effort, a mirror
  * write failure does not fail the tool call.
  */
 export async function addLineItemsToCart(
@@ -107,7 +107,7 @@ export async function addLineItemsToCart(
   const mirrorItems = toCartSnapshotItems(lineItems, modality);
 
   await safeStorage(
-    () => ctx.storage.cartMirror.append(mirrorItems, new Date().toISOString()),
+    () => ctx.carts.cartMirror.append(mirrorItems, new Date().toISOString()),
     "append cart mirror",
   ).orTee((e) => console.warn("Cart mirror append failed (non-fatal):", e.message));
 
@@ -157,7 +157,7 @@ async function handleListIdCart(
   modality: "PICKUP" | "DELIVERY",
 ) {
   const existingSnapshotResult = await safeStorage(
-    () => ctx.storage.cartSnapshot.get(listId),
+    () => ctx.carts.cartSnapshot.get(listId),
     "check existing cart snapshot",
   );
 
@@ -242,7 +242,7 @@ async function handleListIdCart(
   const snapshot = toCartSnapshotItems(lineItems, modality);
 
   const snapshotResult = await safeStorage(
-    () => ctx.storage.cartSnapshot.set(listId, snapshot),
+    () => ctx.carts.cartSnapshot.set(listId, snapshot),
     "persist cart snapshot",
   );
   if (snapshotResult.isErr()) {
@@ -314,10 +314,7 @@ function formatLiveCart(cart: LiveCart, cartId: string): string {
  * `note` (when set) explains why the live cart is not being shown.
  */
 async function mirrorFallbackResult(ctx: ToolContext, note?: string) {
-  const mirrorResult = await safeStorage(
-    () => ctx.storage.cartMirror.getAll(),
-    "fetch cart mirror",
-  );
+  const mirrorResult = await safeStorage(() => ctx.carts.cartMirror.getAll(), "fetch cart mirror");
   if (mirrorResult.isErr()) return toMcpError(mirrorResult.error);
 
   const parts: string[] = note ? [note] : [];
@@ -390,10 +387,7 @@ export function registerCartTools(ctx: ToolContext) {
     },
     async ({ cartId }) => {
       getProps();
-      const storedIdResult = await safeStorage(
-        () => ctx.storage.cartId.get(),
-        "read stored cart id",
-      );
+      const storedIdResult = await safeStorage(() => ctx.carts.cartId.get(), "read stored cart id");
       const resolvedId = cartId ?? (storedIdResult.isOk() ? storedIdResult.value : null);
 
       if (!resolvedId) {
@@ -417,7 +411,7 @@ export function registerCartTools(ctx: ToolContext) {
         );
       }
 
-      await safeStorage(() => ctx.storage.cartId.set(resolvedId), "store cart id").orTee((error) =>
+      await safeStorage(() => ctx.carts.cartId.set(resolvedId), "store cart id").orTee((error) =>
         console.warn("Cart id store failed (non-fatal):", error.message),
       );
       return textResult(formatLiveCart(liveResult.value.data ?? {}, resolvedId));

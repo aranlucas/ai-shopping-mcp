@@ -180,10 +180,10 @@ export function registerShopTools(ctx: ToolContext) {
 
       const createResult = await createShoppingListRecord(ctx.storage, listName, listItems);
       if (createResult.isErr()) return toMcpError(createResult.error);
-      const { shortId, list } = createResult.value;
+      const { listId, list } = createResult.value;
 
       const parts: string[] = [
-        `Created shopping list "${listName}" (listId=${shortId}) with ${matched.length} item(s).`,
+        `Created shopping list "${listName}" (listId=${listId}) with ${matched.length} item(s).`,
         "",
         ...matched.map((match) =>
           formatMatchLineMarkdown(match.name, match.quantity, match.product, match.flags),
@@ -197,7 +197,7 @@ export function registerShopTools(ctx: ToolContext) {
       const respond = () => ({
         content: [{ type: "text" as const, text: parts.join("\n") }],
         ...appResult("create_shopping_list", {
-          listId: shortId,
+          listId,
           name: list.name,
           items: list.items,
         }),
@@ -206,7 +206,7 @@ export function registerShopTools(ctx: ToolContext) {
       if (!addToCart) {
         parts.push(
           "",
-          `Review these matches, then call add_shopping_list_to_cart with listId "${shortId}" to add them to the Kroger cart.`,
+          `Review these matches, then call add_shopping_list_to_cart with listId "${listId}" to add them to the Kroger cart.`,
         );
         return respond();
       }
@@ -229,7 +229,7 @@ export function registerShopTools(ctx: ToolContext) {
       if (lineItems.length === 0) {
         parts.push(
           "",
-          `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${shortId}"} once available.`,
+          `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${listId}"} once available.`,
         );
         return respond();
       }
@@ -238,7 +238,7 @@ export function registerShopTools(ctx: ToolContext) {
       if (addResult.isErr()) {
         parts.push(
           "",
-          `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${shortId}"}.`,
+          `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${listId}"}.`,
         );
         return respond();
       }
@@ -248,7 +248,7 @@ export function registerShopTools(ctx: ToolContext) {
       // listId short-circuits instead of double-adding.
       const snapshot = toCartSnapshotItems(lineItems, "PICKUP");
       const snapshotResult = await safeStorage(
-        () => ctx.storage.cartSnapshot.set(shortId, snapshot),
+        () => ctx.carts.cartSnapshot.set(listId, snapshot),
         "persist cart snapshot",
       );
       if (snapshotResult.isErr()) {

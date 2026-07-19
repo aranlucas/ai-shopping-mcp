@@ -1,6 +1,8 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { AppEnv } from "../src/env.js";
+
 import worker, { oauthProvider } from "../src/server.js";
 
 describe("scheduled OAuth cleanup", () => {
@@ -26,7 +28,7 @@ describe("scheduled OAuth cleanup", () => {
         noRetry: vi.fn(),
         scheduledTime: Date.now(),
       },
-      env,
+      env as AppEnv,
     );
 
     expect(purge).toHaveBeenCalledWith(env, { batchSize: 100 });

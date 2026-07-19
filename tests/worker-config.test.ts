@@ -17,4 +17,11 @@ describe("Worker configuration", () => {
     expect(wranglerConfig).toContain('"crons": ["0 2 * * *"]');
     expect(serverSource).toContain("oauthProvider.purgeExpiredData");
   });
+
+  it("configures the gateway URL while keeping its credential secret-only", () => {
+    expect(wranglerConfig).toContain('"GATEWAY_URL": "https://agents-gateway.up.railway.app"');
+    expect(generatedTypes).toContain("GATEWAY_URL");
+    expect(serverSource).toContain("createGatewayShoppingStore");
+    expect(wranglerConfig).not.toContain("SHOPPING_SERVICE_SECRET");
+  });
 });
