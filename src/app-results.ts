@@ -1,4 +1,4 @@
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
 
 /** Namespaced CallToolResult metadata key used to route the shared MCP App. */
 const APP_VIEW_META_KEY = "dev.aranlucas/view";

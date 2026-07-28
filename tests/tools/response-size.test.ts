@@ -16,9 +16,10 @@ import type { ToolContext } from "../../src/tools/types.js";
 import { createKrogerClients } from "../../src/services/kroger/client.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerProductTools } from "../../src/tools/product.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { createCartPersistence } from "../../src/utils/user-storage.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
 
 const testState = vi.hoisted(() => ({
@@ -30,12 +31,6 @@ const testState = vi.hoisted(() => ({
 
 vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, _config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, handler });
-  },
 }));
 
 function authenticate() {
@@ -182,10 +177,18 @@ describe("search_products content size", () => {
 
     const carts = createCartPersistence(createMockKV(), {
       userId: "response-size-user",
-      sessionId: "session-size",
+      clientId: "client-size",
     });
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+        testState.capturedTools.push({
+          name,
+          handler: wrapV2ToolHandler(handler, server),
+        });
+      },
+    };
     registerProductTools({
-      server: {} as unknown as ToolContext["server"],
+      server: server as unknown as ToolContext["server"],
       clients,
       productService: new ProductService(clients.productClient),
       storage: {
@@ -196,7 +199,7 @@ describe("search_products content size", () => {
         ({
           USER_DATA_KV: { get: async () => null, put: async () => {} },
         }) as unknown as Env,
-      getSessionId: () => "session-size",
+      requestStateCodec: testCartConfirmationCodec,
     });
 
     return getTool("search_products")({ terms });

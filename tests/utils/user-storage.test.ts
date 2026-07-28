@@ -26,7 +26,7 @@ function createMockKV(initialData: Record<string, string> = {}) {
 }
 
 describe("CartPersistence", () => {
-  const identity = { userId: "user1", sessionId: "session1" };
+  const identity = { userId: "user1", clientId: "client1" };
   let mock: ReturnType<typeof createMockKV>;
 
   beforeEach(() => {
@@ -38,15 +38,15 @@ describe("CartPersistence", () => {
     const items = [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" as const }];
     await carts.cartSnapshot.set("list_deadbeef", items);
     expect(mock.put).toHaveBeenCalledWith(
-      "user:user1:session:session1:list:list_deadbeef:cart_snapshot",
+      "user:user1:client:client1:list:list_deadbeef:cart_snapshot",
       JSON.stringify(items),
       { expirationTtl: 604800 },
     );
   });
 
-  it("isolates cart receipts by session", async () => {
+  it("isolates cart receipts by authenticated client", async () => {
     const first = createCartPersistence(mock.kv, identity);
-    const second = createCartPersistence(mock.kv, { ...identity, sessionId: "session2" });
+    const second = createCartPersistence(mock.kv, { ...identity, clientId: "client2" });
     await first.cartSnapshot.set("list_deadbeef", [
       { upc: "0001111042578", quantity: 1, modality: "PICKUP" },
     ]);
@@ -75,7 +75,7 @@ describe("CartPersistence", () => {
 
   it("keeps cart retry receipts strict because corruption cannot prove idempotency", async () => {
     mock = createMockKV({
-      "user:user1:session:session1:list:list_deadbeef:cart_snapshot": "{broken",
+      "user:user1:client:client1:list:list_deadbeef:cart_snapshot": "{broken",
     });
     const carts = createCartPersistence(mock.kv, identity);
     await expect(carts.cartSnapshot.get("list_deadbeef")).rejects.toBeInstanceOf(
@@ -94,7 +94,7 @@ describe("CartPersistence", () => {
     let current = identity;
     const carts = createCartPersistence(mock.kv, () => current);
     await carts.cartId.set("cart-a");
-    current = { userId: "user2", sessionId: "session2" };
+    current = { userId: "user2", clientId: "client2" };
     expect(await carts.cartId.get()).toBeNull();
   });
 });

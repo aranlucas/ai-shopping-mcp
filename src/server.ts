@@ -1,14 +1,18 @@
 import OAuthProvider, { GrantType, OAuthError } from "@cloudflare/workers-oauth-provider";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createMcpHandler, getMcpAuthContext } from "agents/mcp";
+import {
+  createRequestStateCodec,
+  McpServer,
+  type McpRequestContext,
+} from "@modelcontextprotocol/server";
+import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
 import type { AppEnv } from "./env.js";
+import type { CartConfirmationState } from "./cart-confirmation.js";
 import type { KrogerTokenInfo } from "./services/kroger/client.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 
 import { KrogerWorker } from "./kroger-handler.js";
-import { createMcpTransportStorage } from "./mcp-transport-storage.js";
 import { registerPrompts } from "./prompts.js";
 import {
   createKrogerClients,
@@ -63,10 +67,21 @@ const SERVER_OPTIONS = {
  * responses cannot leak between clients. Auth `Props` are read lazily from
  * `getMcpAuthContext()` (populated by `OAuthProvider` and wrapped in the
  * handler's AsyncLocalStorage), so registration itself needs no auth context.
- * `sessionId` is the per-request MCP session used to scope user storage.
+ * Cart retry receipts are scoped by the authenticated OAuth client rather
+ * than MCP transport state, so the server remains stateless at the protocol
+ * layer.
  */
-function buildServer(env: AppEnv, sessionId: string): McpServer {
-  const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
+function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer {
+  const clientId = requestContext.authInfo?.clientId ?? getProps().id;
+  const userId = getProps().id;
+  const requestStateCodec = createRequestStateCodec<CartConfirmationState>({
+    key: env.SHOPPING_SERVICE_SECRET,
+    bind: ({ mcpReq }) => `${mcpReq.method}\0${clientId}\0${userId}`,
+  });
+  const server = new McpServer(SERVER_INFO, {
+    ...SERVER_OPTIONS,
+    requestState: { verify: requestStateCodec.verify },
+  });
 
   const clients = createKrogerClients((): KrogerTokenInfo | null => {
     const props = getMcpAuthContext()?.props;
@@ -88,7 +103,7 @@ function buildServer(env: AppEnv, sessionId: string): McpServer {
   const storage = createGatewayShoppingStore(gatewayClient);
   const carts = createCartPersistence(env.USER_DATA_KV, () => ({
     userId: getProps().id,
-    sessionId,
+    clientId,
   }));
   const productService = new ProductService(clients.productClient);
 
@@ -98,8 +113,8 @@ function buildServer(env: AppEnv, sessionId: string): McpServer {
     productService,
     storage,
     carts,
+    requestStateCodec,
     getEnv: () => env,
-    getSessionId: () => sessionId,
   };
 
   // Register the single unified View resource (all app tools share this one UI)
@@ -115,20 +130,13 @@ function buildServer(env: AppEnv, sessionId: string): McpServer {
 /**
  * Stateless MCP API handler.
  *
- * The MCP session id is carried by the client in the `Mcp-Session-Id` header
- * after the server issues it on `initialize`. Because each request spins up a
- * fresh `WorkerTransport`, its minimal protocol state is persisted in the
- * existing user-scoped KV namespace and restored on follow-up requests.
+ * The SDK v2 factory creates a fresh server for every request and serves both
+ * the modern protocol and the built-in stateless legacy compatibility lane.
  */
 const mcpApiHandler = {
   async fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
-    const headerSessionId = request.headers.get("mcp-session-id") ?? undefined;
-    const sessionId = headerSessionId ?? crypto.randomUUID();
-
-    const handler = createMcpHandler(buildServer(env, sessionId), {
+    const handler = createMcpHandler((requestContext) => buildServer(env, requestContext), {
       route: "/mcp",
-      sessionIdGenerator: () => sessionId,
-      storage: createMcpTransportStorage(env.USER_DATA_KV, headerSessionId, () => getProps().id),
     });
 
     return handler(request, env, ctx);

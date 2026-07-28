@@ -1,5 +1,5 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
 
 export type {
   AddShoppingListToCartContent,

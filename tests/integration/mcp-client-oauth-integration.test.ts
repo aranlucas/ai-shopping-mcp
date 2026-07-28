@@ -1,5 +1,4 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { SELF, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -209,7 +208,17 @@ async function createAuthorizedMcpClient(accessToken: string): Promise<Client> {
       headers: { Authorization: `Bearer ${accessToken}` },
     },
   });
-  const client = new Client({ name: "vitest-client", version: "1.0.0" });
+  const client = new Client(
+    { name: "vitest-client", version: "1.0.0" },
+    {
+      capabilities: { elicitation: {} },
+      versionNegotiation: { mode: "auto" },
+    },
+  );
+  client.setRequestHandler("elicitation/create", async () => ({
+    action: "accept",
+    content: { confirm: true },
+  }));
   await client.connect(transport);
   return client;
 }
@@ -349,7 +358,7 @@ describe("MCP client over Worker OAuth integration", () => {
     expect(pantryText).not.toContain("outside an authenticated MCP request");
   });
 
-  it("rejects an MCP session id that was never initialized", async () => {
+  it("does not require persisted MCP session state", async () => {
     const registeredClient = await registerClient();
     const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
     const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
@@ -367,8 +376,8 @@ describe("MCP client over Worker OAuth integration", () => {
       }),
     );
 
-    expect(response.status).toBeGreaterThanOrEqual(400);
-    expect(await response.text()).toMatch(/initializ|session/i);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("tools");
   });
 
   it("returns invalid_grant when Kroger rejects its single-use refresh token", async () => {

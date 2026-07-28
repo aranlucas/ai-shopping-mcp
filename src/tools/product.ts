@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -204,8 +203,7 @@ export async function searchProductsForTerms(
 export function registerProductTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "search_products",
     {
       title: "Search Products",
@@ -244,7 +242,7 @@ export function registerProductTools(ctx: ToolContext) {
           ),
       }),
     },
-    async ({ terms, storeId, limitPerTerm, includeLocation }, extra) => {
+    async ({ terms, storeId, limitPerTerm, includeLocation }, requestContext) => {
       // Resolve storeId: explicit arg → preferred store → omit filter
       let resolvedLocationId: string | undefined = storeId;
       if (!resolvedLocationId) {
@@ -252,17 +250,16 @@ export function registerProductTools(ctx: ToolContext) {
         if (resolved.isOk()) resolvedLocationId = resolved.value.locationId;
       }
 
-      const progressToken = extra?._meta?.progressToken;
-      const sendNotification = extra?.sendNotification;
+      const progressToken = requestContext.mcpReq._meta?.progressToken;
 
       const results = await searchProductsForTerms(
         productClient,
         terms,
         { locationId: resolvedLocationId, limitPerTerm },
-        progressToken && sendNotification
+        progressToken
           ? async (completed, total) => {
               await ResultAsync.fromPromise(
-                sendNotification({
+                requestContext.mcpReq.notify({
                   method: "notifications/progress",
                   params: { progressToken, progress: completed, total },
                 }),
@@ -301,8 +298,7 @@ export function registerProductTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "get_product",
     {
       title: "Get Product Details",

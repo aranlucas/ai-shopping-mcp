@@ -1,3 +1,4 @@
+import type { ServerContext } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
@@ -7,6 +8,8 @@ import type { PreferredLocation } from "../../src/utils/user-storage.js";
 import { apiError, authError } from "../../src/errors.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { logProductSearchError, registerProductTools } from "../../src/tools/product.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -22,13 +25,6 @@ type AuthContext = {
   };
 };
 
-type ToolExtra = {
-  sendNotification?: (notification: { method: string; params: unknown }) => Promise<void>;
-  _meta?: { progressToken?: string | number };
-};
-
-type ToolHandler = (args: Record<string, unknown>, extra?: ToolExtra) => Promise<unknown>;
-
 type CapturedTool = { name: string; config: unknown; handler: ToolHandler };
 
 const testState = vi.hoisted(() => ({
@@ -38,12 +34,6 @@ const testState = vi.hoisted(() => ({
 
 vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -104,8 +94,17 @@ function makeStorage(preferredLocation?: PreferredLocation): UserStorage {
 
 function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolContext {
   const clients = { productClient: { GET: productGet } } as unknown as ToolContext["clients"];
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
+  };
   return {
-    server: {} as ToolContext["server"],
+    server: server as unknown as ToolContext["server"],
     clients,
     productService: new ProductService(clients.productClient),
     storage: storage ?? makeStorage(),
@@ -114,7 +113,7 @@ function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolConte
       ({
         USER_DATA_KV: { get: async () => null, put: async () => {} },
       }) as unknown as Env,
-    getSessionId: () => "session-1",
+    requestStateCodec: testCartConfirmationCodec,
   };
 }
 
@@ -439,10 +438,12 @@ describe("search_products", () => {
       notifications.push(notification);
     });
 
-    await getCapturedHandler("search_products")(
-      { terms: ["milk", "eggs"] },
-      { _meta: { progressToken: "tok-1" }, sendNotification },
-    );
+    await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
+      mcpReq: {
+        _meta: { progressToken: "tok-1" },
+        notify: sendNotification,
+      },
+    } as unknown as ServerContext);
 
     expect(notifications).toHaveLength(2);
     expect(notifications[0].method).toBe("notifications/progress");

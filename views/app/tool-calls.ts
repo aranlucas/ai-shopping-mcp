@@ -1,5 +1,4 @@
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-
+import type { CallToolResult } from "@modelcontextprotocol/server";
 import { type AddShoppingListToCartArgs, type ToolCall, callTool } from "../shared/types.js";
 
 type ProductShoppingListInput = {

@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -68,8 +67,7 @@ function equipmentResponse(text: string, items: EquipmentItem[], actionDetail: s
 }
 
 export function registerInventoryTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "add_to_inventory",
     {
       title: "Add To Inventory",
@@ -141,8 +139,7 @@ export function registerInventoryTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "remove_from_inventory",
     {
       title: "Remove From Inventory",

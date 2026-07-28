@@ -1,5 +1,4 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { ResultAsync, err, ok } from "neverthrow";
+import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
@@ -13,88 +12,6 @@ import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
 import { type ToolContext, type UserStorage } from "./types.js";
-
-type CheckoutConfirmationServer = {
-  elicitInput(input: {
-    message: string;
-    requestedSchema: {
-      type: "object";
-      properties: {
-        confirm: {
-          type: "boolean";
-          title: string;
-          description: string;
-          default: boolean;
-        };
-      };
-    };
-  }): Promise<{ action: "accept" | "decline" | "cancel"; content?: { confirm?: boolean } }>;
-};
-
-type CheckoutConfirmationItem = Pick<ShoppingListItem, "productName" | "quantity">;
-
-class ElicitationUnsupportedError extends Error {}
-class ElicitationFailedError extends Error {}
-
-/**
- * The exact message the MCP SDK's `Server#elicitInput` throws when the
- * connected client didn't advertise the `elicitation.form` capability (see
- * `elicitInput` in `@modelcontextprotocol/sdk/server/index.js`). There is no
- * typed error or capability check exposed for this — `requestCheckoutConfirmation`
- * below distinguishes "capability absent" (fall through, treat as implicit
- * confirmation) from "elicitation actually failed" (surface an error) by
- * string-matching this message. An SDK upgrade that rewords it would silently
- * turn every no-elicitation client into a failed checkout, so this constant
- * is asserted against the installed SDK directly in
- * tests/tools/shopping-list-confirmation.test.ts — that test fails loudly if
- * the SDK's wording ever changes.
- */
-export const ELICITATION_UNSUPPORTED_MESSAGE = "Client does not support form elicitation.";
-
-export async function requestCheckoutConfirmation(
-  server: CheckoutConfirmationServer,
-  items: CheckoutConfirmationItem[],
-) {
-  const itemList = items.map((i) => `${i.productName} x${i.quantity}`).join(", ");
-
-  const elicitResult = await ResultAsync.fromPromise(
-    server.elicitInput({
-      message: `Add ${items.length} item(s) to your Kroger cart? Items: ${itemList}`,
-      requestedSchema: {
-        type: "object" as const,
-        properties: {
-          confirm: {
-            type: "boolean" as const,
-            title: "Confirm checkout",
-            description: "Add these items to your Kroger cart?",
-            default: true,
-          },
-        },
-      },
-    }),
-    (e) =>
-      e instanceof Error && e.message === ELICITATION_UNSUPPORTED_MESSAGE
-        ? new ElicitationUnsupportedError()
-        : new ElicitationFailedError(),
-  );
-
-  if (elicitResult.isErr()) {
-    // A client without elicitation support implicitly confirms checkout.
-    return elicitResult.error instanceof ElicitationUnsupportedError
-      ? ok(undefined)
-      : err(validationError("Elicitation request failed unexpectedly."));
-  }
-
-  const elicit = elicitResult.value;
-  if (
-    elicit.action === "decline" ||
-    elicit.action === "cancel" ||
-    (elicit.action === "accept" && elicit.content?.confirm === false)
-  ) {
-    return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
-  }
-  return ok(undefined);
-}
 
 export const createShoppingListInputSchema = z.object({
   name: z.string().min(1).max(200).describe("List label, e.g. 'Tuesday dinner'."),
@@ -133,8 +50,7 @@ export function createShoppingListRecord(
 }
 
 export function registerShoppingListTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "create_shopping_list",
     {
       title: "Create Shopping List",

@@ -1,5 +1,4 @@
-import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-
+import { ResourceTemplate } from "@modelcontextprotocol/server";
 import { getProps, safeStorage } from "../utils/result.js";
 import { toonResource } from "../utils/toon.js";
 import { type ToolContext } from "./types.js";

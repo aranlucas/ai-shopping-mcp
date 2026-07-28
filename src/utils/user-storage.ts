@@ -64,7 +64,7 @@ export type CartSnapshotItem = {
 
 export type CartMirrorItem = CartSnapshotItem & { addedAt: string };
 
-export type PersistenceIdentity = Readonly<{ userId: string; sessionId: string }>;
+export type PersistenceIdentity = Readonly<{ userId: string; clientId: string }>;
 
 export interface CartStore {
   cartSnapshot: {
@@ -115,8 +115,8 @@ function userKey(userId: string, dataType: string): string {
   return `user:${userId}:${dataType}`;
 }
 
-function listIdentity({ userId, sessionId }: PersistenceIdentity, listId: string): string {
-  return `${userId}:session:${sessionId}:list:${listId}`;
+function listIdentity({ userId, clientId }: PersistenceIdentity, listId: string): string {
+  return `${userId}:client:${clientId}:list:${listId}`;
 }
 
 function cartReceiptKey(identity: PersistenceIdentity, listId: string): string {

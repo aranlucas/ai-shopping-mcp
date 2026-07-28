@@ -14,11 +14,9 @@
  *  5. Client-side React in the iframe routes to the correct view component
  */
 
-import { RESOURCE_MIME_TYPE, registerAppResource } from "@modelcontextprotocol/ext-apps/server";
-
 import type { ToolContext } from "../tools/types.js";
 
-export { RESOURCE_MIME_TYPE };
+export const RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
 /** Single resource URI shared by all app tools. */
 export const APP_VIEW_URI = "ui://shopping-app";
@@ -63,8 +61,7 @@ export function registerViewResource(
   resourceUri: string,
   filename: string,
 ): void {
-  registerAppResource(
-    ctx.server,
+  ctx.server.registerResource(
     resourceUri,
     resourceUri,
     { mimeType: RESOURCE_MIME_TYPE },

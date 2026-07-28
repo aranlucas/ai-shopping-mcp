@@ -579,7 +579,9 @@ describe("storage-backed tools", () => {
       storeId: "70500847",
     });
     expect(isErrorResult(added)).toBe(false);
-    expect(lookups).toEqual([gatewayListId]);
+    // The v2 confirmation flow re-enters the tool after input_required, so
+    // the list is resolved once before confirmation and once before mutation.
+    expect(lookups).toEqual([gatewayListId, gatewayListId]);
   });
 
   it("bails when the shopping list has no items with UPCs", async () => {

@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../utils/user-storage.js";
@@ -27,8 +26,7 @@ export const recordOrderInputSchema = z.object({
 });
 
 export function registerOrderTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "record_order",
     {
       title: "Record Completed Order",

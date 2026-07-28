@@ -8,8 +8,7 @@
  * stub, so evals measure the actual wire payloads a host model would see —
  * tool list, content text, structuredContent — without hitting Kroger.
  */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { SELF } from "cloudflare:test";
 import { expect, vi } from "vitest";
 
@@ -719,7 +718,17 @@ export async function createEvalMcpClient(): Promise<Client> {
     fetch: fetchThroughSelf,
     requestInit: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
-  const client = new Client({ name: "eval-client", version: "1.0.0" });
+  const client = new Client(
+    { name: "eval-client", version: "1.0.0" },
+    {
+      capabilities: { elicitation: {} },
+      versionNegotiation: { mode: "auto" },
+    },
+  );
+  client.setRequestHandler("elicitation/create", async () => ({
+    action: "accept",
+    content: { confirm: true },
+  }));
   await client.connect(transport);
   return client;
 }

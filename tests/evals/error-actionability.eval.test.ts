@@ -6,7 +6,7 @@
  * situation. Each case asserts the recovery tool appears verbatim in the
  * error text — and that following that advice actually works.
  */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
 import { reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { ToolContext } from "../../src/tools/types.js";
 
@@ -12,6 +12,7 @@ import { registerShopTools } from "../../src/tools/shop.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
@@ -34,15 +35,9 @@ type CapturedTool = {
   handler: ToolHandler;
 };
 
-const testState = vi.hoisted(() => ({
-  capturedTools: [] as CapturedTool[],
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: ToolConfig, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
-}));
+const testState: { capturedTools: CapturedTool[] } = {
+  capturedTools: [],
+};
 
 function makeContext(): ToolContext {
   return {
@@ -68,7 +63,7 @@ function makeContext(): ToolContext {
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
-    getSessionId: () => "eval-session",
+    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

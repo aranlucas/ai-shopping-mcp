@@ -1,9 +1,7 @@
 /**
  * MCP prompts for guided Kroger/QFC shopping workflows.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 export function registerPrompts(server: McpServer) {
@@ -13,9 +11,9 @@ export function registerPrompts(server: McpServer) {
       title: "Plan Shopping Route",
       description:
         "Plan an efficient in-store shopping route by matching grocery items to product departments and aisle information.",
-      argsSchema: {
+      argsSchema: z.object({
         grocery_list: z.string().optional().describe("Optional grocery list items to organize"),
-      },
+      }),
     },
     async ({ grocery_list }) => ({
       messages: [
@@ -54,13 +52,13 @@ IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.
       title: "Set Preferred Store",
       description:
         "Guide the user through finding nearby Kroger/QFC stores and saving one as their preferred store.",
-      argsSchema: {
+      argsSchema: z.object({
         zip_code: z
           .string()
           .length(5)
           .optional()
           .describe("Optional zip code to search for nearby stores"),
-      },
+      }),
     },
     ({ zip_code }) => ({
       messages: [
@@ -90,12 +88,12 @@ This will make future shopping and product searches more convenient.`,
       title: "Shop Recipe Ingredients",
       description:
         "Help the user turn a recipe or dish idea into shoppable Kroger/QFC ingredients, a shopping list, and optional cart handoff.",
-      argsSchema: {
+      argsSchema: z.object({
         recipe_type: z
           .string()
           .default("classic apple pie")
           .describe("The recipe or dish the user wants to shop for"),
-      },
+      }),
     },
     ({ recipe_type }) => ({
       messages: [
@@ -125,13 +123,13 @@ Please make sure to check product availability at my preferred location before a
       title: "Plan Meals From Pantry",
       description:
         "Use pantry, expiry, equipment, and recent-order context to draft meal ideas and optionally prepare a shopping list for missing ingredients.",
-      argsSchema: {
+      argsSchema: z.object({
         meal_count: z
           .string()
           .optional()
           .default("3")
           .describe("Number of meals to plan; passed to get_meal_planning_context"),
-      },
+      }),
     },
     ({ meal_count }) => {
       const parsedCount = Number.parseInt(meal_count ?? "3", 10);

@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -155,8 +154,7 @@ export function addCacheWarning(result: QfcDealsApiResponse, message: string): Q
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "get_weekly_deals",
     {
       title: "Get Weekly Deals",

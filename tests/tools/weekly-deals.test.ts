@@ -13,6 +13,8 @@ import {
   parseCacheEntry,
   registerWeeklyDealsTools,
 } from "../../src/tools/weekly-deals.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import type { TestToolHandler as ToolHandler } from "../v2-tool-handler.js";
 
 const weeklyDealsAuthState = vi.hoisted(() => ({
   authContext: {
@@ -440,7 +442,6 @@ describe("formatWeeklyDealsToolResponse", () => {
 // get_weekly_deals handler
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
 
 const mockGetQfcWeeklyDeals = vi.hoisted(() => vi.fn());
@@ -450,12 +451,6 @@ vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
 }));
 
 const capturedWeeklyDealsTools = vi.hoisted(() => [] as CapturedTool[]);
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, _config: unknown, handler: ToolHandler) => {
-    capturedWeeklyDealsTools.push({ name, handler });
-  },
-}));
 
 function makeMinimalDealsResponse(
   overrides: Partial<QfcDealsApiResponse> = {},
@@ -524,7 +519,11 @@ function makeWeeklyDealsContext(
   preferredLocation: PreferredLocation | null = DEFAULT_PREFERRED_LOCATION,
 ): ToolContext {
   return {
-    server: {} as ToolContext["server"],
+    server: {
+      registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+        capturedWeeklyDealsTools.push({ name, handler });
+      },
+    } as unknown as ToolContext["server"],
     clients: {
       productClient: {
         GET: vi.fn(async () => ({
@@ -547,7 +546,7 @@ function makeWeeklyDealsContext(
     } as unknown as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => (kv ? { USER_DATA_KV: kv } : {}) as Env,
-    getSessionId: () => "session-1",
+    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

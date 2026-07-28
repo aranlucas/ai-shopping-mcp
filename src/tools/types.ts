@@ -1,5 +1,5 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-
+import type { McpServer, RequestStateCodec } from "@modelcontextprotocol/server";
+import type { CartConfirmationState } from "../cart-confirmation.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { ProductService } from "../services/kroger/product-service.js";
 import type { ShoppingStore } from "../utils/gateway-storage.js";
@@ -32,8 +32,8 @@ export type ToolContext = {
   productService: ProductService;
   storage: ShoppingStore;
   carts: CartStore;
+  requestStateCodec: RequestStateCodec<CartConfirmationState>;
   getEnv: () => Env;
-  getSessionId: () => string;
 };
 
 // --- Response helpers ---

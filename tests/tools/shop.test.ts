@@ -6,6 +6,8 @@ import type { CartStore, PreferredLocation, ShoppingList } from "../../src/utils
 
 import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -22,7 +24,6 @@ type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
 };
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; config: unknown; handler: ToolHandler };
 
 const testState = vi.hoisted(() => ({
@@ -32,12 +33,6 @@ const testState = vi.hoisted(() => ({
 
 vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
 }));
 
 function authenticate(userId = "user-123") {
@@ -135,15 +130,23 @@ function makeContext(
     orderHistory: {} as UserStorage["orderHistory"],
   } as unknown as UserStorage & CartStore;
 
-  return {
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
     server: {
-      server: {
-        elicitInput: async () =>
-          elicitAction === "accept"
-            ? { action: "accept", content: { confirm: true } }
-            : { action: elicitAction },
-      },
-    } as unknown as ToolContext["server"],
+      elicitInput: async () =>
+        elicitAction === "accept"
+          ? ({ action: "accept", content: { confirm: true } } as const)
+          : ({ action: elicitAction } as const),
+    },
+  };
+  return {
+    server: server as unknown as ToolContext["server"],
     clients: {
       productClient: { GET: productGet },
       cartClient: {
@@ -165,7 +168,7 @@ function makeContext(
         AI: { run: async () => ({ data: [] }) },
         USER_DATA_KV: { get: async () => null, put: async () => {} },
       }) as unknown as Env,
-    getSessionId: () => "session-1",
+    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

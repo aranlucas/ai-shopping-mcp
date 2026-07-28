@@ -2,6 +2,14 @@
 
 Cloudflare Worker that exposes authenticated Kroger/QFC shopping tools over MCP. OAuth grants live in the existing `OAUTH_KV` namespace; cart retry state and the product/location cache live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
 
+## Local development
+
+Keep local secrets in the monorepo root `.env`. `pnpm start` and `pnpm dev`
+load that file through Wrangler's supported `--env-file` option.
+
+`SHOPPING_SERVICE_SECRET` must be at least 32 bytes and match the local
+agents-gateway secret for gateway-backed tools to work.
+
 ## Production resources
 
 Deploy from this monorepo directory with:
@@ -16,7 +24,7 @@ Keep the Worker name, KV namespace IDs, and Durable Object migration history in 
 - `KROGER_CLIENT_ID`
 - `KROGER_CLIENT_SECRET`
 - `COOKIE_ENCRYPTION_KEY`
-- `SHOPPING_SERVICE_SECRET` (must match the agents-gateway secret)
+- `SHOPPING_SERVICE_SECRET` (at least 32 bytes; must match the agents-gateway secret)
 
 Set the gateway credential as a Worker secret, never as a Wrangler variable:
 

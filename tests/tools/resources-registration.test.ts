@@ -6,6 +6,7 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
 
 type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
@@ -96,7 +97,7 @@ function makeContext(storage: UserStorage, productClient: unknown = {}): ToolCon
     storage,
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
-    getSessionId: () => "session-1",
+    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

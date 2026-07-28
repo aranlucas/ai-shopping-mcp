@@ -11,6 +11,8 @@ import type {
   PreferredLocation,
   ShoppingListItem,
 } from "../../src/utils/user-storage.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 
 type ShoppingListRecord = {
   id: string;
@@ -26,8 +28,6 @@ type AuthContext = {
     tokenExpiresAt: number;
   };
 };
-
-export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
 export type CapturedTool = {
   name: string;
@@ -47,12 +47,6 @@ const testState = vi.hoisted(() => ({
 
 vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
 }));
 
 function authenticate(userId = "user-123") {
@@ -208,11 +202,21 @@ export function makeContext(
   storage = makeStorage(),
   productService: ProductService = makeProductService(),
 ): ToolContext {
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
+    server: {
+      elicitInput: async () => ({ action: "accept" as const, content: { confirm: true } }),
+    },
+  };
   return {
     server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
-      },
+      ...server,
       server: {
         elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
       },
@@ -229,7 +233,7 @@ export function makeContext(
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,
-    getSessionId: () => "session-1",
+    requestStateCodec: testCartConfirmationCodec,
   };
 }
 
@@ -239,15 +243,20 @@ export function makeContextWithElicit(
   cartStatus = 204,
   productService: ProductService = makeProductService(),
 ): ToolContext {
-  return {
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
     server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
-      },
-      server: {
-        elicitInput: async () => elicitResult,
-      },
-    } as unknown as ToolContext["server"],
+      elicitInput: async () => elicitResult,
+    },
+  };
+  return {
+    server: server as unknown as ToolContext["server"],
     clients: {
       cartClient: {
         PUT: async () => ({
@@ -260,7 +269,7 @@ export function makeContextWithElicit(
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,
-    getSessionId: () => "session-1",
+    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

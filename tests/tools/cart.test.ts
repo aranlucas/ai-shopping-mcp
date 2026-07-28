@@ -9,6 +9,8 @@ import type {
 } from "../../src/utils/user-storage.js";
 
 import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 
 function stubProductService(): ToolContext["productService"] {
   return {
@@ -27,8 +29,6 @@ type AuthContext = {
   };
 };
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
-
 type CapturedTool = {
   name: string;
   config: unknown;
@@ -42,12 +42,6 @@ const testState = vi.hoisted(() => ({
 
 vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
 }));
 
 // --- Helpers ---
@@ -183,15 +177,20 @@ function makeContext(
   const getCalls: GetCall[] = [];
   const actualStorage = storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
 
-  const context: ToolContext = {
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
     server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
-      },
-      server: {
-        elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
-      },
-    } as unknown as ToolContext["server"],
+      elicitInput: async () => ({ action: "accept" as const, content: { confirm: true } }),
+    },
+  };
+  const context: ToolContext = {
+    server: server as unknown as ToolContext["server"],
     clients: {
       cartClient: {
         PUT: async (path: string, options: PutOptions) => {
@@ -222,7 +221,7 @@ function makeContext(
     storage: actualStorage,
     carts: actualStorage,
     getEnv: () => ({}) as Env,
-    getSessionId: () => SESSION_ID,
+    requestStateCodec: testCartConfirmationCodec,
   };
 
   return { context, putCalls, snapshotSetCalls, getCalls };

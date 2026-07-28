@@ -2,8 +2,7 @@
  * @file MCP Apps React view for the AI Shopping MCP server.
  */
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-
+import type { CallToolResult } from "@modelcontextprotocol/server";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";

@@ -1,5 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-
+import type { McpServer } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext } from "../../src/tools/types.js";
@@ -9,11 +8,9 @@ import {
   RESOURCE_MIME_TYPE,
   registerViewResource,
 } from "../../src/utils/view-resource.js";
+import { testCartConfirmationCodec } from "../cart-confirmation.js";
 
-// Hoisted so the value is accessible inside the vi.mock factory (which gets hoisted above imports)
-const { EXPECTED_MIME_TYPE } = vi.hoisted(() => ({
-  EXPECTED_MIME_TYPE: "text/html;profile=mcp-app",
-}));
+const EXPECTED_MIME_TYPE = "text/html;profile=mcp-app";
 
 // Type for the captured resource read callback (matches McpUiReadResourceCallback minus unused params)
 type ResourceReadCallback = () => Promise<{
@@ -21,7 +18,6 @@ type ResourceReadCallback = () => Promise<{
 }>;
 
 type CapturedResource = {
-  server: Pick<McpServer, "registerResource">;
   name: string;
   uri: string;
   config: { mimeType?: string };
@@ -32,18 +28,19 @@ const testState = vi.hoisted(() => ({
   capturedResources: [] as CapturedResource[],
 }));
 
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  RESOURCE_MIME_TYPE: EXPECTED_MIME_TYPE,
-  registerAppResource: (
-    server: Pick<McpServer, "registerResource">,
-    name: string,
-    uri: string,
-    config: { mimeType?: string },
-    callback: ResourceReadCallback,
-  ) => {
-    testState.capturedResources.push({ server, name, uri, config, callback });
-  },
-}));
+function makeFakeServer(): Pick<McpServer, "registerResource"> {
+  return {
+    registerResource: (
+      name: string,
+      uri: string,
+      config: { mimeType?: string },
+      callback: ResourceReadCallback,
+    ) => {
+      testState.capturedResources.push({ name, uri, config, callback });
+      return {};
+    },
+  } as unknown as Pick<McpServer, "registerResource">;
+}
 
 // A minimal fake Fetcher that allows controlling fetch responses in tests
 type FakeFetcher = {
@@ -54,10 +51,6 @@ function makeFakeEnv(assetsFetcher: FakeFetcher | null): Env {
   return {
     ASSETS: assetsFetcher as unknown as Fetcher,
   } as unknown as Env;
-}
-
-function makeFakeServer(): Pick<McpServer, "registerResource"> {
-  return {} as unknown as Pick<McpServer, "registerResource">;
 }
 
 function makeContext(env: Env): ToolContext {
@@ -73,7 +66,7 @@ function makeContext(env: Env): ToolContext {
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => env,
-    getSessionId: () => "session-test",
+    requestStateCodec: testCartConfirmationCodec,
   };
 }
 
@@ -83,15 +76,13 @@ describe("registerViewResource", () => {
   });
 
   describe("resource registration", () => {
-    it("passes ctx.server as the first argument to registerAppResource", () => {
+    it("registers the resource on ctx.server", () => {
       const env = makeFakeEnv(null);
       const ctx = makeContext(env);
-      const server = ctx.server;
 
       registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
 
       expect(testState.capturedResources).toHaveLength(1);
-      expect(testState.capturedResources[0]?.server).toBe(server);
     });
 
     it("passes resourceUri as both the name and uri arguments", () => {
