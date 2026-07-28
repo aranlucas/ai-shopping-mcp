@@ -18,10 +18,12 @@ describe("Worker configuration", () => {
     expect(serverSource).toContain("oauthProvider.purgeExpiredData");
   });
 
-  it("configures the gateway URL while keeping its credential secret-only", () => {
+  it("configures secretless bearer authentication for the gateway", () => {
     expect(wranglerConfig).toContain('"GATEWAY_URL": "https://agents-gateway.up.railway.app"');
     expect(generatedTypes).toContain("GATEWAY_URL");
     expect(serverSource).toContain("createGatewayShoppingStore");
+    expect(serverSource).toContain("requestBearerToken(requestContext)");
+    expect(serverSource).not.toContain("SHOPPING_SERVICE_SECRET");
     expect(wranglerConfig).not.toContain("SHOPPING_SERVICE_SECRET");
   });
 });

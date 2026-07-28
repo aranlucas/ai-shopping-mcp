@@ -60,6 +60,16 @@ const SERVER_OPTIONS = {
     "AI shopping assistant for Kroger/QFC stores. The user's preferred store, pantry, kitchen equipment, orders, and shopping lists are shared with their agents household library. Golden path: call shop_for_items with a list of item names for one-shot shopping-list creation, OR search_products then create_shopping_list for more control — then add_shopping_list_to_cart with the returned listId to add items to the Kroger cart. Call get_shopping_profile before personalized suggestions to read the user's preferred store, pantry, kitchen equipment, and frequently purchased items. Other tools: search_stores/get_store/set_preferred_store for store lookup, add_to_inventory/remove_from_inventory for pantry and kitchen equipment, record_order to log completed purchases, get_weekly_deals for current sales, and get_meal_planning_context for recipe suggestions from pantry contents.",
 } as const;
 
+function requestBearerToken(requestContext: McpRequestContext): string | undefined {
+  const validatedToken = requestContext.authInfo?.token?.trim();
+  if (validatedToken) return validatedToken;
+
+  const header = requestContext.requestInfo?.headers.get("authorization")?.trim();
+  if (!header) return undefined;
+  const match = /^Bearer[ \t]+([^ \t]+)$/i.exec(header);
+  return match?.[1];
+}
+
 /**
  * Builds a fresh `McpServer` with all tools/resources/prompts registered.
  *
@@ -75,7 +85,7 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
   const clientId = requestContext.authInfo?.clientId ?? getProps().id;
   const userId = getProps().id;
   const requestStateCodec = createRequestStateCodec<CartConfirmationState>({
-    key: env.SHOPPING_SERVICE_SECRET,
+    key: `${env.COOKIE_ENCRYPTION_KEY}\0mcp-request-state-v1`,
     bind: ({ mcpReq }) => `${mcpReq.method}\0${clientId}\0${userId}`,
   });
   const server = new McpServer(SERVER_INFO, {
@@ -95,11 +105,11 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
     return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
   }, getUserDataKv(env));
 
-  const gatewayClient = createGatewayClient(
-    env.GATEWAY_URL,
-    env.SHOPPING_SERVICE_SECRET,
-    () => getProps().id,
-  );
+  const gatewayToken = requestBearerToken(requestContext);
+  if (!gatewayToken) {
+    throw new Error("Authenticated MCP request is missing its bearer token");
+  }
+  const gatewayClient = createGatewayClient(env.GATEWAY_URL, gatewayToken);
   const storage = createGatewayShoppingStore(gatewayClient);
   const carts = createCartPersistence(env.USER_DATA_KV, () => ({
     userId: getProps().id,

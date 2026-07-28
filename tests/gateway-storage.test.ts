@@ -29,7 +29,7 @@ function mockGateway(
 
 function makeStore() {
   return createGatewayShoppingStore(
-    createGatewayClient("https://gateway.example", "service-secret", () => "kroger-user-1"),
+    createGatewayClient("https://gateway.example", "mcp-access-token"),
   );
 }
 
@@ -38,7 +38,7 @@ describe("gateway shopping storage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("adds pantry items with service identity headers and adapts unix timestamps", async () => {
+  it("adds pantry items with the MCP bearer token and adapts unix timestamps", async () => {
     const requests = mockGateway(() => ({
       body: {
         items: [
@@ -65,8 +65,9 @@ describe("gateway shopping storage", () => {
       url: "https://gateway.example/api/grocery/pantry",
       body: { items: [{ name: "Eggs", quantity: 12, expires_at: 1_784_937_600 }] },
     });
-    expect(requests[0]?.headers.get("x-shopping-service-secret")).toBe("service-secret");
-    expect(requests[0]?.headers.get("x-shopping-user-id")).toBe("kroger-user-1");
+    expect(requests[0]?.headers.get("authorization")).toBe("Bearer mcp-access-token");
+    expect(requests[0]?.headers.has("x-shopping-service-secret")).toBe(false);
+    expect(requests[0]?.headers.has("x-shopping-user-id")).toBe(false);
     expect(pantry).toEqual([
       {
         productName: "Eggs",

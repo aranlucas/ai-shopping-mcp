@@ -489,10 +489,7 @@ export interface components {
             };
         };
     };
-    parameters: {
-        ShoppingServiceSecret: string;
-        ShoppingUserId: string;
-    };
+    parameters: never;
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -502,10 +499,7 @@ export interface operations {
     listHouseholds: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -526,10 +520,7 @@ export interface operations {
     createHousehold: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -556,10 +547,7 @@ export interface operations {
     createInvite: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 id: string;
             };
@@ -588,10 +576,7 @@ export interface operations {
     joinHousehold: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 code: string;
             };
@@ -616,10 +601,7 @@ export interface operations {
             query?: {
                 householdId?: string;
             };
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -640,10 +622,7 @@ export interface operations {
     createList: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -672,10 +651,7 @@ export interface operations {
     getList: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 id: string;
             };
@@ -698,10 +674,7 @@ export interface operations {
     updateList: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 id: string;
             };
@@ -728,10 +701,7 @@ export interface operations {
     addItems: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 id: string;
             };
@@ -760,10 +730,7 @@ export interface operations {
     deleteItem: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 id: string;
                 itemId: string;
@@ -785,10 +752,7 @@ export interface operations {
     updateItem: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 id: string;
                 itemId: string;
@@ -818,10 +782,7 @@ export interface operations {
             query?: {
                 householdId?: string;
             };
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -842,10 +803,7 @@ export interface operations {
     createRecipe: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -870,10 +828,7 @@ export interface operations {
     getRecipe: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 id: string;
             };
@@ -896,10 +851,7 @@ export interface operations {
     updateRecipe: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path: {
                 id: string;
             };
@@ -926,10 +878,7 @@ export interface operations {
     getPantry: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -952,10 +901,7 @@ export interface operations {
     addPantryItems: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -990,10 +936,7 @@ export interface operations {
     removePantryItems: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1023,10 +966,7 @@ export interface operations {
     setPantryItemQuantity: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1057,10 +997,7 @@ export interface operations {
     getEquipment: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1083,10 +1020,7 @@ export interface operations {
     addEquipment: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1118,10 +1052,7 @@ export interface operations {
     removeEquipment: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1153,10 +1084,7 @@ export interface operations {
             query?: {
                 limit?: number;
             };
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1179,10 +1107,7 @@ export interface operations {
     recordOrder: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1207,10 +1132,7 @@ export interface operations {
     getPreferredStore: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1231,10 +1153,7 @@ export interface operations {
     setPreferredStore: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1259,10 +1178,7 @@ export interface operations {
     deletePreferredStore: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -1281,10 +1197,7 @@ export interface operations {
     getShoppingProfile: {
         parameters: {
             query?: never;
-            header?: {
-                "x-shopping-service-secret"?: components["parameters"]["ShoppingServiceSecret"];
-                "x-shopping-user-id"?: components["parameters"]["ShoppingUserId"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
