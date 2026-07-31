@@ -30,15 +30,15 @@
   },
   "dependencies": {
     "@agents/ui": "workspace:*",
-    "@cloudflare/workers-oauth-provider": "^0.8.2",
+    "@cloudflare/workers-oauth-provider": "^0.8.3",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/server": "2.0.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@toon-format/toon": "^4.0.0",
+    "@toon-format/toon": "^4.1.0",
     "agents": "^0.20.1",
     "embla-carousel-react": "^8.6.0",
-    "hono": "^4.12.32",
-    "lucide-react": "^1.26.0",
+    "hono": "^4.12.33",
+    "lucide-react": "^1.28.0",
     "neverthrow": "^8.2.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.2.8",
@@ -47,26 +47,26 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.18.8",
+    "@cloudflare/vitest-pool-workers": "^0.20.1",
     "@modelcontextprotocol/client": "2.0.0",
-    "@types/node": "^26.1.1",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.4",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-istanbul": "^4.1.10",
-    "concurrently": "^10.0.3",
+    "concurrently": "^10.0.4",
     "openapi-typescript": "^7.13.0",
-    "oxfmt": "^0.60.0",
-    "oxlint": "^1.75.0",
+    "oxfmt": "^0.61.0",
+    "oxlint": "^1.76.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript7": "npm:typescript@7.0.2",
-    "vite": "^8.1.5",
+    "vite": "^8.2.0",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.10",
-    "wrangler": "^4.114.0"
+    "wrangler": "^4.118.0"
   },
   "engines": {
     "node": ">=24.13.0"
   },
-  "packageManager": "pnpm@11.17.0"
+  "packageManager": "pnpm@11.18.0"
 }

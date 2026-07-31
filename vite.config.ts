@@ -11,8 +11,8 @@ export default defineConfig({
   plugins: [tailwindcss(), react(), viteSingleFile()],
   resolve: {
     alias: {
-      "@views": path.resolve(__dirname, "./views"),
-      "@": path.resolve(__dirname, "views"),
+      "@views": path.resolve(import.meta.dirname, "./views"),
+      "@": path.resolve(import.meta.dirname, "views"),
     },
   },
   build: {
@@ -20,9 +20,9 @@ export default defineConfig({
     cssMinify: !isDevelopment,
     minify: !isDevelopment,
     rollupOptions: {
-      input: path.resolve(__dirname, "views/mcp-app.html"),
+      input: path.resolve(import.meta.dirname, "views/mcp-app.html"),
     },
-    outDir: path.resolve(__dirname, "dist/views"),
+    outDir: path.resolve(import.meta.dirname, "dist/views"),
     emptyOutDir: true,
   },
 });
