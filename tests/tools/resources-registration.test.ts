@@ -28,7 +28,7 @@ const testState = vi.hoisted(() => ({
   capturedResources: [] as CapturedResource[],
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 
@@ -95,7 +95,6 @@ function makeContext(storage: UserStorage, productClient: unknown = {}): ToolCon
     productService: new ProductService(productClient as KrogerClients["productClient"]),
     storage,
     getEnv: () => ({}) as Env,
-    getSessionId: () => "session-1",
   };
 }
 

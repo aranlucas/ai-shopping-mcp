@@ -26,7 +26,7 @@ function createMockKV(initialData: Record<string, string> = {}) {
 }
 
 describe("ShoppingPersistence", () => {
-  const identity = { userId: "user1", sessionId: "session1" };
+  const identity = { userId: "user1" };
   let mock: ReturnType<typeof createMockKV>;
 
   beforeEach(() => {
@@ -52,9 +52,9 @@ describe("ShoppingPersistence", () => {
     expect(await storage.preferredLocation.get()).toEqual(location);
   });
 
-  it("keeps profile state user-scoped across sessions", async () => {
+  it("keeps profile state user-scoped across persistence instances", async () => {
     const first = createShoppingPersistence(mock.kv, identity);
-    const second = createShoppingPersistence(mock.kv, { ...identity, sessionId: "session2" });
+    const second = createShoppingPersistence(mock.kv, identity);
     await first.pantry.add({
       productName: "Milk",
       quantity: 1,
@@ -65,10 +65,7 @@ describe("ShoppingPersistence", () => {
 
   it("isolates profile state between users", async () => {
     const first = createShoppingPersistence(mock.kv, identity);
-    const second = createShoppingPersistence(mock.kv, {
-      userId: "user2",
-      sessionId: identity.sessionId,
-    });
+    const second = createShoppingPersistence(mock.kv, { userId: "user2" });
     await first.pantry.add({
       productName: "Milk",
       quantity: 1,
@@ -117,7 +114,7 @@ describe("ShoppingPersistence", () => {
     expect(result).toEqual([{ equipmentName: "Blender", category: "Appliance", addedAt: "b" }]);
   });
 
-  it("uses the deployed user-and-session list key and seven-day TTL", async () => {
+  it("uses the user-scoped list key and seven-day TTL", async () => {
     const storage = createShoppingPersistence(
       mock.kv,
       identity,
@@ -127,19 +124,19 @@ describe("ShoppingPersistence", () => {
       { productName: "Milk", quantity: 1 },
     ]);
     expect(mock.put).toHaveBeenCalledWith(
-      "shopping_list:user1:session:session1:list:list_deadbeef",
+      "shopping_list:user1:list:list_deadbeef",
       expect.any(String),
       { expirationTtl: 604800 },
     );
   });
 
-  it("isolates shopping lists by session", async () => {
+  it("shares shopping lists across stateless requests for the same user", async () => {
     const first = createShoppingPersistence(mock.kv, identity);
-    const second = createShoppingPersistence(mock.kv, { ...identity, sessionId: "session2" });
+    const second = createShoppingPersistence(mock.kv, identity);
     await first.shoppingList.create("list_deadbeef", "Dinner", [
       { productName: "Milk", quantity: 1 },
     ]);
-    expect(await second.shoppingList.get("list_deadbeef")).toBeNull();
+    expect(await second.shoppingList.get("list_deadbeef")).toMatchObject({ name: "Dinner" });
   });
 
   it("uses the deployed receipt key and seven-day TTL", async () => {
@@ -147,7 +144,7 @@ describe("ShoppingPersistence", () => {
     const items = [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" as const }];
     await storage.cartSnapshot.set("list_deadbeef", items);
     expect(mock.put).toHaveBeenCalledWith(
-      "user:user1:session:session1:list:list_deadbeef:cart_snapshot",
+      "user:user1:list:list_deadbeef:cart_snapshot",
       JSON.stringify(items),
       { expirationTtl: 604800 },
     );
@@ -208,7 +205,7 @@ describe("ShoppingPersistence", () => {
 
   it("keeps cart retry receipts strict because corruption cannot prove idempotency", async () => {
     mock = createMockKV({
-      "user:user1:session:session1:list:list_deadbeef:cart_snapshot": "{broken",
+      "user:user1:list:list_deadbeef:cart_snapshot": "{broken",
     });
     const storage = createShoppingPersistence(mock.kv, identity);
     await expect(storage.cartSnapshot.get("list_deadbeef")).rejects.toBeInstanceOf(
@@ -220,7 +217,7 @@ describe("ShoppingPersistence", () => {
     let current = identity;
     const storage = createShoppingPersistence(mock.kv, () => current);
     await storage.cartId.set("cart-a");
-    current = { userId: "user2", sessionId: "session2" };
+    current = { userId: "user2" };
     expect(await storage.cartId.get()).toBeNull();
   });
 });

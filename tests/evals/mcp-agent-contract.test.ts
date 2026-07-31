@@ -67,7 +67,6 @@ function makeContext(): ToolContext {
     } as unknown as ToolContext["productService"],
     storage: {} as ToolContext["storage"],
     getEnv: () => ({}) as Env,
-    getSessionId: () => "eval-session",
   };
 }
 

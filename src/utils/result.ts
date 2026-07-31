@@ -2,7 +2,7 @@
  * neverthrow utilities for bridging Result types with MCP tool responses
  * and wrapping common async operations.
  */
-import { getMcpAuthContext } from "agents/mcp";
+import { getMcpAuthContext } from "agents/mcp/server";
 import { type Result, ResultAsync, err, ok, okAsync } from "neverthrow";
 
 import type { Props, UserStorage } from "../tools/types.js";

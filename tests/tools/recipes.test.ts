@@ -26,7 +26,7 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 
@@ -110,7 +110,6 @@ function makeContext(storage = makeStorage()): ToolContext {
     } as unknown as ToolContext["productService"],
     storage,
     getEnv: () => ({}) as Env,
-    getSessionId: () => "session-1",
   };
 }
 

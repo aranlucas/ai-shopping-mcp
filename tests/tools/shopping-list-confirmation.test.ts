@@ -1,4 +1,4 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { Server, isInputRequiredResult, type ServerContext } from "@modelcontextprotocol/server";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -29,6 +29,61 @@ describe("ELICITATION_UNSUPPORTED_MESSAGE stays pinned to the installed SDK", ()
 });
 
 describe("requestCheckoutConfirmation", () => {
+  function modernContext(inputResponses?: Record<string, unknown>): ServerContext {
+    return {
+      mcpReq: { envelope: {}, inputResponses },
+    } as unknown as ServerContext;
+  }
+
+  describe("MCP 2.0 stateless elicitation", () => {
+    it("returns input_required before a confirmation response is available", async () => {
+      const elicitInput = vi.fn();
+      const result = await requestCheckoutConfirmation(
+        { elicitInput },
+        [{ productName: "Milk", quantity: 1 }],
+        modernContext(),
+      );
+
+      expect(isInputRequiredResult(result)).toBe(true);
+      expect(elicitInput).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        inputRequests: {
+          checkout_confirmation: {
+            method: "elicitation/create",
+            params: { message: expect.stringContaining("Milk x1") },
+          },
+        },
+      });
+    });
+
+    it("accepts a validated confirmation from the retried request", async () => {
+      const result = await requestCheckoutConfirmation(
+        { elicitInput: vi.fn() },
+        [{ productName: "Milk", quantity: 1 }],
+        modernContext({
+          checkout_confirmation: { action: "accept", content: { confirm: true } },
+        }),
+      );
+
+      expect(isInputRequiredResult(result)).toBe(false);
+      if (isInputRequiredResult(result)) throw new Error("expected confirmation result");
+      expect(result.isOk()).toBe(true);
+    });
+
+    it("rejects a declined confirmation from the retried request", async () => {
+      const result = await requestCheckoutConfirmation(
+        { elicitInput: vi.fn() },
+        [{ productName: "Milk", quantity: 1 }],
+        modernContext({ checkout_confirmation: { action: "decline" } }),
+      );
+
+      expect(isInputRequiredResult(result)).toBe(false);
+      if (isInputRequiredResult(result)) throw new Error("expected confirmation result");
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain("cancelled");
+    });
+  });
+
   describe("elicitation not supported by client", () => {
     it("proceeds (ok) when the client does not support form elicitation", async () => {
       const result = await requestCheckoutConfirmation(

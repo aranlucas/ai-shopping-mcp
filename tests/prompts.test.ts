@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 
 import { describe, expect, it, beforeEach } from "vitest";
 
@@ -22,7 +22,7 @@ type CapturedPrompt = {
   config: {
     title?: string;
     description?: string;
-    argsSchema?: Record<string, unknown>;
+    argsSchema?: { shape: Record<string, unknown> };
   };
   handler: PromptHandler;
 };
@@ -135,7 +135,7 @@ describe("registerPrompts", () => {
 
     it("argsSchema rejects zip_code values that are not exactly 5 characters", () => {
       const prompt = getPrompt("set_preferred_store");
-      const schema = prompt.config.argsSchema as Record<
+      const schema = prompt.config.argsSchema?.shape as Record<
         string,
         { safeParse: (v: unknown) => { success: boolean } }
       >;
@@ -159,7 +159,10 @@ describe("registerPrompts", () => {
 
     it("argsSchema defaults recipe_type to 'classic apple pie' when not provided", () => {
       const prompt = getPrompt("shop_recipe_ingredients");
-      const schema = prompt.config.argsSchema as Record<string, { parse: (v: unknown) => string }>;
+      const schema = prompt.config.argsSchema?.shape as Record<
+        string,
+        { parse: (v: unknown) => string }
+      >;
       // The Zod schema carries the default; the MCP framework applies it before invoking the handler.
       const applied = schema.recipe_type.parse(undefined);
       expect(applied).toBe("classic apple pie");

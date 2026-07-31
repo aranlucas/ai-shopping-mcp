@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -7,6 +6,7 @@ import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
 import { appResult } from "../app-results.js";
+import { registerAppTool } from "../utils/app-tool.js";
 import {
   formatEquipmentListCompact,
   formatPantryListCompact,

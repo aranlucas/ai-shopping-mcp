@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,15 +34,6 @@ const testState = vi.hoisted(() => ({
 
 vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
   RESOURCE_MIME_TYPE: EXPECTED_MIME_TYPE,
-  registerAppResource: (
-    server: Pick<McpServer, "registerResource">,
-    name: string,
-    uri: string,
-    config: { mimeType?: string },
-    callback: ResourceReadCallback,
-  ) => {
-    testState.capturedResources.push({ server, name, uri, config, callback });
-  },
 }));
 
 // A minimal fake Fetcher that allows controlling fetch responses in tests
@@ -57,7 +48,23 @@ function makeFakeEnv(assetsFetcher: FakeFetcher | null): Env {
 }
 
 function makeFakeServer(): Pick<McpServer, "registerResource"> {
-  return {} as unknown as Pick<McpServer, "registerResource">;
+  const server = {
+    registerResource: (
+      name: string,
+      uri: string,
+      config: { mimeType?: string },
+      callback: ResourceReadCallback,
+    ) => {
+      testState.capturedResources.push({
+        server: server as unknown as Pick<McpServer, "registerResource">,
+        name,
+        uri,
+        config,
+        callback,
+      });
+    },
+  };
+  return server as unknown as Pick<McpServer, "registerResource">;
 }
 
 function makeContext(env: Env): ToolContext {
@@ -72,7 +79,6 @@ function makeContext(env: Env): ToolContext {
     } as unknown as ToolContext["productService"],
     storage: {} as ToolContext["storage"],
     getEnv: () => env,
-    getSessionId: () => "session-test",
   };
 }
 
@@ -82,7 +88,7 @@ describe("registerViewResource", () => {
   });
 
   describe("resource registration", () => {
-    it("passes ctx.server as the first argument to registerAppResource", () => {
+    it("registers the resource on ctx.server", () => {
       const env = makeFakeEnv(null);
       const ctx = makeContext(env);
       const server = ctx.server;

@@ -20,7 +20,7 @@ const weeklyDealsAuthState = vi.hoisted(() => ({
   } as { props?: { id: string; accessToken: string; tokenExpiresAt: number } } | undefined,
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => weeklyDealsAuthState.authContext,
 }));
 
@@ -451,12 +451,6 @@ vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
 
 const capturedWeeklyDealsTools = vi.hoisted(() => [] as CapturedTool[]);
 
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, _config: unknown, handler: ToolHandler) => {
-    capturedWeeklyDealsTools.push({ name, handler });
-  },
-}));
-
 function makeMinimalDealsResponse(
   overrides: Partial<QfcDealsApiResponse> = {},
 ): QfcDealsApiResponse {
@@ -524,7 +518,11 @@ function makeWeeklyDealsContext(
   preferredLocation: PreferredLocation | null = DEFAULT_PREFERRED_LOCATION,
 ): ToolContext {
   return {
-    server: {} as ToolContext["server"],
+    server: {
+      registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+        capturedWeeklyDealsTools.push({ name, handler });
+      },
+    } as unknown as ToolContext["server"],
     clients: {
       productClient: {
         GET: vi.fn(async () => ({
@@ -546,7 +544,6 @@ function makeWeeklyDealsContext(
       },
     } as unknown as ToolContext["storage"],
     getEnv: () => (kv ? { USER_DATA_KV: kv } : {}) as Env,
-    getSessionId: () => "session-1",
   };
 }
 

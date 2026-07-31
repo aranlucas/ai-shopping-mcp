@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { ProductService } from "../services/kroger/product-service.js";
@@ -24,14 +24,13 @@ export type GrantProps = Props & {
 export type UserStorage = Pick<ShoppingPersistence, keyof ShoppingPersistence>;
 
 // Shared context passed to all tool registration functions.
-// Infrastructure dependencies only. Auth is accessed via getMcpAuthContext() from agents/mcp.
+// Infrastructure dependencies only. Auth is accessed via getMcpAuthContext() from agents/mcp/server.
 export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;
   productService: ProductService;
   storage: UserStorage;
   getEnv: () => Env;
-  getSessionId: () => string;
 };
 
 // --- Response helpers ---

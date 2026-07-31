@@ -1,10 +1,11 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import { isInputRequiredResult } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../services/kroger/product.js";
 import type { ShoppingListItem } from "../utils/user-storage.js";
 
 import { appResult } from "../app-results.js";
+import { registerAppTool } from "../utils/app-tool.js";
 import { notFoundError, storageError, validationError } from "../errors.js";
 import { rankProductMatches } from "../services/match-ranker.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
@@ -102,7 +103,7 @@ export function registerShopTools(ctx: ToolContext) {
       },
       inputSchema: shopForItemsInputSchema,
     },
-    async ({ items, addToCart }) => {
+    async ({ items, addToCart }, requestContext) => {
       getProps();
 
       const resolvedLocation = await safeResolveLocationId(ctx.storage, undefined);
@@ -234,7 +235,14 @@ export function registerShopTools(ctx: ToolContext) {
         return respond();
       }
 
-      const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, "PICKUP");
+      const addResult = await addLineItemsToCart(
+        ctx,
+        cartClient,
+        lineItems,
+        "PICKUP",
+        requestContext,
+      );
+      if (isInputRequiredResult(addResult)) return addResult;
       if (addResult.isErr()) {
         parts.push(
           "",

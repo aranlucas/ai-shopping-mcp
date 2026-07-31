@@ -1,11 +1,18 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { ResultAsync, err, ok } from "neverthrow";
+import {
+  acceptedContent,
+  inputRequired,
+  inputResponse,
+  type InputRequiredResult,
+  type ServerContext,
+} from "@modelcontextprotocol/server";
+import { ResultAsync, err, ok, type Result } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
 import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { appResult } from "../app-results.js";
+import { registerAppTool } from "../utils/app-tool.js";
 import { validationError } from "../errors.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
@@ -33,6 +40,9 @@ type CheckoutConfirmationServer = {
 
 type CheckoutConfirmationItem = Pick<ShoppingListItem, "productName" | "quantity">;
 
+const CHECKOUT_CONFIRMATION_KEY = "checkout_confirmation";
+const checkoutConfirmationSchema = z.object({ confirm: z.boolean() });
+
 class ElicitationUnsupportedError extends Error {}
 class ElicitationFailedError extends Error {}
 
@@ -51,15 +61,64 @@ class ElicitationFailedError extends Error {}
  */
 export const ELICITATION_UNSUPPORTED_MESSAGE = "Client does not support form elicitation.";
 
+export function requestCheckoutConfirmation(
+  server: CheckoutConfirmationServer,
+  items: CheckoutConfirmationItem[],
+): Promise<Result<void, AppError>>;
+export function requestCheckoutConfirmation(
+  server: CheckoutConfirmationServer,
+  items: CheckoutConfirmationItem[],
+  requestContext: ServerContext | undefined,
+): Promise<Result<void, AppError> | InputRequiredResult>;
 export async function requestCheckoutConfirmation(
   server: CheckoutConfirmationServer,
   items: CheckoutConfirmationItem[],
-) {
+  requestContext?: ServerContext,
+): Promise<Result<void, AppError> | InputRequiredResult> {
   const itemList = items.map((i) => `${i.productName} x${i.quantity}`).join(", ");
+  const message = `Add ${items.length} item(s) to your Kroger cart? Items: ${itemList}`;
+
+  if (requestContext?.mcpReq.envelope !== undefined) {
+    const response = inputResponse(requestContext.mcpReq.inputResponses, CHECKOUT_CONFIRMATION_KEY);
+    if (response.kind === "elicit" && response.action !== "accept") {
+      return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+    }
+
+    const accepted = acceptedContent(
+      requestContext.mcpReq.inputResponses,
+      CHECKOUT_CONFIRMATION_KEY,
+      checkoutConfirmationSchema,
+    );
+    if (!accepted) {
+      return inputRequired({
+        inputRequests: {
+          [CHECKOUT_CONFIRMATION_KEY]: inputRequired.elicit({
+            message,
+            requestedSchema: {
+              type: "object",
+              properties: {
+                confirm: {
+                  type: "boolean",
+                  title: "Confirm checkout",
+                  description: "Add these items to your Kroger cart?",
+                  default: true,
+                },
+              },
+              required: ["confirm"],
+            },
+          }),
+        },
+      });
+    }
+
+    return accepted.confirm
+      ? ok(undefined)
+      : err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+  }
 
   const elicitResult = await ResultAsync.fromPromise(
-    server.elicitInput({
-      message: `Add ${items.length} item(s) to your Kroger cart? Items: ${itemList}`,
+    (requestContext?.mcpReq ?? server).elicitInput({
+      message,
       requestedSchema: {
         type: "object" as const,
         properties: {
@@ -116,8 +175,8 @@ export function generateShortListId(): string {
 
 /**
  * Builds the namespaced KV storage key for a shopping list from the
- * authenticated user id, session id, and the short id shown to the model.
- * The user/session namespace is never sent to the model — only the short id
+ * authenticated user id and the short id shown to the model. The user
+ * namespace is never sent to the model — only the short id
  * is. Because the storage key is namespaced by the authenticated user id, a
  * forged short id from another user is not readable here: the same
  * per-user isolation the old prefix-checked composite id provided.

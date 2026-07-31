@@ -18,7 +18,7 @@ import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerProductTools } from "../../src/tools/product.js";
 import { createShoppingPersistence } from "../../src/utils/user-storage.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
+type ToolHandler = (args: Record<string, unknown>, extra?: unknown) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
 
 const testState = vi.hoisted(() => ({
@@ -28,14 +28,8 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, _config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, handler });
-  },
 }));
 
 function authenticate() {
@@ -182,10 +176,17 @@ describe("search_products content size", () => {
 
     const storage = createShoppingPersistence(createMockKV(), {
       userId: "response-size-user",
-      sessionId: "session-size",
     });
     registerProductTools({
-      server: {} as unknown as ToolContext["server"],
+      server: {
+        registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+          testState.capturedTools.push({
+            name,
+            handler: (args) =>
+              handler(args, { mcpReq: { _meta: {}, notify: async () => undefined } }),
+          });
+        },
+      } as unknown as ToolContext["server"],
       clients,
       productService: new ProductService(clients.productClient),
       storage,
@@ -193,7 +194,6 @@ describe("search_products content size", () => {
         ({
           USER_DATA_KV: { get: async () => null, put: async () => {} },
         }) as unknown as Env,
-      getSessionId: () => "session-size",
     });
 
     return getTool("search_products")({ terms });
