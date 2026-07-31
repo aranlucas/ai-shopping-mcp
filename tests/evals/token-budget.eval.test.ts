@@ -11,7 +11,7 @@
  * number, re-run with EVAL_LOG=1 (`EVAL_LOG=1 pnpm eval:mcp`) and recalibrate
  * deliberately — do not bump budgets to make CI green without looking.
  */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
 import { env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 

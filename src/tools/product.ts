@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -8,6 +7,7 @@ import type { components as ProductComponents } from "../services/kroger/product
 import type { ProductData } from "../app-results.js";
 
 import { appResult } from "../app-results.js";
+import { registerAppTool } from "../utils/app-tool.js";
 import {
   formatProductDetailMarkdown,
   formatSearchProductsMarkdown,
@@ -245,17 +245,16 @@ export function registerProductTools(ctx: ToolContext) {
         if (resolved.isOk()) resolvedLocationId = resolved.value.locationId;
       }
 
-      const progressToken = extra?._meta?.progressToken;
-      const sendNotification = extra?.sendNotification;
+      const progressToken = extra.mcpReq._meta?.progressToken;
 
       const results = await searchProductsForTerms(
         productClient,
         terms,
         { locationId: resolvedLocationId, limitPerTerm },
-        progressToken && sendNotification
+        progressToken
           ? async (completed, total) => {
               await ResultAsync.fromPromise(
-                sendNotification({
+                extra.mcpReq.notify({
                   method: "notifications/progress",
                   params: { progressToken, progress: completed, total },
                 }),

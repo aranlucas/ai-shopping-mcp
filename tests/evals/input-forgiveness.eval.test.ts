@@ -7,7 +7,7 @@
  * here is a mistake observed from small models; the eval asserts either
  * acceptance-after-normalization or an error message that names the fix.
  */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
 import { reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 

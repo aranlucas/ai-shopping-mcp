@@ -18,7 +18,7 @@
  * (fixture cart contents), tool-call count vs budget, and schema-rejection
  * count (isError results).
  */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
 import { env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 

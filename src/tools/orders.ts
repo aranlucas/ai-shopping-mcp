@@ -1,10 +1,10 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 import { appResult } from "../app-results.js";
+import { registerAppTool } from "../utils/app-tool.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";

@@ -22,7 +22,7 @@ const authMock = vi.hoisted(() => ({
   context: undefined as { props?: Record<string, unknown> } | undefined,
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => authMock.context,
 }));
 

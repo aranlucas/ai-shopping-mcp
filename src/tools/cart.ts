@@ -1,4 +1,4 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import { isInputRequiredResult, type ServerContext } from "@modelcontextprotocol/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -10,6 +10,7 @@ import type { KrogerClients } from "../services/kroger/client.js";
 import type { CartSnapshotItem, ShoppingListItem } from "../utils/user-storage.js";
 
 import { storageError, validationError } from "../errors.js";
+import { registerAppTool } from "../utils/app-tool.js";
 import {
   fromApiResponse,
   getProps,
@@ -77,6 +78,7 @@ export async function addLineItemsToCart(
   cartClient: KrogerClients["cartClient"],
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
+  requestContext?: ServerContext,
 ) {
   const confirmation = await requestCheckoutConfirmation(
     ctx.server.server,
@@ -84,7 +86,9 @@ export async function addLineItemsToCart(
       productName: item.productName ?? item.upc,
       quantity: item.quantity,
     })),
+    requestContext,
   );
+  if (isInputRequiredResult(confirmation)) return confirmation;
   if (confirmation.isErr()) return err<void, AppError>(confirmation.error);
 
   const cartItems: CartItem[] = lineItems.map((item) => ({
@@ -120,11 +124,13 @@ async function handleInlineItemsCart(
   items: Array<{ upc: string; quantity: number }>,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
+  requestContext?: ServerContext,
 ) {
   const locationResult = await safeResolveLocationId(ctx.storage, storeId);
   if (locationResult.isErr()) return toMcpError(locationResult.error);
 
-  const addResult = await addLineItemsToCart(ctx, cartClient, items, modality);
+  const addResult = await addLineItemsToCart(ctx, cartClient, items, modality, requestContext);
+  if (isInputRequiredResult(addResult)) return addResult;
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   const resolved = locationResult.value;
@@ -155,6 +161,7 @@ async function handleListIdCart(
   listId: string,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
+  requestContext?: ServerContext,
 ) {
   const existingSnapshotResult = await safeStorage(
     () => ctx.storage.cartSnapshot.get(listId),
@@ -233,7 +240,8 @@ async function handleListIdCart(
     productName: item.productName,
   }));
 
-  const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality);
+  const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality, requestContext);
+  if (isInputRequiredResult(addResult)) return addResult;
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   // Persist the cart snapshot keyed by the namespaced storage key so a
@@ -356,14 +364,14 @@ export function registerCartTools(ctx: ToolContext) {
       },
       inputSchema: addShoppingListToCartInputSchema,
     },
-    async ({ listId, items, storeId, modality }) => {
+    async ({ listId, items, storeId, modality }, requestContext) => {
       getProps();
       if (listId) {
-        return handleListIdCart(ctx, cartClient, listId, storeId, modality);
+        return handleListIdCart(ctx, cartClient, listId, storeId, modality, requestContext);
       }
 
       if (items) {
-        return handleInlineItemsCart(ctx, cartClient, items, storeId, modality);
+        return handleInlineItemsCart(ctx, cartClient, items, storeId, modality, requestContext);
       }
 
       return toMcpError(

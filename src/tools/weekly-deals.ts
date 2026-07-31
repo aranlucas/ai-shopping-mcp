@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -9,6 +8,7 @@ import type { ToolContext } from "./types.js";
 
 import { networkError, notFoundError, storageError } from "../errors.js";
 import { appResult } from "../app-results.js";
+import { registerAppTool } from "../utils/app-tool.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { DEAL_CATEGORIES, classifyDealCategory } from "../utils/deal-category.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";

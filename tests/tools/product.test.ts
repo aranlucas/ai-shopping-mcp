@@ -23,8 +23,10 @@ type AuthContext = {
 };
 
 type ToolExtra = {
-  sendNotification?: (notification: { method: string; params: unknown }) => Promise<void>;
-  _meta?: { progressToken?: string | number };
+  mcpReq: {
+    notify: (notification: { method: string; params: unknown }) => Promise<void>;
+    _meta?: { progressToken?: string | number };
+  };
 };
 
 type ToolHandler = (args: Record<string, unknown>, extra?: ToolExtra) => Promise<unknown>;
@@ -36,14 +38,8 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -105,7 +101,16 @@ function makeStorage(preferredLocation?: PreferredLocation): UserStorage {
 function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolContext {
   const clients = { productClient: { GET: productGet } } as unknown as ToolContext["clients"];
   return {
-    server: {} as ToolContext["server"],
+    server: {
+      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+        testState.capturedTools.push({
+          name,
+          config,
+          handler: (args, extra) =>
+            handler(args, extra ?? { mcpReq: { _meta: {}, notify: async () => undefined } }),
+        });
+      },
+    } as unknown as ToolContext["server"],
     clients,
     productService: new ProductService(clients.productClient),
     storage: storage ?? makeStorage(),
@@ -113,7 +118,6 @@ function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolConte
       ({
         USER_DATA_KV: { get: async () => null, put: async () => {} },
       }) as unknown as Env,
-    getSessionId: () => "session-1",
   };
 }
 
@@ -434,13 +438,13 @@ describe("search_products", () => {
     const notifications: Array<{ method: string; params: unknown }> = [];
     registerProductTools(makeContext(async () => makeSearchResponse([product])));
 
-    const sendNotification = vi.fn(async (notification: { method: string; params: unknown }) => {
+    const notify = vi.fn(async (notification: { method: string; params: unknown }) => {
       notifications.push(notification);
     });
 
     await getCapturedHandler("search_products")(
       { terms: ["milk", "eggs"] },
-      { _meta: { progressToken: "tok-1" }, sendNotification },
+      { mcpReq: { _meta: { progressToken: "tok-1" }, notify } },
     );
 
     expect(notifications).toHaveLength(2);

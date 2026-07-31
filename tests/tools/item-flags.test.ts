@@ -68,7 +68,6 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
             },
           }
         : {}) as unknown as Env,
-    getSessionId: () => "session-1",
   };
 }
 

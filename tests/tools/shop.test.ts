@@ -30,14 +30,8 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
 }));
 
 function authenticate(userId = "user-123") {
@@ -137,6 +131,9 @@ function makeContext(
 
   return {
     server: {
+      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+        testState.capturedTools.push({ name, config, handler });
+      },
       server: {
         elicitInput: async () =>
           elicitAction === "accept"
@@ -164,7 +161,6 @@ function makeContext(
         AI: { run: async () => ({ data: [] }) },
         USER_DATA_KV: { get: async () => null, put: async () => {} },
       }) as unknown as Env,
-    getSessionId: () => "session-1",
   };
 }
 

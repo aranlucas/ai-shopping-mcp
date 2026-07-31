@@ -39,7 +39,7 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 
@@ -52,7 +52,6 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
 // --- Helpers ---
 
 const USER_ID = "user-123";
-const SESSION_ID = "session-1";
 const SHORT_LIST_ID = "list_abc12345";
 const LOCATION_ID = "70500847";
 
@@ -85,7 +84,7 @@ function structuredContent(result: unknown): Record<string, unknown> {
 
 function listFixture(overrides: Partial<ShoppingList> = {}): ShoppingList {
   return {
-    id: `${USER_ID}:session:${SESSION_ID}:list:${SHORT_LIST_ID}`,
+    id: `${USER_ID}:list:${SHORT_LIST_ID}`,
     name: "Tuesday Dinner",
     createdAt: new Date().toISOString(),
     items: [
@@ -220,7 +219,6 @@ function makeContext(
     productService: stubProductService(),
     storage: actualStorage,
     getEnv: () => ({}) as Env,
-    getSessionId: () => SESSION_ID,
   };
 
   return { context, putCalls, snapshotSetCalls, getCalls };

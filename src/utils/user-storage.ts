@@ -64,7 +64,7 @@ export type CartSnapshotItem = {
 
 export type CartMirrorItem = CartSnapshotItem & { addedAt: string };
 
-export type PersistenceIdentity = Readonly<{ userId: string; sessionId: string }>;
+export type PersistenceIdentity = Readonly<{ userId: string }>;
 
 const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7;
 const ORDER_HISTORY_MAX = 50;
@@ -145,8 +145,8 @@ function userKey(userId: string, dataType: string): string {
   return `user:${userId}:${dataType}`;
 }
 
-function listIdentity({ userId, sessionId }: PersistenceIdentity, listId: string): string {
-  return `${userId}:session:${sessionId}:list:${listId}`;
+function listIdentity({ userId }: PersistenceIdentity, listId: string): string {
+  return `${userId}:list:${listId}`;
 }
 
 function listKey(identity: PersistenceIdentity, listId: string): string {
@@ -216,7 +216,7 @@ async function readCollectionTolerant<TSchema extends z.ZodType>(
 }
 
 /**
- * Deep persistence module bound to one authenticated user and MCP session.
+ * Deep persistence module bound to one authenticated user.
  * Callers supply domain identifiers only; raw KV keys never cross this boundary.
  * Collection mutations are single read-modify-write operations. KV still offers
  * no transaction or compare-and-swap guarantee, so concurrent writes can race.

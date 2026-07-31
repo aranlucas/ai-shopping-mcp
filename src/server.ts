@@ -1,6 +1,6 @@
 import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createMcpHandler, getMcpAuthContext } from "agents/mcp";
+import { McpServer } from "@modelcontextprotocol/server";
+import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
 import type { KrogerTokenInfo } from "./services/kroger/client.js";
@@ -59,9 +59,8 @@ const SERVER_OPTIONS = {
  * responses cannot leak between clients. Auth `Props` are read lazily from
  * `getMcpAuthContext()` (populated by `OAuthProvider` and wrapped in the
  * handler's AsyncLocalStorage), so registration itself needs no auth context.
- * `sessionId` is the per-request MCP session used to scope user storage.
  */
-function buildServer(env: Env, sessionId: string): McpServer {
+function buildServer(env: Env): McpServer {
   const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
 
   const clients = createKrogerClients((): KrogerTokenInfo | null => {
@@ -78,7 +77,6 @@ function buildServer(env: Env, sessionId: string): McpServer {
 
   const storage = createShoppingPersistence(env.USER_DATA_KV, () => ({
     userId: getProps().id,
-    sessionId,
   }));
   const productService = new ProductService(clients.productClient);
 
@@ -88,7 +86,6 @@ function buildServer(env: Env, sessionId: string): McpServer {
     productService,
     storage,
     getEnv: () => env,
-    getSessionId: () => sessionId,
   };
 
   // Register the single unified View resource (all app tools share this one UI)
@@ -102,30 +99,14 @@ function buildServer(env: Env, sessionId: string): McpServer {
 }
 
 /**
- * Stateless MCP API handler.
- *
- * The MCP session id is carried by the client in the `Mcp-Session-Id` header
- * after the server issues it on `initialize`. Because each request spins up a
- * fresh `WorkerTransport`, we hand the transport a `storage` shim that rebuilds
- * the minimal `TransportState` from that header — restoring `initialized`/
- * `sessionId` so non-initialize requests validate, with no server-side state.
- * The session id only namespaces the authenticated user's KV data (the user id
- * comes from OAuth, not the header), so a client-supplied id is safe.
+ * MCP SDK v2 stateless handler. The factory builds a fresh server for every
+ * request and the Agents wrapper bridges OAuth props into getMcpAuthContext().
+ * The handler retains the SDK's default stateless compatibility path for
+ * 2025-era MCP clients while serving the stable 2026 protocol.
  */
 const mcpApiHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const headerSessionId = request.headers.get("mcp-session-id") ?? undefined;
-    const sessionId = headerSessionId ?? crypto.randomUUID();
-
-    const handler = createMcpHandler(buildServer(env, sessionId), {
-      route: "/mcp",
-      sessionIdGenerator: () => sessionId,
-      storage: {
-        get: () =>
-          headerSessionId ? { sessionId: headerSessionId, initialized: true } : undefined,
-        set: () => {},
-      },
-    });
+    const handler = createMcpHandler(() => buildServer(env), { route: "/mcp" });
 
     return handler(request, env, ctx);
   },

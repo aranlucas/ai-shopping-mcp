@@ -1,4 +1,3 @@
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -9,6 +8,7 @@ import type { LocationData } from "../app-results.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError } from "../errors.js";
+import { registerAppTool } from "../utils/app-tool.js";
 import {
   formatPreferredLocationCompact,
   formatStoreDetailMarkdown,
