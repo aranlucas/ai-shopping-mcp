@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppEnv } from "../src/env.js";
@@ -22,6 +22,7 @@ describe("scheduled OAuth cleanup", () => {
     const scheduled = worker.scheduled;
     if (!scheduled) throw new Error("Missing scheduled handler");
 
+    const ctx = createExecutionContext();
     await scheduled(
       {
         cron: "0 2 * * *",
@@ -29,7 +30,9 @@ describe("scheduled OAuth cleanup", () => {
         scheduledTime: Date.now(),
       },
       env as AppEnv,
+      ctx,
     );
+    await waitOnExecutionContext(ctx);
 
     expect(purge).toHaveBeenCalledWith(env, { batchSize: 100 });
   });

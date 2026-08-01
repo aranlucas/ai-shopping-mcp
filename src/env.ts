@@ -3,4 +3,5 @@ export type AppEnv = Env & {
   GATEWAY_URL: string;
   KROGER_CLIENT_ID: string;
   KROGER_CLIENT_SECRET: string;
+  SENTRY_DSN?: string;
 };

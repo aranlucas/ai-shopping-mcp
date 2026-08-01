@@ -1,4 +1,5 @@
 import OAuthProvider, { GrantType, OAuthError } from "@cloudflare/workers-oauth-provider";
+import * as Sentry from "@sentry/cloudflare";
 import {
   createRequestStateCodec,
   McpServer,
@@ -270,12 +271,24 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
   },
 });
 
-export default {
-  fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
-    return oauthProvider.fetch(request, env, ctx);
-  },
-  async scheduled(_controller: ScheduledController, env: AppEnv): Promise<void> {
-    const result = await oauthProvider.purgeExpiredData(env, { batchSize: 100 });
-    console.log("OAuth KV cleanup complete:", result);
-  },
-} satisfies ExportedHandler<AppEnv>;
+// Errors-only Sentry: no tracesSampleRate, and without SENTRY_DSN the SDK
+// stays disabled so local dev and unconfigured deploys are unaffected.
+export default Sentry.withSentry(
+  (env: AppEnv) => ({
+    dsn: env.SENTRY_DSN,
+    enabled: Boolean(env.SENTRY_DSN),
+  }),
+  {
+    fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
+      return oauthProvider.fetch(request, env, ctx);
+    },
+    async scheduled(
+      _controller: ScheduledController,
+      env: AppEnv,
+      _ctx: ExecutionContext,
+    ): Promise<void> {
+      const result = await oauthProvider.purgeExpiredData(env, { batchSize: 100 });
+      console.log("OAuth KV cleanup complete:", result);
+    },
+  } satisfies ExportedHandler<AppEnv>,
+);

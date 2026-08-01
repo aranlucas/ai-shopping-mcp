@@ -33,6 +33,7 @@
     "@cloudflare/workers-oauth-provider": "^0.8.3",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/server": "2.0.0",
+    "@sentry/cloudflare": "^10.69.0",
     "@tailwindcss/vite": "^4.3.3",
     "@toon-format/toon": "^4.1.0",
     "agents": "^0.20.1",
