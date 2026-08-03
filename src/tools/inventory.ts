@@ -94,14 +94,12 @@ export function registerInventoryTools(ctx: ToolContext) {
         const result = await safeStorage(
           () =>
             ctx.storage.pantry.add(
-              items.map(
-                (item): PantryItem => ({
-                  productName: item.name,
-                  quantity: item.quantity ?? 1,
-                  addedAt: now,
-                  expiresAt: item.expiresAt,
-                }),
-              ),
+              items.map((item): PantryItem => ({
+                productName: item.name,
+                quantity: item.quantity ?? 1,
+                addedAt: now,
+                expiresAt: item.expiresAt,
+              })),
             ),
           "add pantry items",
         ).map((pantry) =>
@@ -118,13 +116,11 @@ export function registerInventoryTools(ctx: ToolContext) {
       const result = await safeStorage(
         () =>
           ctx.storage.equipment.add(
-            items.map(
-              (item): EquipmentItem => ({
-                equipmentName: item.name,
-                category: item.category,
-                addedAt: now,
-              }),
-            ),
+            items.map((item): EquipmentItem => ({
+              equipmentName: item.name,
+              category: item.category,
+              addedAt: now,
+            })),
           ),
         "add equipment items",
       ).map((equipment) =>

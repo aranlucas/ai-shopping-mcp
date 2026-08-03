@@ -38,7 +38,7 @@
     "@toon-format/toon": "^4.1.0",
     "agents": "^0.20.1",
     "embla-carousel-react": "^8.6.0",
-    "hono": "^4.12.33",
+    "hono": "^4.12.34",
     "lucide-react": "^1.28.0",
     "neverthrow": "^8.2.0",
     "openapi-fetch": "^0.17.0",
@@ -57,8 +57,8 @@
     "@vitest/coverage-istanbul": "^4.1.10",
     "concurrently": "^10.0.4",
     "openapi-typescript": "^7.13.0",
-    "oxfmt": "^0.61.0",
-    "oxlint": "^1.76.0",
+    "oxfmt": "^0.62.0",
+    "oxlint": "^1.77.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript7": "npm:typescript@7.0.2",
     "vite": "^8.2.0",
@@ -69,5 +69,5 @@
   "engines": {
     "node": ">=24.13.0"
   },
-  "packageManager": "pnpm@11.18.0"
+  "packageManager": "pnpm@11.20.0"
 }

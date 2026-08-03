@@ -58,15 +58,13 @@ const weeklyDealsCacheEntrySchema = z
     staleUntil: z.number(),
     data: weeklyDealsCacheDataSchema,
   })
-  .transform(
-    (entry): WeeklyDealsCacheEntry => ({
-      version: entry.version,
-      createdAt: entry.createdAt,
-      freshUntil: entry.freshUntil,
-      staleUntil: entry.staleUntil,
-      data: entry.data,
-    }),
-  );
+  .transform((entry): WeeklyDealsCacheEntry => ({
+    version: entry.version,
+    createdAt: entry.createdAt,
+    freshUntil: entry.freshUntil,
+    staleUntil: entry.staleUntil,
+    data: entry.data,
+  }));
 
 export function buildWeeklyDealsCacheKey(params: {
   locationId?: string;
