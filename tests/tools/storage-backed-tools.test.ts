@@ -556,6 +556,20 @@ describe("storage-backed tools", () => {
         lookups.push(id);
         return id === gatewayListId ? savedList : null;
       },
+      // This test only covers create-then-look-up, so the editing operations
+      // fail loudly rather than pretending to succeed.
+      list: async () => {
+        throw new Error("shoppingList.list not used by this test");
+      },
+      addItems: async () => {
+        throw new Error("shoppingList.addItems not used by this test");
+      },
+      updateItem: async () => {
+        throw new Error("shoppingList.updateItem not used by this test");
+      },
+      removeItem: async () => {
+        throw new Error("shoppingList.removeItem not used by this test");
+      },
       clear: async () => {},
     };
 

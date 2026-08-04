@@ -5,6 +5,7 @@ import type { EquipmentItem, OrderRecord, PantryItem } from "../../src/utils/use
 
 import { computeRestockSuggestions, registerRecipeTools } from "../../src/tools/recipes.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 type AuthContext = {
   props?: {
@@ -98,6 +99,7 @@ function makeContext(storage = makeStorage()): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    traderJoes: stubTraderJoesClient(),
     storage,
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,

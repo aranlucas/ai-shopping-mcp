@@ -11,6 +11,7 @@ import type {
 import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 function stubProductService(): ToolContext["productService"] {
   return {
@@ -218,6 +219,7 @@ function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
+    traderJoes: stubTraderJoesClient(),
     storage: actualStorage,
     carts: actualStorage,
     getEnv: () => ({}) as Env,

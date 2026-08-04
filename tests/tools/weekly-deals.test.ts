@@ -15,6 +15,7 @@ import {
 } from "../../src/tools/weekly-deals.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import type { TestToolHandler as ToolHandler } from "../v2-tool-handler.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 const weeklyDealsAuthState = vi.hoisted(() => ({
   authContext: {
@@ -538,6 +539,7 @@ function makeWeeklyDealsContext(
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    traderJoes: stubTraderJoesClient(),
     storage: {
       preferredLocation: {
         get: async () => preferredLocation,

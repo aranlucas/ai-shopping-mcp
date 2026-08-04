@@ -10,6 +10,7 @@ import { ProductService } from "../../src/services/kroger/product-service.js";
 import { logProductSearchError, registerProductTools } from "../../src/tools/product.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -107,6 +108,7 @@ function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolConte
     server: server as unknown as ToolContext["server"],
     clients,
     productService: new ProductService(clients.productClient),
+    traderJoes: stubTraderJoesClient(),
     storage: storage ?? makeStorage(),
     carts: {} as ToolContext["carts"],
     getEnv: () =>

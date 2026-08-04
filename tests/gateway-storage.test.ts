@@ -137,10 +137,12 @@ describe("gateway shopping storage", () => {
       name: "Tuesday dinner",
       items: [
         {
+          id: "item-1",
           productName: "Milk",
           upc: "0001111042578",
           quantity: 2,
           notes: "organic",
+          checked: false,
         },
       ],
       createdAt: "2026-07-18T00:00:00.000Z",

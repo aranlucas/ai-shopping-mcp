@@ -19,6 +19,7 @@ import { registerProductTools } from "../../src/tools/product.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { createCartPersistence } from "../../src/utils/user-storage.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 type CapturedTool = { name: string; handler: ToolHandler };
 
@@ -191,6 +192,7 @@ describe("search_products content size", () => {
       server: server as unknown as ToolContext["server"],
       clients,
       productService: new ProductService(clients.productClient),
+      traderJoes: stubTraderJoesClient(),
       storage: {
         preferredLocation: { get: async () => null },
       } as unknown as ToolContext["storage"],

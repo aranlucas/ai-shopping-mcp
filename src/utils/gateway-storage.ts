@@ -8,6 +8,8 @@ import type {
   PreferredLocation,
   ShoppingList,
   ShoppingListItem,
+  ShoppingListItemPatch,
+  ShoppingListSummary,
 } from "./user-storage.js";
 
 const unixSecondsSchema = z.number().int();
@@ -193,17 +195,42 @@ function adaptPreferredStore(store: z.output<typeof preferredStoreSchema>): Pref
   };
 }
 
+function adaptShoppingListItem(item: z.output<typeof listItemSchema>): ShoppingListItem {
+  return {
+    id: item.id,
+    productName: item.name,
+    ...(item.upc == null ? {} : { upc: item.upc }),
+    quantity: Number.parseFloat(item.quantity) || 1,
+    ...(item.note == null ? {} : { notes: item.note }),
+    checked: item.checked_at != null,
+  };
+}
+
 function adaptShoppingList(list: z.output<typeof listSchema>): ShoppingList {
   return {
     id: list.id,
     name: list.title,
-    items: list.items.map((item) => ({
-      productName: item.name,
-      ...(item.upc == null ? {} : { upc: item.upc }),
-      quantity: Number.parseFloat(item.quantity) || 1,
-      ...(item.note == null ? {} : { notes: item.note }),
-    })),
+    items: list.items.map(adaptShoppingListItem),
     createdAt: fromUnixMilliseconds(list.created_at),
+  };
+}
+
+function adaptShoppingListSummary(list: z.output<typeof listSchema>): ShoppingListSummary {
+  return {
+    id: list.id,
+    name: list.title,
+    itemCount: list.items.length,
+    updatedAt: fromUnixMilliseconds(list.updated_at),
+  };
+}
+
+/** Maps a list item to the gateway's wire shape for creates and appends. */
+function toGatewayNewItem(item: ShoppingListItem) {
+  return {
+    name: item.productName,
+    quantity: String(item.quantity),
+    note: item.notes ?? null,
+    ...(item.upc === undefined ? {} : { upc: item.upc }),
   };
 }
 
@@ -229,6 +256,14 @@ export interface ShoppingStore {
   shoppingList: {
     create(listId: string, name: string, items: ShoppingListItem[]): Promise<ShoppingList>;
     get(listId: string): Promise<ShoppingList | null>;
+    list(): Promise<ShoppingListSummary[]>;
+    addItems(listId: string, items: ShoppingListItem[]): Promise<ShoppingListItem[]>;
+    updateItem(
+      listId: string,
+      itemId: string,
+      patch: ShoppingListItemPatch,
+    ): Promise<ShoppingListItem>;
+    removeItem(listId: string, itemId: string): Promise<void>;
     clear(listId: string): Promise<void>;
   };
   orderHistory: {
@@ -367,15 +402,7 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
       create: async (_listId, name, items) => {
         const data = await readGateway(
           client.POST("/api/grocery/lists", {
-            body: {
-              title: name,
-              items: items.map((item) => ({
-                name: item.productName,
-                quantity: String(item.quantity),
-                note: item.notes ?? null,
-                ...(item.upc === undefined ? {} : { upc: item.upc }),
-              })),
-            },
+            body: { title: name, items: items.map(toGatewayNewItem) },
           }),
           listSchema,
         );
@@ -387,6 +414,45 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
           listSchema,
         );
         return data == null ? null : adaptShoppingList(data);
+      },
+      list: async () => {
+        const data = await readGateway(
+          client.GET("/api/grocery/lists", { params: { query: {} } }),
+          z.array(listSchema),
+        );
+        return data.map(adaptShoppingListSummary);
+      },
+      addItems: async (listId, items) => {
+        const data = await readGateway(
+          client.POST("/api/grocery/lists/{id}/items", {
+            params: { path: { id: listId } },
+            body: { items: items.map(toGatewayNewItem) },
+          }),
+          z.array(listItemSchema),
+        );
+        return data.map(adaptShoppingListItem);
+      },
+      updateItem: async (listId, itemId, patch) => {
+        const data = await readGateway(
+          client.PATCH("/api/grocery/lists/{id}/items/{itemId}", {
+            params: { path: { id: listId, itemId } },
+            body: {
+              ...(patch.productName === undefined ? {} : { name: patch.productName }),
+              ...(patch.quantity === undefined ? {} : { quantity: String(patch.quantity) }),
+              ...(patch.notes === undefined ? {} : { note: patch.notes }),
+              ...(patch.checked === undefined ? {} : { checked: patch.checked }),
+            },
+          }),
+          listItemSchema,
+        );
+        return adaptShoppingListItem(data);
+      },
+      removeItem: async (listId, itemId) => {
+        await expectGatewaySuccess(
+          client.DELETE("/api/grocery/lists/{id}/items/{itemId}", {
+            params: { path: { id: listId, itemId } },
+          }),
+        );
       },
       // Gateway lists are durable records; cart checkout does not delete them.
       clear: async () => {},

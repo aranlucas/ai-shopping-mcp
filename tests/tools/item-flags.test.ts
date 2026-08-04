@@ -14,6 +14,7 @@ import {
 } from "../../src/tools/item-flags.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 function makePantryItem(overrides: Partial<PantryItem> = {}): PantryItem {
   return {
@@ -57,6 +58,7 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    traderJoes: stubTraderJoesClient(),
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () =>

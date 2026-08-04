@@ -5,26 +5,90 @@ import type { AppError } from "../errors.js";
 import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { appResult } from "../app-results.js";
-import { validationError } from "../errors.js";
+import { notFoundError, validationError } from "../errors.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
 import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
-import { type ToolContext, type UserStorage } from "./types.js";
+import { type ToolContext, type UserStorage, textResult } from "./types.js";
+
+/**
+ * One item to write to a list. A Kroger product is identified by `upc` and its
+ * name is looked up; anything without a Kroger UPC — a Trader Joe's product, a
+ * recipe ingredient, a note a shopper typed — is identified by `productName`.
+ * At least one of the two is required.
+ */
+export const shoppingListItemInputSchema = z
+  .object({
+    upc: upcSchema.optional().describe("Kroger UPC from search_products"),
+    productName: z.string().trim().min(1).max(200).optional(),
+    quantity: z.coerce.number().min(1).max(999).default(1),
+    notes: z.string().max(500).optional(),
+  })
+  .refine((item) => Boolean(item.upc ?? item.productName), {
+    message: "Each item needs a upc (Kroger product) or a productName.",
+  });
+
+const listIdSchema = z.string().trim().min(1);
+const itemIdSchema = z.string().trim().min(1);
 
 export const createShoppingListInputSchema = z.object({
   name: z.string().min(1).max(200).describe("List label, e.g. 'Tuesday dinner'."),
   items: z
-    .array(
-      z.object({
-        upc: upcSchema.describe("UPC from search_products"),
-        quantity: z.coerce.number().min(1).max(999).default(1),
-        notes: z.string().max(500).optional().describe("e.g. 'get organic'"),
-      }),
-    )
+    .array(shoppingListItemInputSchema)
     .min(1, { message: "Shopping list must include at least one item" }),
 });
+
+export const addShoppingListItemsInputSchema = z.object({
+  listId: listIdSchema,
+  items: z
+    .array(shoppingListItemInputSchema)
+    .min(1, { message: "Provide at least one item to add" }),
+});
+
+export const editShoppingListItemInputSchema = z.object({
+  listId: listIdSchema,
+  itemId: itemIdSchema,
+  productName: z.string().trim().min(1).max(200).optional(),
+  quantity: z.coerce.number().min(1).max(999).optional(),
+  notes: z.string().max(500).optional(),
+  checked: z.boolean().optional(),
+  remove: z.boolean().optional(),
+});
+
+export const getShoppingListInputSchema = z.object({
+  listId: listIdSchema.optional(),
+});
+
+type ShoppingListItemInput = z.output<typeof shoppingListItemInputSchema>;
+
+/**
+ * Resolves each input item to a stored item. A UPC without a name gets one
+ * looked up (the ProductService is KV-cached at the Kroger client layer); a
+ * lookup failure falls back to the UPC as the display name rather than failing
+ * the call. Lookups run in parallel.
+ */
+async function toStoredItems(
+  ctx: ToolContext,
+  items: ShoppingListItemInput[],
+): Promise<ShoppingListItem[]> {
+  return Promise.all(
+    items.map(async (item) => {
+      const productName =
+        item.productName ??
+        (item.upc ? ((await ctx.productService.enrichProductName(item.upc)) ?? item.upc) : "");
+      return {
+        productName,
+        ...(item.upc === undefined ? {} : { upc: item.upc }),
+        // ShoppingListItem.quantity is required, so it is defaulted here as
+        // well as in the schema rather than relying on parsing having run.
+        quantity: item.quantity ?? 1,
+        ...(item.notes === undefined ? {} : { notes: item.notes }),
+      } satisfies ShoppingListItem;
+    }),
+  );
+}
 
 /** Client-id hint for ShoppingStore implementations that accept caller-generated ids. */
 function generateRequestedListId(): string {
@@ -55,7 +119,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Create Shopping List",
       description:
-        'Creates a named shopping list snapshot; returns `listId` for add_shopping_list_to_cart. The product name is looked up automatically from the UPC. Example: {"name":"Tuesday dinner","items":[{"upc":"0001111041700","quantity":1}]}',
+        'Creates a named shopping list; returns `listId` for add_shopping_list_to_cart. Give each item a `upc` for a Kroger product (its name is looked up) or a `productName` for anything else. Example: {"name":"Tuesday dinner","items":[{"upc":"0001111041700","quantity":1}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -72,21 +136,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         return toMcpError(validationError("Shopping list must include at least one item."));
       }
 
-      // Product names are always looked up from the UPC (ProductService is
-      // KV-cached at the Kroger client layer) — a lookup failure falls back
-      // to the UPC as the display name, never a failed tool call. Lookups
-      // run in parallel.
-      const enrichedItems: ShoppingListItem[] = await Promise.all(
-        items.map(async (item) => {
-          const productName = await ctx.productService.enrichProductName(item.upc);
-          return {
-            productName: productName ?? item.upc,
-            upc: item.upc,
-            quantity: item.quantity,
-            notes: item.notes,
-          };
-        }),
-      );
+      const enrichedItems = await toStoredItems(ctx, items);
 
       // Best-effort pantry/deal flags (see item-flags.ts): a storage/cache
       // miss or error yields no flag, never a failed tool call. Location is
@@ -124,6 +174,153 @@ export function registerShoppingListTools(ctx: ToolContext) {
           items: list.items,
         }),
       };
+    },
+  );
+
+  ctx.server.registerTool(
+    "get_shopping_list",
+    {
+      title: "Get Shopping List",
+      description:
+        "With a listId, reads that list's items and their `itemId`s. Without one, lists every saved list and its `listId`. Only this tool returns those ids.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: getShoppingListInputSchema,
+    },
+    async ({ listId }) => {
+      if (!listId) {
+        const result = await safeStorage(
+          () => ctx.storage.shoppingList.list(),
+          "read shopping lists",
+        );
+        if (result.isErr()) return toMcpError(result.error);
+
+        const lists = result.value;
+        if (lists.length === 0) {
+          return textResult("No saved lists yet. Create one with create_shopping_list.");
+        }
+        const lines = lists
+          .map(
+            (list, index) =>
+              `${index + 1}. listId=${list.id} "${list.name}" (${list.itemCount} items)`,
+          )
+          .join("\n");
+        return textResult(`${lists.length} shopping list(s).\n\n${lines}`);
+      }
+
+      const result = await safeStorage(
+        () => ctx.storage.shoppingList.get(listId),
+        "read shopping list",
+      );
+      if (result.isErr()) return toMcpError(result.error);
+
+      const list = result.value;
+      if (!list) {
+        return toMcpError(
+          notFoundError(`No list with listId=${listId}. Call get_shopping_list with no listId.`),
+        );
+      }
+      if (list.items.length === 0) {
+        return textResult(
+          `Shopping list "${list.name}" (listId=${listId}) is empty. Add items with add_shopping_list_items.`,
+        );
+      }
+      const lines = list.items
+        .map(
+          (item, index) =>
+            `${index + 1}. itemId=${item.id ?? "unknown"} ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
+        )
+        .join("\n");
+      return textResult(
+        `Shopping list "${list.name}" (listId=${listId}) has ${list.items.length} item(s).\n\n${lines}`,
+      );
+    },
+  );
+
+  ctx.server.registerTool(
+    "add_shopping_list_items",
+    {
+      title: "Add Shopping List Items",
+      description:
+        "Appends items to an existing list, keeping what is already on it. Each item takes a Kroger `upc`, or a `productName` for anything else — a Trader Joe's product, a recipe ingredient, free text.",
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+      inputSchema: addShoppingListItemsInputSchema,
+    },
+    async ({ listId, items }) => {
+      const storedItems = await toStoredItems(ctx, items);
+      const result = await safeStorage(
+        () => ctx.storage.shoppingList.addItems(listId, storedItems),
+        "add shopping list items",
+      );
+      if (result.isErr()) return toMcpError(result.error);
+
+      const added = result.value;
+      const lines = added
+        .map(
+          (item, index) =>
+            `${index + 1}. itemId=${item.id ?? "unknown"} ${formatShoppingListItemCompact(item)}`,
+        )
+        .join("\n");
+      return textResult(`Added ${added.length} item(s) to listId=${listId}.\n\n${lines}`);
+    },
+  );
+
+  ctx.server.registerTool(
+    "edit_shopping_list_item",
+    {
+      title: "Edit Shopping List Item",
+      description:
+        "Changes one item on a list: rename it, set quantity or notes, check it off with checked=true, or delete it with remove=true. Only the fields you pass change.",
+      annotations: {
+        readOnlyHint: false,
+        // remove=true deletes the item, so this tool can destroy data.
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: editShoppingListItemInputSchema,
+    },
+    async ({ listId, itemId, productName, quantity, notes, checked, remove }) => {
+      if (remove) {
+        const removed = await safeStorage(
+          () => ctx.storage.shoppingList.removeItem(listId, itemId),
+          "remove shopping list item",
+        );
+        if (removed.isErr()) return toMcpError(removed.error);
+        return textResult(`Removed itemId=${itemId} from listId=${listId}.`);
+      }
+
+      const patch = {
+        ...(productName === undefined ? {} : { productName }),
+        ...(quantity === undefined ? {} : { quantity }),
+        ...(notes === undefined ? {} : { notes }),
+        ...(checked === undefined ? {} : { checked }),
+      };
+      if (Object.keys(patch).length === 0) {
+        return toMcpError(
+          validationError("Pass productName, quantity, notes, checked, or remove=true."),
+        );
+      }
+
+      const result = await safeStorage(
+        () => ctx.storage.shoppingList.updateItem(listId, itemId, patch),
+        "update shopping list item",
+      );
+      if (result.isErr()) return toMcpError(result.error);
+
+      const item = result.value;
+      return textResult(
+        `Updated itemId=${itemId} on listId=${listId}: ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
+      );
     },
   );
 }

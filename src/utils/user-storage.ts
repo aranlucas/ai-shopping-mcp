@@ -46,6 +46,30 @@ export interface ShoppingListItem {
   upc?: string;
   quantity: number;
   notes?: string;
+  /**
+   * Durable item id from the gateway. Present on items read back from storage
+   * and absent on items being written, since the store assigns it. Editing
+   * tools address an item by this id.
+   */
+  id?: string;
+  /** Whether a shopper has checked the item off. */
+  checked?: boolean;
+}
+
+/** A list without its items, for pickers that only need to name the list. */
+export interface ShoppingListSummary {
+  id: string;
+  name: string;
+  itemCount: number;
+  updatedAt: string;
+}
+
+/** Fields an edit may change. Omitted fields are left as they are. */
+export interface ShoppingListItemPatch {
+  productName?: string;
+  quantity?: number;
+  notes?: string;
+  checked?: boolean;
 }
 
 export interface ShoppingList {

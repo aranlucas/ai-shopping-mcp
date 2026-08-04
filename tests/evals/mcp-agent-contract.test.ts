@@ -10,9 +10,11 @@ import { registerProductTools } from "../../src/tools/product.js";
 import { registerRecipeTools } from "../../src/tools/recipes.js";
 import { registerShopTools } from "../../src/tools/shop.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
+import { registerTraderJoesTools } from "../../src/tools/trader-joes.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
@@ -60,6 +62,7 @@ function makeContext(): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    traderJoes: stubTraderJoesClient(),
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
@@ -79,6 +82,7 @@ function registerAllTools() {
   registerRecipeTools(ctx);
   registerShoppingListTools(ctx);
   registerShopTools(ctx);
+  registerTraderJoesTools(ctx);
   registerWeeklyDealsTools(ctx);
 
   return testState.capturedTools;
@@ -97,11 +101,14 @@ describe("MCP agent contract", () => {
       .sort();
 
     expect(toolNames).toEqual([
+      "add_shopping_list_items",
       "add_shopping_list_to_cart",
       "add_to_inventory",
       "create_shopping_list",
+      "edit_shopping_list_item",
       "get_meal_planning_context",
       "get_product",
+      "get_shopping_list",
       "get_shopping_profile",
       "get_store",
       "get_weekly_deals",
@@ -109,6 +116,7 @@ describe("MCP agent contract", () => {
       "remove_from_inventory",
       "search_products",
       "search_stores",
+      "search_trader_joes_products",
       "set_preferred_store",
       "shop_for_items",
       "view_cart",
@@ -223,10 +231,19 @@ describe("MCP agent contract", () => {
         items: [{ upc: "0001112223334", quantity: 1 }],
       }).success,
     ).toBe(true);
+    // An item without a Kroger UPC is valid — that is how Trader Joe's
+    // products and plain ingredients reach a list.
     expect(
       createShoppingList.config.inputSchema?.safeParse({
         name: "Dinner",
         items: [{ productName: "Milk", quantity: 1 }],
+      }).success,
+    ).toBe(true);
+    // But an item with neither identifier is not.
+    expect(
+      createShoppingList.config.inputSchema?.safeParse({
+        name: "Dinner",
+        items: [{ quantity: 1 }],
       }).success,
     ).toBe(false);
   });

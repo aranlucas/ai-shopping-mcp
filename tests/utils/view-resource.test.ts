@@ -9,6 +9,7 @@ import {
   registerViewResource,
 } from "../../src/utils/view-resource.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 const EXPECTED_MIME_TYPE = "text/html;profile=mcp-app";
 
@@ -63,6 +64,7 @@ function makeContext(env: Env): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    traderJoes: stubTraderJoesClient(),
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => env,

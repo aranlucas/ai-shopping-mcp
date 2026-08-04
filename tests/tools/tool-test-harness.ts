@@ -13,6 +13,7 @@ import type {
 } from "../../src/utils/user-storage.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import { stubTraderJoesClient } from "../trader-joes-stub.js";
 
 type ShoppingListRecord = {
   id: string;
@@ -230,6 +231,7 @@ export function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService,
+    traderJoes: stubTraderJoesClient(),
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,
@@ -266,6 +268,7 @@ export function makeContextWithElicit(
       },
     } as unknown as ToolContext["clients"],
     productService,
+    traderJoes: stubTraderJoesClient(),
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,
