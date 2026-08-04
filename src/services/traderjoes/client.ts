@@ -6,9 +6,8 @@
  * an unauthenticated Magento GraphQL endpoint at
  * `https://www.traderjoes.com/api/graphql`, the same one the website itself
  * calls, answering catalog queries scoped to a store code. This module speaks
- * only that read-only surface, so the shopping tools can turn a Trader Joe's
- * product into a shopping-list ingredient. Anything past the list — cart,
- * checkout, delivery — stays Kroger-only, because Trader Joe's has no such API.
+ * only that read-only surface. Anything past a shopping list — cart, checkout,
+ * delivery — stays Kroger-only, because Trader Joe's has no such API.
  *
  * Two properties of that endpoint shape the design:
  *
@@ -20,6 +19,7 @@
  *   overridable through `TRADER_JOES_GRAPHQL_URL` so an allowed egress proxy
  *   can be swapped in without a code change.
  */
+import { ClientError, GraphQLClient } from "graphql-request";
 import { ResultAsync, err, ok, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -44,6 +44,20 @@ const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_QUERY_LENGTH = 120;
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 12;
+
+/**
+ * Mirrors the storefront's own fetch so Akamai bot management does not reject
+ * the call. No credential and no user data — just the shape of a browser
+ * request.
+ */
+const STOREFRONT_HEADERS = {
+  accept: "*/*",
+  "accept-language": "en-US,en;q=0.9",
+  origin: "https://www.traderjoes.com",
+  referer: "https://www.traderjoes.com/home/search",
+  "user-agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+} as const;
 
 export type TraderJoesProduct = {
   sku: string;
@@ -72,35 +86,55 @@ export type TraderJoesClient = {
  * The storefront's own product query, trimmed to the fields a shopping list
  * needs. Field names are Magento's and must match the upstream schema exactly.
  */
-const SEARCH_QUERY = `query SearchProducts($search: String, $pageSize: Int, $currentPage: Int, $storeCode: String, $availability: String = "1", $published: String = "1") {
-  products(
-    search: $search
-    filter: {store_code: {eq: $storeCode}, published: {eq: $published}, availability: {match: $availability}}
-    pageSize: $pageSize
-    currentPage: $currentPage
+const SEARCH_PRODUCTS = /* GraphQL */ `
+  query SearchProducts(
+    $search: String
+    $pageSize: Int
+    $currentPage: Int
+    $storeCode: String
+    $availability: String = "1"
+    $published: String = "1"
   ) {
-    items {
-      sku
-      item_title
-      sales_size
-      sales_uom_description
-      primary_image
-      url_key
-      availability
-      retail_price
-      category_hierarchy {
-        name
+    products(
+      search: $search
+      filter: {
+        store_code: { eq: $storeCode }
+        published: { eq: $published }
+        availability: { match: $availability }
       }
-      price_range {
-        minimum_price {
-          final_price {
-            value
+      pageSize: $pageSize
+      currentPage: $currentPage
+    ) {
+      items {
+        sku
+        item_title
+        sales_size
+        sales_uom_description
+        primary_image
+        url_key
+        availability
+        retail_price
+        category_hierarchy {
+          name
+        }
+        price_range {
+          minimum_price {
+            final_price {
+              value
+            }
           }
         }
       }
     }
   }
-}`;
+`;
+
+type SearchVariables = {
+  search: string;
+  storeCode: string;
+  pageSize: number;
+  currentPage: number;
+};
 
 const nullableString = z.string().nullish();
 const nullableNumber = z.number().nullish();
@@ -124,11 +158,8 @@ const catalogItemSchema = z.object({
     .nullish(),
 });
 
-const graphQLResponseSchema = z.object({
-  data: z
-    .object({ products: z.object({ items: z.array(catalogItemSchema).nullish() }).nullish() })
-    .nullish(),
-  errors: z.array(z.object({ message: z.string().nullish() })).nullish(),
+const searchDataSchema = z.object({
+  products: z.object({ items: z.array(catalogItemSchema).nullish() }).nullish(),
 });
 
 const cachedResultSchema = z.object({
@@ -255,6 +286,32 @@ function writeCache(kv: KvLike | null, key: string, result: TraderJoesSearchResu
   ).catch(() => undefined);
 }
 
+/**
+ * Turns a graphql-request failure into an AppError.
+ *
+ * `ClientError` covers both a non-2xx response and a 200 carrying GraphQL
+ * `errors`, so the HTTP status is what separates "blocked" from "bad query".
+ */
+function toCatalogError(cause: unknown): AppError {
+  if (cause instanceof ClientError) {
+    const status = cause.response.status;
+    const graphQLMessage = cause.response.errors?.[0]?.message;
+    if (status === 403) {
+      // Almost always bot management rejecting this egress address rather than
+      // a bad query, so say that instead of implying the terms were wrong.
+      return apiError("Trader Joe's blocked this request (bot protection).", undefined, status);
+    }
+    if (graphQLMessage) {
+      return apiError(`Trader Joe's catalog rejected the query: ${graphQLMessage}`);
+    }
+    return apiError(`Trader Joe's returned HTTP ${status}.`, undefined, status);
+  }
+  return networkError(
+    `Could not reach the Trader Joe's catalog: ${cause instanceof Error ? cause.message : String(cause)}`,
+    cause,
+  );
+}
+
 export type TraderJoesClientOptions = {
   endpoint?: string;
   storeCode?: string;
@@ -266,88 +323,55 @@ export function createTraderJoesClient(options: TraderJoesClientOptions = {}): T
   const endpoint = options.endpoint?.trim() || TRADER_JOES_ENDPOINT;
   const defaultStoreCode = options.storeCode?.trim() || TRADER_JOES_DEFAULT_STORE_CODE;
   const kv = options.kv ?? null;
-  const fetcher = options.fetcher ?? globalThis.fetch;
+
+  const graphQL = new GraphQLClient(endpoint, {
+    headers: STOREFRONT_HEADERS,
+    ...(options.fetcher ? { fetch: options.fetcher } : {}),
+  });
 
   function fetchProducts(
     query: string,
     storeCode: string,
     limit: number,
   ): ResultAsync<TraderJoesProduct[], AppError> {
-    const request = fetcher(endpoint, {
-      method: "POST",
-      headers: {
-        // Mirrors the storefront's own fetch so Akamai bot management does not
-        // reject the call. These headers carry no credential and no user data.
-        accept: "*/*",
-        "accept-language": "en-US,en;q=0.9",
-        "content-type": "application/json",
-        origin: "https://www.traderjoes.com",
-        referer: "https://www.traderjoes.com/home/search",
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-      },
-      body: JSON.stringify({
-        operationName: "SearchProducts",
-        query: SEARCH_QUERY,
-        variables: {
-          search: query,
-          storeCode,
-          availability: "1",
-          published: "1",
-          currentPage: 1,
-          pageSize: limit,
-        },
-      }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    const variables: SearchVariables = {
+      search: query,
+      storeCode,
+      pageSize: limit,
+      currentPage: 1,
+    };
 
-    return ResultAsync.fromPromise(request, (cause) =>
-      networkError(
-        `Could not reach the Trader Joe's catalog: ${cause instanceof Error ? cause.message : String(cause)}`,
-        cause,
-      ),
-    )
-      .andThen((response) => {
-        if (!response.ok) {
-          // A 403 here is almost always bot management rejecting this egress
-          // address rather than a bad query, so say so instead of implying the
-          // search terms were wrong.
-          const detail =
-            response.status === 403
-              ? "Trader Joe's blocked this request (bot protection)."
-              : `Trader Joe's returned HTTP ${response.status}.`;
-          return err(apiError(detail, undefined, response.status));
-        }
-        return ResultAsync.fromPromise(response.json(), (cause) =>
-          apiError("Trader Joe's returned a malformed response.", cause, response.status),
-        );
-      })
-      .andThen((payload) => {
-        const parsed = graphQLResponseSchema.safeParse(payload);
-        if (!parsed.success) {
-          return err(apiError("Trader Joe's catalog response did not match the expected shape."));
-        }
-        const graphQLError = parsed.data.errors?.[0]?.message;
-        if (graphQLError) {
-          return err(apiError(`Trader Joe's catalog rejected the query: ${graphQLError}`));
-        }
-        const items = parsed.data.data?.products?.items ?? [];
-        const products: TraderJoesProduct[] = [];
-        for (const item of items) {
-          if (products.length === limit) break;
-          const product = toProduct(item);
-          if (product) products.push(product);
-        }
-        return ok(products);
-      });
+    return ResultAsync.fromPromise(
+      graphQL.request<unknown, SearchVariables>({
+        document: SEARCH_PRODUCTS,
+        variables,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      }),
+      toCatalogError,
+    ).andThen((data) => {
+      const parsed = searchDataSchema.safeParse(data);
+      if (!parsed.success) {
+        return err(apiError("Trader Joe's catalog response did not match the expected shape."));
+      }
+      const items = parsed.data.products?.items ?? [];
+      const products: TraderJoesProduct[] = [];
+      for (const item of items) {
+        if (products.length === limit) break;
+        const product = toProduct(item);
+        if (product) products.push(product);
+      }
+      return ok(products);
+    });
   }
 
   return {
     searchProducts(query, searchOptions) {
       const trimmed = query.trim().slice(0, MAX_QUERY_LENGTH);
       if (!trimmed) {
-        return ResultAsync.fromSafePromise(Promise.resolve()).andThen(() =>
-          err(apiError("A Trader Joe's search needs search terms.")),
+        return okAsync(undefined).andThen(() =>
+          err<TraderJoesSearchResult, AppError>(
+            apiError("A Trader Joe's search needs search terms."),
+          ),
         );
       }
       const storeCode = searchOptions?.storeCode?.trim() || defaultStoreCode;

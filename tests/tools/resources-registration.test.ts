@@ -7,7 +7,7 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
-import { stubTraderJoesClient } from "../trader-joes-stub.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
@@ -95,7 +95,7 @@ function makeContext(storage: UserStorage, productClient: unknown = {}): ToolCon
     server: makeServer(),
     clients: { productClient } as unknown as ToolContext["clients"],
     productService: new ProductService(productClient as KrogerClients["productClient"]),
-    traderJoes: stubTraderJoesClient(),
+    catalogs: stubCatalogRegistry(),
     storage,
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,

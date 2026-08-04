@@ -10,7 +10,8 @@ import { ProductService } from "../../src/services/kroger/product-service.js";
 import { logProductSearchError, registerProductTools } from "../../src/tools/product.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
-import { stubTraderJoesClient } from "../trader-joes-stub.js";
+import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -108,7 +109,11 @@ function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolConte
     server: server as unknown as ToolContext["server"],
     clients,
     productService: new ProductService(clients.productClient),
-    traderJoes: stubTraderJoesClient(),
+    // The Kroger provider wraps the stubbed productClient so these tests still
+    // exercise the real Kroger query shape through the provider-agnostic tool.
+    catalogs: stubCatalogRegistry({
+      kroger: createKrogerCatalogProvider(clients.productClient),
+    }),
     storage: storage ?? makeStorage(),
     carts: {} as ToolContext["carts"],
     getEnv: () =>
@@ -317,7 +322,7 @@ describe("search_products", () => {
 
     const result = await getCapturedHandler("search_products")({ terms: ["unknownitem"] });
 
-    expect(textFromResult(result)).toContain("No results.");
+    expect(textFromResult(result)).toContain("No Kroger results.");
     expect(result).toMatchObject({
       structuredContent: {
         results: [{ term: "unknownitem", products: [], count: 0, failed: false }],

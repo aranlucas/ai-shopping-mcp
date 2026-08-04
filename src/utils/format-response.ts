@@ -8,6 +8,11 @@
 import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
 import type {
+  CatalogProduct,
+  CatalogProvider,
+  CatalogSearchResult,
+} from "../services/catalog/types.js";
+import type {
   EquipmentItem,
   OrderRecord,
   PantryItem,
@@ -168,74 +173,99 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 // the React views because some hosts also expose it to the model.
 // ---------------------------------------------------------------------------
 
-/** One markdown line summarizing a single product for search_products output. */
-export function formatProductSearchLineMarkdown(
-  product: Product,
+/**
+ * One catalog line, in the shared vocabulary.
+ *
+ * The identifier is labeled with its provider (`kroger upc=`, `trader_joes
+ * sku=`) rather than a bare `upc=`, because the two are not interchangeable and
+ * a model that confuses them will send a Trader Joe's SKU to a cart tool.
+ */
+export function formatCatalogProductLine(
+  product: CatalogProduct,
+  provider: CatalogProvider,
   options: { includeLocation?: boolean } = {},
 ): string {
-  const item = product.items?.[0];
-  const parts: string[] = [
-    `upc=${product.upc ?? "unknown"}`,
-    product.description || "Unknown product",
-  ];
+  const idLabel = provider.capabilities.cart ? "upc" : "sku";
+  const parts: string[] = [`${provider.id} ${idLabel}=${product.id || "unknown"}`, product.name];
 
   if (product.brand) parts.push(product.brand);
-  if (item?.size) parts.push(item.size);
+  if (product.size) parts.push(product.size);
 
-  if (item?.price) {
-    const { regular, promo } = item.price;
-    if (promo != null && promo !== regular) {
-      parts.push(`$${promo} (was $${regular})`);
-    } else if (regular != null) {
-      parts.push(`$${regular}`);
-    }
+  if (product.price !== undefined) {
+    parts.push(
+      product.regularPrice !== undefined
+        ? `$${product.price} (was $${product.regularPrice})`
+        : `$${product.price}`,
+    );
   }
 
-  const pickup = Boolean(item?.fulfillment?.curbside || item?.fulfillment?.instore);
-  parts.push(`pickup: ${pickup ? "yes" : "no"}`);
+  if (provider.capabilities.cart) parts.push(`pickup: ${product.pickup ? "yes" : "no"}`);
+  if (!product.available) parts.push("out of stock");
 
-  const location = product.aisleLocations?.[0];
-  if (options.includeLocation && location) {
-    const description = location.description?.trim();
-    const number = location.number?.trim();
+  const aisle = product.aisle;
+  if (options.includeLocation && aisle) {
+    const description = aisle.description?.trim();
+    const number = aisle.number?.trim();
     const locationLabel =
       description && number && !description.split(/\s+/).includes(number)
         ? `${description} ${number}`
         : (description ?? number);
     if (locationLabel) parts.push(`location: ${locationLabel}`);
-    if (location.sequenceNumber) parts.push(`route sequence: ${location.sequenceNumber}`);
-    if (location.bayNumber) parts.push(`bay: ${location.bayNumber}`);
-    if (location.side) parts.push(`side: ${location.side}`);
-    if (location.shelfNumber) parts.push(`shelf: ${location.shelfNumber}`);
-    if (location.shelfPositionInBay) {
-      parts.push(`shelf position: ${location.shelfPositionInBay}`);
-    }
+    if (aisle.sequenceNumber) parts.push(`route sequence: ${aisle.sequenceNumber}`);
+    if (aisle.bayNumber) parts.push(`bay: ${aisle.bayNumber}`);
+    if (aisle.side) parts.push(`side: ${aisle.side}`);
+    if (aisle.shelfNumber) parts.push(`shelf: ${aisle.shelfNumber}`);
+    if (aisle.shelfPositionInBay) parts.push(`shelf position: ${aisle.shelfPositionInBay}`);
   }
 
   return `- ${parts.join(" | ")}`;
 }
 
-/** Markdown for search_products: one heading + product lines per search term. */
-export function formatSearchProductsMarkdown(
-  results: Array<{ term: string; products: Product[]; count: number; failed: boolean }>,
+/**
+ * Markdown for search_products: one heading per search term, then one block per
+ * provider that was searched.
+ *
+ * The closing lines name which providers can reach a cart and which cannot,
+ * because that is the one difference between them a model must act on.
+ */
+export function formatCatalogSearchMarkdown(
+  results: CatalogSearchResult[],
+  providers: CatalogProvider[],
   options: { includeLocation?: boolean } = {},
 ): string {
+  const terms = [...new Set(results.map((result) => result.term))];
   const lines: string[] = [];
 
-  for (const result of results) {
-    lines.push(`## ${result.term}`);
-    if (result.failed) {
-      lines.push("Search failed for this term.");
-    } else if (result.products.length === 0) {
-      lines.push("No results.");
-    } else {
-      for (const product of result.products) {
-        lines.push(formatProductSearchLineMarkdown(product, options));
+  for (const term of terms) {
+    lines.push(`## ${term}`);
+    for (const provider of providers) {
+      const result = results.find(
+        (candidate) => candidate.term === term && candidate.provider === provider.id,
+      );
+      if (!result) continue;
+      if (result.failed) {
+        lines.push(`- ${provider.label} search failed for this term.`);
+      } else if (result.products.length === 0) {
+        lines.push(`- No ${provider.label} results.`);
+      } else {
+        for (const product of result.products) {
+          lines.push(formatCatalogProductLine(product, provider, options));
+        }
       }
     }
   }
 
-  lines.push("", "To buy items, pass the exact upc values above to create_shopping_list.");
+  const cartable = providers.filter((provider) => provider.capabilities.cart);
+  const listOnly = providers.filter((provider) => !provider.capabilities.cart);
+  lines.push("");
+  if (cartable.length > 0) {
+    lines.push("To buy items, pass the exact upc values above to create_shopping_list.");
+  }
+  for (const provider of listOnly) {
+    lines.push(
+      `${provider.label} has no cart: add those to a list by productName, and never send their ids to a cart tool.`,
+    );
+  }
   return lines.join("\n");
 }
 

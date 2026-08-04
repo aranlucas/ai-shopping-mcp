@@ -297,7 +297,6 @@ describe("MCP client over Worker OAuth integration", () => {
         "get_meal_planning_context",
         "get_shopping_list",
         "get_shopping_profile",
-        "search_trader_joes_products",
         "view_cart",
       ]);
       if (textOnlyTools.has(tool.name)) {

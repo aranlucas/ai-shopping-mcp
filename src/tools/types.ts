@@ -2,7 +2,7 @@ import type { McpServer, RequestStateCodec } from "@modelcontextprotocol/server"
 import type { CartConfirmationState } from "../cart-confirmation.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { ProductService } from "../services/kroger/product-service.js";
-import type { TraderJoesClient } from "../services/traderjoes/client.js";
+import type { CatalogRegistry } from "../services/catalog/types.js";
 import type { ShoppingStore } from "../utils/gateway-storage.js";
 import type { CartStore } from "../utils/user-storage.js";
 
@@ -31,8 +31,12 @@ export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;
   productService: ProductService;
-  /** Read-only Trader Joe's catalog. Trader Joe's exposes no cart or checkout API. */
-  traderJoes: TraderJoesClient;
+  /**
+   * Product catalogs available to this request, keyed by provider id. Tools
+   * search through this registry rather than any one retailer's client, so a
+   * new provider needs no tool changes.
+   */
+  catalogs: CatalogRegistry;
   storage: ShoppingStore;
   carts: CartStore;
   requestStateCodec: RequestStateCodec<CartConfirmationState>;

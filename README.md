@@ -36,13 +36,36 @@ The Kroger application must allow `profile.compact`, `cart.basic:write`, and `pr
 
 ## MCP surface
 
-The server exposes 19 tools:
+The server exposes 18 tools:
 
 - Stores: `search_stores`, `get_store`, `set_preferred_store`
 - Products and deals: `search_products`, `get_product`, `shop_for_items`, `get_weekly_deals`
-- Trader Joe's: `search_trader_joes_products`
 - Profile and meal context: `add_to_inventory`, `remove_from_inventory`, `get_shopping_profile`, `get_meal_planning_context`
 - Lists, cart, and orders: `create_shopping_list`, `get_shopping_list`, `add_shopping_list_items`, `edit_shopping_list_item`, `add_shopping_list_to_cart`, `view_cart`, `record_order`
+
+### Catalog providers
+
+`search_products` is provider-agnostic. It takes a `providers` array and
+searches each named catalog concurrently, returning one block per provider under
+each search term. A provider is anything implementing `CatalogProvider`
+(`src/services/catalog/types.ts`); adding one needs no tool changes.
+
+| provider           | cart | identifier       |
+| ------------------ | ---- | ---------------- |
+| `kroger` (default) | yes  | UPC              |
+| `trader_joes`      | no   | Trader Joe's SKU |
+
+The one thing the abstraction deliberately does not hide is what a match can
+_do_. Kroger products carry a UPC and can reach a cart; Trader Joe's products
+can only reach a shopping list. That is why `capabilities.cart` is part of the
+provider contract, every result names its provider, and output lines are labeled
+`kroger upc=` or `trader_joes sku=` rather than a bare `upc=` — the two are not
+interchangeable, and a model that confuses them would send a Trader Joe's SKU to
+a cart tool.
+
+Providers degrade independently: one being unreachable marks its own results
+failed and leaves the others intact. The search only errors when nothing was
+found anywhere _and_ something failed.
 
 ### Trader Joe's
 
@@ -50,16 +73,14 @@ Trader Joe's publishes no partner API, and unlike Kroger it has **no cart or
 checkout API at all** — the storefront is browse-only. What it does expose is
 the unauthenticated Magento GraphQL endpoint the website itself calls
 (`https://www.traderjoes.com/api/graphql`), which answers catalog queries scoped
-to a store code. `search_trader_joes_products` reads that endpoint and nothing
-else, so a Trader Joe's match can become a shopping-list item and stop there.
-Its SKUs are meaningless to the Kroger tools; the two catalogs share no
-identifiers.
+to a store code. The client (`src/services/traderjoes/client.ts`) talks to it
+through `graphql-request` and reads nothing else.
 
 The endpoint is undocumented and unversioned, so responses are Zod-validated and
 schema drift surfaces as a normal tool error. It also sits behind Akamai bot
 management that rejects some server egress addresses with a 403 regardless of
-the query — the tool reports that case distinctly. Two optional Worker vars
-exist for it:
+the query — that case is reported distinctly from a bad query. Two optional
+Worker vars exist for it:
 
 - `TRADER_JOES_GRAPHQL_URL` — point at an allowed egress proxy if Cloudflare's
   addresses are blocked

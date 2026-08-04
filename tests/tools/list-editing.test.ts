@@ -3,14 +3,14 @@
  * appending items that have no Kroger UPC (Trader Joe's products, plain
  * ingredients), editing one item, and deleting one.
  */
-import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext } from "../../src/tools/types.js";
 import type { ShoppingListItem } from "../../src/utils/user-storage.js";
 
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
-import { registerTraderJoesTools } from "../../src/tools/trader-joes.js";
+import { registerProductTools } from "../../src/tools/product.js";
+import { stubCatalogProvider, stubCatalogRegistry } from "../catalog-stub.js";
 import {
   getCapturedHandler,
   getCapturedTool,
@@ -189,53 +189,115 @@ describe("shopping list editing tools", () => {
   });
 });
 
-describe("Trader Joe's search tool", () => {
+describe("search_products across providers", () => {
   beforeEach(() => {
     resetToolTestHarness();
   });
 
-  it("names each match so it can be passed straight to a list", async () => {
-    const ctx = makeContext();
-    ctx.traderJoes = {
-      searchProducts: () =>
-        okAsync({
-          storeCode: "701",
-          products: [
-            {
-              sku: "076892",
-              name: "Chili Onion Crunch",
-              price: 3.99,
-              size: "6 Ounce",
-              available: true,
-            },
-          ],
-        }),
-    };
-    registerTraderJoesTools(ctx);
+  const chiliCrunch = {
+    provider: "trader_joes" as const,
+    id: "076892",
+    name: "Chili Onion Crunch",
+    price: 3.99,
+    size: "6 Ounce",
+    available: true,
+  };
 
-    const result = await getCapturedHandler("search_trader_joes_products")({
-      query: "chili crunch",
-      limit: 10,
+  it("labels each match with its provider and says which cannot reach a cart", async () => {
+    const ctx = makeContext();
+    ctx.catalogs = stubCatalogRegistry({
+      trader_joes: stubCatalogProvider({ products: [chiliCrunch] }),
+    });
+    registerProductTools(ctx);
+
+    const result = await getCapturedHandler("search_products")({
+      terms: ["chili crunch"],
+      providers: ["kroger", "trader_joes"],
+      limitPerTerm: 5,
+      includeLocation: false,
     });
 
+    const text = textFromResult(result);
     expect(isErrorResult(result)).toBe(false);
-    expect(textFromResult(result)).toContain('name="Chili Onion Crunch"');
-    expect(textFromResult(result)).toContain("sku=076892");
-    expect(textFromResult(result)).toContain("$3.99");
-    expect(textFromResult(result)).toContain("add_shopping_list_items");
+    expect(text).toContain("trader_joes sku=076892");
+    expect(text).toContain("Chili Onion Crunch");
+    expect(text).toContain("$3.99");
+    expect(text).toContain("Trader Joe's has no cart");
   });
 
-  it("says so plainly when nothing matches", async () => {
+  it("searches only the providers it was asked for", async () => {
+    const traderJoes = stubCatalogProvider({ products: [chiliCrunch] });
+    const search = vi.spyOn(traderJoes, "search");
     const ctx = makeContext();
-    ctx.traderJoes = { searchProducts: () => okAsync({ storeCode: "701", products: [] }) };
-    registerTraderJoesTools(ctx);
+    ctx.catalogs = stubCatalogRegistry({ trader_joes: traderJoes });
+    registerProductTools(ctx);
 
-    const result = await getCapturedHandler("search_trader_joes_products")({
-      query: "unobtainium",
-      limit: 10,
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+      limitPerTerm: 5,
+      includeLocation: false,
+    });
+
+    expect(search).not.toHaveBeenCalled();
+    expect(textFromResult(result)).not.toContain("trader_joes");
+  });
+
+  it("still answers when one provider is blocked", async () => {
+    const ctx = makeContext();
+    ctx.catalogs = stubCatalogRegistry({
+      kroger: stubCatalogProvider({
+        id: "kroger",
+        label: "Kroger",
+        capabilities: { cart: true, aisleLocation: true },
+        products: [
+          {
+            provider: "kroger",
+            id: "0001111042578",
+            name: "Whole Milk",
+            price: 3.49,
+            available: true,
+            pickup: true,
+          },
+        ],
+      }),
+      trader_joes: stubCatalogProvider({
+        error: {
+          type: "API_ERROR",
+          message: "Trader Joe's blocked this request (bot protection).",
+        },
+      }),
+    });
+    registerProductTools(ctx);
+
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+      providers: ["kroger", "trader_joes"],
+      limitPerTerm: 5,
+      includeLocation: false,
     });
 
     expect(isErrorResult(result)).toBe(false);
-    expect(textFromResult(result)).toContain("No Trader Joe's products matched");
+    expect(textFromResult(result)).toContain("kroger upc=0001111042578");
+    expect(textFromResult(result)).toContain("Trader Joe's search failed for this term.");
+  });
+
+  it("errors only when every provider failed and nothing was found", async () => {
+    const ctx = makeContext();
+    ctx.catalogs = stubCatalogRegistry({
+      trader_joes: stubCatalogProvider({
+        error: { type: "API_ERROR", message: "blocked" },
+      }),
+    });
+    registerProductTools(ctx);
+
+    const result = await getCapturedHandler("search_products")({
+      terms: ["chili crunch"],
+      providers: ["trader_joes"],
+      limitPerTerm: 5,
+      includeLocation: false,
+    });
+
+    expect(isErrorResult(result)).toBe(true);
+    expect(textFromResult(result)).toContain("Search failed for: chili crunch");
   });
 });

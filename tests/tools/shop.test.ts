@@ -8,7 +8,7 @@ import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
-import { stubTraderJoesClient } from "../trader-joes-stub.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -162,7 +162,7 @@ function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
-    traderJoes: stubTraderJoesClient(),
+    catalogs: stubCatalogRegistry(),
     storage,
     carts: storage,
     getEnv: () =>

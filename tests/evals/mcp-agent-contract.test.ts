@@ -10,11 +10,10 @@ import { registerProductTools } from "../../src/tools/product.js";
 import { registerRecipeTools } from "../../src/tools/recipes.js";
 import { registerShopTools } from "../../src/tools/shop.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
-import { registerTraderJoesTools } from "../../src/tools/trader-joes.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
-import { stubTraderJoesClient } from "../trader-joes-stub.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
@@ -62,7 +61,7 @@ function makeContext(): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
-    traderJoes: stubTraderJoesClient(),
+    catalogs: stubCatalogRegistry(),
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
@@ -82,7 +81,6 @@ function registerAllTools() {
   registerRecipeTools(ctx);
   registerShoppingListTools(ctx);
   registerShopTools(ctx);
-  registerTraderJoesTools(ctx);
   registerWeeklyDealsTools(ctx);
 
   return testState.capturedTools;
@@ -116,7 +114,6 @@ describe("MCP agent contract", () => {
       "remove_from_inventory",
       "search_products",
       "search_stores",
-      "search_trader_joes_products",
       "set_preferred_store",
       "shop_for_items",
       "view_cart",

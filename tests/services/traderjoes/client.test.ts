@@ -23,7 +23,7 @@ function catalogItem(overrides: CatalogItemOverrides = {}) {
 }
 
 function catalogResponse(items: CatalogItemOverrides[], status = 200) {
-  return new Response(JSON.stringify({ data: { products: { items } } }), { status });
+  return Response.json({ data: { products: { items } } }, { status });
 }
 
 /** In-memory KV double so cache hits and misses are observable. */
@@ -71,20 +71,20 @@ describe("Trader Joe's catalog client", () => {
 
     await client.searchProducts("gyoza", { storeCode: "546", limit: 3 });
 
-    const call = fetcher.mock.calls.at(0) as unknown as [string, RequestInit] | undefined;
+    const call = fetcher.mock.calls.at(0) as unknown as [URL | string, RequestInit] | undefined;
     const init = call?.[1] as RequestInit;
     const body = JSON.parse(String(init.body)) as {
       operationName: string;
       variables: Record<string, unknown>;
     };
     expect(body.operationName).toBe("SearchProducts");
-    expect(body.variables).toMatchObject({
+    // availability and published are GraphQL variable defaults in the document,
+    // so they are not sent on the wire.
+    expect(body.variables).toEqual({
       search: "gyoza",
       storeCode: "546",
       pageSize: 3,
       currentPage: 1,
-      availability: "1",
-      published: "1",
     });
   });
 
@@ -137,11 +137,8 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("surfaces GraphQL errors instead of returning an empty catalog", async () => {
-    const fetcher = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ errors: [{ message: "Unknown field 'search'" }] }), {
-          status: 200,
-        }),
+    const fetcher = vi.fn(async () =>
+      Response.json({ errors: [{ message: "Unknown field 'search'" }] }, { status: 200 }),
     );
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
 
@@ -172,9 +169,8 @@ describe("Trader Joe's catalog client", () => {
 
     await client.searchProducts("anything");
 
-    expect((fetcher.mock.calls.at(0) as unknown as [string])?.[0]).toBe(
-      "https://proxy.example/graphql",
-    );
+    const [url] = fetcher.mock.calls.at(0) as unknown as [URL | string];
+    expect(String(url)).toBe("https://proxy.example/graphql");
   });
 
   it("rejects an empty query without a network call", async () => {

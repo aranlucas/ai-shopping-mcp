@@ -31,8 +31,9 @@ import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
-import { registerTraderJoesTools } from "./tools/trader-joes.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
+import { createKrogerCatalogProvider } from "./services/catalog/kroger-provider.js";
+import { createTraderJoesCatalogProvider } from "./services/catalog/trader-joes-provider.js";
 import { createTraderJoesClient } from "./services/traderjoes/client.js";
 import { getUserDataKv } from "./utils/kv.js";
 import { createGatewayShoppingStore } from "./utils/gateway-storage.js";
@@ -53,7 +54,6 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
   registerRecipeTools,
   registerShoppingListTools,
   registerShopTools,
-  registerTraderJoesTools,
   registerWeeklyDealsTools,
   registerResources,
 ];
@@ -61,7 +61,7 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
 const SERVER_INFO = { name: "kroger-ai-assistant", version: "1.0.0" } as const;
 const SERVER_OPTIONS = {
   instructions:
-    "AI shopping assistant for Kroger/QFC stores. Preferred store, pantry, equipment, orders, and lists are shared with the user's agents household library. Golden path: call shop_for_items with item names for one-shot shopping-list creation, OR search_products then create_shopping_list for more control — then add_shopping_list_to_cart with the returned listId to fill the Kroger cart. Edit a saved list with get_shopping_list (for listIds and itemIds), add_shopping_list_items, and edit_shopping_list_item; items take a Kroger upc or any productName. search_trader_joes_products reads the Trader Joe's catalog — list items only, never cart. Call get_shopping_profile before personalized suggestions. Other tools: search_stores/get_store/set_preferred_store for stores, add_to_inventory/remove_from_inventory for pantry and equipment, record_order to log purchases, get_weekly_deals for sales, get_meal_planning_context for recipes from pantry contents.",
+    "AI shopping assistant for Kroger/QFC stores. Preferred store, pantry, equipment, orders, and lists are shared with the user's agents household library. Golden path: call shop_for_items with item names for one-shot shopping-list creation, OR search_products then create_shopping_list for more control — then add_shopping_list_to_cart with the returned listId to fill the Kroger cart. Edit a saved list with get_shopping_list (for listIds and itemIds), add_shopping_list_items, and edit_shopping_list_item; items take a Kroger upc or any productName. search_products takes providers; a provider without a cart (trader_joes) yields list-only matches. Call get_shopping_profile before personalized suggestions. Other tools: search_stores/get_store/set_preferred_store for stores, add_to_inventory/remove_from_inventory for pantry and equipment, record_order to log purchases, get_weekly_deals for sales, get_meal_planning_context for recipes from pantry contents.",
 } as const;
 
 function requestBearerToken(requestContext: McpRequestContext): string | undefined {
@@ -120,17 +120,26 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
     clientId,
   }));
   const productService = new ProductService(clients.productClient);
-  const traderJoes = createTraderJoesClient({
-    ...(env.TRADER_JOES_GRAPHQL_URL === undefined ? {} : { endpoint: env.TRADER_JOES_GRAPHQL_URL }),
-    ...(env.TRADER_JOES_STORE_CODE === undefined ? {} : { storeCode: env.TRADER_JOES_STORE_CODE }),
-    kv: getUserDataKv(env),
-  });
+  const catalogs = {
+    kroger: createKrogerCatalogProvider(clients.productClient),
+    trader_joes: createTraderJoesCatalogProvider(
+      createTraderJoesClient({
+        ...(env.TRADER_JOES_GRAPHQL_URL === undefined
+          ? {}
+          : { endpoint: env.TRADER_JOES_GRAPHQL_URL }),
+        ...(env.TRADER_JOES_STORE_CODE === undefined
+          ? {}
+          : { storeCode: env.TRADER_JOES_STORE_CODE }),
+        kv: getUserDataKv(env),
+      }),
+    ),
+  } as const;
 
   const ctx: ToolContext = {
     server,
     clients,
     productService,
-    traderJoes,
+    catalogs,
     storage,
     carts,
     requestStateCodec,

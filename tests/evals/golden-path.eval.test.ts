@@ -169,6 +169,6 @@ describe("golden path (scripted agent, text-only)", () => {
     const text = contentText(result);
 
     expect(extractUpcs(text).length).toBeGreaterThan(0);
-    expect(text).toContain("No results");
+    expect(text).toContain("No Kroger results");
   });
 });

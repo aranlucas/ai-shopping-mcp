@@ -1,17 +1,17 @@
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
-import type { AppError } from "../errors.js";
-import type { KrogerClients } from "../services/kroger/client.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
+import type { CatalogSearchOptions } from "../services/catalog/types.js";
 import type { ProductData } from "../app-results.js";
 
 import { appResult } from "../app-results.js";
+import { CATALOG_PROVIDER_IDS } from "../services/catalog/types.js";
 import {
+  formatCatalogSearchMarkdown,
   formatProductDetailMarkdown,
-  formatSearchProductsMarkdown,
 } from "../utils/format-response.js";
-import { fromApiResponse, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import { safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
@@ -19,12 +19,13 @@ import { type ToolContext, errorResult } from "./types.js";
 type Product = ProductComponents["schemas"]["products.productModel"];
 type ProductImage = ProductComponents["schemas"]["products.productImageModel"];
 
-export type ProductSearchResult = {
-  term: string;
-  products: Product[];
-  count: number;
-  failed: boolean;
-};
+// Re-exported so `shop_for_items` and existing tests keep one import site for
+// the Kroger-shaped search, which now lives in the catalog service layer.
+export {
+  type ProductSearchResult,
+  logProductSearchError,
+  searchProductsForTerms,
+} from "../services/catalog/kroger-search.js";
 
 /**
  * Keep the MCP Apps payload useful without sending the complete Kroger catalog
@@ -116,99 +117,13 @@ const getProductInputSchema = z.object({
     .describe("8-character storeId from search_stores to check availability and pricing"),
 });
 
-export function logProductSearchError(term: string, error: AppError) {
-  if (error.type === "AUTH_ERROR") {
-    console.warn(`Search unavailable for "${term}":`, error.message);
-    return;
-  }
-
-  console.error(`Error searching products for "${term}":`, error.message);
-}
-
-/**
- * Searches Kroger products for each term in parallel. Shared by `search_products`
- * and `shop_for_items` so both tools use the same query shape, sorting, and
- * error handling.
- */
-export async function searchProductsForTerms(
-  productClient: KrogerClients["productClient"],
-  terms: string[],
-  params: { locationId?: string; limitPerTerm: number },
-  onSearchComplete?: (completed: number, total: number) => Promise<void> | void,
-): Promise<ProductSearchResult[]> {
-  let completedSearches = 0;
-  const totalSearches = terms.length;
-
-  const searchPromises = terms.map(async (term) => {
-    const queryParams: Record<string, string | number> = {
-      "filter.term": term,
-      ...(params.locationId ? { "filter.locationId": params.locationId } : {}),
-      "filter.fulfillment": "ais",
-      "filter.limit": params.limitPerTerm,
-    };
-
-    const apiResult = await fromApiResponse(
-      productClient.GET("/v1/products", {
-        params: { query: queryParams },
-      }),
-      `search products for "${term}"`,
-    );
-
-    completedSearches++;
-    if (onSearchComplete) await onSearchComplete(completedSearches, totalSearches);
-
-    // Preserve Result type — map Ok to success shape, log and convert Err
-    return apiResult
-      .map((data) => {
-        const products = data?.data || [];
-        return {
-          term,
-          products,
-          count: products.length,
-          failed: false as const,
-        };
-      })
-      .orTee((error) => logProductSearchError(term, error))
-      .match(
-        (result) => result,
-        () => ({
-          term,
-          products: [] as Product[],
-          count: 0,
-          failed: true as const,
-        }),
-      );
-  });
-
-  const results = await Promise.all(searchPromises);
-
-  for (const result of results) {
-    if (!result.failed && result.count > 0) {
-      result.products.sort((a, b) => {
-        const aItem = a.items?.[0];
-        const bItem = b.items?.[0];
-        const aPickup = aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
-        const bPickup = bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
-
-        if (aPickup && !bPickup) return -1;
-        if (!aPickup && bPickup) return 1;
-        return 0;
-      });
-    }
-  }
-
-  return results;
-}
-
 export function registerProductTools(ctx: ToolContext) {
-  const { productClient } = ctx.clients;
-
   ctx.server.registerTool(
     "search_products",
     {
       title: "Search Products",
       description:
-        'Batch product search. Put every needed item (up to 10) in one terms array; do not call once per item. Searches Kroger/QFC in parallel and returns UPCs, prices, and availability. Example: {"terms":["milk","eggs","bread"]}',
+        'Batch product search. Put every needed item (up to 10) in one terms array; do not call once per item. Searches Kroger/QFC and returns UPCs, prices, and availability. Add providers to search other catalogs; a provider without a cart (Trader Joe\'s) yields list-only matches. Example: {"terms":["milk","eggs"],"providers":["kroger","trader_joes"]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -234,6 +149,11 @@ export function registerProductTools(ctx: ToolContext) {
           .max(10)
           .default(5)
           .describe("Max products to return per search term (1-10)"),
+        providers: z
+          .array(z.enum(CATALOG_PROVIDER_IDS))
+          .nonempty()
+          .default(["kroger"])
+          .describe("Catalogs to search. Default is Kroger only."),
         includeLocation: z
           .boolean()
           .default(false)
@@ -242,8 +162,14 @@ export function registerProductTools(ctx: ToolContext) {
           ),
       }),
     },
-    async ({ terms, storeId, limitPerTerm, includeLocation }, requestContext) => {
-      // Resolve storeId: explicit arg → preferred store → omit filter
+    async ({ terms, storeId, limitPerTerm, providers, includeLocation }, requestContext) => {
+      const selected = (providers ?? ["kroger"]).map((id) => ctx.catalogs[id]).filter(Boolean);
+      if (selected.length === 0) {
+        return errorResult(`No such provider. Available: ${CATALOG_PROVIDER_IDS.join(", ")}.`);
+      }
+
+      // Resolve storeId: explicit arg → preferred store → omit filter. This is
+      // the Kroger store; providers that do not recognize it ignore it.
       let resolvedLocationId: string | undefined = storeId;
       if (!resolvedLocationId) {
         const resolved = await safeResolveLocationId(ctx.storage, undefined);
@@ -251,47 +177,78 @@ export function registerProductTools(ctx: ToolContext) {
       }
 
       const progressToken = requestContext.mcpReq._meta?.progressToken;
-
-      const results = await searchProductsForTerms(
-        productClient,
-        terms,
-        { locationId: resolvedLocationId, limitPerTerm },
-        progressToken
-          ? async (completed, total) => {
-              await ResultAsync.fromPromise(
-                requestContext.mcpReq.notify({
-                  method: "notifications/progress",
-                  params: { progressToken, progress: completed, total },
-                }),
-                (e) => e,
-              ).orTee((e) => console.error("Failed to send progress notification:", e));
+      const options: CatalogSearchOptions = {
+        limitPerTerm,
+        includeLocation,
+        ...(resolvedLocationId === undefined ? {} : { storeId: resolvedLocationId }),
+        ...(progressToken
+          ? {
+              onTermComplete: async (completed: number, total: number) => {
+                await ResultAsync.fromPromise(
+                  requestContext.mcpReq.notify({
+                    method: "notifications/progress",
+                    params: { progressToken, progress: completed, total },
+                  }),
+                  (e) => e,
+                ).orTee((e) => console.error("Failed to send progress notification:", e));
+              },
             }
-          : undefined,
+          : {}),
+      };
+
+      // Providers are searched concurrently: they share nothing, so one being
+      // slow or down must not serialize behind or sink the others.
+      const perProvider = await Promise.all(
+        selected.map(async (provider) => {
+          const result = await provider.search(terms, options);
+          return result
+            .orTee((error) => console.warn(`${provider.label} search failed:`, error.message))
+            .unwrapOr(
+              terms.map((term) => ({
+                provider: provider.id,
+                term,
+                products: [],
+                failed: true,
+              })),
+            );
+        }),
       );
+      const results = perProvider.flat();
 
-      const totalProducts = results.reduce((sum, r) => sum + r.count, 0);
-      const failedTerms = results.filter((r) => r.failed);
+      const totalProducts = results.reduce((sum, result) => sum + result.products.length, 0);
+      const failed = results.filter((result) => result.failed);
 
-      if (totalProducts === 0 && failedTerms.length > 0) {
-        return errorResult(
-          `Search failed for: ${failedTerms.map((r) => r.term).join(", ")}. Please try again.`,
-        );
+      // Only a search that found nothing anywhere and failed somewhere is an
+      // error; a Kroger hit with Trader Joe's down is still a useful answer.
+      if (totalProducts === 0 && failed.length > 0) {
+        const terms_ = [...new Set(failed.map((result) => result.term))];
+        return errorResult(`Search failed for: ${terms_.join(", ")}. Please try again.`);
       }
 
       return {
         content: [
           {
             type: "text" as const,
-            text: formatSearchProductsMarkdown(results, { includeLocation: includeLocation }),
+            text: formatCatalogSearchMarkdown(results, selected, { includeLocation }),
           },
         ],
+        // The MCP App view is Kroger-shaped, so it carries only the Kroger
+        // records, taken from the provider's opaque native payload. Providers
+        // without a view contribute text output alone.
         ...appResult("search_products", {
-          results: results.map((result) => ({
-            ...result,
-            products: result.products.map((product) =>
-              compactSearchProduct(product, includeLocation),
-            ),
-          })),
+          results: results
+            .filter((result) => result.provider === "kroger")
+            .map((result) => {
+              const native = result.products
+                .map((product) => product.native)
+                .filter((record): record is Product => record != null);
+              return {
+                term: result.term,
+                products: native.map((product) => compactSearchProduct(product, includeLocation)),
+                count: native.length,
+                failed: result.failed,
+              };
+            }),
           totalProducts,
         }),
       };
