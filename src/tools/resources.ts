@@ -59,7 +59,7 @@ export function registerResources(ctx: ToolContext) {
     "shopping://user/preferred-store",
     {
       description:
-        "The user's preferred Kroger/QFC store. Use this for product searches, weekly deals, and cart operations when no location is explicitly specified. If unset, ask for a zip code and use search_stores followed by set_preferred_store.",
+        "The user's preferred store. Use this for product searches, weekly deals, and cart operations when no location is explicitly specified. If unset, ask for a zip code and use search_stores followed by set_preferred_store.",
       mimeType: "text/toon",
     },
     async () => {

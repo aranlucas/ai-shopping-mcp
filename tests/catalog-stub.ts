@@ -21,6 +21,7 @@ export function stubCatalogProvider(
   return {
     id,
     label: rest.label ?? "Trader Joe's",
+    identifierLabel: rest.identifierLabel ?? (id === "kroger" ? "upc" : "sku"),
     capabilities: rest.capabilities ?? { cart: false, aisleLocation: false },
     search:
       rest.search ??
@@ -46,6 +47,7 @@ export function stubCatalogRegistry(overrides: Partial<CatalogRegistry> = {}): C
     kroger: stubCatalogProvider({
       id: "kroger",
       label: "Kroger",
+      identifierLabel: "upc",
       capabilities: { cart: true, aisleLocation: true },
     }),
     trader_joes: stubCatalogProvider(),

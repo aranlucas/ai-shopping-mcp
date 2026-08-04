@@ -176,8 +176,10 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 /**
  * One catalog line, in the shared vocabulary.
  *
- * The identifier is labeled with its provider (`kroger upc=`, `trader_joes
- * sku=`) rather than a bare `upc=`, because the two are not interchangeable and
+ * The identifier is labeled with both its provider and that provider's own name
+ * for it (`kroger upc=`, `trader_joes sku=`) rather than a bare `upc=`. Kroger
+ * keys everything on a 13-digit UPC and has no SKU concept; a Trader Joe's SKU
+ * is a Magento catalog key and not a barcode. They are not interchangeable, and
  * a model that confuses them will send a Trader Joe's SKU to a cart tool.
  */
 export function formatCatalogProductLine(
@@ -185,8 +187,10 @@ export function formatCatalogProductLine(
   provider: CatalogProvider,
   options: { includeLocation?: boolean } = {},
 ): string {
-  const idLabel = provider.capabilities.cart ? "upc" : "sku";
-  const parts: string[] = [`${provider.id} ${idLabel}=${product.id || "unknown"}`, product.name];
+  const parts: string[] = [
+    `${provider.id} ${provider.identifierLabel}=${product.id || "unknown"}`,
+    product.name,
+  ];
 
   if (product.brand) parts.push(product.brand);
   if (product.size) parts.push(product.size);

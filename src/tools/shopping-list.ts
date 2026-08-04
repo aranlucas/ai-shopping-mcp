@@ -14,20 +14,20 @@ import { upcSchema } from "./schemas.js";
 import { type ToolContext, type UserStorage, textResult } from "./types.js";
 
 /**
- * One item to write to a list. A Kroger product is identified by `upc` and its
- * name is looked up; anything without a Kroger UPC — a Trader Joe's product, a
- * recipe ingredient, a note a shopper typed — is identified by `productName`.
- * At least one of the two is required.
+ * One item to write to a list. A product from a provider that issues UPCs is
+ * identified by `upc` and its name is looked up; anything else — a product from
+ * a provider with no UPC, a recipe ingredient, a note a shopper typed — is
+ * identified by `productName`. At least one of the two is required.
  */
 export const shoppingListItemInputSchema = z
   .object({
-    upc: upcSchema.optional().describe("Kroger UPC from search_products"),
+    upc: upcSchema.optional().describe("UPC from search_products, for providers that have one"),
     productName: z.string().trim().min(1).max(200).optional(),
     quantity: z.coerce.number().min(1).max(999).default(1),
     notes: z.string().max(500).optional(),
   })
   .refine((item) => Boolean(item.upc ?? item.productName), {
-    message: "Each item needs a upc (Kroger product) or a productName.",
+    message: "Each item needs a upc or a productName.",
   });
 
 const listIdSchema = z.string().trim().min(1);
@@ -65,7 +65,7 @@ type ShoppingListItemInput = z.output<typeof shoppingListItemInputSchema>;
 
 /**
  * Resolves each input item to a stored item. A UPC without a name gets one
- * looked up (the ProductService is KV-cached at the Kroger client layer); a
+ * looked up (UPC lookup is Kroger-backed and KV-cached at the client layer); a
  * lookup failure falls back to the UPC as the display name rather than failing
  * the call. Lookups run in parallel.
  */
@@ -119,7 +119,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Create Shopping List",
       description:
-        'Creates a named shopping list; returns `listId` for add_shopping_list_to_cart. Give each item a `upc` for a Kroger product (its name is looked up) or a `productName` for anything else. Example: {"name":"Tuesday dinner","items":[{"upc":"0001111041700","quantity":1}]}',
+        'Creates a named shopping list; returns `listId` for add_shopping_list_to_cart. Give each item a `upc` when search_products returned one (its name is looked up), or a `productName` for anything else — a product from a provider with no upc, a recipe ingredient, free text. Example: {"name":"Tuesday dinner","items":[{"upc":"0001111041700","quantity":1}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -246,7 +246,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Add Shopping List Items",
       description:
-        "Appends items to an existing list, keeping what is already on it. Each item takes a Kroger `upc`, or a `productName` for anything else — a Trader Joe's product, a recipe ingredient, free text.",
+        "Appends items to an existing list, keeping what is already on it. Each item takes a `upc` when search_products returned one, or a `productName` for anything else — a product from a provider with no upc, a recipe ingredient, free text.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,

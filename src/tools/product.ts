@@ -123,7 +123,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Search Products",
       description:
-        'Batch product search. Put every needed item (up to 10) in one terms array; do not call once per item. Searches Kroger/QFC and returns UPCs, prices, and availability. Add providers to search other catalogs; a provider without a cart (Trader Joe\'s) yields list-only matches. Example: {"terms":["milk","eggs"],"providers":["kroger","trader_joes"]}',
+        'Batch product search across store catalogs. Put every needed item (up to 10) in one terms array; do not call once per item. Result lines are labeled `kroger upc=` or `trader_joes sku=`; ids are provider-specific, and only a upc reaches a cart. Example: {"terms":["milk","eggs"],"providers":["kroger","trader_joes"]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -153,7 +153,7 @@ export function registerProductTools(ctx: ToolContext) {
           .array(z.enum(CATALOG_PROVIDER_IDS))
           .nonempty()
           .default(["kroger"])
-          .describe("Catalogs to search. Default is Kroger only."),
+          .describe("Store catalogs to search. Defaults to kroger, the only one with a cart."),
         includeLocation: z
           .boolean()
           .default(false)
@@ -260,7 +260,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Get Product Details",
       description:
-        "Retrieves detailed Kroger/QFC product information by UPC, including size variants, pricing, and availability at a store.",
+        "Retrieves full product details by UPC, including size variants, pricing, and availability at a store. UPCs come from the kroger provider in search_products; other providers use their own identifiers and are not accepted here.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,

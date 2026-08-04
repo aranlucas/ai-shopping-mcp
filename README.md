@@ -1,6 +1,6 @@
-# Kroger shopping MCP
+# Grocery shopping MCP
 
-Cloudflare Worker that exposes authenticated Kroger/QFC shopping tools over MCP. OAuth grants live in the existing `OAUTH_KV` namespace; cart retry state and the product/location cache live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
+Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Product search spans multiple store catalogs; cart, store, and weekly-deal tools are Kroger/QFC-backed. OAuth grants live in the existing `OAUTH_KV` namespace; cart retry state and the product/location cache live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
 
 ## Local development
 
@@ -56,12 +56,14 @@ each search term. A provider is anything implementing `CatalogProvider`
 | `trader_joes`      | no   | Trader Joe's SKU |
 
 The one thing the abstraction deliberately does not hide is what a match can
-_do_. Kroger products carry a UPC and can reach a cart; Trader Joe's products
-can only reach a shopping list. That is why `capabilities.cart` is part of the
-provider contract, every result names its provider, and output lines are labeled
-`kroger upc=` or `trader_joes sku=` rather than a bare `upc=` — the two are not
-interchangeable, and a model that confuses them would send a Trader Joe's SKU to
-a cart tool.
+_do_. Kroger's API has no SKU concept at all — it keys products, items, and the
+cart route on one 13-digit UPC (`productId`, `upc`, and `itemId` are all
+documented as "the UPC"). A Trader Joe's SKU is a Magento catalog key, not a
+barcode. So `capabilities.cart` and `identifierLabel` are both part of the
+provider contract, and output lines read `kroger upc=` or `trader_joes sku=`
+rather than a bare `upc=`. `identifierLabel` is declared per provider rather
+than inferred from `capabilities.cart`, because what an identifier is called and
+whether it can reach a cart are unrelated facts.
 
 Providers degrade independently: one being unreachable marks its own results
 failed and leaves the others intact. The search only errors when nothing was

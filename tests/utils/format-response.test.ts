@@ -333,6 +333,7 @@ describe("formatShoppingListCompact", () => {
 const krogerProvider: CatalogProvider = {
   id: "kroger",
   label: "Kroger",
+  identifierLabel: "upc",
   capabilities: { cart: true, aisleLocation: true },
   search: () => {
     throw new Error("not used by formatter tests");
@@ -342,6 +343,7 @@ const krogerProvider: CatalogProvider = {
 const traderJoesProvider: CatalogProvider = {
   id: "trader_joes",
   label: "Trader Joe's",
+  identifierLabel: "sku",
   capabilities: { cart: false, aisleLocation: false },
   search: () => {
     throw new Error("not used by formatter tests");

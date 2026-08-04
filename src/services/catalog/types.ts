@@ -97,6 +97,16 @@ export interface CatalogProvider {
   readonly id: CatalogProviderId;
   /** Human name used in tool output, e.g. "Trader Joe's". */
   readonly label: string;
+  /**
+   * What this provider calls its product identifier — `upc` for Kroger, whose
+   * API has no SKU concept and keys everything including the cart on a 13-digit
+   * UPC; `sku` for Trader Joe's Magento catalog keys, which are not barcodes.
+   *
+   * Declared per provider rather than inferred from `capabilities.cart`: what an
+   * identifier is called and whether it can reach a cart are unrelated facts,
+   * and a provider with a cart and SKUs would be mislabeled by the inference.
+   */
+  readonly identifierLabel: string;
   readonly capabilities: CatalogCapabilities;
   search(
     terms: string[],

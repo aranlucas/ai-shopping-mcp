@@ -73,6 +73,7 @@ export function createKrogerCatalogProvider(
   return {
     id: "kroger",
     label: "Kroger",
+    identifierLabel: "upc",
     capabilities: { cart: true, aisleLocation: true },
     search(terms: string[], options: CatalogSearchOptions) {
       return ResultAsync.fromSafePromise(

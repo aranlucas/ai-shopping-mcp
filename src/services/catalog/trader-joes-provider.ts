@@ -35,6 +35,7 @@ export function createTraderJoesCatalogProvider(client: TraderJoesClient): Catal
   return {
     id: "trader_joes",
     label: "Trader Joe's",
+    identifierLabel: "sku",
     capabilities: { cart: false, aisleLocation: false },
     search(terms: string[], options: CatalogSearchOptions) {
       // One search per term, in parallel. A term that fails is marked failed
