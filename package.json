@@ -30,15 +30,15 @@
   },
   "dependencies": {
     "@agents/ui": "workspace:*",
-    "@cloudflare/workers-oauth-provider": "^0.8.3",
+    "@cloudflare/workers-oauth-provider": "^0.10.1",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/server": "2.0.0",
     "@sentry/cloudflare": "^10.69.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@toon-format/toon": "^4.1.0",
+    "@toon-format/toon": "^4.1.1",
     "agents": "^0.20.1",
     "embla-carousel-react": "^8.6.0",
-    "hono": "^4.12.34",
+    "hono": "^4.13.0",
     "lucide-react": "^1.28.0",
     "neverthrow": "^8.2.0",
     "openapi-fetch": "^0.17.0",
@@ -48,7 +48,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.20.1",
+    "@cloudflare/vitest-pool-workers": "^0.20.2",
     "@modelcontextprotocol/client": "2.0.0",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
@@ -64,7 +64,7 @@
     "vite": "^8.2.0",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.10",
-    "wrangler": "^4.118.0"
+    "wrangler": "^4.119.0"
   },
   "engines": {
     "node": ">=24.13.0"
