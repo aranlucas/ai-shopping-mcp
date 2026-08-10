@@ -1,17 +1,17 @@
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 
 import { Hono } from "hono";
+import { generateSignedCookie, getCookie, getSignedCookie } from "hono/cookie";
 
 import type { KrogerTokenResponse } from "./services/kroger/client.js";
 import type { AppEnv } from "./env.js";
 
 import {
   clientIdAlreadyApproved,
-  createSignedCookiePayload,
-  parseSignedCookiePayload,
   parseRedirectApproval,
   renderApprovalDialog,
 } from "./workers-oauth-utils";
+import { safeJsonParse } from "./utils/json.js";
 
 type KrogerEnv = AppEnv & { OAUTH_PROVIDER: OAuthHelpers };
 
@@ -104,11 +104,12 @@ async function redirectToKroger(
   // Generate a simple random state for CSRF protection (Kroger requirement)
   // Store oauthReqInfo in a cookie to avoid large state params
   const csrfState = crypto.randomUUID();
-  const oauthStateCookie = await createSignedCookiePayload(
-    { csrfState, oauthReqInfo: _oauthReqInfo },
+  const cookieValue = await generateSignedCookie(
+    "kroger_oauth_state",
+    JSON.stringify({ csrfState, oauthReqInfo: _oauthReqInfo }),
     env.COOKIE_ENCRYPTION_KEY,
+    { httpOnly: true, maxAge: 600, path: "/", sameSite: "Lax", secure: true },
   );
-  const cookieValue = `kroger_oauth_state=${oauthStateCookie}; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/`;
 
   // Order matches Postman: response_type, client_id, scope, redirect_uri, state
   // State is a simple UUID for CSRF protection (not the full oauthReqInfo)
@@ -161,26 +162,23 @@ app.get("/callback", async (c) => {
   }
 
   // Retrieve oauthReqInfo from cookie instead of state parameter
-  const cookieHeader = c.req.header("Cookie");
-  if (!cookieHeader) {
+  const rawOAuthStateCookie = getCookie(c, "kroger_oauth_state");
+  if (!rawOAuthStateCookie) {
     return c.text("Missing authentication cookie", 400);
   }
 
-  const cookies = Object.fromEntries(
-    cookieHeader.split(";").map((c) => {
-      const [key, ...values] = c.trim().split("=");
-      return [key, values.join("=")];
-    }),
-  );
-
-  const oauthStateCookie = cookies.kroger_oauth_state;
-  if (!oauthStateCookie) {
-    return c.text("Missing authentication cookie", 400);
-  }
-
-  const parsedStateCookie = await parseSignedCookiePayload<KrogerOAuthStateCookie>(
-    oauthStateCookie,
+  const oauthStateCookie = await getSignedCookie(
+    c,
     c.env.COOKIE_ENCRYPTION_KEY,
+    "kroger_oauth_state",
+  );
+  if (typeof oauthStateCookie !== "string") {
+    return c.text("Invalid authentication cookie", 400);
+  }
+
+  const parsedStateCookie = safeJsonParse(oauthStateCookie).match(
+    (value) => value as KrogerOAuthStateCookie,
+    () => null,
   );
   if (!parsedStateCookie?.oauthReqInfo || !parsedStateCookie.csrfState) {
     return c.text("Invalid authentication cookie", 400);
