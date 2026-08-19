@@ -23,9 +23,9 @@ function ShoppingItem({ item }: { item: ShoppingListItemData }) {
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
-          {item.upc && (
+          {item.product && (
             <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
-              UPC ready
+              {item.product.provider}
             </Badge>
           )}
           {item.notes && (
@@ -83,8 +83,10 @@ export function ShoppingListView({
     );
   }
 
-  const withUpc = items.filter((i) => i.upc);
-  const withoutUpc = items.filter((i) => !i.upc);
+  const withUpc = items.filter(
+    (item) => item.product?.provider === "kroger" || (!item.product && item.upc),
+  );
+  const withoutUpc = items.filter((item) => !withUpc.includes(item));
 
   const handleCheckout = async () => {
     setCheckoutState("loading");
@@ -111,7 +113,7 @@ export function ShoppingListView({
 
   const handleFindUpcs = () => {
     const names = withoutUpc.map((i) => i.productName).join(", ");
-    sendUserMessage(app, `Find UPCs for these items on my shopping list: ${names}.`);
+    sendUserMessage(app, `Find Kroger matches for these items on my shopping list: ${names}.`);
   };
 
   return (

@@ -315,6 +315,7 @@ describe("add_shopping_list_to_cart tool", () => {
       const storage = makeStorage(
         listFixture(),
         {
+          provider: "kroger",
           locationId: LOCATION_ID,
           locationName: "QFC Broadway",
           address: "500 Broadway E",
@@ -440,6 +441,7 @@ describe("add_shopping_list_to_cart tool", () => {
   describe("inline items path", () => {
     it("adds inline upc/quantity items directly without a listId", async () => {
       const storage = makeStorage(null, {
+        provider: "kroger",
         locationId: LOCATION_ID,
         locationName: "QFC Broadway",
         address: "500 Broadway E",
@@ -504,6 +506,7 @@ describe("add_shopping_list_to_cart tool", () => {
       const storage = makeStorage(
         null,
         {
+          provider: "kroger",
           locationId: LOCATION_ID,
           locationName: "QFC Broadway",
           address: "500 Broadway E",

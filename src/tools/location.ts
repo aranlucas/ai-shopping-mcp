@@ -22,6 +22,7 @@ type Location = LocationComponents["schemas"]["locations.location"];
 /** Location fields rendered by the store list and detail views. */
 function compactLocation(location: Location): LocationData {
   return {
+    provider: "kroger",
     locationId: location.locationId,
     name: location.name,
     chain: location.chain,
@@ -168,6 +169,7 @@ export function registerLocationTools(ctx: ToolContext) {
         }
 
         const preferredLocation: PreferredLocation = {
+          provider: "kroger",
           locationId: location.locationId || "",
           locationName: location.name || "",
           address:

@@ -11,7 +11,7 @@ import type { components } from "../services/kroger/cart.js";
 
 import { appResult } from "../app-results.js";
 import type { KrogerClients } from "../services/kroger/client.js";
-import type { CartSnapshotItem, ShoppingListItem } from "../utils/user-storage.js";
+import type { CartSnapshotItem } from "../utils/user-storage.js";
 
 import { storageError, validationError } from "../errors.js";
 import {
@@ -224,20 +224,27 @@ async function handleListIdCart(
     );
   }
 
-  const withUpc = list.items.filter((item): item is ShoppingListItem & { upc: string } =>
-    Boolean(item.upc),
-  );
-  const withoutUpc = list.items.filter((item) => !item.upc);
+  const cartable = list.items.flatMap((item) => {
+    const upc =
+      item.product?.provider === "kroger"
+        ? item.product.id
+        : item.product === undefined
+          ? item.upc
+          : undefined;
+    return upc ? [{ item, upc }] : [];
+  });
+  const cartableItems = new Set(cartable.map(({ item }) => item));
+  const withoutUpc = list.items.filter((item) => !cartableItems.has(item));
 
-  if (withUpc.length === 0) {
+  if (cartable.length === 0) {
     return {
       content: [
         {
           type: "text" as const,
           text:
-            `Shopping list "${list.name}" has no items with a UPC ready to add to the cart.\n` +
+            `Shopping list "${list.name}" has no Kroger product references ready to add to the cart.\n` +
             (withoutUpc.length > 0
-              ? `Use search_products to find UPCs for: ${withoutUpc.map((i) => i.productName).join(", ")}.`
+              ? `Use search_products with provider=kroger for: ${withoutUpc.map((i) => i.productName).join(", ")}.`
               : ""),
         },
       ],
@@ -246,7 +253,7 @@ async function handleListIdCart(
         name: list.name,
         items: [],
         needsUpc: withoutUpc.map((i) => ({ productName: i.productName, quantity: i.quantity })),
-        actionDetail: "No items with UPCs to add",
+        actionDetail: "No Kroger items to add",
       }),
     };
   }
@@ -255,8 +262,8 @@ async function handleListIdCart(
   if (locationResult.isErr()) return toMcpError(locationResult.error);
   const resolved = locationResult.value;
 
-  const lineItems: LineItem[] = withUpc.map((item) => ({
-    upc: item.upc,
+  const lineItems: LineItem[] = cartable.map(({ item, upc }) => ({
+    upc,
     quantity: item.quantity,
     productName: item.productName,
   }));
@@ -274,12 +281,12 @@ async function handleListIdCart(
     : ` (Store: ${resolved.locationId})`;
 
   const resultParts: string[] = [
-    `Added ${withUpc.length} item(s) from list "${list.name}" to cart${locationInfo}:\n${withUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+    `Added ${cartable.length} item(s) from list "${list.name}" to cart${locationInfo}:\n${cartable.map(({ item }) => `  - ${item.productName} x${item.quantity}`).join("\n")}`,
   ];
 
   if (withoutUpc.length > 0) {
     resultParts.push(
-      `${withoutUpc.length} item(s) need a UPC before checkout (use search_products to find them, then create a new shopping list with create_shopping_list):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
+      `${withoutUpc.length} item(s) are not available through the Kroger cart (search Kroger for equivalents, then create a new list):\n${withoutUpc.map((i) => `  - ${i.productName} x${i.quantity}`).join("\n")}`,
     );
   }
 
@@ -293,7 +300,7 @@ async function handleListIdCart(
         productName: i.productName,
         quantity: i.quantity,
       })),
-      actionDetail: `Added ${withUpc.length} item(s) from list "${list.name}" to cart`,
+      actionDetail: `Added ${cartable.length} item(s) from list "${list.name}" to cart`,
     }),
   };
 }

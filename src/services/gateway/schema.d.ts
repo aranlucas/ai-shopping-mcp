@@ -283,6 +283,11 @@ export interface components {
         Error: {
             error: string;
         };
+        /** @description Provider-scoped product identity. The id is opaque outside its provider. */
+        ProductReference: {
+            provider: string;
+            id: string;
+        };
         Household: {
             id: string;
             name: string;
@@ -320,7 +325,12 @@ export interface components {
             name: string;
             quantity: string;
             note: string | null;
+            /**
+             * @deprecated
+             * @description Legacy Kroger-only identifier. Use product instead.
+             */
             upc?: string | null;
+            product?: components["schemas"]["ProductReference"] | null;
             position: number;
             added_by: string;
             checked_by: string | null;
@@ -333,7 +343,12 @@ export interface components {
             name: string;
             quantity?: string;
             note?: string | null;
+            /**
+             * @deprecated
+             * @description Legacy Kroger-only identifier. Use product instead.
+             */
             upc?: string | null;
+            product?: components["schemas"]["ProductReference"] | null;
         };
         ItemPatch: {
             name?: string | null;
@@ -420,7 +435,12 @@ export interface components {
             added_at: number;
         };
         OrderItem: {
-            upc: string;
+            /**
+             * @deprecated
+             * @description Legacy Kroger-only identifier. Use product instead.
+             */
+            upc?: string;
+            product?: components["schemas"]["ProductReference"] | null;
             name: string;
             quantity: number;
             /** Format: double */
@@ -449,6 +469,7 @@ export interface components {
             notes?: string | null;
         };
         PreferredStore: {
+            provider: string;
             location_id: string;
             name: string;
             address: string;
@@ -457,6 +478,8 @@ export interface components {
             set_at: number;
         };
         PreferredStoreInput: {
+            /** @description Catalog provider. Omitted legacy requests are treated as Kroger. */
+            provider?: string;
             location_id: string;
             name: string;
             address: string;
@@ -466,7 +489,12 @@ export interface components {
         };
         FrequentItem: {
             name: string;
-            upc: string;
+            /**
+             * @deprecated
+             * @description Legacy Kroger-only identifier. Use product instead.
+             */
+            upc?: string;
+            product?: components["schemas"]["ProductReference"] | null;
             orders: number;
             total_quantity: number;
         };

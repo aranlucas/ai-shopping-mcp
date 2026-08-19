@@ -348,6 +348,7 @@ export function installKrogerFetchStub(passthroughHosts: string[] = []): KrogerF
           if (method === "PUT") {
             const body = await jsonBody();
             preferredStore = {
+              provider: body["provider"] ?? "kroger",
               location_id: body["location_id"],
               name: body["name"],
               address: body["address"],
@@ -497,6 +498,7 @@ export function installKrogerFetchStub(passthroughHosts: string[] = []): KrogerF
               name: String(item["name"] ?? ""),
               quantity: String(item["quantity"] ?? "1"),
               note: item["note"] ?? null,
+              ...(item["product"] === undefined ? {} : { product: item["product"] }),
               ...(item["upc"] === undefined ? {} : { upc: item["upc"] }),
               position: index,
               added_by: "eval-user",
@@ -771,6 +773,10 @@ export function extractStoreIds(text: string): string[] {
 
 export function extractUpcs(text: string): string[] {
   return [...text.matchAll(/upc=(\d{13})/g)].map((match) => match[1]);
+}
+
+export function extractProductRefs(text: string): string[] {
+  return [...text.matchAll(/productRef=([a-z][a-z0-9_]{0,63}:[^\s|]+)/g)].map((match) => match[1]);
 }
 
 export function extractListIds(text: string): string[] {

@@ -258,6 +258,7 @@ export function registerShopTools(ctx: ToolContext) {
 
       const listItems: ShoppingListItem[] = matched.map((match) => ({
         productName: match.product.description || match.name,
+        ...(match.product.upc ? { product: { provider: "kroger", id: match.product.upc } } : {}),
         upc: match.product.upc,
         quantity: match.quantity,
       }));

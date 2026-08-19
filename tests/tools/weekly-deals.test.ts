@@ -508,6 +508,7 @@ function makeKV(initialData: Map<string, string> = new Map()): {
 }
 
 const DEFAULT_PREFERRED_LOCATION: PreferredLocation = {
+  provider: "kroger",
   locationId: "70500034",
   locationName: "QFC Test Store",
   address: "1 Test St",

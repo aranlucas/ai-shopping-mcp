@@ -2,6 +2,7 @@ import type { ServerContext } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
+import type { ProductData } from "../../src/app-results.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { PreferredLocation } from "../../src/utils/user-storage.js";
 
@@ -11,7 +12,7 @@ import { logProductSearchError, registerProductTools } from "../../src/tools/pro
 import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
+import { stubCatalogProvider } from "../catalog-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -111,9 +112,7 @@ function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolConte
     productService: new ProductService(clients.productClient),
     // The Kroger provider wraps the stubbed productClient so these tests still
     // exercise the real Kroger query shape through the provider-agnostic tool.
-    catalogs: stubCatalogRegistry({
-      kroger: createKrogerCatalogProvider(clients.productClient),
-    }),
+    catalogs: { kroger: createKrogerCatalogProvider(clients.productClient) },
     storage: storage ?? makeStorage(),
     carts: {} as ToolContext["carts"],
     getEnv: () =>
@@ -283,7 +282,13 @@ describe("search_products", () => {
     const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
 
     const sc = structuredContentOf(result) as {
-      results: Array<{ term: string; products: Product[]; count: number; failed: boolean }>;
+      results: Array<{
+        provider: string;
+        term: string;
+        products: ProductData[];
+        count: number;
+        failed: boolean;
+      }>;
       totalProducts: number;
     };
     expect(sc).not.toHaveProperty("_view");
@@ -292,8 +297,12 @@ describe("search_products", () => {
     });
     expect(sc.totalProducts).toBe(1);
     expect(sc.results).toHaveLength(1);
+    expect(sc.results[0].provider).toBe("kroger");
     expect(sc.results[0].term).toBe("milk");
-    expect(sc.results[0].products[0].upc).toBe("0001111041700");
+    expect(sc.results[0].products[0].product).toEqual({
+      provider: "kroger",
+      id: "0001111041700",
+    });
     expect(sc.results[0].failed).toBe(false);
   });
 
@@ -355,18 +364,24 @@ describe("search_products", () => {
     const result = await getCapturedHandler("search_products")({ terms: ["milk", "bread"] });
 
     const sc = structuredContentOf(result) as {
-      results: Array<{ term: string; failed: boolean; products: Product[]; count: number }>;
+      results: Array<{
+        provider: string;
+        term: string;
+        failed: boolean;
+        products: ProductData[];
+        count: number;
+      }>;
       totalProducts: number;
     };
     expect(sc).not.toHaveProperty("_view");
     expect(sc.totalProducts).toBe(1);
     expect(sc.results).toHaveLength(2);
 
-    const milkResult = sc.results.find((r) => r.term === "milk");
+    const milkResult = sc.results.find((r) => r.provider === "kroger" && r.term === "milk");
     expect(milkResult?.failed).toBe(false);
     expect(milkResult?.products).toHaveLength(1);
 
-    const breadResult = sc.results.find((r) => r.term === "bread");
+    const breadResult = sc.results.find((r) => r.provider === "kroger" && r.term === "bread");
     expect(breadResult?.failed).toBe(true);
     expect(breadResult?.count).toBe(0);
   });
@@ -418,6 +433,7 @@ describe("search_products", () => {
   it("resolves preferred location from storage and uses it as 'filter.locationId' when no storeId arg is given", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     const storage = makeStorage({
+      provider: "kroger",
       locationId: "99887766",
       locationName: "QFC Store",
       address: "123 Main St",
@@ -479,10 +495,10 @@ describe("search_products", () => {
 
     const result = await getCapturedHandler("search_products")({ terms: ["item"] });
 
-    const sc = structuredContentOf(result) as { results: Array<{ products: Product[] }> };
+    const sc = structuredContentOf(result) as { results: Array<{ products: ProductData[] }> };
     const products = sc.results[0].products;
-    expect(products[0].upc).toBe("2222222222222"); // pickup product sorted first
-    expect(products[1].upc).toBe("1111111111111"); // no-pickup product sorted after
+    expect(products[0].product.id).toBe("2222222222222"); // pickup product sorted first
+    expect(products[1].product.id).toBe("1111111111111"); // no-pickup product sorted after
   });
 
   it("projects structuredContent to view fields and omits catalog-only metadata", async () => {
@@ -493,25 +509,29 @@ describe("search_products", () => {
 
     const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
 
-    const sc = structuredContentOf(result) as { results: Array<{ products: Product[] }> };
+    const sc = structuredContentOf(result) as { results: Array<{ products: ProductData[] }> };
     const projected = sc.results[0].products[0];
     expect(projected).toMatchObject({
-      upc: "0001111041700",
-      description: "Test Milk",
-      categories: ["Dairy"],
-      images: [{ sizes: [{ url: "https://example.com/milk.jpg" }] }],
-      items: [{ size: "1 gal", price: { regular: 3.99, promo: 2.99 } }],
+      product: { provider: "kroger", id: "0001111041700" },
+      name: "Test Milk",
+      category: "Dairy",
+      imageUrl: "https://example.com/milk.jpg",
+      size: "1 gal",
+      price: 2.99,
+      regularPrice: 3.99,
+      available: true,
+      pickup: true,
     });
     expect(projected).not.toHaveProperty("aliasProductIds");
     expect(projected).not.toHaveProperty("allergensDescription");
-    expect(projected).not.toHaveProperty("aisleLocations");
-    expect(projected.items?.[0]).not.toHaveProperty("itemId");
+    expect(projected).not.toHaveProperty("aisle");
+    expect(projected).not.toHaveProperty("items");
 
-    // markdown (model context) is compact: no itemId/images, but has upc/pickup fields
+    // Markdown is compact and carries only the universal reference plus useful fields.
     const text = textFromResult(result);
     expect(text).not.toContain("itemId");
     expect(text).not.toContain("images");
-    expect(text).toContain("upc=0001111041700");
+    expect(text).toContain("productRef=kroger:0001111041700");
     expect(text).toContain("pickup: yes");
     expect(text).not.toContain("location:");
     expect(text).not.toContain("shelf:");
@@ -538,8 +558,8 @@ describe("search_products", () => {
       includeLocation: true,
     });
 
-    const sc = structuredContentOf(result) as { results: Array<{ products: Product[] }> };
-    expect(sc.results[0].products[0].aisleLocations?.[0]).toMatchObject({
+    const sc = structuredContentOf(result) as { results: Array<{ products: ProductData[] }> };
+    expect(sc.results[0].products[0].aisle).toMatchObject({
       description: "AISLE 3",
       number: "3",
       sequenceNumber: "7",
@@ -559,14 +579,14 @@ describe("search_products", () => {
     expect(text).toContain("shelf position: 2");
   });
 
-  it("markdown content ends with a reminder to reuse the upc for create_shopping_list", async () => {
+  it("markdown content reminds callers to preserve productRef for create_shopping_list", async () => {
     const product = makeProduct();
     registerProductTools(makeContext(async () => makeSearchResponse([product])));
 
     const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
 
     expect(textFromResult(result)).toContain(
-      "To buy items, pass the exact upc values above to create_shopping_list.",
+      "pass the productRef values above to create_shopping_list",
     );
   });
 });
@@ -591,24 +611,49 @@ describe("get_product", () => {
       upc: "0001111041700",
     });
 
-    const sc = structuredContentOf(result) as { product: Product };
+    const sc = structuredContentOf(result) as { product: ProductData };
     expect(result).toMatchObject({ _meta: { "dev.aranlucas/view": "get_product" } });
-    expect(sc.product.upc).toBe("0001111041700");
-    expect(sc.product.description).toBe("Test Milk");
-    expect(sc.product.items?.[0]).toMatchObject({
-      itemId: "item-001",
+    expect(sc.product.product).toEqual({ provider: "kroger", id: "0001111041700" });
+    expect(sc.product.name).toBe("Test Milk");
+    expect(sc.product).toMatchObject({
       size: "1 gal",
-      price: { regular: 3.99, promo: 2.99 },
+      price: 2.99,
+      regularPrice: 3.99,
+      imageUrl: "https://example.com/milk.jpg",
     });
-    expect(sc.product.images).toEqual([
-      {
-        perspective: "front",
-        default: true,
-        sizes: [{ id: "medium", size: "medium", url: "https://example.com/milk.jpg" }],
-      },
-    ]);
     expect(sc.product).not.toHaveProperty("aliasProductIds");
     expect(sc.product).not.toHaveProperty("allergensDescription");
+  });
+
+  it("dispatches a Trader Joe's productRef through its catalog provider", async () => {
+    const ctx = makeContext(async () => makeDetailResponse(undefined));
+    ctx.catalogs = {
+      ...ctx.catalogs,
+      trader_joes: stubCatalogProvider({
+        products: [
+          {
+            ref: { provider: "trader_joes", id: "076892" },
+            name: "Chili Onion Crunch",
+            price: 3.99,
+            available: true,
+          },
+        ],
+      }),
+    };
+    registerProductTools(ctx);
+
+    const result = await getCapturedHandler("get_product")({
+      productRef: "trader_joes:076892",
+    });
+
+    const sc = structuredContentOf(result) as { product: ProductData };
+    expect(isErrorResult(result)).toBe(false);
+    expect(sc.product).toMatchObject({
+      product: { provider: "trader_joes", id: "076892" },
+      name: "Chili Onion Crunch",
+      price: 3.99,
+    });
+    expect(textFromResult(result)).toContain("productRef=trader_joes:076892");
   });
 
   it("returns MCP error when API response has no product data (data.data is undefined)", async () => {
@@ -660,14 +705,13 @@ describe("get_product", () => {
       upc: "0001111041700",
     });
 
-    const sc = structuredContentOf(result) as { product: Product };
-    expect(sc.product.images).toHaveLength(1);
-    expect(sc.product.images?.[0].sizes).toHaveLength(1);
+    const sc = structuredContentOf(result) as { product: ProductData };
+    expect(sc.product.imageUrl).toBe("https://example.com/milk.jpg");
 
     // markdown (model context) strips the images field
     const text = textFromResult(result);
     expect(text).not.toContain("images");
-    expect(text).toContain("upc: 0001111041700");
+    expect(text).toContain("productRef=kroger:0001111041700");
   });
 
   it("accepts a 10-digit upc and pads it to 13 digits via the schema", () => {
@@ -675,6 +719,17 @@ describe("get_product", () => {
     const tool = getCapturedTool("get_product");
     const config = tool.config as { inputSchema: { parse: (v: unknown) => { upc: string } } };
     expect(config.inputSchema.parse({ upc: "1111041700" }).upc).toBe("0001111041700");
+  });
+
+  it("accepts a universal productRef", () => {
+    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    const tool = getCapturedTool("get_product");
+    const config = tool.config as {
+      inputSchema: { parse: (value: unknown) => { productRef: string } };
+    };
+    expect(config.inputSchema.parse({ productRef: "trader_joes:076892" }).productRef).toBe(
+      "trader_joes:076892",
+    );
   });
 
   it("rejects a upc containing letters", () => {

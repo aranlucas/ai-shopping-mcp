@@ -14,6 +14,7 @@ export type DealData = {
 };
 
 export type LocationData = {
+  provider?: string;
   locationId?: string;
   name?: string;
   chain?: string;
@@ -28,6 +29,7 @@ export type LocationData = {
 };
 
 type PreferredStoreData = {
+  provider: string;
   locationId: string;
   locationName: string;
   address: string;
@@ -36,37 +38,26 @@ type PreferredStoreData = {
 };
 
 export type ProductData = {
-  upc?: string;
-  description?: string;
+  product: { provider: string; id: string };
+  name: string;
   brand?: string;
-  categories?: string[];
-  aisleLocations?: Array<{
+  category?: string;
+  size?: string;
+  price?: number;
+  regularPrice?: number;
+  imageUrl?: string;
+  url?: string;
+  available: boolean;
+  pickup?: boolean;
+  aisle?: {
     bayNumber?: string;
     description?: string;
     number?: string;
-    numberOfFacings?: string;
     sequenceNumber?: string;
     side?: string;
     shelfNumber?: string;
     shelfPositionInBay?: string;
-  }>;
-  images?: Array<{
-    perspective?: string;
-    default?: boolean;
-    sizes?: Array<{ id?: string; size?: string; url?: string }>;
-  }>;
-  items?: Array<{
-    itemId?: string;
-    size?: string;
-    price?: { regular?: number; promo?: number };
-    fulfillment?: {
-      curbside?: boolean;
-      delivery?: boolean;
-      instore?: boolean;
-      shiptohome?: boolean;
-    };
-    inventory?: { stockLevel?: string };
-  }>;
+  };
 };
 
 export type PantryItemData = {
@@ -84,13 +75,15 @@ export type KitchenEquipmentItemData = {
 
 export type ShoppingListItemData = {
   productName: string;
+  product?: { provider: string; id: string };
   upc?: string;
   quantity: number;
   notes?: string;
 };
 
 type OrderItemData = {
-  upc: string;
+  product?: { provider: string; id: string };
+  upc?: string;
   productName: string;
   quantity: number;
   price?: number;
@@ -111,6 +104,7 @@ type AppResultPayloads = {
   };
   search_products: {
     results: Array<{
+      provider: string;
       term: string;
       products: ProductData[];
       count?: number;

@@ -224,10 +224,10 @@ describe("search_products content size", () => {
     // Structured content carries only the compact view projection.
     const sc = (
       result as {
-        structuredContent?: { results?: Array<{ products: Array<{ images?: unknown }> }> };
+        structuredContent?: { results?: Array<{ products: Array<{ imageUrl?: unknown }> }> };
       }
     ).structuredContent;
-    expect(sc?.results?.[0]?.products?.[0]?.images).toBeDefined();
+    expect(sc?.results?.[0]?.products?.[0]?.imageUrl).toBeDefined();
     expect(sc?.results?.[0]?.products?.[0]).not.toHaveProperty("nutritionInformation");
   });
 

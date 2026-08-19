@@ -4,17 +4,28 @@ import type { OrderRecord } from "../utils/user-storage.js";
 import type { ToolContext } from "./types.js";
 
 import { appResult } from "../app-results.js";
+import { parseProductReference } from "../services/catalog/types.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 
-const orderItemSchema = z.object({
-  upc: upcSchema.describe("UPC from search_products"),
-  productName: z.string().max(200),
-  quantity: z.coerce.number().min(1).max(999),
-  price: z.coerce.number().min(0).optional(),
-});
+const orderItemSchema = z
+  .object({
+    productRef: z
+      .string()
+      .trim()
+      .refine((value) => parseProductReference(value) !== null)
+      .optional()
+      .describe("productRef from search_products"),
+    upc: upcSchema.optional().describe("Deprecated Kroger UPC compatibility input"),
+    productName: z.string().max(200),
+    quantity: z.coerce.number().min(1).max(999),
+    price: z.coerce.number().min(0).optional(),
+  })
+  .refine((item) => Boolean(item.productRef ?? item.upc), {
+    message: "Each ordered item needs a productRef.",
+  });
 
 export const recordOrderInputSchema = z.object({
   items: z
@@ -50,9 +61,22 @@ export function registerOrderTools(ctx: ToolContext) {
         0,
       );
 
+      const orderItems = items.map(({ productRef, upc, ...item }) => {
+        const product = productRef
+          ? parseProductReference(productRef)
+          : upc
+            ? { provider: "kroger", id: upc }
+            : null;
+        return {
+          ...item,
+          ...(product === null ? {} : { product }),
+          ...(product?.provider === "kroger" ? { upc: product.id } : {}),
+        };
+      });
+
       const order: OrderRecord = {
         orderId,
-        items,
+        items: orderItems,
         totalItems,
         estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
         placedAt: new Date().toISOString(),

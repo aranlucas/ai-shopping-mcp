@@ -58,10 +58,10 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
   registerResources,
 ];
 
-const SERVER_INFO = { name: "kroger-ai-assistant", version: "1.0.0" } as const;
+const SERVER_INFO = { name: "grocery-shopping-assistant", version: "1.1.0" } as const;
 const SERVER_OPTIONS = {
   instructions:
-    "AI grocery shopping assistant. Preferred store, pantry, equipment, orders, and lists are shared with the user's agents household library. Golden path: call shop_for_items with item names for one-shot shopping-list creation, OR search_products then create_shopping_list for more control — then add_shopping_list_to_cart with the returned listId to fill the cart. Edit a saved list with get_shopping_list (for listIds and itemIds), add_shopping_list_items, and edit_shopping_list_item; items take a upc or any productName. search_products takes providers: kroger (default) and trader_joes (catalog only; its sku never reaches a cart). Cart, store, and deal tools are Kroger-backed. Call get_shopping_profile before personalized suggestions. Other tools: search_stores/get_store/set_preferred_store for stores, add_to_inventory/remove_from_inventory for pantry and equipment, record_order to log purchases, get_weekly_deals for sales, get_meal_planning_context for recipes from pantry contents.",
+    "Grocery assistant with shared stores, pantry, equipment, orders, and lists. Golden path: shop_for_items for one-shot Kroger shopping, or search_products then create_shopping_list for any provider; pass its listId to add_shopping_list_to_cart only for Kroger productRefs. search_products searches all providers by default and returns productRef=<provider>:<id>; preserve exact refs on lists and orders. Edit lists with get_shopping_list, add_shopping_list_items, and edit_shopping_list_item. Store, cart, and deal tools are Kroger-backed. Use get_shopping_profile before personalized suggestions.",
 } as const;
 
 function requestBearerToken(requestContext: McpRequestContext): string | undefined {

@@ -114,7 +114,12 @@ describe("shopping list editing tools", () => {
     });
 
     expect(addItems).toHaveBeenCalledWith("list-a", [
-      { productName: "Whole Milk", upc: "0001111042578", quantity: 2 },
+      {
+        product: { provider: "kroger", id: "0001111042578" },
+        productName: "Whole Milk",
+        upc: "0001111042578",
+        quantity: 2,
+      },
     ]);
   });
 
@@ -195,8 +200,7 @@ describe("search_products across providers", () => {
   });
 
   const chiliCrunch = {
-    provider: "trader_joes" as const,
-    id: "076892",
+    ref: { provider: "trader_joes", id: "076892" },
     name: "Chili Onion Crunch",
     price: 3.99,
     size: "6 Ounce",
@@ -219,13 +223,13 @@ describe("search_products across providers", () => {
 
     const text = textFromResult(result);
     expect(isErrorResult(result)).toBe(false);
-    expect(text).toContain("trader_joes sku=076892");
+    expect(text).toContain("productRef=trader_joes:076892");
     expect(text).toContain("Chili Onion Crunch");
     expect(text).toContain("$3.99");
     expect(text).toContain("Trader Joe's has no cart");
   });
 
-  it("searches only the providers it was asked for", async () => {
+  it("searches every registered provider when providers are omitted", async () => {
     const traderJoes = stubCatalogProvider({ products: [chiliCrunch] });
     const search = vi.spyOn(traderJoes, "search");
     const ctx = makeContext();
@@ -238,8 +242,8 @@ describe("search_products across providers", () => {
       includeLocation: false,
     });
 
-    expect(search).not.toHaveBeenCalled();
-    expect(textFromResult(result)).not.toContain("trader_joes");
+    expect(search).toHaveBeenCalled();
+    expect(textFromResult(result)).toContain("trader_joes");
   });
 
   it("still answers when one provider is blocked", async () => {
@@ -251,8 +255,7 @@ describe("search_products across providers", () => {
         capabilities: { cart: true, aisleLocation: true },
         products: [
           {
-            provider: "kroger",
-            id: "0001111042578",
+            ref: { provider: "kroger", id: "0001111042578" },
             name: "Whole Milk",
             price: 3.49,
             available: true,
@@ -277,7 +280,7 @@ describe("search_products across providers", () => {
     });
 
     expect(isErrorResult(result)).toBe(false);
-    expect(textFromResult(result)).toContain("kroger upc=0001111042578");
+    expect(textFromResult(result)).toContain("productRef=kroger:0001111042578");
     expect(textFromResult(result)).toContain("Trader Joe's search failed for this term.");
   });
 

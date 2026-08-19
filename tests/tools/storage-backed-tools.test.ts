@@ -627,7 +627,7 @@ describe("storage-backed tools", () => {
     expect((sc["needsUpc"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
       "Strawberries",
     ]);
-    expect(textFromResult(result)).toContain("no items with a UPC");
+    expect(textFromResult(result)).toContain("no Kroger product references");
   });
 
   it("reports no shopping list found for an unknown or forged listId", async () => {

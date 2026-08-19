@@ -2,6 +2,7 @@
 import * as z from "zod/v4";
 
 import type { PersistenceKv } from "./kv.js";
+import type { ProductReference } from "../services/catalog/types.js";
 
 import { safeJsonParseWithSchema } from "./json.js";
 
@@ -15,7 +16,9 @@ export interface PantryItem {
 export interface OrderRecord {
   orderId: string;
   items: Array<{
-    upc: string;
+    product?: ProductReference;
+    /** @deprecated Kroger compatibility field. */
+    upc?: string;
     productName: string;
     quantity: number;
     price?: number;
@@ -28,6 +31,7 @@ export interface OrderRecord {
 }
 
 export interface PreferredLocation {
+  provider: string;
   locationId: string;
   locationName: string;
   address: string;
@@ -43,6 +47,8 @@ export interface EquipmentItem {
 
 export interface ShoppingListItem {
   productName: string;
+  product?: ProductReference;
+  /** @deprecated Kroger compatibility field. */
   upc?: string;
   quantity: number;
   notes?: string;

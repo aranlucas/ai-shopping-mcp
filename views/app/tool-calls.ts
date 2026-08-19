@@ -5,7 +5,7 @@ type ProductShoppingListInput = {
   listName?: string;
   productName: string;
   quantity: number;
-  upc: string;
+  productRef: string;
 };
 
 type ProductCartInput = ProductShoppingListInput & {
@@ -19,13 +19,13 @@ export function createProductShoppingListCall({
   listName,
   productName,
   quantity,
-  upc,
+  productRef,
 }: ProductShoppingListInput): CreateShoppingListCall {
   return {
     name: "create_shopping_list",
     arguments: {
       name: listName ?? productName,
-      items: [{ upc, quantity }],
+      items: [{ productRef, productName, quantity }],
     },
   };
 }

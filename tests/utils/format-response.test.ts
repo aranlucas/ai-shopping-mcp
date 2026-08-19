@@ -276,6 +276,7 @@ describe("formatEquipmentListCompact", () => {
 describe("formatPreferredLocationCompact", () => {
   it("formats as 'Name (Chain) | Address | LocationId'", () => {
     const location: PreferredLocation = {
+      provider: "kroger",
       locationId: "70500847",
       locationName: "QFC #815",
       address: "100 Main St",
@@ -299,14 +300,16 @@ describe("formatShoppingListItemCompact", () => {
     expect(formatShoppingListItemCompact(item)).toBe("Butter x1");
   });
 
-  it("formats item with UPC and notes including all fields", () => {
+  it("formats a legacy UPC as a namespaced Kroger product reference", () => {
     const item: ShoppingListItem = {
       productName: "Eggs",
       quantity: 12,
       upc: "0001111042010",
       notes: "large",
     };
-    expect(formatShoppingListItemCompact(item)).toBe("Eggs x12 | 0001111042010 | large");
+    expect(formatShoppingListItemCompact(item)).toBe(
+      "Eggs x12 | productRef=kroger:0001111042010 | large",
+    );
   });
 });
 
@@ -333,9 +336,11 @@ describe("formatShoppingListCompact", () => {
 const krogerProvider: CatalogProvider = {
   id: "kroger",
   label: "Kroger",
-  identifierLabel: "upc",
   capabilities: { cart: true, aisleLocation: true },
   search: () => {
+    throw new Error("not used by formatter tests");
+  },
+  get: () => {
     throw new Error("not used by formatter tests");
   },
 };
@@ -343,17 +348,18 @@ const krogerProvider: CatalogProvider = {
 const traderJoesProvider: CatalogProvider = {
   id: "trader_joes",
   label: "Trader Joe's",
-  identifierLabel: "sku",
   capabilities: { cart: false, aisleLocation: false },
   search: () => {
+    throw new Error("not used by formatter tests");
+  },
+  get: () => {
     throw new Error("not used by formatter tests");
   },
 };
 
 function krogerProduct(overrides: Partial<CatalogProduct> = {}): CatalogProduct {
   return {
-    provider: "kroger",
-    id: "0001111041700",
+    ref: { provider: "kroger", id: "0001111041700" },
     name: "Kroger 2% Reduced Fat Milk",
     brand: "Kroger",
     size: "1 gal",
@@ -369,15 +375,14 @@ describe("formatCatalogProductLine", () => {
   it("labels the identifier with its provider and omits location by default", () => {
     const line = formatCatalogProductLine(krogerProduct(), krogerProvider);
     expect(line).toBe(
-      "- kroger upc=0001111041700 | Kroger 2% Reduced Fat Milk | Kroger | 1 gal | $2.99 (was $3.49) | pickup: yes",
+      "- productRef=kroger:0001111041700 | Kroger 2% Reduced Fat Milk | Kroger | 1 gal | $2.99 (was $3.49) | pickup: yes",
     );
   });
 
   it("calls a cartless provider's identifier a sku, and omits pickup", () => {
     const line = formatCatalogProductLine(
       {
-        provider: "trader_joes",
-        id: "076892",
+        ref: { provider: "trader_joes", id: "076892" },
         name: "Chili Onion Crunch",
         price: 3.99,
         size: "6 Ounce",
@@ -385,7 +390,7 @@ describe("formatCatalogProductLine", () => {
       },
       traderJoesProvider,
     );
-    expect(line).toContain("trader_joes sku=076892");
+    expect(line).toContain("productRef=trader_joes:076892");
     expect(line).not.toContain("pickup:");
   });
 
@@ -442,7 +447,7 @@ describe("formatCatalogSearchMarkdown", () => {
       [krogerProvider],
     );
     expect(text).toContain("## milk");
-    expect(text).toContain("kroger upc=0001111041700");
+    expect(text).toContain("productRef=kroger:0001111041700");
     expect(text).not.toContain("location:");
   });
 
@@ -455,8 +460,7 @@ describe("formatCatalogSearchMarkdown", () => {
           term: "crunch",
           products: [
             {
-              provider: "trader_joes",
-              id: "076892",
+              ref: { provider: "trader_joes", id: "076892" },
               name: "Chili Onion Crunch",
               available: true,
             },
@@ -467,8 +471,8 @@ describe("formatCatalogSearchMarkdown", () => {
       [krogerProvider, traderJoesProvider],
     );
     expect(text.match(/## crunch/gu)).toHaveLength(1);
-    expect(text).toContain("kroger upc=");
-    expect(text).toContain("trader_joes sku=");
+    expect(text).toContain("productRef=kroger:");
+    expect(text).toContain("productRef=trader_joes:076892");
   });
 
   it("passes the location opt-in through to product lines", () => {
@@ -504,20 +508,18 @@ describe("formatCatalogSearchMarkdown", () => {
     expect(text).toContain("Kroger search failed for this term.");
   });
 
-  it("reminds the model to reuse the upc only when a cart provider was searched", () => {
+  it("reminds the model to preserve universal product references", () => {
     const withCart = formatCatalogSearchMarkdown(
       [{ provider: "kroger", term: "milk", products: [krogerProduct()], failed: false }],
       [krogerProvider],
     );
-    expect(withCart).toContain(
-      "To buy items, pass the exact upc values above to create_shopping_list.",
-    );
+    expect(withCart).toContain("pass the productRef values above to create_shopping_list");
 
     const withoutCart = formatCatalogSearchMarkdown(
       [{ provider: "trader_joes", term: "milk", products: [], failed: false }],
       [traderJoesProvider],
     );
-    expect(withoutCart).not.toContain("To buy items");
+    expect(withoutCart).not.toContain("pass the productRef values above to create_shopping_list");
     expect(withoutCart).toContain("Trader Joe's has no cart");
   });
 });

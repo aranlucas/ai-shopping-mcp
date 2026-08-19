@@ -20,15 +20,18 @@ function ProductCarousel({
   canCallTools,
 }: {
   products: ProductData[];
-  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, productRef: string) => Promise<void>;
   canCallTools: boolean;
 }) {
   return (
     <Carousel opts={{ align: "start" }}>
       <CarouselContent className="-ms-2">
         {products.map((product) => (
-          <CarouselItem key={product.upc ?? product.description} className="basis-52 ps-2">
+          <CarouselItem
+            key={`${product.product.provider}:${product.product.id}`}
+            className="basis-52 ps-2"
+          >
             <ProductCard
               product={product}
               onAddToCart={onAddToCart}
@@ -57,20 +60,20 @@ export function ProductSearchView({
 }) {
   const { results, totalProducts } = data;
 
-  const handleAddToCart = async (name: string, upc: string, qty: number) => {
+  const handleAddToCart = async (name: string, productRef: string, qty: number) => {
     await addProductToCart(app, {
       listName: `Cart: ${name}`,
       productName: name,
       quantity: qty,
-      upc,
+      productRef,
     });
   };
 
-  const handleAddToList = async (name: string, upc: string) => {
+  const handleAddToList = async (name: string, productRef: string) => {
     await saveProductToList(app, {
       productName: name,
       quantity: 1,
-      upc,
+      productRef,
     });
   };
 
@@ -112,7 +115,7 @@ export function ProductSearchView({
         if (result.failed) {
           return (
             <div
-              key={result.term}
+              key={`${result.provider}:${result.term}`}
               className="mb-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
             >
               <svg
@@ -135,10 +138,10 @@ export function ProductSearchView({
         }
         if (result.products.length === 0) {
           return (
-            <div key={result.term} className="mb-5">
+            <div key={`${result.provider}:${result.term}`} className="mb-5">
               <div className="mb-1.5 flex items-center gap-2">
                 <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                  {result.term}
+                  {result.term} · {result.provider}
                 </span>
                 <span className="text-xs text-gray-300">·</span>
                 <span className="text-xs text-gray-400">No results</span>
@@ -147,7 +150,7 @@ export function ProductSearchView({
           );
         }
         return (
-          <div key={result.term} className="mb-6">
+          <div key={`${result.provider}:${result.term}`} className="mb-6">
             <div className="mb-2.5 flex items-center gap-2">
               <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                 {result.term}

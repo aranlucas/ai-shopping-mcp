@@ -4,6 +4,7 @@ import type { components as ProductComponents } from "../kroger/product.js";
 import type { KrogerClients } from "../kroger/client.js";
 import type {
   CatalogAisle,
+  CatalogGetOptions,
   CatalogProduct,
   CatalogProvider,
   CatalogSearchOptions,
@@ -11,6 +12,7 @@ import type {
 } from "./types.js";
 
 import { searchProductsForTerms } from "./kroger-search.js";
+import { ProductService } from "../kroger/product-service.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -39,23 +41,27 @@ export function toCatalogProduct(product: Product): CatalogProduct {
   const hasPromo = promo != null && promo > 0 && promo !== regular;
   const price = hasPromo ? promo : (regular ?? undefined);
   const aisle = toAisle(product);
+  const image =
+    product.images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
+    product.images?.[0];
+  const imageUrl =
+    image?.sizes?.find((candidate) => candidate.size === "thumbnail" || candidate.size === "small")
+      ?.url ?? image?.sizes?.[0]?.url;
 
   return {
-    provider: "kroger",
-    id: product.upc ?? "",
+    ref: { provider: "kroger", id: product.upc ?? "" },
     name: product.description ?? "Unknown product",
     ...(product.brand === undefined ? {} : { brand: product.brand }),
     ...(price === undefined ? {} : { price }),
     ...(hasPromo && regular != null ? { regularPrice: regular } : {}),
     ...(item?.size === undefined ? {} : { size: item.size }),
     ...(product.categories?.[0] === undefined ? {} : { category: product.categories[0] }),
+    ...(imageUrl === undefined ? {} : { imageUrl }),
     ...(aisle === undefined ? {} : { aisle }),
     // Kroger's search filter already restricts to items sold at the store, so
     // presence in the response is availability.
     available: true,
     pickup: Boolean(item?.fulfillment?.curbside || item?.fulfillment?.instore),
-    // Carried for the Kroger MCP App views, which render the full record.
-    native: product,
   };
 }
 
@@ -63,17 +69,17 @@ export function toCatalogProduct(product: Product): CatalogProduct {
  * Kroger as a catalog provider.
  *
  * This wraps the existing Kroger product search rather than replacing it:
- * `shop_for_items` and the MCP App views still need the full Kroger records,
- * so those paths keep calling `searchProductsForTerms` directly while the
- * provider-agnostic tool surface goes through here.
+ * `shop_for_items` still needs full Kroger records, so that explicitly
+ * Kroger-only path calls `searchProductsForTerms` while universal tools use
+ * this provider projection.
  */
 export function createKrogerCatalogProvider(
   productClient: KrogerClients["productClient"],
 ): CatalogProvider {
+  const products = new ProductService(productClient);
   return {
     id: "kroger",
     label: "Kroger",
-    identifierLabel: "upc",
     capabilities: { cart: true, aisleLocation: true },
     search(terms: string[], options: CatalogSearchOptions) {
       return ResultAsync.fromSafePromise(
@@ -94,6 +100,9 @@ export function createKrogerCatalogProvider(
           failed: result.failed,
         })),
       );
+    },
+    get(reference, options: CatalogGetOptions) {
+      return products.getProduct(reference.id, options.storeId).map(toCatalogProduct);
     },
   };
 }

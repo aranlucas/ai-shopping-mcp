@@ -12,6 +12,7 @@ import type {
   CatalogProvider,
   CatalogSearchResult,
 } from "../services/catalog/types.js";
+import { formatProductReference } from "../services/catalog/types.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -133,15 +134,17 @@ export function formatPreferredLocationCompact(location: PreferredLocation): str
 
 /**
  * COMPACT: Token-efficient shopping list item formatting
- * Format: Name x qty | UPC | Notes
+ * Format: Name x qty | productRef | Notes
  */
 export function formatShoppingListItemCompact(item: ShoppingListItem): string {
   const parts: string[] = [];
 
   parts.push(`${item.productName} x${item.quantity}`);
 
-  if (item.upc) {
-    parts.push(item.upc);
+  if (item.product) {
+    parts.push(`productRef=${formatProductReference(item.product)}`);
+  } else if (item.upc) {
+    parts.push(`productRef=kroger:${item.upc}`);
   }
 
   if (item.notes) {
@@ -176,21 +179,15 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 /**
  * One catalog line, in the shared vocabulary.
  *
- * The identifier is labeled with both its provider and that provider's own name
- * for it (`kroger upc=`, `trader_joes sku=`) rather than a bare `upc=`. Kroger
- * keys everything on a 13-digit UPC and has no SKU concept; a Trader Joe's SKU
- * is a Magento catalog key and not a barcode. They are not interchangeable, and
- * a model that confuses them will send a Trader Joe's SKU to a cart tool.
+ * The identifier is one namespaced `productRef=` token. Provider adapters own
+ * native UPC/SKU details; generic tools only copy the universal reference.
  */
 export function formatCatalogProductLine(
   product: CatalogProduct,
   provider: CatalogProvider,
   options: { includeLocation?: boolean } = {},
 ): string {
-  const parts: string[] = [
-    `${provider.id} ${provider.identifierLabel}=${product.id || "unknown"}`,
-    product.name,
-  ];
+  const parts: string[] = [`productRef=${formatProductReference(product.ref)}`, product.name];
 
   if (product.brand) parts.push(product.brand);
   if (product.size) parts.push(product.size);
@@ -223,6 +220,14 @@ export function formatCatalogProductLine(
   }
 
   return `- ${parts.join(" | ")}`;
+}
+
+/** Exact product details in the same provider-neutral vocabulary as search. */
+export function formatCatalogProductDetailMarkdown(
+  product: CatalogProduct,
+  provider: CatalogProvider,
+): string {
+  return formatCatalogProductLine(product, provider, { includeLocation: true }).slice(2);
 }
 
 /**
@@ -263,11 +268,11 @@ export function formatCatalogSearchMarkdown(
   const listOnly = providers.filter((provider) => !provider.capabilities.cart);
   lines.push("");
   if (cartable.length > 0) {
-    lines.push("To buy items, pass the exact upc values above to create_shopping_list.");
+    lines.push("To save exact matches, pass the productRef values above to create_shopping_list.");
   }
   for (const provider of listOnly) {
     lines.push(
-      `${provider.label} has no cart: add those to a list by productName, and never send their ids to a cart tool.`,
+      `${provider.label} has no cart: its productRef can be saved to a list but cannot be sent to a cart tool.`,
     );
   }
   return lines.join("\n");

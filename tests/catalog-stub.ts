@@ -1,4 +1,4 @@
-import { ResultAsync, okAsync } from "neverthrow";
+import { errAsync, ResultAsync, okAsync } from "neverthrow";
 
 import type { AppError } from "../src/errors.js";
 import type {
@@ -7,6 +7,8 @@ import type {
   CatalogRegistry,
   CatalogSearchResult,
 } from "../src/services/catalog/types.js";
+
+import { notFoundError } from "../src/errors.js";
 
 /**
  * A catalog provider that answers from a fixed product list, for tests that
@@ -21,7 +23,6 @@ export function stubCatalogProvider(
   return {
     id,
     label: rest.label ?? "Trader Joe's",
-    identifierLabel: rest.identifierLabel ?? (id === "kroger" ? "upc" : "sku"),
     capabilities: rest.capabilities ?? { cart: false, aisleLocation: false },
     search:
       rest.search ??
@@ -38,6 +39,17 @@ export function stubCatalogProvider(
                 failed: false,
               })),
             )),
+    get:
+      rest.get ??
+      ((reference) => {
+        const product = products.find(
+          (candidate) =>
+            candidate.ref.provider === reference.provider && candidate.ref.id === reference.id,
+        );
+        return product
+          ? okAsync(product)
+          : errAsync(notFoundError(`No product found for ${reference.provider}:${reference.id}`));
+      }),
   };
 }
 
@@ -47,7 +59,6 @@ export function stubCatalogRegistry(overrides: Partial<CatalogRegistry> = {}): C
     kroger: stubCatalogProvider({
       id: "kroger",
       label: "Kroger",
-      identifierLabel: "upc",
       capabilities: { cart: true, aisleLocation: true },
     }),
     trader_joes: stubCatalogProvider(),

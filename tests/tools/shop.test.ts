@@ -186,6 +186,7 @@ function getCapturedHandler(name: string): ToolHandler {
 }
 
 const PREFERRED_LOCATION: PreferredLocation = {
+  provider: "kroger",
   locationId: "70500034",
   locationName: "QFC Broadway",
   address: "417 Broadway E",

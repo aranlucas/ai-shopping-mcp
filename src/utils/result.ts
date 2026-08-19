@@ -105,6 +105,7 @@ export function getProps(): Props {
 export function safeResolveLocationId(
   storage: UserStorage,
   locationId?: string,
+  provider = "kroger",
 ): ResultAsync<{ locationId: string; locationName?: string }, AppError> {
   if (locationId) {
     return okAsync<{ locationId: string; locationName?: string }, AppError>({
@@ -118,6 +119,15 @@ export function safeResolveLocationId(
         return err(
           notFoundError(
             "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
+          ),
+        );
+      }
+      // Legacy storage rows predate provider-scoped locations and are Kroger-only.
+      const preferredProvider = preferredLocation.provider || "kroger";
+      if (preferredProvider !== provider) {
+        return err(
+          notFoundError(
+            `The preferred store belongs to provider=${preferredProvider}, not provider=${provider}. Provide a locationId for ${provider}.`,
           ),
         );
       }

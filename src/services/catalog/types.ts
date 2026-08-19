@@ -16,10 +16,29 @@ import type { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../errors.js";
 
-/** Stable provider keys. These appear in tool input, so they are part of the wire contract. */
-export const CATALOG_PROVIDER_IDS = ["kroger", "trader_joes"] as const;
+export type CatalogProviderId = string;
 
-export type CatalogProviderId = (typeof CATALOG_PROVIDER_IDS)[number];
+/** Provider-scoped product identity used by every shared tool and API. */
+export type ProductReference = {
+  provider: CatalogProviderId;
+  id: string;
+};
+
+/** Copyable small-model form of ProductReference. Splits only on the first colon. */
+export function formatProductReference(reference: ProductReference): string {
+  return `${reference.provider}:${reference.id}`;
+}
+
+export function parseProductReference(value: string): ProductReference | null {
+  const separator = value.indexOf(":");
+  if (separator <= 0) return null;
+  const provider = value.slice(0, separator).trim();
+  const id = value.slice(separator + 1).trim();
+  if (!/^[a-z][a-z0-9_]{0,63}$/u.test(provider) || id.length === 0 || id.length > 255) {
+    return null;
+  }
+  return { provider, id };
+}
 
 /** Where an item sits in a store, when the provider knows. */
 export type CatalogAisle = {
@@ -35,13 +54,10 @@ export type CatalogAisle = {
 /**
  * One product, normalized across providers.
  *
- * `id` is provider-scoped and only meaningful to its own provider: a Kroger UPC
- * and a Trader Joe's SKU are not interchangeable, and nothing should treat them
- * as a shared key.
+ * `ref.id` is provider-scoped and only meaningful with `ref.provider`.
  */
 export type CatalogProduct = {
-  provider: CatalogProviderId;
-  id: string;
+  ref: ProductReference;
   name: string;
   brand?: string;
   /** Current price, promotional if one is running. */
@@ -56,14 +72,6 @@ export type CatalogProduct = {
   /** True when the provider offers pickup for this item. */
   pickup?: boolean;
   aisle?: CatalogAisle;
-  /**
-   * The provider's own untouched record.
-   *
-   * Deliberately opaque: it exists for surfaces that are already bound to one
-   * provider's shape — the Kroger MCP App views — and must not be read by
-   * provider-agnostic code, which would defeat the point of this projection.
-   */
-  native?: unknown;
 };
 
 /** Matches from one provider for one search term. */
@@ -85,6 +93,11 @@ export type CatalogSearchOptions = {
   onTermComplete?: (completed: number, total: number) => Promise<void> | void;
 };
 
+export type CatalogGetOptions = {
+  /** Provider-scoped store identifier, when the caller named one. */
+  storeId?: string;
+};
+
 /** What a provider can do beyond search. */
 export type CatalogCapabilities = {
   /** Products can be added to a cart and bought. False for browse-only catalogs. */
@@ -97,22 +110,17 @@ export interface CatalogProvider {
   readonly id: CatalogProviderId;
   /** Human name used in tool output, e.g. "Trader Joe's". */
   readonly label: string;
-  /**
-   * What this provider calls its product identifier — `upc` for Kroger, whose
-   * API has no SKU concept and keys everything including the cart on a 13-digit
-   * UPC; `sku` for Trader Joe's Magento catalog keys, which are not barcodes.
-   *
-   * Declared per provider rather than inferred from `capabilities.cart`: what an
-   * identifier is called and whether it can reach a cart are unrelated facts,
-   * and a provider with a cart and SKUs would be mislabeled by the inference.
-   */
-  readonly identifierLabel: string;
   readonly capabilities: CatalogCapabilities;
   search(
     terms: string[],
     options: CatalogSearchOptions,
   ): ResultAsync<CatalogSearchResult[], AppError>;
+  /** Load one exact provider-scoped product reference. */
+  get(
+    reference: ProductReference,
+    options: CatalogGetOptions,
+  ): ResultAsync<CatalogProduct, AppError>;
 }
 
-/** The providers available to a request, keyed by id. */
-export type CatalogRegistry = Readonly<Record<CatalogProviderId, CatalogProvider>>;
+/** The providers available to a request, keyed by id. This is intentionally open-ended. */
+export type CatalogRegistry = Readonly<Record<string, CatalogProvider>>;

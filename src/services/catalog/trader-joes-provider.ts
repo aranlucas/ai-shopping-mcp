@@ -1,19 +1,24 @@
-import { ResultAsync } from "neverthrow";
+import { err, ok, ResultAsync } from "neverthrow";
 
 import type { TraderJoesClient, TraderJoesProduct } from "../traderjoes/client.js";
 import type {
   CatalogProduct,
+  CatalogGetOptions,
   CatalogProvider,
   CatalogSearchOptions,
   CatalogSearchResult,
 } from "./types.js";
 
+import { notFoundError } from "../../errors.js";
+
 function toCatalogProduct(product: TraderJoesProduct): CatalogProduct {
   return {
-    provider: "trader_joes",
-    // Trader Joe's SKUs are theirs alone — they are not UPCs and mean nothing
-    // to any other provider.
-    id: product.sku,
+    ref: {
+      provider: "trader_joes",
+      // Trader Joe's SKUs are theirs alone — they are not UPCs and mean nothing
+      // to any other provider.
+      id: product.sku,
+    },
     name: product.name,
     ...(product.price === undefined ? {} : { price: product.price }),
     ...(product.size === undefined ? {} : { size: product.size }),
@@ -25,7 +30,7 @@ function toCatalogProduct(product: TraderJoesProduct): CatalogProduct {
 }
 
 /**
- * Trader Joe's as a catalog provider: search only.
+ * Trader Joe's as a catalog provider: search and exact product reads.
  *
  * `capabilities.cart` is false because Trader Joe's publishes no cart or
  * checkout API — not because it is unimplemented here. Callers use that flag to
@@ -35,7 +40,6 @@ export function createTraderJoesCatalogProvider(client: TraderJoesClient): Catal
   return {
     id: "trader_joes",
     label: "Trader Joe's",
-    identifierLabel: "sku",
     capabilities: { cart: false, aisleLocation: false },
     search(terms: string[], options: CatalogSearchOptions) {
       // One search per term, in parallel. A term that fails is marked failed
@@ -67,6 +71,23 @@ export function createTraderJoesCatalogProvider(client: TraderJoesClient): Catal
           }),
         ),
       );
+    },
+    get(reference, options: CatalogGetOptions) {
+      return client
+        .searchProducts(reference.id, {
+          limit: 10,
+          ...(options.storeId === undefined ? {} : { storeCode: options.storeId }),
+        })
+        .andThen((result) => {
+          const product = result.products.find((candidate) => candidate.sku === reference.id);
+          return product
+            ? ok(toCatalogProduct(product))
+            : err(
+                notFoundError(
+                  `No Trader Joe's product found for productRef=trader_joes:${reference.id}`,
+                ),
+              );
+        });
     },
   };
 }

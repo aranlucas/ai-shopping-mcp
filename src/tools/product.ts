@@ -1,23 +1,19 @@
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
-import type { components as ProductComponents } from "../services/kroger/product.js";
-import type { CatalogSearchOptions } from "../services/catalog/types.js";
+import type { CatalogProduct, CatalogSearchOptions } from "../services/catalog/types.js";
 import type { ProductData } from "../app-results.js";
 
 import { appResult } from "../app-results.js";
-import { CATALOG_PROVIDER_IDS } from "../services/catalog/types.js";
 import {
+  formatCatalogProductDetailMarkdown,
   formatCatalogSearchMarkdown,
-  formatProductDetailMarkdown,
 } from "../utils/format-response.js";
-import { safeResolveLocationId, toMcpError } from "../utils/result.js";
+import { safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
-
-type Product = ProductComponents["schemas"]["products.productModel"];
-type ProductImage = ProductComponents["schemas"]["products.productImageModel"];
+import { parseProductReference } from "../services/catalog/types.js";
 
 // Re-exported so `shop_for_items` and existing tests keep one import site for
 // the Kroger-shaped search, which now lives in the catalog service layer.
@@ -27,95 +23,42 @@ export {
   searchProductsForTerms,
 } from "../services/catalog/kroger-search.js";
 
-/**
- * Keep the MCP Apps payload useful without sending the complete Kroger catalog
- * record to hosts that include structuredContent in model context.
- */
-function compactProductImages(images: ProductImage[] | undefined): ProductData["images"] {
-  const image =
-    images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
-    images?.[0];
-  const imageSize =
-    image?.sizes?.find((size) => size.size === "thumbnail" || size.size === "small") ??
-    image?.sizes?.[0];
-
-  return image
-    ? [
-        {
-          perspective: image.perspective,
-          default: image.default,
-          sizes: imageSize ? [imageSize] : [],
-        },
-      ]
-    : undefined;
-}
-
-function compactSearchProduct(product: Product, includeLocation = false): ProductData {
-  const item = product.items?.[0];
-
+/** Universal structured result shared by every provider and MCP App view. */
+function compactCatalogProduct(product: CatalogProduct, includeLocation = false): ProductData {
   return {
-    upc: product.upc,
-    description: product.description,
-    brand: product.brand,
-    categories: product.categories,
-    ...(includeLocation && product.aisleLocations
-      ? { aisleLocations: product.aisleLocations.slice(0, 1) }
-      : {}),
-    images: compactProductImages(product.images),
-    items: item
-      ? [
-          {
-            size: item.size,
-            price: item.price
-              ? { regular: item.price.regular, promo: item.price.promo }
-              : undefined,
-            fulfillment: item.fulfillment
-              ? {
-                  curbside: item.fulfillment.curbside,
-                  delivery: item.fulfillment.delivery,
-                  instore: item.fulfillment.instore,
-                  shiptohome: item.fulfillment.shiptohome,
-                }
-              : undefined,
-            inventory: item.inventory ? { stockLevel: item.inventory.stockLevel } : undefined,
-          },
-        ]
-      : undefined,
+    product: product.ref,
+    name: product.name,
+    available: product.available,
+    ...(product.brand === undefined ? {} : { brand: product.brand }),
+    ...(product.category === undefined ? {} : { category: product.category }),
+    ...(product.size === undefined ? {} : { size: product.size }),
+    ...(product.price === undefined ? {} : { price: product.price }),
+    ...(product.regularPrice === undefined ? {} : { regularPrice: product.regularPrice }),
+    ...(product.imageUrl === undefined ? {} : { imageUrl: product.imageUrl }),
+    ...(product.url === undefined ? {} : { url: product.url }),
+    ...(product.pickup === undefined ? {} : { pickup: product.pickup }),
+    ...(includeLocation && product.aisle !== undefined ? { aisle: product.aisle } : {}),
   };
 }
 
-/** Product fields rendered by the detail app; excludes catalog-only metadata. */
-function compactProductDetail(product: Product): ProductData {
-  return {
-    upc: product.upc,
-    description: product.description,
-    brand: product.brand,
-    categories: product.categories,
-    aisleLocations: product.aisleLocations,
-    images: compactProductImages(product.images),
-    items: product.items?.map((item) => ({
-      itemId: item.itemId,
-      size: item.size,
-      price: item.price ? { regular: item.price.regular, promo: item.price.promo } : undefined,
-      fulfillment: item.fulfillment
-        ? {
-            curbside: item.fulfillment.curbside,
-            delivery: item.fulfillment.delivery,
-            instore: item.fulfillment.instore,
-            shiptohome: item.fulfillment.shiptohome,
-          }
-        : undefined,
-      inventory: item.inventory ? { stockLevel: item.inventory.stockLevel } : undefined,
-    })),
-  };
-}
-
-const getProductInputSchema = z.object({
-  upc: upcSchema.describe("UPC from search_products"),
-  storeId: storeIdSchema
-    .optional()
-    .describe("8-character storeId from search_stores to check availability and pricing"),
-});
+const getProductInputSchema = z
+  .object({
+    productRef: z
+      .string()
+      .trim()
+      .refine((value) => parseProductReference(value) !== null, {
+        message: "Use productRef=<provider>:<id> from search_products",
+      })
+      .optional()
+      .describe("Exact productRef from search_products"),
+    upc: upcSchema.optional().describe("Deprecated Kroger UPC compatibility input"),
+    storeId: storeIdSchema
+      .optional()
+      .describe("Provider-scoped store id for availability and pricing"),
+  })
+  .refine((value) => Boolean(value.productRef) !== Boolean(value.upc), {
+    message: "Provide exactly one productRef from search_products (or legacy Kroger upc)",
+  });
 
 export function registerProductTools(ctx: ToolContext) {
   ctx.server.registerTool(
@@ -123,7 +66,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Search Products",
       description:
-        'Batch product search across store catalogs. Put every needed item (up to 10) in one terms array; do not call once per item. Result lines are labeled `kroger upc=` or `trader_joes sku=`; ids are provider-specific, and only a upc reaches a cart. Example: {"terms":["milk","eggs"],"providers":["kroger","trader_joes"]}',
+        "Batch catalog search. Put every needed item in one terms array; do not call once per item. Omit providers to search all. Matches return `productRef=<provider>:<id>`.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -137,11 +80,13 @@ export function registerProductTools(ctx: ToolContext) {
           .min(1, { message: "At least one search term is required" })
           .max(10, { message: "Maximum 10 search terms allowed" })
           .describe("All needed products in one batch, e.g. ['milk', 'bread', 'eggs']"),
+        stores: z
+          .record(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u), z.string().trim().min(1).max(200))
+          .optional()
+          .describe("Provider-specific store ids, e.g. {kroger:'70500847',trader_joes:'701'}"),
         storeId: storeIdSchema
           .optional()
-          .describe(
-            "8-character storeId from search_stores. Uses your preferred store if omitted.",
-          ),
+          .describe("Deprecated Kroger store id; prefer stores.kroger"),
         limitPerTerm: z.coerce
           .number()
           .int()
@@ -150,10 +95,10 @@ export function registerProductTools(ctx: ToolContext) {
           .default(5)
           .describe("Max products to return per search term (1-10)"),
         providers: z
-          .array(z.enum(CATALOG_PROVIDER_IDS))
+          .array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u))
           .nonempty()
-          .default(["kroger"])
-          .describe("Store catalogs to search. Defaults to kroger, the only one with a cart."),
+          .optional()
+          .describe("Catalog provider ids. Omit to search every registered provider."),
         includeLocation: z
           .boolean()
           .default(false)
@@ -162,44 +107,53 @@ export function registerProductTools(ctx: ToolContext) {
           ),
       }),
     },
-    async ({ terms, storeId, limitPerTerm, providers, includeLocation }, requestContext) => {
-      const selected = (providers ?? ["kroger"]).map((id) => ctx.catalogs[id]).filter(Boolean);
-      if (selected.length === 0) {
-        return errorResult(`No such provider. Available: ${CATALOG_PROVIDER_IDS.join(", ")}.`);
+    async (
+      { terms, stores, storeId, limitPerTerm, providers, includeLocation },
+      requestContext,
+    ) => {
+      const availableProviderIds = Object.keys(ctx.catalogs);
+      const selectedProviderIds = providers ?? availableProviderIds;
+      const unknownProviders = selectedProviderIds.filter((id) => ctx.catalogs[id] === undefined);
+      if (unknownProviders.length > 0) {
+        return errorResult(
+          `Unknown provider(s): ${unknownProviders.join(", ")}. Available: ${availableProviderIds.join(", ")}.`,
+        );
       }
+      const selected = selectedProviderIds.map((id) => ctx.catalogs[id]!);
 
-      // Resolve storeId: explicit arg → preferred store → omit filter. This is
-      // the Kroger store; providers that do not recognize it ignore it.
-      let resolvedLocationId: string | undefined = storeId;
-      if (!resolvedLocationId) {
-        const resolved = await safeResolveLocationId(ctx.storage, undefined);
-        if (resolved.isOk()) resolvedLocationId = resolved.value.locationId;
-      }
+      const preferred = await safeStorage(
+        () => ctx.storage.preferredLocation.get(),
+        "fetch preferred location",
+      ).unwrapOr(null);
 
       const progressToken = requestContext.mcpReq._meta?.progressToken;
-      const options: CatalogSearchOptions = {
-        limitPerTerm,
-        includeLocation,
-        ...(resolvedLocationId === undefined ? {} : { storeId: resolvedLocationId }),
-        ...(progressToken
-          ? {
-              onTermComplete: async (completed: number, total: number) => {
-                await ResultAsync.fromPromise(
-                  requestContext.mcpReq.notify({
-                    method: "notifications/progress",
-                    params: { progressToken, progress: completed, total },
-                  }),
-                  (e) => e,
-                ).orTee((e) => console.error("Failed to send progress notification:", e));
-              },
-            }
-          : {}),
-      };
 
       // Providers are searched concurrently: they share nothing, so one being
       // slow or down must not serialize behind or sink the others.
       const perProvider = await Promise.all(
         selected.map(async (provider) => {
+          const resolvedStoreId =
+            stores?.[provider.id] ??
+            (provider.id === "kroger" ? storeId : undefined) ??
+            (preferred?.provider === provider.id ? preferred.locationId : undefined);
+          const options: CatalogSearchOptions = {
+            limitPerTerm,
+            includeLocation,
+            ...(resolvedStoreId === undefined ? {} : { storeId: resolvedStoreId }),
+            ...(progressToken
+              ? {
+                  onTermComplete: async (completed: number, total: number) => {
+                    await ResultAsync.fromPromise(
+                      requestContext.mcpReq.notify({
+                        method: "notifications/progress",
+                        params: { progressToken, progress: completed, total },
+                      }),
+                      (e) => e,
+                    ).orTee((e) => console.error("Failed to send progress notification:", e));
+                  },
+                }
+              : {}),
+          };
           const result = await provider.search(terms, options);
           return result
             .orTee((error) => console.warn(`${provider.label} search failed:`, error.message))
@@ -232,23 +186,16 @@ export function registerProductTools(ctx: ToolContext) {
             text: formatCatalogSearchMarkdown(results, selected, { includeLocation }),
           },
         ],
-        // The MCP App view is Kroger-shaped, so it carries only the Kroger
-        // records, taken from the provider's opaque native payload. Providers
-        // without a view contribute text output alone.
         ...appResult("search_products", {
-          results: results
-            .filter((result) => result.provider === "kroger")
-            .map((result) => {
-              const native = result.products
-                .map((product) => product.native)
-                .filter((record): record is Product => record != null);
-              return {
-                term: result.term,
-                products: native.map((product) => compactSearchProduct(product, includeLocation)),
-                count: native.length,
-                failed: result.failed,
-              };
-            }),
+          results: results.map((result) => ({
+            provider: result.provider,
+            term: result.term,
+            products: result.products.map((product) =>
+              compactCatalogProduct(product, includeLocation),
+            ),
+            count: result.products.length,
+            failed: result.failed,
+          })),
           totalProducts,
         }),
       };
@@ -260,7 +207,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Get Product Details",
       description:
-        "Retrieves full product details by UPC, including size variants, pricing, and availability at a store. UPCs come from the kroger provider in search_products; other providers use their own identifiers and are not accepted here.",
+        "Gets one exact catalog product by universal productRef. Legacy Kroger upc is accepted.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -270,14 +217,34 @@ export function registerProductTools(ctx: ToolContext) {
       },
       inputSchema: getProductInputSchema,
     },
-    async ({ upc, storeId }) => {
-      const result = await ctx.productService.getProduct(upc, storeId);
+    async ({ productRef, upc, storeId }) => {
+      const reference = productRef
+        ? parseProductReference(productRef)
+        : upc
+          ? { provider: "kroger", id: upc }
+          : null;
+      if (!reference) return errorResult("Provide a productRef from search_products.");
+
+      const provider = ctx.catalogs[reference.provider];
+      if (!provider) {
+        return errorResult(
+          `Unknown provider=${reference.provider}. Available: ${Object.keys(ctx.catalogs).join(", ")}.`,
+        );
+      }
+      const result = await provider.get(reference, storeId === undefined ? {} : { storeId });
 
       if (result.isErr()) return toMcpError(result.error);
       const product = result.value;
       return {
-        content: [{ type: "text" as const, text: formatProductDetailMarkdown(product) }],
-        ...appResult("get_product", { product: compactProductDetail(product) }),
+        content: [
+          {
+            type: "text" as const,
+            text: formatCatalogProductDetailMarkdown(product, provider),
+          },
+        ],
+        ...appResult("get_product", {
+          product: compactCatalogProduct(product, true),
+        }),
       };
     },
   );

@@ -16,6 +16,7 @@ const unixSecondsSchema = z.number().int();
 const unixMillisecondsSchema = z.number().int();
 const nullableStringSchema = z.string().nullable().optional();
 const nullableNumberSchema = z.number().nullable().optional();
+const productReferenceSchema = z.object({ provider: z.string(), id: z.string() });
 
 const pantryItemSchema = z.object({
   name: z.string(),
@@ -31,7 +32,8 @@ const equipmentItemSchema = z.object({
 });
 
 const orderItemSchema = z.object({
-  upc: z.string(),
+  upc: z.string().optional(),
+  product: productReferenceSchema.nullable().optional(),
   name: z.string(),
   quantity: z.number().int(),
   price: nullableNumberSchema,
@@ -48,6 +50,9 @@ const orderSchema = z.object({
 });
 
 const preferredStoreSchema = z.object({
+  // Gateways deployed before v1.1 do not return this field. They only ever
+  // stored Kroger locations, so the compatibility default is unambiguous.
+  provider: z.string().default("kroger"),
   location_id: z.string(),
   name: z.string(),
   address: z.string(),
@@ -62,6 +67,7 @@ const listItemSchema = z.object({
   quantity: z.string(),
   note: z.string().nullable(),
   upc: nullableStringSchema,
+  product: productReferenceSchema.nullable().optional(),
   position: z.number().int(),
   added_by: z.string(),
   checked_by: z.string().nullable(),
@@ -172,7 +178,8 @@ function adaptOrder(order: z.output<typeof orderSchema>): OrderRecord {
   return {
     orderId: order.id,
     items: order.items.map((item) => ({
-      upc: item.upc,
+      ...(item.product == null ? {} : { product: item.product }),
+      ...(item.upc == null ? {} : { upc: item.upc }),
       productName: item.name,
       quantity: item.quantity,
       ...(item.price == null ? {} : { price: item.price }),
@@ -187,6 +194,7 @@ function adaptOrder(order: z.output<typeof orderSchema>): OrderRecord {
 
 function adaptPreferredStore(store: z.output<typeof preferredStoreSchema>): PreferredLocation {
   return {
+    provider: store.provider,
     locationId: store.location_id,
     locationName: store.name,
     address: store.address,
@@ -199,6 +207,7 @@ function adaptShoppingListItem(item: z.output<typeof listItemSchema>): ShoppingL
   return {
     id: item.id,
     productName: item.name,
+    ...(item.product == null ? {} : { product: item.product }),
     ...(item.upc == null ? {} : { upc: item.upc }),
     quantity: Number.parseFloat(item.quantity) || 1,
     ...(item.note == null ? {} : { notes: item.note }),
@@ -230,6 +239,7 @@ function toGatewayNewItem(item: ShoppingListItem) {
     name: item.productName,
     quantity: String(item.quantity),
     note: item.notes ?? null,
+    ...(item.product === undefined ? {} : { product: item.product }),
     ...(item.upc === undefined ? {} : { upc: item.upc }),
   };
 }
@@ -299,6 +309,7 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
         await readGateway(
           client.PUT("/api/grocery/preferred-store", {
             body: {
+              provider: location.provider,
               location_id: location.locationId,
               name: location.locationName,
               address: location.address,
@@ -468,7 +479,8 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
             body: {
               id: order.orderId,
               items: order.items.map((item) => ({
-                upc: item.upc,
+                ...(item.product === undefined ? {} : { product: item.product }),
+                ...(item.upc === undefined ? {} : { upc: item.upc }),
                 name: item.productName,
                 quantity: item.quantity,
                 ...(item.price === undefined ? {} : { price: item.price }),

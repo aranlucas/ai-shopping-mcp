@@ -87,26 +87,11 @@ export function DisplayModeToggle({
 }
 
 export function FulfillmentTags({ product }: { product: ProductData }) {
-  const item = product.items?.[0];
-  if (!item?.fulfillment) return null;
-
-  const tags: Array<{ label: string; className: string }> = [];
-  if (item.fulfillment.curbside)
-    tags.push({ label: "Pickup", className: "bg-blue-50 text-blue-700" });
-  if (item.fulfillment.delivery)
-    tags.push({ label: "Delivery", className: "bg-purple-50 text-purple-700" });
-  if (item.fulfillment.instore)
-    tags.push({ label: "In-Store", className: "bg-emerald-50 text-emerald-700" });
-
-  if (tags.length === 0) {
-    return (
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        <Badge variant="outline" className="bg-red-50 text-red-600">
-          Out of Stock
-        </Badge>
-      </div>
-    );
-  }
+  const tags: Array<{ label: string; className: string }> = product.pickup
+    ? [{ label: "Pickup", className: "bg-blue-50 text-blue-700" }]
+    : [];
+  if (!product.available) tags.push({ label: "Out of Stock", className: "bg-red-50 text-red-600" });
+  if (tags.length === 0) return null;
 
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">
@@ -120,22 +105,20 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
 }
 
 export function PriceDisplay({ product }: { product: ProductData }) {
-  const item = product.items?.[0];
-  if (!item?.price?.regular) {
+  if (product.price === undefined) {
     return <span className="font-mono text-xs text-gray-400">—</span>;
   }
-  const { regular, promo } = item.price;
-  const hasPromo = promo != null && promo !== regular;
+  const hasPromo = product.regularPrice !== undefined && product.regularPrice !== product.price;
 
   return (
     <span className="inline-flex items-baseline gap-1.5">
       <span className="font-mono text-base leading-none font-medium text-emerald-600">
-        ${hasPromo ? promo?.toFixed(2) : regular?.toFixed(2)}
+        ${product.price.toFixed(2)}
       </span>
       {hasPromo && (
         <>
           <span className="font-mono text-xs text-gray-400 line-through">
-            ${regular?.toFixed(2)}
+            ${product.regularPrice?.toFixed(2)}
           </span>
           <Badge variant="outline" className="bg-red-50 text-red-600">
             Sale
@@ -230,29 +213,29 @@ export function ActionButton({
 }
 
 export function ProductActions({
-  upc,
+  productRef,
+  cartEnabled,
   name,
   disabled,
   onAddToCart,
   onAddToList,
 }: {
-  upc: string | undefined;
+  productRef: string;
+  cartEnabled: boolean;
   name: string;
   disabled?: boolean;
-  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, productRef: string) => Promise<void>;
 }) {
   const [cartState, setCartState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [listState, setListState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!upc) return null;
-
   const handleCart = async () => {
     setCartState("loading");
     setErrorMsg(null);
     try {
-      await onAddToCart(name, upc, 1);
+      await onAddToCart(name, productRef, 1);
       setCartState("done");
       setTimeout(() => setCartState("idle"), 2000);
     } catch (e) {
@@ -270,7 +253,7 @@ export function ProductActions({
     setListState("loading");
     setErrorMsg(null);
     try {
-      await onAddToList(name, upc);
+      await onAddToList(name, productRef);
       setListState("done");
       setTimeout(() => setListState("idle"), 2000);
     } catch (e) {
@@ -287,31 +270,33 @@ export function ProductActions({
   return (
     <div>
       <div className="flex gap-1.5">
-        <ActionButton
-          state={cartState}
-          onClick={handleCart}
-          disabled={disabled}
-          idleLabel="Add to Cart"
-          loadingLabel="Adding..."
-          doneLabel="Added!"
-          failLabel="Failed"
-          variant="primary"
-          icon={
-            <svg
-              aria-hidden="true"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-              />
-            </svg>
-          }
-        />
+        {cartEnabled && (
+          <ActionButton
+            state={cartState}
+            onClick={handleCart}
+            disabled={disabled}
+            idleLabel="Add to Cart"
+            loadingLabel="Adding..."
+            doneLabel="Added!"
+            failLabel="Failed"
+            variant="primary"
+            icon={
+              <svg
+                aria-hidden="true"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+                />
+              </svg>
+            }
+          />
+        )}
         <ActionButton
           state={listState}
           onClick={handleList}
@@ -340,15 +325,10 @@ export function ProductActions({
 }
 
 function ProductImage({ product }: { product: ProductData }) {
-  const frontImage = product.images?.find(
-    (img) => (img as { default?: boolean }).default || img.perspective === "front",
-  );
-  const sizes = frontImage?.sizes ?? product.images?.[0]?.sizes;
-  const thumbnail =
-    sizes?.find((s) => s.size === "thumbnail" || s.size === "small")?.url ?? sizes?.[0]?.url;
+  const thumbnail = product.imageUrl;
 
   if (!thumbnail) {
-    const initials = (product.description ?? "?")
+    const initials = product.name
       .split(" ")
       .slice(0, 2)
       .map((w) => w[0])
@@ -365,7 +345,7 @@ function ProductImage({ product }: { product: ProductData }) {
     <div className="aspect-square w-full overflow-hidden bg-gray-50">
       <img
         src={thumbnail}
-        alt={product.description ?? "Product"}
+        alt={product.name}
         className="size-full object-contain p-2"
         loading="lazy"
         onError={(e) => {
@@ -384,16 +364,16 @@ export function ProductCard({
 }: {
   product: ProductData;
   canCallTools: boolean;
-  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, productRef: string) => Promise<void>;
 }) {
-  const name = product.description || "Unknown Product";
+  const name = product.name;
   const brand = product.brand;
-  const upc = product.upc;
-  const size = product.items?.[0]?.size;
+  const productRef = `${product.product.provider}:${product.product.id}`;
+  const size = product.size;
   const aisle =
-    product.aisleLocations?.[0]?.description ||
-    (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
+    product.aisle?.description ||
+    (product.aisle?.number ? `Aisle ${product.aisle.number}` : undefined);
 
   return (
     <Card size="sm" className="h-full transition-shadow duration-150 hover:shadow-md">
@@ -438,17 +418,16 @@ export function ProductCard({
         </div>
         <FulfillmentTags product={product} />
       </CardContent>
-      {upc && (
-        <CardFooter className="pt-2">
-          <ProductActions
-            upc={upc}
-            name={name}
-            disabled={!canCallTools}
-            onAddToCart={onAddToCart}
-            onAddToList={onAddToList}
-          />
-        </CardFooter>
-      )}
+      <CardFooter className="pt-2">
+        <ProductActions
+          productRef={productRef}
+          cartEnabled={product.product.provider === "kroger"}
+          name={name}
+          disabled={!canCallTools}
+          onAddToCart={onAddToCart}
+          onAddToList={onAddToList}
+        />
+      </CardFooter>
     </Card>
   );
 }
