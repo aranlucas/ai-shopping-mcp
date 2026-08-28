@@ -1,14 +1,12 @@
-import { isInputRequiredResult, type ServerContext } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
-import type { CartConfirmationState, ShopForItemsContinuation } from "../cart-confirmation.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
 import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
 import { rankProductMatches } from "../services/match-ranker.js";
-import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
+import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type LineItem, addLineItemsToCart } from "./cart.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
@@ -84,13 +82,6 @@ function formatMatchLineMarkdown(
   return `- ${parts.join(" | ")} (qty ${quantity})`;
 }
 
-function shopInputFingerprint(
-  items: Array<{ name: string; quantity: number }>,
-  addToCart: boolean,
-): string {
-  return JSON.stringify({ items, addToCart });
-}
-
 function shoppingListResponse(listId: string, list: ShoppingList, parts: string[]) {
   return {
     content: [{ type: "text" as const, text: parts.join("\n") }],
@@ -104,40 +95,31 @@ function shoppingListResponse(listId: string, list: ShoppingList, parts: string[
 
 async function finishShopForItemsCart(
   ctx: ToolContext,
-  requestContext: ServerContext,
-  continuation: ShopForItemsContinuation,
+  listId: string,
+  responseText: string,
   list: ShoppingList,
   lineItems: LineItem[],
 ) {
-  const parts = [continuation.responseText];
-  const addResult = await addLineItemsToCart(
-    ctx,
-    requestContext,
-    ctx.clients.cartClient,
-    lineItems,
-    "PICKUP",
-    {
-      continuation,
-      receiptListId: continuation.listId,
-    },
-  );
-  if (isInputRequiredResult(addResult)) return addResult;
+  const parts = [responseText];
+  const addResult = await addLineItemsToCart(ctx, ctx.clients.cartClient, lineItems, "PICKUP", {
+    receiptListId: listId,
+  });
   if (addResult.isErr()) {
     if (addResult.error.type === "STORAGE_ERROR") {
       return toMcpError(addResult.error);
     }
     parts.push(
       "",
-      `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${continuation.listId}"}.`,
+      `Cart add failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${listId}"}.`,
     );
-    return shoppingListResponse(continuation.listId, list, parts);
+    return shoppingListResponse(listId, list, parts);
   }
 
   parts.push(
     "",
     `Added ${lineItems.length} item(s) to your Kroger cart (no need to call add_shopping_list_to_cart).`,
   );
-  return shoppingListResponse(continuation.listId, list, parts);
+  return shoppingListResponse(listId, list, parts);
 }
 
 export function registerShopTools(ctx: ToolContext) {
@@ -158,39 +140,8 @@ export function registerShopTools(ctx: ToolContext) {
       },
       inputSchema: shopForItemsInputSchema,
     },
-    async ({ items, addToCart }, requestContext) => {
+    async ({ items, addToCart }) => {
       getProps();
-      const fingerprint = shopInputFingerprint(items, addToCart);
-      const pendingState = requestContext.mcpReq.requestState<CartConfirmationState>();
-      const pendingContinuation = pendingState?.continuation;
-
-      if (
-        addToCart &&
-        pendingState?.kind === "cart-confirmation" &&
-        pendingContinuation?.kind === "shop-for-items" &&
-        pendingContinuation.inputFingerprint === fingerprint
-      ) {
-        const listResult = await safeStorage(
-          () => ctx.storage.shoppingList.get(pendingContinuation.listId),
-          "resume shopping list cart confirmation",
-        );
-        if (listResult.isErr()) return toMcpError(listResult.error);
-        if (!listResult.value) {
-          return toMcpError(
-            validationError(
-              `Shopping list "${pendingContinuation.listId}" no longer exists. Run shop_for_items again.`,
-            ),
-          );
-        }
-        return finishShopForItemsCart(
-          ctx,
-          requestContext,
-          pendingContinuation,
-          listResult.value,
-          pendingState.items,
-        );
-      }
-
       const resolvedLocation = await safeResolveLocationId(ctx.storage, undefined);
       if (resolvedLocation.isErr()) {
         return toMcpError(
@@ -289,9 +240,8 @@ export function registerShopTools(ctx: ToolContext) {
         return shoppingListResponse(listId, list, parts);
       }
 
-      // addToCart: reuse the same confirm-then-PUT path as
-      // add_shopping_list_to_cart so the elicitation confirmation still
-      // gates the write.
+      // addToCart: reuse the same direct PUT path as
+      // add_shopping_list_to_cart.
       const lineItems: LineItem[] = matched.flatMap((match) =>
         match.product.upc
           ? [
@@ -312,13 +262,7 @@ export function registerShopTools(ctx: ToolContext) {
         return shoppingListResponse(listId, list, parts);
       }
 
-      const continuation: ShopForItemsContinuation = {
-        kind: "shop-for-items",
-        inputFingerprint: fingerprint,
-        listId,
-        responseText: parts.join("\n"),
-      };
-      return finishShopForItemsCart(ctx, requestContext, continuation, list, lineItems);
+      return finishShopForItemsCart(ctx, listId, parts.join("\n"), list, lineItems);
     },
   );
 }

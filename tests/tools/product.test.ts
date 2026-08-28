@@ -9,7 +9,6 @@ import type { PreferredLocation } from "../../src/utils/user-storage.js";
 import { apiError, authError } from "../../src/errors.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { logProductSearchError, registerProductTools } from "../../src/tools/product.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
 import { stubCatalogProvider } from "../catalog-stub.js";
@@ -119,7 +118,6 @@ function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolConte
       ({
         USER_DATA_KV: { get: async () => null, put: async () => {} },
       }) as unknown as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

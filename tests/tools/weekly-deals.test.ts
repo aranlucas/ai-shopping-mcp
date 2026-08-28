@@ -13,7 +13,6 @@ import {
   parseCacheEntry,
   registerWeeklyDealsTools,
 } from "../../src/tools/weekly-deals.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import type { TestToolHandler as ToolHandler } from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
@@ -549,7 +548,6 @@ function makeWeeklyDealsContext(
     } as unknown as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => (kv ? { USER_DATA_KV: kv } : {}) as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

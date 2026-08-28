@@ -16,7 +16,6 @@ import type { ToolContext } from "../../src/tools/types.js";
 import { createKrogerClients } from "../../src/services/kroger/client.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerProductTools } from "../../src/tools/product.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { createCartPersistence } from "../../src/utils/user-storage.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
@@ -206,7 +205,6 @@ describe("search_products content size", () => {
         ({
           USER_DATA_KV: { get: async () => null, put: async () => {} },
         }) as unknown as Env,
-      requestStateCodec: testCartConfirmationCodec,
     });
 
     return getTool("search_products")({ terms });

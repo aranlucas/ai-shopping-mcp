@@ -1,11 +1,6 @@
-import { isInputRequiredResult, type ServerContext } from "@modelcontextprotocol/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
-import {
-  requestCheckoutConfirmation,
-  type ShopForItemsContinuation,
-} from "../cart-confirmation.js";
 import type { AppError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 
@@ -68,34 +63,23 @@ function toCartSnapshotItems(
 }
 
 /**
- * Confirms with the user (via elicitation) and PUTs the given line items to
- * the Kroger cart. Shared by every cart-write path (listId, inline items, and
- * `shop_for_items`'s `addToCart`) so the confirm → PUT → mirror-append logic
- * lives in one place. On success, also appends to the per-user cart mirror
+ * PUTs the given line items to the Kroger cart. Shared by every cart-write
+ * path (listId, inline items, and `shop_for_items`'s `addToCart`) so the
+ * PUT → mirror-append logic lives in one place. On success, also appends to
+ * the per-user cart mirror
  * (`ctx.carts.cartMirror`) that `view_cart` reads — best-effort, a mirror
  * write failure does not fail the tool call. List-backed writes also persist
  * their retry receipt here so every caller gets the same duplicate protection.
  */
 export async function addLineItemsToCart(
   ctx: ToolContext,
-  requestContext: ServerContext,
   cartClient: KrogerClients["cartClient"],
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
   options: {
-    continuation?: ShopForItemsContinuation;
     receiptListId?: string;
   } = {},
 ) {
-  const confirmation = await requestCheckoutConfirmation(
-    ctx,
-    requestContext,
-    lineItems,
-    options.continuation,
-  );
-  if (isInputRequiredResult(confirmation)) return confirmation;
-  if (confirmation.isErr()) return err<void, AppError>(confirmation.error);
-
   const cartItems: CartItem[] = lineItems.map((item) => ({
     upc: item.upc,
     quantity: item.quantity,
@@ -141,7 +125,6 @@ export async function addLineItemsToCart(
 
 async function handleInlineItemsCart(
   ctx: ToolContext,
-  requestContext: ServerContext,
   cartClient: KrogerClients["cartClient"],
   items: Array<{ upc: string; quantity: number }>,
   storeId: string | undefined,
@@ -150,8 +133,7 @@ async function handleInlineItemsCart(
   const locationResult = await safeResolveLocationId(ctx.storage, storeId);
   if (locationResult.isErr()) return toMcpError(locationResult.error);
 
-  const addResult = await addLineItemsToCart(ctx, requestContext, cartClient, items, modality);
-  if (isInputRequiredResult(addResult)) return addResult;
+  const addResult = await addLineItemsToCart(ctx, cartClient, items, modality);
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   const resolved = locationResult.value;
@@ -178,7 +160,6 @@ async function handleInlineItemsCart(
 
 async function handleListIdCart(
   ctx: ToolContext,
-  requestContext: ServerContext,
   cartClient: KrogerClients["cartClient"],
   listId: string,
   storeId: string | undefined,
@@ -268,10 +249,9 @@ async function handleListIdCart(
     productName: item.productName,
   }));
 
-  const addResult = await addLineItemsToCart(ctx, requestContext, cartClient, lineItems, modality, {
+  const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality, {
     receiptListId: listId,
   });
-  if (isInputRequiredResult(addResult)) return addResult;
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   const snapshot = toCartSnapshotItems(lineItems, modality);
@@ -374,14 +354,14 @@ export function registerCartTools(ctx: ToolContext) {
       },
       inputSchema: addShoppingListToCartInputSchema,
     },
-    async ({ listId, items, storeId, modality }, requestContext) => {
+    async ({ listId, items, storeId, modality }) => {
       getProps();
       if (listId) {
-        return handleListIdCart(ctx, requestContext, cartClient, listId, storeId, modality);
+        return handleListIdCart(ctx, cartClient, listId, storeId, modality);
       }
 
       if (items) {
-        return handleInlineItemsCart(ctx, requestContext, cartClient, items, storeId, modality);
+        return handleInlineItemsCart(ctx, cartClient, items, storeId, modality);
       }
 
       return toMcpError(

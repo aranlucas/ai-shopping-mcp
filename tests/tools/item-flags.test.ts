@@ -13,7 +13,6 @@ import {
   pantryFlagLabel,
 } from "../../src/tools/item-flags.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
 function makePantryItem(overrides: Partial<PantryItem> = {}): PantryItem {
@@ -72,7 +71,6 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
             },
           }
         : {}) as unknown as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

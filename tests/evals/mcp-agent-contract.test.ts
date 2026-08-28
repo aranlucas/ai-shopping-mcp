@@ -12,7 +12,6 @@ import { registerShopTools } from "../../src/tools/shop.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
@@ -65,7 +64,6 @@ function makeContext(): ToolContext {
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

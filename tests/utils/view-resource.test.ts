@@ -8,7 +8,6 @@ import {
   RESOURCE_MIME_TYPE,
   registerViewResource,
 } from "../../src/utils/view-resource.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
 const EXPECTED_MIME_TYPE = "text/html;profile=mcp-app";
@@ -68,7 +67,6 @@ function makeContext(env: Env): ToolContext {
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

@@ -1,15 +1,10 @@
 import OAuthProvider, { GrantType, OAuthError } from "@cloudflare/workers-oauth-provider";
 import * as Sentry from "@sentry/cloudflare";
-import {
-  createRequestStateCodec,
-  McpServer,
-  type McpRequestContext,
-} from "@modelcontextprotocol/server";
+import { McpServer, type McpRequestContext } from "@modelcontextprotocol/server";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
 import type { AppEnv } from "./env.js";
-import type { CartConfirmationState } from "./cart-confirmation.js";
 import type { KrogerTokenInfo } from "./services/kroger/client.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 
@@ -87,15 +82,7 @@ function requestBearerToken(requestContext: McpRequestContext): string | undefin
  */
 function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer {
   const clientId = requestContext.authInfo?.clientId ?? getProps().id;
-  const userId = getProps().id;
-  const requestStateCodec = createRequestStateCodec<CartConfirmationState>({
-    key: `${env.COOKIE_ENCRYPTION_KEY}\0mcp-request-state-v1`,
-    bind: ({ mcpReq }) => `${mcpReq.method}\0${clientId}\0${userId}`,
-  });
-  const server = new McpServer(SERVER_INFO, {
-    ...SERVER_OPTIONS,
-    requestState: { verify: requestStateCodec.verify },
-  });
+  const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
 
   const clients = createKrogerClients((): KrogerTokenInfo | null => {
     const props = getMcpAuthContext()?.props;
@@ -142,7 +129,6 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
     catalogs,
     storage,
     carts,
-    requestStateCodec,
     getEnv: () => env,
   };
 

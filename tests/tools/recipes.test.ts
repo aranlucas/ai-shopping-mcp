@@ -4,7 +4,6 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { EquipmentItem, OrderRecord, PantryItem } from "../../src/utils/user-storage.js";
 
 import { computeRestockSuggestions, registerRecipeTools } from "../../src/tools/recipes.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type AuthContext = {
@@ -103,7 +102,6 @@ function makeContext(storage = makeStorage()): ToolContext {
     storage,
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

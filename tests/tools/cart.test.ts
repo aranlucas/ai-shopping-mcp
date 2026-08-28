@@ -9,7 +9,6 @@ import type {
 } from "../../src/utils/user-storage.js";
 
 import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
@@ -186,9 +185,6 @@ function makeContext(
         handler: wrapV2ToolHandler(handler, server),
       });
     },
-    server: {
-      elicitInput: async () => ({ action: "accept" as const, content: { confirm: true } }),
-    },
   };
   const context: ToolContext = {
     server: server as unknown as ToolContext["server"],
@@ -223,7 +219,6 @@ function makeContext(
     storage: actualStorage,
     carts: actualStorage,
     getEnv: () => ({}) as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 
   return { context, putCalls, snapshotSetCalls, getCalls };
@@ -258,6 +253,7 @@ describe("add_shopping_list_to_cart tool", () => {
       });
 
       expect(isErrorResult(result)).toBe(false);
+      expect(result).not.toHaveProperty("inputRequests");
       expect(textFromResult(result)).toContain("1 item(s)");
       expect(textFromResult(result)).toContain("Tuesday Dinner");
       expect(putCalls).toHaveLength(1);

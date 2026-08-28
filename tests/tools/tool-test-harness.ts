@@ -11,7 +11,6 @@ import type {
   PreferredLocation,
   ShoppingListItem,
 } from "../../src/utils/user-storage.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
@@ -34,11 +33,6 @@ export type CapturedTool = {
   name: string;
   config: unknown;
   handler: ToolHandler;
-};
-
-export type ElicitResult = {
-  action: "accept" | "decline" | "cancel";
-  content?: { confirm?: boolean };
 };
 
 const testState = vi.hoisted(() => ({
@@ -211,17 +205,9 @@ export function makeContext(
         handler: wrapV2ToolHandler(handler, server),
       });
     },
-    server: {
-      elicitInput: async () => ({ action: "accept" as const, content: { confirm: true } }),
-    },
   };
   return {
-    server: {
-      ...server,
-      server: {
-        elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
-      },
-    } as unknown as ToolContext["server"],
+    server: server as unknown as ToolContext["server"],
     clients: {
       cartClient: {
         PUT: async () => ({
@@ -235,13 +221,11 @@ export function makeContext(
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 
-export function makeContextWithElicit(
+export function makeCartContext(
   storage: UserStorage & CartStore,
-  elicitResult: ElicitResult,
   cartStatus = 204,
   productService: ProductService = makeProductService(),
 ): ToolContext {
@@ -252,9 +236,6 @@ export function makeContextWithElicit(
         config,
         handler: wrapV2ToolHandler(handler, server),
       });
-    },
-    server: {
-      elicitInput: async () => elicitResult,
     },
   };
   return {
@@ -272,7 +253,6 @@ export function makeContextWithElicit(
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 

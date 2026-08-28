@@ -3,14 +3,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { UserStorage } from "../../src/tools/types.js";
-import type { ElicitResult } from "./tool-test-harness.js";
 
 import {
   getCapturedHandler,
   getCapturedTool,
   isErrorResult,
+  makeCartContext,
   makeContext,
-  makeContextWithElicit,
   makeProductService,
   makeStorage,
   resetToolTestHarness,
@@ -462,11 +461,7 @@ describe("storage-backed tools", () => {
       set: async () => {},
     } as unknown as UserStorage["preferredLocation"];
 
-    const ctx = makeContextWithElicit(
-      storage,
-      { action: "accept", content: { confirm: true } },
-      204,
-    );
+    const ctx = makeCartContext(storage, 204);
 
     registerShoppingListTools(ctx);
     const createHandler = getCapturedHandler("create_shopping_list");
@@ -506,11 +501,7 @@ describe("storage-backed tools", () => {
       set: async () => {},
     } as unknown as UserStorage["preferredLocation"];
 
-    const ctx = makeContextWithElicit(
-      storage,
-      { action: "accept", content: { confirm: true } },
-      204,
-    );
+    const ctx = makeCartContext(storage, 204);
 
     registerShoppingListTools(ctx);
     registerCartTools(ctx);
@@ -573,12 +564,7 @@ describe("storage-backed tools", () => {
       clear: async () => {},
     };
 
-    const ctx = makeContextWithElicit(
-      storage,
-      { action: "accept", content: { confirm: true } },
-      204,
-      makeProductService({ "0001111042578": "Milk" }),
-    );
+    const ctx = makeCartContext(storage, 204, makeProductService({ "0001111042578": "Milk" }));
     registerShoppingListTools(ctx);
     registerCartTools(ctx);
 
@@ -593,9 +579,7 @@ describe("storage-backed tools", () => {
       storeId: "70500847",
     });
     expect(isErrorResult(added)).toBe(false);
-    // The v2 confirmation flow re-enters the tool after input_required, so
-    // the list is resolved once before confirmation and once before mutation.
-    expect(lookups).toEqual([gatewayListId, gatewayListId]);
+    expect(lookups).toEqual([gatewayListId]);
   });
 
   it("bails when the shopping list has no items with UPCs", async () => {
@@ -610,7 +594,7 @@ describe("storage-backed tools", () => {
       set: async () => {},
     } as unknown as UserStorage["preferredLocation"];
 
-    const ctx = makeContextWithElicit(storage, { action: "accept" });
+    const ctx = makeCartContext(storage);
     registerCartTools(ctx);
 
     const listId = "list_deadbeef";
@@ -631,48 +615,13 @@ describe("storage-backed tools", () => {
   });
 
   it("reports no shopping list found for an unknown or forged listId", async () => {
-    const ctx = makeContextWithElicit(makeStorage(), { action: "accept" });
+    const ctx = makeCartContext(makeStorage());
     registerCartTools(ctx);
     const handler = getCapturedHandler("add_shopping_list_to_cart");
 
     const result = await handler({ listId: "list_deadbeef" });
     expect(isErrorResult(result)).toBe(true);
     expect(textFromResult(result)).toContain("No shopping list found");
-  });
-
-  it("aborts add_shopping_list_to_cart when the user declines elicitation", async () => {
-    const storage = makeStorage();
-    storage.preferredLocation = {
-      get: async () => ({
-        locationId: "70500847",
-        locationName: "QFC",
-        address: "",
-        chain: "QFC",
-        setAt: new Date().toISOString(),
-      }),
-      set: async () => {},
-    } as unknown as UserStorage["preferredLocation"];
-
-    const ctx = makeContextWithElicit(storage, { action: "accept" }, 204);
-    registerShoppingListTools(ctx);
-    registerCartTools(ctx);
-
-    const createResult = await getCapturedHandler("create_shopping_list")({
-      name: "Dinner",
-      items: [{ upc: "0001111042578", quantity: 2 }],
-    });
-    const listId = (createResult as { structuredContent: { listId: string } }).structuredContent
-      .listId;
-
-    // Reconfigure elicitation to decline for the actual add_shopping_list_to_cart call.
-    (
-      ctx.server as unknown as { server: { elicitInput: () => Promise<ElicitResult> } }
-    ).server.elicitInput = async () => ({ action: "decline" });
-
-    const handler = getCapturedHandler("add_shopping_list_to_cart");
-    const result = await handler({ listId });
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("cancelled");
   });
 
   it("adds inline items to the cart without a shopping list", async () => {
@@ -688,11 +637,7 @@ describe("storage-backed tools", () => {
       set: async () => {},
     } as unknown as UserStorage["preferredLocation"];
 
-    const ctx = makeContextWithElicit(
-      storage,
-      { action: "accept", content: { confirm: true } },
-      204,
-    );
+    const ctx = makeCartContext(storage, 204);
     registerCartTools(ctx);
     const handler = getCapturedHandler("add_shopping_list_to_cart");
 

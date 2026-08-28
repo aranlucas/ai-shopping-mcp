@@ -6,7 +6,6 @@ import type { CartStore, PreferredLocation, ShoppingList } from "../../src/utils
 
 import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
-import { testCartConfirmationCodec } from "../cart-confirmation.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
@@ -85,7 +84,6 @@ function makeContext(
   cartOptions: {
     status?: number;
     throws?: boolean;
-    elicitAction?: "accept" | "decline" | "cancel";
     cartPutCalls?: CartPutCall[];
     snapshotSetCalls?: unknown[][];
     mirrorAppendCalls?: unknown[][];
@@ -95,7 +93,6 @@ function makeContext(
   const cartPutCalls = cartOptions.cartPutCalls ?? [];
   const snapshotSetCalls = cartOptions.snapshotSetCalls ?? [];
   const mirrorAppendCalls = cartOptions.mirrorAppendCalls ?? [];
-  const elicitAction = cartOptions.elicitAction ?? "accept";
 
   const storage = {
     preferredLocation: {
@@ -139,12 +136,6 @@ function makeContext(
         handler: wrapV2ToolHandler(handler, server),
       });
     },
-    server: {
-      elicitInput: async () =>
-        elicitAction === "accept"
-          ? ({ action: "accept", content: { confirm: true } } as const)
-          : ({ action: elicitAction } as const),
-    },
   };
   return {
     server: server as unknown as ToolContext["server"],
@@ -170,7 +161,6 @@ function makeContext(
         AI: { run: async () => ({ data: [] }) },
         USER_DATA_KV: { get: async () => null, put: async () => {} },
       }) as unknown as Env,
-    requestStateCodec: testCartConfirmationCodec,
   };
 }
 
@@ -369,30 +359,6 @@ describe("shop_for_items", () => {
       expect(text).toContain("cart");
       expect(text).toContain("no need to call add_shopping_list_to_cart");
       expect(text).not.toContain("Review these matches");
-    });
-
-    it("still returns the created list, unadded, when the cart confirmation is declined", async () => {
-      const cartPutCalls: CartPutCall[] = [];
-
-      registerShopTools(
-        makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION, {
-          elicitAction: "decline",
-          cartPutCalls,
-        }),
-      );
-
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "whole milk" }],
-        addToCart: true,
-      });
-
-      expect(isErrorResult(result)).toBe(false);
-      expect(cartPutCalls).toHaveLength(0);
-      const sc = structuredContentOf(result);
-      expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
-      const text = textFromResult(result);
-      expect(text).toContain("cancelled or failed");
-      expect(text).toContain(`add_shopping_list_to_cart {"listId":"${sc["listId"]}"}`);
     });
   });
 
