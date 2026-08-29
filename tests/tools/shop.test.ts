@@ -306,6 +306,96 @@ describe("shop_for_items", () => {
     expect(textFromResult(result)).toContain("No preferred store set");
     expect(textFromResult(result)).toContain("search_stores");
     expect(textFromResult(result)).toContain("set_preferred_store");
+    expect(textFromResult(result)).toContain("storeId");
+  });
+
+  it("shops with an explicit storeId when no preferred store is saved", async () => {
+    const queries: Array<string | number | undefined> = [];
+    registerShopTools(
+      makeContext(async (_path, opts) => {
+        queries.push(opts.params.query?.["filter.locationId"]);
+        return { data: { data: [makeProduct()] }, response: new Response(null, { status: 200 }) };
+      }, null),
+    );
+
+    const result = await getCapturedHandler("shop_for_items")({
+      items: [{ name: "milk" }],
+      storeId: "70500847",
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(queries).toEqual(["70500847"]);
+    expect(textFromResult(result)).toContain("listId=");
+  });
+
+  it("shops with storeId when preferred-store storage returns 401", async () => {
+    const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+    ctx.storage.preferredLocation.get = async () => {
+      throw new Error("401 Unauthorized");
+    };
+    registerShopTools(ctx);
+
+    const result = await getCapturedHandler("shop_for_items")({
+      items: [{ name: "milk" }],
+      storeId: "70500847",
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(textFromResult(result)).toContain("Kroger 2% Reduced Fat Milk");
+  });
+
+  it("names storeId recovery when preferred-store storage 401s and no storeId is supplied", async () => {
+    const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+    ctx.storage.preferredLocation.get = async () => {
+      throw new Error("401 Unauthorized");
+    };
+    registerShopTools(ctx);
+
+    const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+
+    expect(isErrorResult(result)).toBe(true);
+    const text = textFromResult(result);
+    expect(text).toContain("401");
+    expect(text).toContain("storeId");
+    expect(text).not.toMatch(/^No preferred store set/);
+  });
+
+  it("still returns matches when create_shopping_list storage 401s", async () => {
+    const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+    ctx.storage.shoppingList.create = async () => {
+      throw new Error("401 Unauthorized");
+    };
+    registerShopTools(ctx);
+
+    const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+
+    expect(isErrorResult(result)).toBe(false);
+    const text = textFromResult(result);
+    expect(text).toContain("could not be saved");
+    expect(text).toContain("401");
+    expect(text).toContain("add_shopping_list_to_cart");
+    expect(text).toContain("0001111041700");
+  });
+
+  it("still PUTs the cart when list create 401s and addToCart is true", async () => {
+    const cartPutCalls: CartPutCall[] = [];
+    const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION, {
+      cartPutCalls,
+    });
+    ctx.storage.shoppingList.create = async () => {
+      throw new Error("401 Unauthorized");
+    };
+    registerShopTools(ctx);
+
+    const result = await getCapturedHandler("shop_for_items")({
+      items: [{ name: "milk" }],
+      addToCart: true,
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(cartPutCalls).toHaveLength(1);
+    expect(textFromResult(result)).toContain("Added");
+    expect(textFromResult(result)).toContain("cart");
   });
 
   describe("addToCart", () => {

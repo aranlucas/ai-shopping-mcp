@@ -8,13 +8,19 @@ import { appResult } from "../app-results.js";
 import { registerAppTool } from "../utils/app-tool.js";
 import { notFoundError, storageError, validationError } from "../errors.js";
 import { rankProductMatches } from "../services/match-ranker.js";
-import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
+import {
+  getProps,
+  safeResolveLocationId,
+  safeStorage,
+  STORE_ID_RECOVERY_HINT,
+  toMcpError,
+} from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type LineItem, addLineItemsToCart, toCartSnapshotItems } from "./cart.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { searchProductsForTerms } from "./product.js";
-import { coercedBooleanSchema } from "./schemas.js";
-import { createShoppingListRecord } from "./shopping-list.js";
+import { coercedBooleanSchema, storeIdSchema } from "./schemas.js";
+import { createShoppingListRecord, inlineCartAddRecovery } from "./shopping-list.js";
 import { type ToolContext } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -38,6 +44,9 @@ export const shopForItemsInputSchema = z.object({
     .min(1, { message: "At least one item is required" })
     .max(10, { message: "Maximum 10 items allowed" })
     .describe("Items to search for and add to a new shopping list"),
+  storeId: storeIdSchema
+    .optional()
+    .describe("8-character storeId from search_stores. Uses your preferred store if omitted."),
   addToCart: coercedBooleanSchema
     .optional()
     .default(false)
@@ -93,7 +102,7 @@ export function registerShopTools(ctx: ToolContext) {
     {
       title: "Shop For Items",
       description:
-        'One-shot shopping: resolves your preferred store, searches for each item name, picks the best match, and creates a shopping list. Set addToCart:true to also add the matches to your Kroger cart (PICKUP). Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
+        'One-shot shopping: searches for each item name, picks the best match, and creates a shopping list. Pass storeId from search_stores when no preferred store is saved. Set addToCart:true to also add the matches to your Kroger cart (PICKUP). Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"storeId":"70500847","addToCart":true}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -103,14 +112,22 @@ export function registerShopTools(ctx: ToolContext) {
       },
       inputSchema: shopForItemsInputSchema,
     },
-    async ({ items, addToCart }, requestContext) => {
+    async ({ items, addToCart, storeId }, requestContext) => {
       getProps();
 
-      const resolvedLocation = await safeResolveLocationId(ctx.storage, undefined);
+      const resolvedLocation = await safeResolveLocationId(ctx.storage, storeId);
       if (resolvedLocation.isErr()) {
+        if (resolvedLocation.error.type === "NOT_FOUND") {
+          return toMcpError(
+            notFoundError(
+              `No preferred store set. ${STORE_ID_RECOVERY_HINT} Or use search_stores then set_preferred_store and try again.`,
+            ),
+          );
+        }
         return toMcpError(
-          notFoundError(
-            "No preferred store set. Use search_stores to find a store, then set_preferred_store to save it, and try again.",
+          storageError(
+            `${resolvedLocation.error.message}. ${STORE_ID_RECOVERY_HINT}`,
+            resolvedLocation.error,
           ),
         );
       }
@@ -180,11 +197,13 @@ export function registerShopTools(ctx: ToolContext) {
       const listName = `Shopping list ${new Date().toISOString().slice(0, 10)}`;
 
       const createResult = await createShoppingListRecord(ctx.storage, listName, listItems);
-      if (createResult.isErr()) return toMcpError(createResult.error);
-      const { shortId, list } = createResult.value;
+      const shortId = createResult.isOk() ? createResult.value.shortId : undefined;
+      const list = createResult.isOk() ? createResult.value.list : undefined;
 
       const parts: string[] = [
-        `Created shopping list "${listName}" (listId=${shortId}) with ${matched.length} item(s).`,
+        shortId
+          ? `Created shopping list "${listName}" (listId=${shortId}) with ${matched.length} item(s).`
+          : `Found ${matched.length} item(s). Shopping list could not be saved (${createResult.isErr() ? createResult.error.message : "unknown error"}).`,
         "",
         ...matched.map((match) =>
           formatMatchLineMarkdown(match.name, match.quantity, match.product, match.flags),
@@ -197,17 +216,21 @@ export function registerShopTools(ctx: ToolContext) {
 
       const respond = () => ({
         content: [{ type: "text" as const, text: parts.join("\n") }],
-        ...appResult("create_shopping_list", {
-          listId: shortId,
-          name: list.name,
-          items: list.items,
-        }),
+        ...(shortId && list
+          ? appResult("create_shopping_list", {
+              listId: shortId,
+              name: list.name,
+              items: list.items,
+            })
+          : {}),
       });
 
       if (!addToCart) {
         parts.push(
           "",
-          `Review these matches, then call add_shopping_list_to_cart with listId "${shortId}" to add them to the Kroger cart.`,
+          shortId
+            ? `Review these matches, then call add_shopping_list_to_cart with listId "${shortId}" to add them to the Kroger cart.`
+            : `Add the matches with ${inlineCartAddRecovery(listItems, locationId)}.`,
         );
         return respond();
       }
@@ -230,7 +253,9 @@ export function registerShopTools(ctx: ToolContext) {
       if (lineItems.length === 0) {
         parts.push(
           "",
-          `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${shortId}"} once available.`,
+          shortId
+            ? `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${shortId}"} once available.`
+            : `None of the matches had a upc to add to cart. Retry with ${inlineCartAddRecovery(listItems, locationId)}.`,
         );
         return respond();
       }
@@ -246,26 +271,31 @@ export function registerShopTools(ctx: ToolContext) {
       if (addResult.isErr()) {
         parts.push(
           "",
-          `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${shortId}"}.`,
+          shortId
+            ? `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${shortId}"}.`
+            : `Cart add was cancelled or failed. Retry with ${inlineCartAddRecovery(listItems, locationId)}.`,
         );
         return respond();
       }
 
       // Persist the cart snapshot under the same storage key
       // add_shopping_list_to_cart checks, so a follow-up call with this
-      // listId short-circuits instead of double-adding.
-      const snapshot = toCartSnapshotItems(lineItems, "PICKUP");
-      const snapshotResult = await safeStorage(
-        () => ctx.storage.cartSnapshot.set(shortId, snapshot),
-        "persist cart snapshot",
-      );
-      if (snapshotResult.isErr()) {
-        return toMcpError(
-          storageError(
-            "Kroger accepted the cart add, but its local retry receipt could not be saved. The outcome is ambiguous; do not retry because that may add duplicates. Check the Kroger cart first.",
-            snapshotResult.error,
-          ),
+      // listId short-circuits instead of double-adding. Skip when the list
+      // itself could not be saved — there is no listId to key the receipt.
+      if (shortId) {
+        const snapshot = toCartSnapshotItems(lineItems, "PICKUP");
+        const snapshotResult = await safeStorage(
+          () => ctx.storage.cartSnapshot.set(shortId, snapshot),
+          "persist cart snapshot",
         );
+        if (snapshotResult.isErr()) {
+          return toMcpError(
+            storageError(
+              "Kroger accepted the cart add, but its local retry receipt could not be saved. The outcome is ambiguous; do not retry because that may add duplicates. Check the Kroger cart first.",
+              snapshotResult.error,
+            ),
+          );
+        }
       }
 
       parts.push(

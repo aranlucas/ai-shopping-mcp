@@ -1,5 +1,6 @@
 import {
   acceptedContent,
+  CLIENT_CAPABILITIES_META_KEY,
   inputRequired,
   inputResponse,
   type InputRequiredResult,
@@ -50,16 +51,53 @@ class ElicitationFailedError extends Error {}
  * The exact message the MCP SDK's `Server#elicitInput` throws when the
  * connected client didn't advertise the `elicitation.form` capability (see
  * `elicitInput` in `@modelcontextprotocol/sdk/server/index.js`). There is no
- * typed error or capability check exposed for this — `requestCheckoutConfirmation`
- * below distinguishes "capability absent" (fall through, treat as implicit
- * confirmation) from "elicitation actually failed" (surface an error) by
- * string-matching this message. An SDK upgrade that rewords it would silently
- * turn every no-elicitation client into a failed checkout, so this constant
- * is asserted against the installed SDK directly in
- * tests/tools/shopping-list-confirmation.test.ts — that test fails loudly if
- * the SDK's wording ever changes.
+ * typed error or capability check exposed for this on the 2025 push path —
+ * `requestCheckoutConfirmation` distinguishes "capability absent" (fall
+ * through, treat as implicit confirmation) from "elicitation actually failed"
+ * (surface an error) by string-matching this message. The MCP 2.0 envelope
+ * path uses `clientSupportsFormElicitation` instead of this string. An SDK
+ * upgrade that rewords it would silently turn every no-elicitation 2025-era
+ * client into a failed checkout, so this constant is asserted against the
+ * installed SDK directly in tests/tools/shopping-list-confirmation.test.ts.
  */
 export const ELICITATION_UNSUPPORTED_MESSAGE = "Client does not support form elicitation.";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * MCP 2.0 form-elicitation support, matching the SDK's inputRequired gate:
+ * `elicitation.form` is required, and a bare `elicitation: {}` still counts
+ * as form (the pre-mode declaration). URL-only clients do not qualify.
+ * Hosts that attach an envelope but omit elicitation entirely must not
+ * receive `inputRequired` — the SDK rejects that with -32021 and the
+ * cart PUT never runs.
+ */
+export function clientSupportsFormElicitation(requestContext?: ServerContext): boolean {
+  const envelope = requestContext?.mcpReq.envelope;
+  if (!isRecord(envelope)) return false;
+  const capabilities = envelope[CLIENT_CAPABILITIES_META_KEY];
+  if (!isRecord(capabilities)) return false;
+  const elicitation = capabilities.elicitation;
+  if (!isRecord(elicitation)) return false;
+  if (elicitation.form !== undefined) return true;
+  return elicitation.url === undefined;
+}
+
+/** Recovery text so a list-save failure can still become an inline cart add. */
+export function inlineCartAddRecovery(
+  items: Array<{ upc?: string; quantity: number }>,
+  storeId?: string,
+): string {
+  const inline = items
+    .filter((item): item is { upc: string; quantity: number } => Boolean(item.upc))
+    .map((item) => ({ upc: item.upc, quantity: item.quantity }));
+  return `add_shopping_list_to_cart ${JSON.stringify({
+    items: inline,
+    storeId: storeId ?? "<storeId from search_stores>",
+  })}`;
+}
 
 export function requestCheckoutConfirmation(
   server: CheckoutConfirmationServer,
@@ -90,6 +128,13 @@ export async function requestCheckoutConfirmation(
       checkoutConfirmationSchema,
     );
     if (!accepted) {
+      // Envelope present does not mean the client can fulfill elicitation.
+      // Returning inputRequired without elicitation.form is rejected by the
+      // SDK (-32021) and the cart PUT never runs.
+      if (!clientSupportsFormElicitation(requestContext)) {
+        return ok(undefined);
+      }
+
       return inputRequired({
         inputRequests: {
           [CHECKOUT_CONFIRMATION_KEY]: inputRequired.elicit({
@@ -261,7 +306,19 @@ export function registerShoppingListTools(ctx: ToolContext) {
         .join("\n");
 
       const result = await createShoppingListRecord(ctx.storage, listName, enrichedItems);
-      if (result.isErr()) return toMcpError(result.error);
+      if (result.isErr()) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                `Could not save shopping list "${listName}" (${result.error.message}). ` +
+                `Add these items with ${inlineCartAddRecovery(enrichedItems, locationId)}.\n\n${lines}`,
+            },
+          ],
+          isError: true as const,
+        };
+      }
       const { shortId, list } = result.value;
       return {
         content: [

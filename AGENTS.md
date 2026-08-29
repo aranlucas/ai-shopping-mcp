@@ -58,10 +58,10 @@ Core entry points:
 
 Tooling and MCP surface (`src/tools/`):
 
-- `cart.ts`: `add_shopping_list_to_cart` (listId or inline items), `view_cart` (live Partner cart read when a cartId is known, KV-mirror fallback)
-- `location.ts`: `search_stores`, `get_store`, `set_preferred_store`
+- `cart.ts`: `add_shopping_list_to_cart` (listId or inline items; elicitation skipped when the client did not declare it), `view_cart` (lists live carts when possible, otherwise a remembered cartId or KV-mirror fallback)
+- `location.ts`: `search_stores`, `get_store`, `set_preferred_store` (save failure is recoverable — pass storeId on later calls)
 - `product.ts`: `search_products`, `get_product`; exports `searchProductsForTerms`
-- `shop.ts`: `shop_for_items` (one-shot search + create list; uses the match ranker)
+- `shop.ts`: `shop_for_items` (one-shot search + create list; optional storeId; list-save failure still returns matches / can add to cart)
 - `inventory.ts`: `add_to_inventory`, `remove_from_inventory`, `get_shopping_profile`
 - `orders.ts`: `record_order`
 - `recipes.ts`: `get_meal_planning_context`
@@ -256,9 +256,7 @@ import { fromApiResponse, toMcpResponse } from "../utils/result.js";
 const result = await fromApiResponse(
   productClient.GET("/v1/products", {
     params: {
-      query: {
-        /* ... */
-      },
+      query: {/* ... */},
     },
   }),
   "search products",
