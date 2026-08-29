@@ -66,12 +66,13 @@ export function toCartSnapshotItems(
 }
 
 /**
- * Confirms with the user (via elicitation) and PUTs the given line items to
- * the Kroger cart. Shared by every cart-write path (listId, inline items, and
- * `shop_for_items`'s `addToCart`) so the confirm → PUT → mirror-append logic
- * lives in one place. On success, also appends to the per-user cart mirror
- * (`ctx.storage.cartMirror`) that `view_cart` reads — best-effort, a mirror
- * write failure does not fail the tool call.
+ * Confirms with the user (via elicitation, when the client declared it) and
+ * PUTs the given line items to the Kroger cart. Clients without form
+ * elicitation skip confirmation so the write still happens. Shared by every
+ * cart-write path (listId, inline items, and `shop_for_items`'s `addToCart`).
+ * On success, also appends to the per-user cart mirror (`ctx.storage.cartMirror`)
+ * that `view_cart` reads — best-effort, a mirror write failure does not fail
+ * the tool call.
  */
 export async function addLineItemsToCart(
   ctx: ToolContext,
@@ -387,7 +388,7 @@ export function registerCartTools(ctx: ToolContext) {
     {
       title: "View Cart",
       description:
-        "Shows the live Kroger cart when a cartId (from the Kroger website/app) has been provided once — it is remembered afterwards. Without one, shows only items added through this assistant.",
+        "Shows the live Kroger cart when possible: lists the user's carts, or uses a cartId you pass once (remembered afterwards). Without a live cart, shows only items added through this assistant.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -405,6 +406,18 @@ export function registerCartTools(ctx: ToolContext) {
       const resolvedId = cartId ?? (storedIdResult.isOk() ? storedIdResult.value : null);
 
       if (!resolvedId) {
+        const listed = await fromApiResponse(cartClient.GET("/v1/carts"), "list carts");
+        if (listed.isOk()) {
+          const cart = (listed.value?.data ?? []).find((candidate) => candidate.id);
+          const listedCartId = cart?.id;
+          if (cart && listedCartId) {
+            await safeStorage(() => ctx.storage.cartId.set(listedCartId), "store cart id").orTee(
+              (error) => console.warn("Cart id store failed (non-fatal):", error.message),
+            );
+            return textResult(formatLiveCart(cart, listedCartId));
+          }
+        }
+
         return mirrorFallbackResult(
           ctx,
           "No live cart id known — pass cartId to view_cart once to enable live cart reads.",

@@ -1,4 +1,3 @@
-import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { EquipmentItem, PantryItem } from "../utils/user-storage.js";
@@ -12,7 +11,7 @@ import {
   formatPantryListCompact,
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
-import { getProps, safeStorage, toMcpError } from "../utils/result.js";
+import { getProps, safeStorage, STORE_ID_RECOVERY_HINT, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { computeFrequentlyPurchasedItems, computeRestockSuggestions } from "./recipes.js";
 
@@ -234,25 +233,37 @@ export function registerInventoryTools(ctx: ToolContext) {
     async () => {
       getProps();
 
-      const profileResult = await ResultAsync.combine([
-        safeStorage(() => ctx.storage.preferredLocation.get(), "fetch preferred store"),
-        safeStorage(() => ctx.storage.pantry.getAll(), "fetch pantry"),
-        safeStorage(() => ctx.storage.equipment.getAll(), "fetch equipment"),
-        safeStorage(() => ctx.storage.orderHistory.getRecent(50), "fetch order history"),
-      ]);
-      if (profileResult.isErr()) return toMcpError(profileResult.error);
-      const [preferredStore, pantry, equipment, recentOrders] = profileResult.value;
+      const [preferredStoreResult, pantryResult, equipmentResult, ordersResult] = await Promise.all(
+        [
+          safeStorage(() => ctx.storage.preferredLocation.get(), "fetch preferred store"),
+          safeStorage(() => ctx.storage.pantry.getAll(), "fetch pantry"),
+          safeStorage(() => ctx.storage.equipment.getAll(), "fetch equipment"),
+          safeStorage(() => ctx.storage.orderHistory.getRecent(50), "fetch order history"),
+        ],
+      );
+      const preferredStore = preferredStoreResult.isOk() ? preferredStoreResult.value : null;
+      const pantry = pantryResult.isOk() ? pantryResult.value : [];
+      const equipment = equipmentResult.isOk() ? equipmentResult.value : [];
+      const recentOrders = ordersResult.isOk() ? ordersResult.value : [];
       const parts: string[] = [];
 
       parts.push("## Preferred store");
-      parts.push(
-        preferredStore
-          ? formatPreferredLocationCompact(preferredStore)
-          : "none set — use search_stores + set_preferred_store",
-      );
+      if (preferredStoreResult.isErr()) {
+        parts.push(
+          `unavailable (${preferredStoreResult.error.message}). ${STORE_ID_RECOVERY_HINT}`,
+        );
+      } else {
+        parts.push(
+          preferredStore
+            ? formatPreferredLocationCompact(preferredStore)
+            : "none set — use search_stores + set_preferred_store, or pass storeId",
+        );
+      }
 
       parts.push("\n## Pantry");
-      if (pantry.length === 0) {
+      if (pantryResult.isErr()) {
+        parts.push(`unavailable (${pantryResult.error.message})`);
+      } else if (pantry.length === 0) {
         parts.push("empty");
       } else {
         const now = Date.now();
@@ -269,7 +280,9 @@ export function registerInventoryTools(ctx: ToolContext) {
       }
 
       parts.push("\n## Kitchen equipment");
-      if (equipment.length === 0) {
+      if (equipmentResult.isErr()) {
+        parts.push(`unavailable (${equipmentResult.error.message})`);
+      } else if (equipment.length === 0) {
         parts.push("none");
       } else {
         for (const item of equipment) {
@@ -279,7 +292,9 @@ export function registerInventoryTools(ctx: ToolContext) {
 
       const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
       parts.push("\n## Frequently purchased");
-      if (frequentItems.length === 0) {
+      if (ordersResult.isErr()) {
+        parts.push(`unavailable (${ordersResult.error.message})`);
+      } else if (frequentItems.length === 0) {
         parts.push("no order history yet");
       } else {
         for (const { name, count } of frequentItems) {
@@ -289,7 +304,9 @@ export function registerInventoryTools(ctx: ToolContext) {
 
       const restockSuggestions = computeRestockSuggestions(recentOrders);
       parts.push("\n## Due to restock");
-      if (restockSuggestions.length === 0) {
+      if (ordersResult.isErr()) {
+        parts.push(`unavailable (${ordersResult.error.message})`);
+      } else if (restockSuggestions.length === 0) {
         parts.push("no restock suggestions yet");
       } else {
         for (const { name, daysSinceLast, medianIntervalDays } of restockSuggestions) {
