@@ -1,11 +1,4 @@
-import {
-  acceptedContent,
-  CLIENT_CAPABILITIES_META_KEY,
-  inputRequired,
-  inputResponse,
-  type InputRequiredResult,
-  type ServerContext,
-} from "@modelcontextprotocol/server";
+import type { ServerContext } from "@modelcontextprotocol/server";
 import { ResultAsync, err, ok, type Result } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -41,9 +34,6 @@ type CheckoutConfirmationServer = {
 
 type CheckoutConfirmationItem = Pick<ShoppingListItem, "productName" | "quantity">;
 
-const CHECKOUT_CONFIRMATION_KEY = "checkout_confirmation";
-const checkoutConfirmationSchema = z.object({ confirm: z.boolean() });
-
 class ElicitationUnsupportedError extends Error {}
 class ElicitationFailedError extends Error {}
 
@@ -54,38 +44,12 @@ class ElicitationFailedError extends Error {}
  * typed error or capability check exposed for this on the 2025 push path —
  * `requestCheckoutConfirmation` distinguishes "capability absent" (fall
  * through, treat as implicit confirmation) from "elicitation actually failed"
- * (surface an error) by string-matching this message. The MCP 2.0 envelope
- * path uses `clientSupportsFormElicitation` instead of this string. An SDK
- * upgrade that rewords it would silently turn every no-elicitation 2025-era
- * client into a failed checkout, so this constant is asserted against the
- * installed SDK directly in tests/tools/shopping-list-confirmation.test.ts.
+ * (surface an error) by string-matching this message. An SDK upgrade that
+ * rewords it would silently turn every no-elicitation client into a failed
+ * checkout, so this constant is asserted against the installed SDK directly
+ * in tests/tools/shopping-list-confirmation.test.ts.
  */
 export const ELICITATION_UNSUPPORTED_MESSAGE = "Client does not support form elicitation.";
-
-const clientCapabilitiesEnvelopeSchema = z.object({
-  [CLIENT_CAPABILITIES_META_KEY]: z.object({
-    elicitation: z.object({
-      form: z.unknown().optional(),
-      url: z.unknown().optional(),
-    }),
-  }),
-});
-
-/**
- * MCP 2.0 form-elicitation support, matching the SDK's inputRequired gate:
- * `elicitation.form` is required, and a bare `elicitation: {}` still counts
- * as form (the pre-mode declaration). URL-only clients do not qualify.
- * Hosts that attach an envelope but omit elicitation entirely must not
- * receive `inputRequired` — the SDK rejects that with -32021 and the
- * cart PUT never runs.
- */
-export function clientSupportsFormElicitation(requestContext?: ServerContext): boolean {
-  const parsed = clientCapabilitiesEnvelopeSchema.safeParse(requestContext?.mcpReq.envelope);
-  if (!parsed.success) return false;
-  const { elicitation } = parsed.data[CLIENT_CAPABILITIES_META_KEY];
-  if (elicitation.form !== undefined) return true;
-  return elicitation.url === undefined;
-}
 
 /** Recovery text so a list-save failure can still become an inline cart add. */
 export function inlineCartAddRecovery(
@@ -101,66 +65,16 @@ export function inlineCartAddRecovery(
   })}`;
 }
 
-export function requestCheckoutConfirmation(
-  server: CheckoutConfirmationServer,
-  items: CheckoutConfirmationItem[],
-): Promise<Result<void, AppError>>;
-export function requestCheckoutConfirmation(
-  server: CheckoutConfirmationServer,
-  items: CheckoutConfirmationItem[],
-  requestContext: ServerContext | undefined,
-): Promise<Result<void, AppError> | InputRequiredResult>;
 export async function requestCheckoutConfirmation(
   server: CheckoutConfirmationServer,
   items: CheckoutConfirmationItem[],
   requestContext?: ServerContext,
-): Promise<Result<void, AppError> | InputRequiredResult> {
+): Promise<Result<void, AppError>> {
   const itemList = items.map((i) => `${i.productName} x${i.quantity}`).join(", ");
   const message = `Add ${items.length} item(s) to your Kroger cart? Items: ${itemList}`;
 
   if (requestContext?.mcpReq.envelope !== undefined) {
-    const response = inputResponse(requestContext.mcpReq.inputResponses, CHECKOUT_CONFIRMATION_KEY);
-    if (response.kind === "elicit" && response.action !== "accept") {
-      return err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
-    }
-
-    const accepted = acceptedContent(
-      requestContext.mcpReq.inputResponses,
-      CHECKOUT_CONFIRMATION_KEY,
-      checkoutConfirmationSchema,
-    );
-    if (!accepted) {
-      // Envelope present does not mean the client can fulfill elicitation.
-      // Returning inputRequired without elicitation.form is rejected by the
-      // SDK (-32021) and the cart PUT never runs.
-      if (!clientSupportsFormElicitation(requestContext)) {
-        return ok(undefined);
-      }
-
-      return inputRequired({
-        inputRequests: {
-          [CHECKOUT_CONFIRMATION_KEY]: inputRequired.elicit({
-            message,
-            requestedSchema: {
-              type: "object",
-              properties: {
-                confirm: {
-                  type: "boolean",
-                  title: "Confirm checkout",
-                  description: "Add these items to your Kroger cart?",
-                  default: true,
-                },
-              },
-              required: ["confirm"],
-            },
-          }),
-        },
-      });
-    }
-
-    return accepted.confirm
-      ? ok(undefined)
-      : err(validationError("Checkout cancelled. Your shopping list remains unchanged."));
+    return ok(undefined);
   }
 
   const elicitResult = await ResultAsync.fromPromise(

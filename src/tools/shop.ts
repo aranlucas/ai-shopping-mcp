@@ -1,4 +1,3 @@
-import { isInputRequiredResult } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../services/kroger/product.js";
@@ -267,7 +266,6 @@ export function registerShopTools(ctx: ToolContext) {
         "PICKUP",
         requestContext,
       );
-      if (isInputRequiredResult(addResult)) return addResult;
       if (addResult.isErr()) {
         parts.push(
           "",

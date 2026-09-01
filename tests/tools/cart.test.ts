@@ -1,4 +1,3 @@
-import { CLIENT_CAPABILITIES_META_KEY, isInputRequiredResult } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
@@ -633,8 +632,8 @@ describe("add_shopping_list_to_cart tool", () => {
     });
   });
 
-  describe("elicitation degrade", () => {
-    it("PUTs the cart when the MCP client has an envelope but no elicitation capability", async () => {
+  describe("stateless requests", () => {
+    it("PUTs the cart without confirmation when the MCP request has an envelope", async () => {
       const { context, putCalls } = makeContext();
       registerCartTools(context);
 
@@ -644,26 +643,8 @@ describe("add_shopping_list_to_cart tool", () => {
       );
 
       expect(isErrorResult(result)).toBe(false);
-      expect(isInputRequiredResult(result)).toBe(false);
       expect(putCalls).toHaveLength(1);
       expect(putCalls[0]?.path).toBe("/v1/cart/add");
-    });
-
-    it("returns input_required and does not PUT when the client declared form elicitation", async () => {
-      const { context, putCalls } = makeContext();
-      registerCartTools(context);
-
-      const result = await getCapturedHandler("add_shopping_list_to_cart")(
-        { listId: SHORT_LIST_ID, storeId: LOCATION_ID },
-        {
-          mcpReq: {
-            envelope: { [CLIENT_CAPABILITIES_META_KEY]: { elicitation: { form: {} } } },
-          },
-        },
-      );
-
-      expect(isInputRequiredResult(result)).toBe(true);
-      expect(putCalls).toHaveLength(0);
     });
   });
 });
