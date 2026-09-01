@@ -137,7 +137,7 @@ For a client that still needs a local proxy:
 pnpm build
 pnpm test
 pnpm eval:mcp
-pnpm exec wrangler types --check
+pnpm cf-typegen
 ```
 
 The live Workers AI reranker check is intentionally separate because it uses Cloudflare credentials and incurs usage:
