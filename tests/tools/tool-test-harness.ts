@@ -27,7 +27,24 @@ type AuthContext = {
   };
 };
 
-export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
+type RegisteredToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
+
+const toolResultSchema = z
+  .object({
+    content: z.array(z.object({ text: z.string() })),
+    isError: z.boolean().optional(),
+    structuredContent: z.unknown().optional(),
+    _meta: z.unknown().optional(),
+  })
+  .loose()
+  .transform((result) => ({
+    ...result,
+    text: result.content[0]?.text ?? "",
+    isError: result.isError ?? false,
+  }));
+
+export type ToolResult = z.infer<typeof toolResultSchema>;
+export type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>;
 
 export type CapturedTool = {
   name: string;
@@ -50,8 +67,17 @@ vi.mock("agents/mcp/server", () => ({
 }));
 
 vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
+  registerAppTool: (
+    _server: unknown,
+    name: string,
+    config: unknown,
+    handler: RegisteredToolHandler,
+  ) => {
+    testState.capturedTools.push({
+      name,
+      config,
+      handler: async (args) => toolResultSchema.parse(await handler(args)),
+    });
   },
 }));
 
@@ -72,21 +98,6 @@ export function unauthenticate() {
 export function resetToolTestHarness() {
   testState.capturedTools.length = 0;
   authenticate();
-}
-
-const textResultSchema = z.object({
-  content: z.array(z.object({ text: z.string() })),
-});
-
-const errorResultSchema = z.object({ isError: z.literal(true) });
-
-export function textFromResult(result: unknown): string {
-  const parsed = textResultSchema.safeParse(result);
-  return parsed.success ? (parsed.data.content[0]?.text ?? "") : "";
-}
-
-export function isErrorResult(result: unknown): boolean {
-  return errorResultSchema.safeParse(result).success;
 }
 
 export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
@@ -208,8 +219,12 @@ export function makeContext(
 ): ToolContext {
   return {
     server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
+      registerTool: (name: string, config: unknown, handler: RegisteredToolHandler) => {
+        testState.capturedTools.push({
+          name,
+          config,
+          handler: async (args) => toolResultSchema.parse(await handler(args)),
+        });
       },
       server: {
         elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
@@ -237,8 +252,12 @@ export function makeContextWithElicit(
 ): ToolContext {
   return {
     server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
+      registerTool: (name: string, config: unknown, handler: RegisteredToolHandler) => {
+        testState.capturedTools.push({
+          name,
+          config,
+          handler: async (args) => toolResultSchema.parse(await handler(args)),
+        });
       },
       server: {
         elicitInput: async () => elicitResult,
