@@ -8,7 +8,8 @@
   "author": "",
   "type": "module",
   "scripts": {
-    "build": "pnpm lint && pnpm build:views && tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
+    "build": "pnpm lint && pnpm build:views && pnpm typecheck",
+    "typecheck": "pnpm cf-typegen && tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "build:views": "INPUT=mcp-app.html vite build",
     "watch": "NODE_ENV=development INPUT=mcp-app.html vite build --watch",
     "serve": "wrangler dev",
