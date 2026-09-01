@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import * as z from "zod/v4";
 
 import type { ProductService } from "../../src/services/kroger/product-service.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
@@ -26,7 +27,24 @@ type AuthContext = {
   };
 };
 
-export type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
+type RegisteredToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
+
+const toolResultSchema = z
+  .object({
+    content: z.array(z.object({ text: z.string() })),
+    isError: z.boolean().optional(),
+    structuredContent: z.unknown().optional(),
+    _meta: z.unknown().optional(),
+  })
+  .loose()
+  .transform((result) => ({
+    ...result,
+    text: result.content[0]?.text ?? "",
+    isError: result.isError ?? false,
+  }));
+
+export type ToolResult = z.infer<typeof toolResultSchema>;
+export type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>;
 
 export type CapturedTool = {
   name: string;
@@ -49,8 +67,17 @@ vi.mock("agents/mcp/server", () => ({
 }));
 
 vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
+  registerAppTool: (
+    _server: unknown,
+    name: string,
+    config: unknown,
+    handler: RegisteredToolHandler,
+  ) => {
+    testState.capturedTools.push({
+      name,
+      config,
+      handler: async (args) => toolResultSchema.parse(await handler(args)),
+    });
   },
 }));
 
@@ -71,21 +98,6 @@ export function unauthenticate() {
 export function resetToolTestHarness() {
   testState.capturedTools.length = 0;
   authenticate();
-}
-
-function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-export function textFromResult(result: unknown): string {
-  if (!isRecord(result) || !Array.isArray(result.content)) return "";
-  const first = result.content[0];
-  if (!isRecord(first) || typeof first.text !== "string") return "";
-  return first.text;
-}
-
-export function isErrorResult(result: unknown): boolean {
-  return isRecord(result) && result.isError === true;
 }
 
 export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
@@ -207,8 +219,12 @@ export function makeContext(
 ): ToolContext {
   return {
     server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
+      registerTool: (name: string, config: unknown, handler: RegisteredToolHandler) => {
+        testState.capturedTools.push({
+          name,
+          config,
+          handler: async (args) => toolResultSchema.parse(await handler(args)),
+        });
       },
       server: {
         elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
@@ -236,8 +252,12 @@ export function makeContextWithElicit(
 ): ToolContext {
   return {
     server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
+      registerTool: (name: string, config: unknown, handler: RegisteredToolHandler) => {
+        testState.capturedTools.push({
+          name,
+          config,
+          handler: async (args) => toolResultSchema.parse(await handler(args)),
+        });
       },
       server: {
         elicitInput: async () => elicitResult,

@@ -8,13 +8,11 @@ import type { ElicitResult } from "./tool-test-harness.js";
 import {
   getCapturedHandler,
   getCapturedTool,
-  isErrorResult,
   makeContext,
   makeContextWithElicit,
   makeProductService,
   makeStorage,
   resetToolTestHarness,
-  textFromResult,
   unauthenticate,
 } from "./tool-test-harness.js";
 import { registerCartTools } from "../../src/tools/cart.js";
@@ -35,7 +33,7 @@ describe("storage-backed tools", () => {
       items: [{ name: "Milk" }],
     });
 
-    expect(textFromResult(result)).toContain("Added 1 item(s) to pantry");
+    expect(result.text).toContain("Added 1 item(s) to pantry");
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "pantry" },
       structuredContent: {
@@ -55,8 +53,8 @@ describe("storage-backed tools", () => {
 
     const result = await getCapturedHandler("remove_from_inventory")({ inventory: "pantry" });
 
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("Provide items to remove");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("Provide items to remove");
   });
 
   it("removes and clears pantry items", async () => {
@@ -74,7 +72,7 @@ describe("storage-backed tools", () => {
       inventory: "pantry",
       items: [{ name: "Eggs" }],
     });
-    expect(textFromResult(removeResult)).toContain("Removed 1 item(s) from pantry");
+    expect(removeResult.text).toContain("Removed 1 item(s) from pantry");
     expect(removeResult).toMatchObject({
       structuredContent: {
         items: [{ productName: "Bread", quantity: 2 }],
@@ -109,7 +107,7 @@ describe("storage-backed tools", () => {
       inventory: "equipment",
       items: [{ name: "Dutch oven", category: "Cooking" }],
     });
-    expect(textFromResult(addResult)).toContain("Added 1 item(s) to equipment");
+    expect(addResult.text).toContain("Added 1 item(s) to equipment");
     expect(addResult).toMatchObject({
       _meta: { "dev.aranlucas/view": "kitchen_equipment" },
       structuredContent: {
@@ -122,7 +120,7 @@ describe("storage-backed tools", () => {
       inventory: "equipment",
       items: [{ name: "Dutch oven" }],
     });
-    expect(textFromResult(removeResult)).toContain("Removed 1 item(s) from equipment");
+    expect(removeResult.text).toContain("Removed 1 item(s) from equipment");
     expect(removeResult).toMatchObject({
       _meta: { "dev.aranlucas/view": "kitchen_equipment" },
       structuredContent: {
@@ -132,7 +130,7 @@ describe("storage-backed tools", () => {
     });
 
     const clearResult = await removeHandler({ inventory: "equipment", all: true });
-    expect(textFromResult(clearResult)).toBe("Equipment cleared successfully.");
+    expect(clearResult.text).toBe("Equipment cleared successfully.");
     expect(clearResult).toMatchObject({
       _meta: { "dev.aranlucas/view": "kitchen_equipment" },
       structuredContent: {
@@ -150,7 +148,7 @@ describe("storage-backed tools", () => {
       items: [],
     });
 
-    expect(isErrorResult(addResult)).toBe(true);
+    expect(addResult.isError).toBe(true);
   });
 
   describe("get_shopping_profile", () => {
@@ -159,8 +157,8 @@ describe("storage-backed tools", () => {
 
       const result = await getCapturedHandler("get_shopping_profile")({});
 
-      expect(isErrorResult(result)).toBe(false);
-      const text = textFromResult(result);
+      expect(result.isError).toBe(false);
+      const text = result.text;
       expect(text).toContain("none set — use search_stores + set_preferred_store");
       expect(text).toContain("## Pantry");
       expect(text).toContain("empty");
@@ -207,7 +205,7 @@ describe("storage-backed tools", () => {
 
       const result = await getCapturedHandler("get_shopping_profile")({});
 
-      const text = textFromResult(result);
+      const text = result.text;
       expect(text).toContain("## Due to restock");
       expect(text).toContain("Milk (last bought 30d ago, usually every ~10d)");
     });
@@ -254,7 +252,7 @@ describe("storage-backed tools", () => {
 
       const result = await getCapturedHandler("get_shopping_profile")({});
 
-      const text = textFromResult(result);
+      const text = result.text;
       expect(text).toContain("QFC Broadway");
       expect(text).toContain("Milk x1 (expiring soon)");
       expect(text).toContain("Rice x2");
@@ -290,8 +288,8 @@ describe("storage-backed tools", () => {
 
       const result = await getCapturedHandler("get_shopping_profile")({});
 
-      expect(isErrorResult(result)).toBe(false);
-      const text = textFromResult(result);
+      expect(result.isError).toBe(false);
+      const text = result.text;
       expect(text).toContain("unavailable");
       expect(text).toContain("401");
       expect(text).toContain("storeId");
@@ -316,7 +314,7 @@ describe("storage-backed tools", () => {
       ],
     });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(result.isError).toBe(false);
     const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "create_shopping_list" },
@@ -349,8 +347,8 @@ describe("storage-backed tools", () => {
       items: [{ upc: "0001111042578", quantity: 2 }],
     });
 
-    expect(isErrorResult(result)).toBe(true);
-    const text = textFromResult(result);
+    expect(result.isError).toBe(true);
+    const text = result.text;
     expect(text).toContain("Could not save shopping list");
     expect(text).toContain("401");
     expect(text).toContain("add_shopping_list_to_cart");
@@ -364,8 +362,8 @@ describe("storage-backed tools", () => {
 
     const result = await handler({ name: "Empty", items: [] });
 
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("at least one item");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("at least one item");
   });
 
   it("returns a fresh listId on each call so lists don't collide", async () => {
@@ -408,8 +406,8 @@ describe("storage-backed tools", () => {
         items: [{ upc: "0001111000001", quantity: 1 }],
       });
 
-      expect(isErrorResult(result)).toBe(false);
-      expect(textFromResult(result)).toContain("in pantry");
+      expect(result.isError).toBe(false);
+      expect(result.text).toContain("in pantry");
     });
 
     it("does not flag an item that isn't in the pantry", async () => {
@@ -429,7 +427,7 @@ describe("storage-backed tools", () => {
         items: [{ upc: "0001111000001", quantity: 1 }],
       });
 
-      expect(textFromResult(result)).not.toContain("in pantry");
+      expect(result.text).not.toContain("in pantry");
     });
 
     it("flags an item on sale using the weekly-deals KV cache", async () => {
@@ -472,8 +470,8 @@ describe("storage-backed tools", () => {
         items: [{ upc: "0001111000001", quantity: 1 }],
       });
 
-      expect(isErrorResult(result)).toBe(false);
-      expect(textFromResult(result)).toContain("on sale: $2.99");
+      expect(result.isError).toBe(false);
+      expect(result.text).toContain("on sale: $2.99");
     });
 
     it("yields no flag (and no error) for a corrupted weekly-deals cache entry", async () => {
@@ -498,8 +496,8 @@ describe("storage-backed tools", () => {
         items: [{ upc: "0001111000001", quantity: 1 }],
       });
 
-      expect(isErrorResult(result)).toBe(false);
-      expect(textFromResult(result)).not.toContain("on sale");
+      expect(result.isError).toBe(false);
+      expect(result.text).not.toContain("on sale");
     });
   });
 
@@ -536,7 +534,7 @@ describe("storage-backed tools", () => {
 
     const result = await addHandler({ listId });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(result.isError).toBe(false);
     const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
@@ -544,7 +542,7 @@ describe("storage-backed tools", () => {
     expect(sc["listId"]).toBe(listId);
     expect(sc["name"]).toBe("Dinner");
     expect((sc["items"] as unknown[]).length).toBe(1);
-    expect(textFromResult(result)).toContain("at QFC Broadway");
+    expect(result.text).toContain("at QFC Broadway");
   });
 
   it("short-circuits a retried add_shopping_list_to_cart call instead of re-adding", async () => {
@@ -587,13 +585,13 @@ describe("storage-backed tools", () => {
     };
 
     const first = await addHandler({ listId });
-    expect(isErrorResult(first)).toBe(false);
+    expect(first.isError).toBe(false);
     expect(putCalls).toHaveLength(1);
 
     const second = await addHandler({ listId });
-    expect(isErrorResult(second)).toBe(false);
+    expect(second.isError).toBe(false);
     expect(putCalls).toHaveLength(1); // no second PUT call
-    expect(textFromResult(second)).toContain("already added to your cart from this list");
+    expect(second.text).toContain("already added to your cart from this list");
   });
 
   it("bails when the shopping list has no items with UPCs", async () => {
@@ -619,13 +617,13 @@ describe("storage-backed tools", () => {
     const handler = getCapturedHandler("add_shopping_list_to_cart");
     const result = await handler({ listId, storeId: "70500847" });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(result.isError).toBe(false);
     const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
     expect((sc["items"] as unknown[]).length).toBe(0);
     expect((sc["needsUpc"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
       "Strawberries",
     ]);
-    expect(textFromResult(result)).toContain("no items with a UPC");
+    expect(result.text).toContain("no items with a UPC");
   });
 
   it("reports no shopping list found for an unknown or forged listId", async () => {
@@ -634,8 +632,8 @@ describe("storage-backed tools", () => {
     const handler = getCapturedHandler("add_shopping_list_to_cart");
 
     const result = await handler({ listId: "list_deadbeef" });
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("No shopping list found");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("No shopping list found");
   });
 
   it("aborts add_shopping_list_to_cart when the user declines elicitation", async () => {
@@ -669,8 +667,8 @@ describe("storage-backed tools", () => {
 
     const handler = getCapturedHandler("add_shopping_list_to_cart");
     const result = await handler({ listId });
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("cancelled");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("cancelled");
   });
 
   it("adds inline items to the cart without a shopping list", async () => {
@@ -698,7 +696,7 @@ describe("storage-backed tools", () => {
       items: [{ upc: "0001111042578", quantity: 3 }],
     });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(result.isError).toBe(false);
     const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
@@ -707,6 +705,6 @@ describe("storage-backed tools", () => {
       upc: "0001111042578",
       quantity: 3,
     });
-    expect(textFromResult(result)).toContain("at QFC Broadway");
+    expect(result.text).toContain("at QFC Broadway");
   });
 });

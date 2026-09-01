@@ -8,11 +8,9 @@ import type { PreferredLocation } from "../../src/utils/user-storage.js";
 import {
   getCapturedHandler,
   getCapturedTool,
-  isErrorResult,
   makeContext,
   makeStorage,
   resetToolTestHarness,
-  textFromResult,
 } from "./tool-test-harness.js";
 import { registerLocationTools } from "../../src/tools/location.js";
 
@@ -56,7 +54,7 @@ describe("location storage-backed tools", () => {
       chain: "QFC",
     });
 
-    expect(textFromResult(result)).toContain("QFC Broadway");
+    expect(result.text).toContain("QFC Broadway");
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "search_stores" },
       structuredContent: {
@@ -124,7 +122,7 @@ describe("location storage-backed tools", () => {
       storeId: "70500847",
     });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(result.isError).toBe(false);
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "get_store" },
       structuredContent: {
@@ -158,8 +156,8 @@ describe("location storage-backed tools", () => {
       storeId: "70500847",
     });
 
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("No information found for location ID: 70500847");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("No information found for location ID: 70500847");
   });
 
   it("saves preferred location details for the authenticated user", async () => {
@@ -200,7 +198,7 @@ describe("location storage-backed tools", () => {
       storeId: "70500847",
     });
 
-    expect(textFromResult(result)).toContain("Preferred location set successfully");
+    expect(result.text).toContain("Preferred location set successfully");
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "set_preferred_store" },
       structuredContent: {
@@ -257,8 +255,8 @@ describe("location storage-backed tools", () => {
       storeId: "70500847",
     });
 
-    expect(isErrorResult(result)).toBe(true);
-    const text = textFromResult(result);
+    expect(result.isError).toBe(true);
+    const text = result.text;
     expect(text).toContain("Could not save preferred store");
     expect(text).toContain("401");
     expect(text).toContain("storeId=70500847");
@@ -286,7 +284,7 @@ describe("location storage-backed tools", () => {
       storeId: "70500847",
     });
 
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("No information found for location ID: 70500847");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("No information found for location ID: 70500847");
   });
 });

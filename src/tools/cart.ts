@@ -1,4 +1,4 @@
-import { isInputRequiredResult, type ServerContext } from "@modelcontextprotocol/server";
+import type { ServerContext } from "@modelcontextprotocol/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -89,7 +89,6 @@ export async function addLineItemsToCart(
     })),
     requestContext,
   );
-  if (isInputRequiredResult(confirmation)) return confirmation;
   if (confirmation.isErr()) return err<void, AppError>(confirmation.error);
 
   const cartItems: CartItem[] = lineItems.map((item) => ({
@@ -131,7 +130,6 @@ async function handleInlineItemsCart(
   if (locationResult.isErr()) return toMcpError(locationResult.error);
 
   const addResult = await addLineItemsToCart(ctx, cartClient, items, modality, requestContext);
-  if (isInputRequiredResult(addResult)) return addResult;
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   const resolved = locationResult.value;
@@ -242,7 +240,6 @@ async function handleListIdCart(
   }));
 
   const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality, requestContext);
-  if (isInputRequiredResult(addResult)) return addResult;
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   // Persist the cart snapshot keyed by the namespaced storage key so a
