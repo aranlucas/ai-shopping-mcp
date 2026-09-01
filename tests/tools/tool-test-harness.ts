@@ -63,21 +63,6 @@ export function resetToolTestHarness() {
   authenticate();
 }
 
-function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-export function textFromResult(result: unknown): string {
-  if (!isRecord(result) || !Array.isArray(result.content)) return "";
-  const first = result.content[0];
-  if (!isRecord(first) || typeof first.text !== "string") return "";
-  return first.text;
-}
-
-export function isErrorResult(result: unknown): boolean {
-  return isRecord(result) && result.isError === true;
-}
-
 export function makeStorage(
   overrides: Partial<UserStorage & CartStore> = {},
 ): UserStorage & CartStore {

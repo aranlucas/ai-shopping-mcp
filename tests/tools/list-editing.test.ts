@@ -14,11 +14,9 @@ import { stubCatalogProvider, stubCatalogRegistry } from "../catalog-stub.js";
 import {
   getCapturedHandler,
   getCapturedTool,
-  isErrorResult,
   makeContext,
   makeStorage,
   resetToolTestHarness,
-  textFromResult,
 } from "./tool-test-harness.js";
 
 type ListStore = ToolContext["storage"]["shoppingList"];
@@ -48,9 +46,9 @@ describe("shopping list editing tools", () => {
 
     const result = await getCapturedHandler("get_shopping_list")({});
 
-    expect(isErrorResult(result)).toBe(false);
-    expect(textFromResult(result)).toContain("listId=list-a");
-    expect(textFromResult(result)).toContain("Tuesday dinner");
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain("listId=list-a");
+    expect(result.text).toContain("Tuesday dinner");
   });
 
   it("returns each item's itemId so an edit can address it", async () => {
@@ -66,8 +64,8 @@ describe("shopping list editing tools", () => {
 
     const result = await getCapturedHandler("get_shopping_list")({ listId: "list-a" });
 
-    expect(textFromResult(result)).toContain("itemId=item-7");
-    expect(textFromResult(result)).toContain("Chili Onion Crunch");
+    expect(result.text).toContain("itemId=item-7");
+    expect(result.text).toContain("Chili Onion Crunch");
   });
 
   it("points at the index when the listId does not exist", async () => {
@@ -76,8 +74,8 @@ describe("shopping list editing tools", () => {
 
     const result = await getCapturedHandler("get_shopping_list")({ listId: "missing" });
 
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("get_shopping_list with no listId");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("get_shopping_list with no listId");
   });
 
   it("appends an item that has a name but no UPC", async () => {
@@ -91,11 +89,11 @@ describe("shopping list editing tools", () => {
       items: [{ productName: "Chili Onion Crunch", notes: "Trader Joe's" }],
     });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(result.isError).toBe(false);
     expect(addItems).toHaveBeenCalledWith("list-a", [
       { productName: "Chili Onion Crunch", quantity: 1, notes: "Trader Joe's" },
     ]);
-    expect(textFromResult(result)).toContain("itemId=item-1");
+    expect(result.text).toContain("itemId=item-1");
   });
 
   it("looks a name up from the UPC when only a UPC is given", async () => {
@@ -145,7 +143,7 @@ describe("shopping list editing tools", () => {
       quantity: 3,
     });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(result.isError).toBe(false);
     expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", { quantity: 3 });
   });
 
@@ -162,7 +160,7 @@ describe("shopping list editing tools", () => {
 
     expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", { checked: true });
     expect(removeItem).not.toHaveBeenCalled();
-    expect(textFromResult(result)).toContain("checked off");
+    expect(result.text).toContain("checked off");
   });
 
   it("deletes the item when remove is set, without also patching it", async () => {
@@ -178,7 +176,7 @@ describe("shopping list editing tools", () => {
 
     expect(removeItem).toHaveBeenCalledWith("list-a", "item-1");
     expect(updateItem).not.toHaveBeenCalled();
-    expect(textFromResult(result)).toContain("Removed itemId=item-1");
+    expect(result.text).toContain("Removed itemId=item-1");
   });
 
   it("asks for a field rather than silently doing nothing", async () => {
@@ -189,8 +187,8 @@ describe("shopping list editing tools", () => {
       itemId: "item-1",
     });
 
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("remove=true");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("remove=true");
   });
 });
 
@@ -221,8 +219,8 @@ describe("search_products across providers", () => {
       includeLocation: false,
     });
 
-    const text = textFromResult(result);
-    expect(isErrorResult(result)).toBe(false);
+    const text = result.text;
+    expect(result.isError).toBe(false);
     expect(text).toContain("productRef=trader_joes:076892");
     expect(text).toContain("Chili Onion Crunch");
     expect(text).toContain("$3.99");
@@ -243,7 +241,7 @@ describe("search_products across providers", () => {
     });
 
     expect(search).toHaveBeenCalled();
-    expect(textFromResult(result)).toContain("trader_joes");
+    expect(result.text).toContain("trader_joes");
   });
 
   it("still answers when one provider is blocked", async () => {
@@ -279,9 +277,9 @@ describe("search_products across providers", () => {
       includeLocation: false,
     });
 
-    expect(isErrorResult(result)).toBe(false);
-    expect(textFromResult(result)).toContain("productRef=kroger:0001111042578");
-    expect(textFromResult(result)).toContain("Trader Joe's search failed for this term.");
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain("productRef=kroger:0001111042578");
+    expect(result.text).toContain("Trader Joe's search failed for this term.");
   });
 
   it("errors only when every provider failed and nothing was found", async () => {
@@ -300,7 +298,7 @@ describe("search_products across providers", () => {
       includeLocation: false,
     });
 
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("Search failed for: chili crunch");
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("Search failed for: chili crunch");
   });
 });

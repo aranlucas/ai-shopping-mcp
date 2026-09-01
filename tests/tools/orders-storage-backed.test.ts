@@ -8,11 +8,9 @@ import type { OrderRecord } from "../../src/utils/user-storage.js";
 import {
   getCapturedHandler,
   getCapturedTool,
-  isErrorResult,
   makeContext,
   makeStorage,
   resetToolTestHarness,
-  textFromResult,
 } from "./tool-test-harness.js";
 import { recordOrderInputSchema, registerOrderTools } from "../../src/tools/orders.js";
 
@@ -42,7 +40,7 @@ describe("order storage-backed tools", () => {
       notes: "Pickup order",
     });
 
-    expect(textFromResult(result)).toContain("Order recorded successfully");
+    expect(result.text).toContain("Order recorded successfully");
     expect(storedOrders).toHaveLength(1);
     expect(storedOrders[0]).toMatchObject({
       totalItems: 5,
@@ -88,7 +86,7 @@ describe("order storage-backed tools", () => {
       ],
     });
 
-    expect(isErrorResult(result)).toBe(false);
+    expect(result.isError).toBe(false);
     const sc = (
       result as {
         structuredContent: { estimatedTotal?: number; totalItems: number };

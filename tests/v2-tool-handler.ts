@@ -1,6 +1,28 @@
 import type { ServerContext } from "@modelcontextprotocol/server";
+import { z } from "zod";
+
+const toolResultSchema = z
+  .object({
+    content: z.array(z.object({ text: z.string() })),
+    isError: z.boolean().optional(),
+    structuredContent: z.unknown().optional(),
+    _meta: z.unknown().optional(),
+  })
+  .loose()
+  .transform((result) => ({
+    ...result,
+    text: result.content[0]?.text ?? "",
+    isError: result.isError ?? false,
+  }));
+
+export type TestToolResult = z.infer<typeof toolResultSchema>;
 
 export type TestToolHandler = (
+  args: Record<string, unknown>,
+  requestContext?: ServerContext,
+) => Promise<TestToolResult>;
+
+type RawToolHandler = (
   args: Record<string, unknown>,
   requestContext?: ServerContext,
 ) => Promise<unknown>;
@@ -24,9 +46,11 @@ function makeRequestContext(): ServerContext {
 /**
  * Supplies the minimal v2 request context expected by tool handlers.
  */
-export function wrapV2ToolHandler(handler: TestToolHandler, _server: unknown): TestToolHandler {
+export function wrapV2ToolHandler(handler: RawToolHandler, _server: unknown): TestToolHandler {
   return async (args, requestContext) => {
-    if (requestContext) return await handler(args, requestContext);
-    return await handler(args, makeRequestContext());
+    const result = requestContext
+      ? await handler(args, requestContext)
+      : await handler(args, makeRequestContext());
+    return toolResultSchema.parse(result);
   };
 }
