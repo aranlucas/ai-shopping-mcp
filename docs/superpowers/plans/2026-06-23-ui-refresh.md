@@ -99,7 +99,7 @@ resolve: {
 - [ ] **Step 4: Run shadcn init (skip prompts)**
 
 ```bash
-npx shadcn@latest init --defaults --skip-preflight
+pnpm dlx shadcn@latest init --defaults --skip-preflight
 ```
 
 Expected: CLI reads `components.json`, patches `views/styles.css` with an `@theme inline` block and `:root { --background: ...; --radius: ...; ... }` CSS vars, creates `views/shared/ui/utils.ts`.
@@ -177,7 +177,7 @@ git commit -m "feat: initialize shadcn/ui with new-york style, wire CSS vars to 
 - [ ] **Step 1: Add shadcn components via CLI**
 
 ```bash
-npx shadcn@latest add skeleton badge card separator scroll-area
+pnpm dlx shadcn@latest add skeleton badge card separator scroll-area
 ```
 
 Expected: CLI creates files in `views/shared/ui/`, installs any missing `@radix-ui/*` peer deps.

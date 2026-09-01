@@ -128,7 +128,7 @@ import {
 - [ ] **Step 3: Build to verify no regressions**
 
 ```bash
-npm run build
+pnpm build
 ```
 
 Expected: exits 0, no TypeScript or Biome errors.
@@ -503,7 +503,7 @@ export function RecipeShoppingView({
 - [ ] **Step 2: Build to verify the new file compiles**
 
 ```bash
-npm run build
+pnpm build
 ```
 
 Expected: exits 0. Fix any TypeScript errors before proceeding.
@@ -871,7 +871,7 @@ export function RecipeResultsView({
 - [ ] **Step 2: Build to verify everything compiles**
 
 ```bash
-npm run build
+pnpm build
 ```
 
 Expected: exits 0, no errors. Fix any TypeScript or Biome errors before proceeding.
@@ -890,7 +890,7 @@ git commit -m "feat: add Shop Ingredients button and in-view ingredient shopping
 - [ ] **Step 1: Run full build**
 
 ```bash
-npm run build
+pnpm build
 ```
 
 Expected: exits 0, `dist/views/app.html` is generated with no errors.
@@ -900,7 +900,7 @@ Expected: exits 0, `dist/views/app.html` is generated with no errors.
 Run the dev harness:
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Open the harness URL in a browser and select the `search_recipes_from_web` mock data. Verify:
