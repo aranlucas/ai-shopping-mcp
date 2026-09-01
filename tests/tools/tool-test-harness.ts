@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import * as z from "zod/v4";
 
 import type { ProductService } from "../../src/services/kroger/product-service.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
@@ -73,19 +74,19 @@ export function resetToolTestHarness() {
   authenticate();
 }
 
-function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
-  return typeof value === "object" && value !== null;
-}
+const textResultSchema = z.object({
+  content: z.array(z.object({ text: z.string() })),
+});
+
+const errorResultSchema = z.object({ isError: z.literal(true) });
 
 export function textFromResult(result: unknown): string {
-  if (!isRecord(result) || !Array.isArray(result.content)) return "";
-  const first = result.content[0];
-  if (!isRecord(first) || typeof first.text !== "string") return "";
-  return first.text;
+  const parsed = textResultSchema.safeParse(result);
+  return parsed.success ? (parsed.data.content[0]?.text ?? "") : "";
 }
 
 export function isErrorResult(result: unknown): boolean {
-  return isRecord(result) && result.isError === true;
+  return errorResultSchema.safeParse(result).success;
 }
 
 export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {

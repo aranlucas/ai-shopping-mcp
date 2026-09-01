@@ -62,9 +62,14 @@ class ElicitationFailedError extends Error {}
  */
 export const ELICITATION_UNSUPPORTED_MESSAGE = "Client does not support form elicitation.";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+const clientCapabilitiesEnvelopeSchema = z.object({
+  [CLIENT_CAPABILITIES_META_KEY]: z.object({
+    elicitation: z.object({
+      form: z.unknown().optional(),
+      url: z.unknown().optional(),
+    }),
+  }),
+});
 
 /**
  * MCP 2.0 form-elicitation support, matching the SDK's inputRequired gate:
@@ -75,12 +80,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * cart PUT never runs.
  */
 export function clientSupportsFormElicitation(requestContext?: ServerContext): boolean {
-  const envelope = requestContext?.mcpReq.envelope;
-  if (!isRecord(envelope)) return false;
-  const capabilities = envelope[CLIENT_CAPABILITIES_META_KEY];
-  if (!isRecord(capabilities)) return false;
-  const elicitation = capabilities.elicitation;
-  if (!isRecord(elicitation)) return false;
+  const parsed = clientCapabilitiesEnvelopeSchema.safeParse(requestContext?.mcpReq.envelope);
+  if (!parsed.success) return false;
+  const { elicitation } = parsed.data[CLIENT_CAPABILITIES_META_KEY];
   if (elicitation.form !== undefined) return true;
   return elicitation.url === undefined;
 }
