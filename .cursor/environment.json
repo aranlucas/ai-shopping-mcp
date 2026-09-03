@@ -1,0 +1,11 @@
+{
+  "name": "ai-shopping-mcp",
+  "install": "export NVM_DIR=\"$HOME/.nvm\" && . \"$NVM_DIR/nvm.sh\" && nvm install 24 && nvm alias default 24 && corepack enable && pnpm install --frozen-lockfile",
+  "terminals": [
+    {
+      "name": "wrangler-dev",
+      "command": "corepack pnpm exec wrangler dev --local"
+    }
+  ],
+  "ports": [8788]
+}
