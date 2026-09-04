@@ -5,7 +5,6 @@ import type { CatalogProduct, CatalogSearchOptions } from "../services/catalog/t
 import type { ProductData } from "../app-results.js";
 
 import { appResult } from "../app-results.js";
-import { registerAppTool } from "../utils/app-tool.js";
 import {
   formatCatalogProductDetailMarkdown,
   formatCatalogSearchMarkdown,

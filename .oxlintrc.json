@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "extends": ["../../packages/oxlint-config/tailwind.json"],
+  "extends": ["./.oxlintrc.tailwind.json"],
   "jsPlugins": ["oxlint-tailwindcss"],
   "plugins": ["unicorn"],
   "categories": {},
@@ -44,5 +44,5 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": ["worker-configuration.d.ts"]
+  "ignorePatterns": ["worker-configuration.d.ts", "packages/**"]
 }

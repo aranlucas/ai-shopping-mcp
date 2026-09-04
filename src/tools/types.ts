@@ -25,7 +25,7 @@ export type GrantProps = Props & {
 export type UserStorage = ShoppingStore;
 
 // Shared context passed to all tool registration functions.
-// Infrastructure dependencies only. Auth is accessed via getMcpAuthContext() from agents/mcp/server.
+// Infrastructure dependencies only. Auth is accessed via getMcpAuthContext() from agents/mcp.
 export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;

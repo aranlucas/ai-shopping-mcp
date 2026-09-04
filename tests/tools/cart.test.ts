@@ -40,13 +40,14 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp/server", () => ({
+vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 
 // --- Helpers ---
 
 const USER_ID = "user-123";
+const SESSION_ID = "session-1";
 const SHORT_LIST_ID = "list_abc12345";
 const LOCATION_ID = "70500847";
 
@@ -79,7 +80,7 @@ function structuredContent(result: unknown): Record<string, unknown> {
 
 function listFixture(overrides: Partial<ShoppingList> = {}): ShoppingList {
   return {
-    id: `${USER_ID}:list:${SHORT_LIST_ID}`,
+    id: `${USER_ID}:session:${SESSION_ID}:list:${SHORT_LIST_ID}`,
     name: "Tuesday Dinner",
     createdAt: new Date().toISOString(),
     items: [
@@ -165,7 +166,6 @@ function makeContext(
   storage?: UserStorage & CartStore,
   putConfig: { status: number; throws?: boolean } = { status: 204 },
   getConfig: { status: number; cart?: typeof LIVE_CART } = { status: 200, cart: LIVE_CART },
-  listConfig: { status: number; carts?: Array<typeof LIVE_CART> } = { status: 403 },
 ): {
   context: ToolContext;
   putCalls: PutCall[];
@@ -200,19 +200,6 @@ function makeContext(
         },
         GET: async (path: string, options: unknown) => {
           getCalls.push({ path, options });
-          if (path === "/v1/carts") {
-            if (listConfig.status !== 200) {
-              return {
-                data: undefined,
-                error: { reason: "forbidden" },
-                response: new Response("{}", { status: listConfig.status }),
-              };
-            }
-            return {
-              data: { data: listConfig.carts ?? [LIVE_CART] },
-              response: new Response(null, { status: 200 }),
-            };
-          }
           if (getConfig.status !== 200) {
             return {
               data: undefined,
@@ -634,22 +621,6 @@ describe("add_shopping_list_to_cart tool", () => {
       ).rejects.toThrow("outside an authenticated MCP request");
     });
   });
-
-  describe("stateless requests", () => {
-    it("PUTs the cart without confirmation when the MCP request has an envelope", async () => {
-      const { context, putCalls } = makeContext();
-      registerCartTools(context);
-
-      const result = await getCapturedHandler("add_shopping_list_to_cart")(
-        { listId: SHORT_LIST_ID, storeId: LOCATION_ID },
-        { mcpReq: { envelope: {} } },
-      );
-
-      expect(isErrorResult(result)).toBe(false);
-      expect(putCalls).toHaveLength(1);
-      expect(putCalls[0]?.path).toBe("/v1/cart/add");
-    });
-  });
 });
 
 describe("view_cart tool", () => {
@@ -799,32 +770,9 @@ describe("view_cart tool", () => {
     const result = await getCapturedHandler("view_cart")({});
 
     const text = textFromResult(result);
-    expect(getCalls).toHaveLength(1);
-    expect(getCalls[0]?.path).toBe("/v1/carts");
+    expect(getCalls).toHaveLength(0);
     expect(text).toContain("in-store/app changes are not shown");
     expect(text).toContain("cartId");
-  });
-
-  it("reads the live cart from GET /v1/carts when no cartId is known", async () => {
-    const cartIdSetCalls: string[][] = [];
-    const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
-    const { context, getCalls } = makeContext(
-      storage,
-      { status: 204 },
-      { status: 200, cart: LIVE_CART },
-      { status: 200, carts: [LIVE_CART] },
-    );
-    registerCartTools(context);
-
-    const result = await getCapturedHandler("view_cart")({});
-
-    expect(isErrorResult(result)).toBe(false);
-    const text = textFromResult(result);
-    expect(text).toContain("Live Kroger cart");
-    expect(text).toContain("cartId=2b9b3963-5cac-42f8-9d28-7bebdec0b9e4");
-    expect(text).toContain("QFC Vitamin D Whole Milk Gallon x1");
-    expect(getCalls).toEqual([{ path: "/v1/carts", options: undefined }]);
-    expect(cartIdSetCalls).toEqual([["2b9b3963-5cac-42f8-9d28-7bebdec0b9e4"]]);
   });
 
   it("falls back to the mirror and names the failed cartId when the live read errors", async () => {

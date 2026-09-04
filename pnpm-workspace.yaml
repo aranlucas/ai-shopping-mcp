@@ -1,3 +1,6 @@
+packages:
+  - "packages/*"
+
 allowBuilds:
   "@modelcontextprotocol/ext-apps": true
   "@mongodb-js/zstd": true
@@ -6,6 +9,7 @@ allowBuilds:
   node-liblzma: true
   sharp: true
   workerd: true
+  "@sentry/cli": false
 
 minimumReleaseAge: 0
 

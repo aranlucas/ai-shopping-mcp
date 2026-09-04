@@ -11,8 +11,8 @@ import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type LineItem, addLineItemsToCart } from "./cart.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { searchProductsForTerms } from "./product.js";
-import { coercedBooleanSchema, storeIdSchema } from "./schemas.js";
-import { createShoppingListRecord, inlineCartAddRecovery } from "./shopping-list.js";
+import { coercedBooleanSchema } from "./schemas.js";
+import { createShoppingListRecord } from "./shopping-list.js";
 import { type ToolContext } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -36,9 +36,6 @@ export const shopForItemsInputSchema = z.object({
     .min(1, { message: "At least one item is required" })
     .max(10, { message: "Maximum 10 items allowed" })
     .describe("Items to search for and add to a new shopping list"),
-  storeId: storeIdSchema
-    .optional()
-    .describe("8-character storeId from search_stores. Uses your preferred store if omitted."),
   addToCart: coercedBooleanSchema
     .optional()
     .default(false)
@@ -133,7 +130,7 @@ export function registerShopTools(ctx: ToolContext) {
     {
       title: "Shop For Items",
       description:
-        'One-shot shopping: searches for each item name, picks the best match, and creates a shopping list. Pass storeId from search_stores when no preferred store is saved. Set addToCart:true to also add the matches to your Kroger cart (PICKUP). Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"storeId":"70500847","addToCart":true}',
+        'One-shot shopping: resolves your preferred store, searches for each item name, picks the best match, and creates a shopping list. Set addToCart:true to also add the matches to your Kroger cart (PICKUP). Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -143,21 +140,13 @@ export function registerShopTools(ctx: ToolContext) {
       },
       inputSchema: shopForItemsInputSchema,
     },
-    async ({ items, addToCart, storeId }, requestContext) => {
+    async ({ items, addToCart }) => {
       getProps();
       const resolvedLocation = await safeResolveLocationId(ctx.storage, undefined);
       if (resolvedLocation.isErr()) {
-        if (resolvedLocation.error.type === "NOT_FOUND") {
-          return toMcpError(
-            notFoundError(
-              `No preferred store set. ${STORE_ID_RECOVERY_HINT} Or use search_stores then set_preferred_store and try again.`,
-            ),
-          );
-        }
         return toMcpError(
-          storageError(
-            `${resolvedLocation.error.message}. ${STORE_ID_RECOVERY_HINT}`,
-            resolvedLocation.error,
+          notFoundError(
+            "No preferred store set. Use search_stores to find a store, then set_preferred_store to save it, and try again.",
           ),
         );
       }

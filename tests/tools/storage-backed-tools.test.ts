@@ -268,32 +268,6 @@ describe("storage-backed tools", () => {
       ).toBe(true);
       expect((tool.config as { _meta?: { ui?: unknown } })._meta?.ui).toBeUndefined();
     });
-
-    it("keeps the profile readable when preferred-store fetch 401s", async () => {
-      const storage = makeStorage({
-        preferredLocation: {
-          get: async () => {
-            throw new Error("401 Unauthorized");
-          },
-          set: async () => {},
-        } as unknown as UserStorage["preferredLocation"],
-        pantry: {
-          getAll: async () => [
-            { productName: "Rice", quantity: 2, addedAt: new Date().toISOString() },
-          ],
-        } as unknown as UserStorage["pantry"],
-      });
-      registerInventoryTools(makeContext(storage));
-
-      const result = await getCapturedHandler("get_shopping_profile")({});
-
-      expect(result.isError).toBe(false);
-      const text = result.text;
-      expect(text).toContain("unavailable");
-      expect(text).toContain("401");
-      expect(text).toContain("storeId");
-      expect(text).toContain("Rice x2");
-    });
   });
 
   it("creates a shopping list and returns a short listId", async () => {
@@ -324,34 +298,6 @@ describe("storage-backed tools", () => {
       "Milk",
       "Bread",
     ]);
-  });
-
-  it("returns inline cart-add recovery when create_shopping_list storage 401s", async () => {
-    const storage = makeStorage({
-      shoppingList: {
-        create: async () => {
-          throw new Error("401 Unauthorized");
-        },
-        get: async () => null,
-        clear: async () => {},
-      } as unknown as UserStorage["shoppingList"],
-    });
-    registerShoppingListTools(
-      makeContext(storage, makeProductService({ "0001111042578": "Milk" })),
-    );
-    const handler = getCapturedHandler("create_shopping_list");
-
-    const result = await handler({
-      name: "Tuesday Dinner",
-      items: [{ upc: "0001111042578", quantity: 2 }],
-    });
-
-    expect(result.isError).toBe(true);
-    const text = result.text;
-    expect(text).toContain("Could not save shopping list");
-    expect(text).toContain("401");
-    expect(text).toContain("add_shopping_list_to_cart");
-    expect(text).toContain("0001111042578");
   });
 
   it("rejects shopping list creation with empty items before touching storage", async () => {

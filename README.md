@@ -4,8 +4,8 @@ Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Pr
 
 ## Local development
 
-Keep local secrets in the monorepo root `.env`. `pnpm start` and `pnpm dev`
-load that file through Wrangler's supported `--env-file` option.
+Keep local secrets in `.dev.vars`. `pnpm start` and `pnpm dev` load that file
+through Wrangler.
 
 Gateway-backed tools forward the authenticated MCP bearer token. The gateway
 validates it against this Worker's `/userinfo` endpoint, so no additional
@@ -13,7 +13,7 @@ Worker-to-gateway secret is required.
 
 ## Production resources
 
-Deploy from this monorepo directory with:
+Deploy from this repository with:
 
 ```bash
 pnpm build
@@ -143,10 +143,7 @@ pnpm cf-typegen
 The live Workers AI reranker check is intentionally separate because it uses Cloudflare credentials and incurs usage:
 
 ```bash
-pnpm install --frozen-lockfile
-cp .dev.vars.example .dev.vars
-# Add the Kroger credentials to .dev.vars.
-pnpm dev
+pnpm test:reranker:live
 ```
 
 Locally it uses the active Wrangler login. In CI it requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.

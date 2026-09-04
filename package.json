@@ -14,7 +14,7 @@
     "test:reranker:live": "node scripts/test-reranker-live.mjs",
     "deploy": "pnpm build:views && wrangler deploy",
     "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
-    "start": "wrangler dev --env-file ../../.env",
+    "start": "wrangler dev",
     "cf-typegen": "wrangler types",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix --fix-suggestions",
@@ -25,7 +25,7 @@
     "generate:location": "pnpm dlx openapi-typescript@7.13.0 kroger/location.json -o src/services/kroger/location.d.ts",
     "generate:product": "pnpm dlx openapi-typescript@7.13.0 kroger/product.json -o src/services/kroger/product.d.ts",
     "generate:identity": "pnpm dlx openapi-typescript@7.13.0 kroger/identity.json -o src/services/kroger/identity.d.ts",
-    "generate:gateway": "pnpm dlx openapi-typescript@7.13.0 ../../agents/api/openapi/grocery-gateway.yaml -o src/services/gateway/schema.d.ts",
+    "generate:gateway": "pnpm dlx openapi-typescript@7.13.0 openapi/grocery-gateway.yaml -o src/services/gateway/schema.d.ts",
     "api:check": "pnpm generate:gateway && git diff --exit-code -- src/services/gateway/schema.d.ts"
   },
   "dependencies": {
@@ -61,6 +61,7 @@
     "concurrently": "^10.0.5",
     "oxfmt": "^0.66.0",
     "oxlint": "^1.81.0",
+    "oxlint-tailwindcss": "1.10.2",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
     "vite-plugin-singlefile": "^2.3.3",
@@ -68,6 +69,7 @@
     "wrangler": "^4.129.0"
   },
   "engines": {
-    "node": ">=24.13.0"
-  }
+    "node": ">=24.18.1"
+  },
+  "packageManager": "pnpm@12.3.1"
 }

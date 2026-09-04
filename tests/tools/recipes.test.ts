@@ -27,7 +27,7 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp/server", () => ({
+vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 

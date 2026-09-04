@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": ["oxlint-tailwindcss"],
+  "rules": {
+    "tailwindcss/no-conflicting-classes": "error",
+    "tailwindcss/no-deprecated-classes": "error",
+    "tailwindcss/no-duplicate-classes": "error",
+    "tailwindcss/no-unknown-classes": [
+      "error",
+      {
+        "allowlist": [
+          "animated",
+          "cn-input-otp",
+          "is-assistant",
+          "is-user",
+          "node-container",
+          "oral-boards-shell",
+          "toaster"
+        ]
+      }
+    ],
+    "tailwindcss/no-unnecessary-whitespace": "error",
+    "tailwindcss/no-dark-without-light": "warn",
+    "tailwindcss/no-contradicting-variants": "warn",
+    "tailwindcss/enforce-canonical": "warn",
+    "tailwindcss/enforce-sort-order": "warn",
+    "tailwindcss/enforce-shorthand": "warn",
+    "tailwindcss/enforce-logical": "warn",
+    "tailwindcss/enforce-physical": "off",
+    "tailwindcss/enforce-consistent-important-position": "warn",
+    "tailwindcss/enforce-negative-arbitrary-values": "warn",
+    "tailwindcss/enforce-consistent-variable-syntax": "warn",
+    "tailwindcss/consistent-variant-order": "warn",
+    "tailwindcss/max-class-count": ["warn", { "max": 100 }],
+    "tailwindcss/enforce-consistent-line-wrapping": ["warn", { "printWidth": 2000 }],
+    "tailwindcss/no-restricted-classes": [
+      "error",
+      {
+        "patterns": [
+          {
+            "pattern": "^(?:[a-z0-9-]+:)*space-[xy]-",
+            "message": "Use flex or grid with gap-* instead."
+          }
+        ]
+      }
+    ],
+    "tailwindcss/no-arbitrary-value": "error",
+    "tailwindcss/no-hardcoded-colors": "error",
+    "tailwindcss/no-unnecessary-arbitrary-value": "warn",
+    "tailwindcss/prefer-theme-tokens": "warn"
+  }
+}

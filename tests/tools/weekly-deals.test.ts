@@ -22,7 +22,7 @@ const weeklyDealsAuthState = vi.hoisted(() => ({
   } as { props?: { id: string; accessToken: string; tokenExpiresAt: number } } | undefined,
 }));
 
-vi.mock("agents/mcp/server", () => ({
+vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => weeklyDealsAuthState.authContext,
 }));
 

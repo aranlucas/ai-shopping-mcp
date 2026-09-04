@@ -1,5 +1,4 @@
 import { vi } from "vitest";
-import * as z from "zod/v4";
 
 import type { ProductService } from "../../src/services/kroger/product-service.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
@@ -41,7 +40,7 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp/server", () => ({
+vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 

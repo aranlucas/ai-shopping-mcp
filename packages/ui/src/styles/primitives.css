@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@theme inline {
+  --color-secondary-hover: color-mix(in oklch, var(--color-secondary), var(--color-foreground) 5%);
+  --grid-template-columns-icon-content: auto 1fr;
+  --grid-template-columns-card-action: 1fr auto;
+  --grid-template-rows-card-description: auto auto;
+}
+
+@utility card-spacing {
+  --card-spacing: --spacing(4);
+}
+
+@utility card-spacing-sm {
+  --card-spacing: --spacing(3);
+}

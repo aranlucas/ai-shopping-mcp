@@ -218,56 +218,6 @@ describe("location storage-backed tools", () => {
     ]);
   });
 
-  it("returns a recoverable storeId when preferred-store save 401s", async () => {
-    const context = makeContext(
-      makeStorage({
-        preferredLocation: {
-          set: async () => {
-            throw new Error("401 Unauthorized");
-          },
-          get: async () => null,
-        } as unknown as UserStorage["preferredLocation"],
-      }),
-    );
-    context.clients = {
-      locationClient: {
-        GET: async () => ({
-          data: {
-            data: {
-              locationId: "70500847",
-              name: "QFC Broadway",
-              chain: "QFC",
-              address: {
-                addressLine1: "500 Broadway E",
-                city: "Seattle",
-                state: "WA",
-                zipCode: "98102",
-              },
-            },
-          },
-          response: new Response(null, { status: 200 }),
-        }),
-      },
-    } as unknown as ToolContext["clients"];
-    registerLocationTools(context);
-
-    const result = await getCapturedHandler("set_preferred_store")({
-      storeId: "70500847",
-    });
-
-    expect(result.isError).toBe(true);
-    const text = result.text;
-    expect(text).toContain("Could not save preferred store");
-    expect(text).toContain("401");
-    expect(text).toContain("storeId=70500847");
-    expect(text).toContain("shop_for_items");
-    expect(result).toMatchObject({
-      structuredContent: {
-        store: { locationId: "70500847", locationName: "QFC Broadway" },
-      },
-    });
-  });
-
   it("returns an error when the API returns no data for the given storeId", async () => {
     const context = makeContext();
     context.clients = {

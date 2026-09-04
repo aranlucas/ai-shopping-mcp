@@ -9,7 +9,6 @@ import type { KrogerClients } from "../services/kroger/client.js";
 import type { CartSnapshotItem } from "../utils/user-storage.js";
 
 import { storageError, validationError } from "../errors.js";
-import { registerAppTool } from "../utils/app-tool.js";
 import {
   fromApiResponse,
   getProps,
@@ -130,12 +129,11 @@ async function handleInlineItemsCart(
   items: Array<{ upc: string; quantity: number }>,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
-  requestContext?: ServerContext,
 ) {
   const locationResult = await safeResolveLocationId(ctx.storage, storeId);
   if (locationResult.isErr()) return toMcpError(locationResult.error);
 
-  const addResult = await addLineItemsToCart(ctx, cartClient, items, modality, requestContext);
+  const addResult = await addLineItemsToCart(ctx, cartClient, items, modality);
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   const resolved = locationResult.value;
@@ -166,7 +164,6 @@ async function handleListIdCart(
   listId: string,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
-  requestContext?: ServerContext,
 ) {
   const existingSnapshotResult = await safeStorage(
     () => ctx.carts.cartSnapshot.get(listId),
@@ -357,14 +354,14 @@ export function registerCartTools(ctx: ToolContext) {
       },
       inputSchema: addShoppingListToCartInputSchema,
     },
-    async ({ listId, items, storeId, modality }, requestContext) => {
+    async ({ listId, items, storeId, modality }) => {
       getProps();
       if (listId) {
-        return handleListIdCart(ctx, cartClient, listId, storeId, modality, requestContext);
+        return handleListIdCart(ctx, cartClient, listId, storeId, modality);
       }
 
       if (items) {
-        return handleInlineItemsCart(ctx, cartClient, items, storeId, modality, requestContext);
+        return handleInlineItemsCart(ctx, cartClient, items, storeId, modality);
       }
 
       return toMcpError(
@@ -380,7 +377,7 @@ export function registerCartTools(ctx: ToolContext) {
     {
       title: "View Cart",
       description:
-        "Shows the live Kroger cart when possible: lists the user's carts, or uses a cartId you pass once (remembered afterwards). Without a live cart, shows only items added through this assistant.",
+        "Shows the live Kroger cart when a cartId (from the Kroger website/app) has been provided once — it is remembered afterwards. Without one, shows only items added through this assistant.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -395,18 +392,6 @@ export function registerCartTools(ctx: ToolContext) {
       const resolvedId = cartId ?? (storedIdResult.isOk() ? storedIdResult.value : null);
 
       if (!resolvedId) {
-        const listed = await fromApiResponse(cartClient.GET("/v1/carts"), "list carts");
-        if (listed.isOk()) {
-          const cart = (listed.value?.data ?? []).find((candidate) => candidate.id);
-          const listedCartId = cart?.id;
-          if (cart && listedCartId) {
-            await safeStorage(() => ctx.storage.cartId.set(listedCartId), "store cart id").orTee(
-              (error) => console.warn("Cart id store failed (non-fatal):", error.message),
-            );
-            return textResult(formatLiveCart(cart, listedCartId));
-          }
-        }
-
         return mirrorFallbackResult(
           ctx,
           "No live cart id known — pass cartId to view_cart once to enable live cart reads.",

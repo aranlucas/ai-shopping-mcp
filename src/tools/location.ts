@@ -8,18 +8,12 @@ import type { LocationData } from "../app-results.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError } from "../errors.js";
-import { registerAppTool } from "../utils/app-tool.js";
 import {
   formatPreferredLocationCompact,
   formatStoreDetailMarkdown,
   formatStoreListMarkdown,
 } from "../utils/format-response.js";
-import {
-  fromApiResponse,
-  safeStorage,
-  STORE_ID_RECOVERY_HINT,
-  toMcpError,
-} from "../utils/result.js";
+import { fromApiResponse, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
 
@@ -187,37 +181,18 @@ export function registerLocationTools(ctx: ToolContext) {
         return safeStorage(
           () => ctx.storage.preferredLocation.set(preferredLocation),
           "save preferred location",
-        )
-          .map(() => ({
-            content: [
-              {
-                type: "text" as const,
-                text: `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
-              },
-            ],
-            ...appResult("set_preferred_store", {
-              store: preferredLocation,
-              actionDetail: `Preferred store set to ${preferredLocation.locationName}`,
-            }),
-          }))
-          .orElse((error) =>
-            ok({
-              content: [
-                {
-                  type: "text" as const,
-                  text:
-                    `Could not save preferred store (${error.message}). Shopping still works: ` +
-                    `pass storeId=${preferredLocation.locationId} to shop_for_items, search_products, ` +
-                    `and add_shopping_list_to_cart. ${STORE_ID_RECOVERY_HINT}`,
-                },
-              ],
-              isError: true as const,
-              ...appResult("set_preferred_store", {
-                store: preferredLocation,
-                actionDetail: `Store ${preferredLocation.locationName} is valid but was not saved. Pass storeId=${preferredLocation.locationId}.`,
-              }),
-            }),
-          );
+        ).map(() => ({
+          content: [
+            {
+              type: "text" as const,
+              text: `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
+            },
+          ],
+          ...appResult("set_preferred_store", {
+            store: preferredLocation,
+            actionDetail: `Preferred store set to ${preferredLocation.locationName}`,
+          }),
+        }));
       });
 
       return result.isOk() ? result.value : toMcpError(result.error);

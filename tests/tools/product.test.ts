@@ -34,7 +34,7 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp/server", () => ({
+vi.mock("agents/mcp", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 
@@ -455,7 +455,7 @@ describe("search_products", () => {
     const notifications: Array<{ method: string; params: unknown }> = [];
     registerProductTools(makeContext(async () => makeSearchResponse([product])));
 
-    const notify = vi.fn(async (notification: { method: string; params: unknown }) => {
+    const sendNotification = vi.fn(async (notification: { method: string; params: unknown }) => {
       notifications.push(notification);
     });
 

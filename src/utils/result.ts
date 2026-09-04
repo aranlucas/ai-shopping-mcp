@@ -98,10 +98,6 @@ export function getProps(): Props {
 
 // --- Location Resolution ---
 
-/** Next-step text when preferred-store storage is missing or unreadable. */
-export const STORE_ID_RECOVERY_HINT =
-  "Pass storeId from search_stores to shop_for_items, search_products, or add_shopping_list_to_cart.";
-
 /**
  * Result-based version of resolveLocationId.
  * Returns Ok with resolved location info or Err with validation error.
