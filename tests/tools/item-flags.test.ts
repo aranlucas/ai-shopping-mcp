@@ -64,10 +64,12 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
       (store
         ? {
             USER_DATA_KV: {
-              get: vi.fn(async (key: string) => store.get(key) ?? null),
-              put: vi.fn(async (key: string, value: string) => {
-                store.set(key, value);
-              }),
+              get: vi.fn<(key: string) => unknown>(async (key: string) => store.get(key) ?? null),
+              put: vi.fn<(key: string, value: string) => unknown>(
+                async (key: string, value: string) => {
+                  store.set(key, value);
+                },
+              ),
             },
           }
         : {}) as unknown as Env,

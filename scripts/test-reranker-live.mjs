@@ -38,7 +38,9 @@ function configPaths() {
 async function readWranglerOAuthToken() {
   for (const path of configPaths()) {
     try {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- config paths are tried in order until a token is found
       await access(path);
+      // oxlint-disable-next-line eslint/no-await-in-loop -- sequential fallback across standard Wrangler config locations
       const config = await readFile(path, "utf8");
       const token = /^oauth_token\s*=\s*"([^"]+)"/m.exec(config)?.[1];
       if (token) return token;

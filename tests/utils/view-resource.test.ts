@@ -70,6 +70,12 @@ function makeContext(env: Env): ToolContext {
   };
 }
 
+function requireCapturedCallback() {
+  const callback = testState.capturedResources[0]?.callback;
+  if (!callback) throw new Error("view resource callback was not captured");
+  return callback;
+}
+
 describe("registerViewResource", () => {
   beforeEach(() => {
     testState.capturedResources = [];
@@ -127,10 +133,9 @@ describe("registerViewResource", () => {
 
       registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
 
-      const callback = testState.capturedResources[0]?.callback;
-      expect(callback).toBeDefined();
+      const callback = requireCapturedCallback();
 
-      const result = await callback!();
+      const result = await callback();
       expect(result.contents[0]?.text).toBe(htmlContent);
     });
 
@@ -145,8 +150,7 @@ describe("registerViewResource", () => {
 
       registerViewResource(ctx, resourceUri, "mcp-app.html");
 
-      const callback = testState.capturedResources[0]?.callback;
-      const result = await callback!();
+      const result = await requireCapturedCallback()();
 
       expect(result.contents).toHaveLength(1);
       expect(result.contents[0]).toEqual({
@@ -168,8 +172,7 @@ describe("registerViewResource", () => {
       const ctx = makeContext(env);
 
       registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
-      const callback = testState.capturedResources[0]?.callback;
-      await callback!();
+      await requireCapturedCallback()();
 
       expect(requestedUrls).toHaveLength(1);
       expect(requestedUrls[0]).toBe("https://assets.invalid/mcp-app.html");
@@ -183,8 +186,7 @@ describe("registerViewResource", () => {
 
       registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
 
-      const callback = testState.capturedResources[0]?.callback;
-      const result = await callback!();
+      const result = await requireCapturedCallback()();
 
       expect(result.contents[0]?.text).toContain("Error loading view");
     });
@@ -198,8 +200,7 @@ describe("registerViewResource", () => {
 
       registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
 
-      const callback = testState.capturedResources[0]?.callback;
-      const result = await callback!();
+      const result = await requireCapturedCallback()();
 
       expect(result.contents[0]?.text).toContain("Error loading view");
     });
@@ -215,8 +216,7 @@ describe("registerViewResource", () => {
 
       registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
 
-      const callback = testState.capturedResources[0]?.callback;
-      const result = await callback!();
+      const result = await requireCapturedCallback()();
 
       expect(result.contents[0]?.text).toContain("Error loading view");
     });
@@ -228,8 +228,7 @@ describe("registerViewResource", () => {
 
       registerViewResource(ctx, resourceUri, "mcp-app.html");
 
-      const callback = testState.capturedResources[0]?.callback;
-      const result = await callback!();
+      const result = await requireCapturedCallback()();
 
       expect(result.contents[0]?.uri).toBe(resourceUri);
       expect(result.contents[0]?.mimeType).toBe(EXPECTED_MIME_TYPE);
@@ -244,8 +243,7 @@ describe("registerViewResource", () => {
 
       registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
 
-      const callback = testState.capturedResources[0]?.callback;
-      const result = await callback!();
+      const result = await requireCapturedCallback()();
 
       expect(result.contents[0]?.text).toContain("Error loading view");
     });

@@ -11,7 +11,7 @@
  * number, re-run with EVAL_LOG=1 (`EVAL_LOG=1 pnpm eval:mcp`) and recalibrate
  * deliberately — do not bump budgets to make CI green without looking.
  */
-import { Client } from "@modelcontextprotocol/client";
+import type { Client } from "@modelcontextprotocol/client";
 import { env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -51,7 +51,7 @@ describe("token budget: tool surface", () => {
 
     const perTool = tools
       .map((tool) => ({ name: tool.name, tokens: estimateJsonTokens(tool) }))
-      .sort((a, b) => b.tokens - a.tokens);
+      .toSorted((a, b) => b.tokens - a.tokens);
     const total = perTool.reduce((sum, entry) => sum + entry.tokens, 0);
 
     log("tool surface tokens:", total);

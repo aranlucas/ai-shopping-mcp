@@ -181,18 +181,22 @@ export function registerLocationTools(ctx: ToolContext) {
         return safeStorage(
           () => ctx.storage.preferredLocation.set(preferredLocation),
           "save preferred location",
-        ).map(() => ({
-          content: [
+        ).map(() =>
+          Object.assign(
             {
-              type: "text" as const,
-              text: `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Preferred location set successfully:\n\n${formatPreferredLocationCompact(preferredLocation)}`,
+                },
+              ],
             },
-          ],
-          ...appResult("set_preferred_store", {
-            store: preferredLocation,
-            actionDetail: `Preferred store set to ${preferredLocation.locationName}`,
-          }),
-        }));
+            appResult("set_preferred_store", {
+              store: preferredLocation,
+              actionDetail: `Preferred store set to ${preferredLocation.locationName}`,
+            }),
+          ),
+        );
       });
 
       return result.isOk() ? result.value : toMcpError(result.error);

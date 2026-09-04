@@ -94,7 +94,7 @@ describe("MCP agent contract", () => {
   it("exposes the redesigned workflow-first tool surface", () => {
     const toolNames = registerAllTools()
       .map((tool) => tool.name)
-      .sort();
+      .toSorted();
 
     expect(toolNames).toEqual([
       "add_shopping_list_items",
@@ -162,7 +162,7 @@ describe("MCP agent contract", () => {
       "search_stores",
       "view_cart",
     ]) {
-      expect(toolByName(tools, name).config.annotations?.readOnlyHint, name).toBe(true);
+      expect(toolByName(tools, name).config.annotations?.readOnlyHint, `${name}`).toBe(true);
     }
 
     expect(toolByName(tools, "remove_from_inventory").config.annotations?.destructiveHint).toBe(

@@ -41,7 +41,7 @@ function memoryKv(): KvLike & { writes: number } {
 
 describe("Trader Joe's catalog client", () => {
   it("normalizes catalog items into shopping-list-ready products", async () => {
-    const fetcher = vi.fn(async () => catalogResponse([catalogItem()]));
+    const fetcher = vi.fn<() => unknown>(async () => catalogResponse([catalogItem()]));
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
 
     const result = await client.searchProducts("chili crunch");
@@ -66,7 +66,7 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("sends the search terms, store code, and page size the storefront expects", async () => {
-    const fetcher = vi.fn(async () => catalogResponse([]));
+    const fetcher = vi.fn<() => unknown>(async () => catalogResponse([]));
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
 
     await client.searchProducts("gyoza", { storeCode: "546", limit: 3 });
@@ -89,7 +89,7 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("falls back to retail_price when price_range is absent", async () => {
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn<() => unknown>(async () =>
       catalogResponse([catalogItem({ price_range: null, retail_price: "$2.49" })]),
     );
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
@@ -99,7 +99,7 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("skips items with no sku or title rather than failing the search", async () => {
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn<() => unknown>(async () =>
       catalogResponse([
         catalogItem({ sku: null }),
         catalogItem({ item_title: "  " }),
@@ -113,7 +113,7 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("caps results at the requested limit", async () => {
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn<() => unknown>(async () =>
       catalogResponse([
         catalogItem({ sku: "1" }),
         catalogItem({ sku: "2" }),
@@ -127,7 +127,9 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("reports bot protection distinctly from a bad query", async () => {
-    const fetcher = vi.fn(async () => new Response("Access Denied", { status: 403 }));
+    const fetcher = vi.fn<() => unknown>(
+      async () => new Response("Access Denied", { status: 403 }),
+    );
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
 
     const result = await client.searchProducts("chili crunch");
@@ -137,7 +139,7 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("surfaces GraphQL errors instead of returning an empty catalog", async () => {
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn<() => unknown>(async () =>
       Response.json({ errors: [{ message: "Unknown field 'search'" }] }, { status: 200 }),
     );
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
@@ -149,7 +151,7 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("serves a repeat search from KV without calling the storefront again", async () => {
-    const fetcher = vi.fn(async () => catalogResponse([catalogItem()]));
+    const fetcher = vi.fn<() => unknown>(async () => catalogResponse([catalogItem()]));
     const kv = memoryKv();
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch, kv });
 
@@ -161,7 +163,7 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("uses the configured endpoint override", async () => {
-    const fetcher = vi.fn(async () => catalogResponse([]));
+    const fetcher = vi.fn<() => unknown>(async () => catalogResponse([]));
     const client = createTraderJoesClient({
       endpoint: "https://proxy.example/graphql",
       fetcher: fetcher as unknown as typeof fetch,
@@ -174,7 +176,7 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("rejects an empty query without a network call", async () => {
-    const fetcher = vi.fn(async () => catalogResponse([]));
+    const fetcher = vi.fn<() => unknown>(async () => catalogResponse([]));
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
 
     const result = await client.searchProducts("   ");

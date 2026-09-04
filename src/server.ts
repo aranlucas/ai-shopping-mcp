@@ -1,4 +1,4 @@
-import OAuthProvider, { GrantType, OAuthError } from "@cloudflare/workers-oauth-provider";
+import { GrantType, OAuthError, OAuthProvider } from "@cloudflare/workers-oauth-provider";
 import * as Sentry from "@sentry/cloudflare";
 import { McpServer, type McpRequestContext } from "@modelcontextprotocol/server";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";

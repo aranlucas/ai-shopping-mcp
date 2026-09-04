@@ -1,5 +1,7 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 
+import { useCallback } from "react";
+
 import { Badge, FulfillmentTags, PriceDisplay, ProductActions } from "../../shared/components.js";
 import { type ProductDetailContent } from "../../shared/types.js";
 import { addProductToCart, saveProductToList } from "../tool-calls.js";
@@ -18,26 +20,28 @@ export function ProductDetailView({
   const brand = product.brand;
   const productRef = `${product.product.provider}:${product.product.id}`;
 
-  const handleAddToCart = async (
-    productName: string,
-    selectedProductRef: string,
-    quantity: number,
-  ) => {
-    await addProductToCart(app, {
-      listName: `Cart: ${productName}`,
-      productName,
-      quantity,
-      productRef: selectedProductRef,
-    });
-  };
+  const handleAddToCart = useCallback(
+    async (productName: string, selectedProductRef: string, quantity: number) => {
+      await addProductToCart(app, {
+        listName: `Cart: ${productName}`,
+        productName,
+        quantity,
+        productRef: selectedProductRef,
+      });
+    },
+    [app],
+  );
 
-  const handleAddToList = async (productName: string, selectedProductRef: string) => {
-    await saveProductToList(app, {
-      productName,
-      quantity: 1,
-      productRef: selectedProductRef,
-    });
-  };
+  const handleAddToList = useCallback(
+    async (productName: string, selectedProductRef: string) => {
+      await saveProductToList(app, {
+        productName,
+        quantity: 1,
+        productRef: selectedProductRef,
+      });
+    },
+    [app],
+  );
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">

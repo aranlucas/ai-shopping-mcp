@@ -4,7 +4,7 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { AddToCartView } from "./app/views/add-to-cart.js";
@@ -36,35 +36,36 @@ function ShoppingApp() {
   const { app, isConnected, error } = useApp({
     appInfo: { name: "shopping-app", version: "1.0.0" },
     capabilities: { availableDisplayModes: ["inline", "fullscreen"] },
-    onAppCreated: (app) => {
-      app.onteardown = async () => {
+    onAppCreated: (createdApp) => {
+      createdApp.onteardown = async () => {
         return {};
       };
-      app.ontoolinputpartial = (params) => {
+      createdApp.ontoolinputpartial = (params) => {
         setPartialArgs(params.arguments ?? {});
       };
-      app.ontoolinput = async () => {
+      createdApp.ontoolinput = async () => {
         setPartialArgs(null);
       };
-      app.ontoolresult = async (result) => {
+      createdApp.ontoolresult = async (result) => {
         setPartialArgs(null);
         setToolResult(result);
       };
-      app.ontoolcancelled = () => {
+      createdApp.ontoolcancelled = () => {
         setPartialArgs(null);
       };
-      app.onerror = console.error;
-      app.onhostcontextchanged = (params) => {
+      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- MCP Apps SDK uses `onerror` property assignment, not DOM EventTarget
+      createdApp.onerror = console.error;
+      createdApp.onhostcontextchanged = (params) => {
         setHostContext((prev) => ({ ...prev, ...params }));
       };
     },
   });
 
-  useEffect(() => {
-    if (app) {
-      setHostContext(app.getHostContext());
-    }
-  }, [app]);
+  // Sync the initial host context during render (React-recommended derived-state
+  // pattern) instead of an effect, so there is no cascading render.
+  if (app && hostContext === undefined) {
+    setHostContext(app.getHostContext());
+  }
 
   useHostStyles(app, app?.getHostContext());
 

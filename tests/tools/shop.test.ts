@@ -70,6 +70,21 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
   };
 }
 
+function makeStubAi() {
+  return {
+    run: async (_model: string, options: { contexts: { text?: string }[] }) => ({
+      response: options.contexts.map((context, index) => ({
+        id: index,
+        score: context.text?.startsWith("Whole Milk") ? 0.9 : 0.1,
+      })),
+    }),
+  };
+}
+
+function makeMinimalKv() {
+  return { get: async () => null, put: async () => {} };
+}
+
 type ProductGetFn = (
   path: string,
   opts: { params: { query?: Record<string, string | number> } },
@@ -377,21 +392,6 @@ describe("shop_for_items", () => {
         items: [{ fulfillment: { curbside: true, instore: false } }],
       });
       return { wrongMatch, rightMatch };
-    }
-
-    function makeStubAi() {
-      return {
-        run: async (_model: string, options: { contexts: { text?: string }[] }) => ({
-          response: options.contexts.map((context, index) => ({
-            id: index,
-            score: context.text?.startsWith("Whole Milk") ? 0.9 : 0.1,
-          })),
-        }),
-      };
-    }
-
-    function makeMinimalKv() {
-      return { get: async () => null, put: async () => {} };
     }
 
     it("picks the semantically-better product when AI features are enabled", async () => {

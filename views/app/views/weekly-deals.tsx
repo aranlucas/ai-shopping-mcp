@@ -1,6 +1,6 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@agents/ui/components/badge";
 import { Card, CardContent, CardFooter } from "@agents/ui/components/card";
@@ -13,6 +13,34 @@ import {
   callTool,
   sendUserMessage,
 } from "../../shared/types.js";
+
+const SEARCH_ICON = (
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+    />
+  </svg>
+);
+
+const EMPTY_DEALS_ICON = (
+  <svg
+    aria-hidden="true"
+    className="size-5"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"
+    />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
+  </svg>
+);
 
 function DealCard({
   deal,
@@ -27,7 +55,7 @@ function DealCard({
 }) {
   const [searchState, setSearchState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     setSearchState("loading");
     try {
       await onSearch(deal.title);
@@ -37,7 +65,11 @@ function DealCard({
       setSearchState("error");
       setTimeout(() => setSearchState("idle"), 2000);
     }
-  };
+  }, [deal.title, onSearch]);
+
+  const handlePlanMealClick = useCallback(() => {
+    onPlanMeal(deal.title);
+  }, [deal.title, onPlanMeal]);
 
   return (
     <Card size="sm" className="flex flex-col transition-shadow duration-150 hover:shadow-md">
@@ -67,25 +99,11 @@ function DealCard({
           doneLabel="Done!"
           failLabel="Failed"
           variant="secondary"
-          icon={
-            <svg
-              aria-hidden="true"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-              />
-            </svg>
-          }
+          icon={SEARCH_ICON}
         />
         <button
           type="button"
-          onClick={() => onPlanMeal(deal.title)}
+          onClick={handlePlanMealClick}
           className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-transparent px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-muted"
           title="Ask the assistant to plan a meal using this deal"
         >
@@ -155,40 +173,39 @@ export function WeeklyDealsView({
     });
   }, [app, deals.length, validFrom, validTill]);
 
-  const handleSearch = async (title: string) => {
-    const result = await callTool(app, {
-      name: "search_products",
-      arguments: { terms: [title] },
-    });
-    if (result?.isError) throw new Error("Failed to search product");
-  };
+  const handleSearch = useCallback(
+    async (title: string) => {
+      const result = await callTool(app, {
+        name: "search_products",
+        arguments: { terms: [title] },
+      });
+      if (result?.isError) throw new Error("Failed to search product");
+    },
+    [app],
+  );
 
-  const handlePlanMeal = (title: string) => {
-    sendUserMessage(app, `Plan a quick meal that uses "${title}" from this week's deals.`);
-  };
+  const handlePlanMeal = useCallback(
+    (title: string) => {
+      sendUserMessage(app, `Plan a quick meal that uses "${title}" from this week's deals.`);
+    },
+    [app],
+  );
+
+  const headerBadge = useMemo(
+    () => <span className="font-mono text-xs text-gray-400">{deals.length} deals</span>,
+    [deals.length],
+  );
+  const headerTrailing = useMemo(
+    () => <DisplayModeToggle app={app} hostContext={hostContext} />,
+    [app, hostContext],
+  );
 
   if (deals.length === 0) {
     return (
       <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
         <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Weekly Deals</h1>
         <EmptyState
-          icon={
-            <svg
-              aria-hidden="true"
-              className="size-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"
-              />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
-            </svg>
-          }
+          icon={EMPTY_DEALS_ICON}
           message="No deals this week"
           description="Check back soon for weekly specials."
         />
@@ -200,9 +217,9 @@ export function WeeklyDealsView({
     <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title="Weekly Deals"
-        badge={<span className="font-mono text-xs text-gray-400">{deals.length} deals</span>}
+        badge={headerBadge}
         subtitle={validFrom && validTill ? `Valid ${validFrom} – ${validTill}` : undefined}
-        trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
+        trailing={headerTrailing}
       />
       {groupDealsByCategory(deals).map((group) => (
         <div key={group.category} className="mb-5 last:mb-0">

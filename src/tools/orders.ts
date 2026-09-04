@@ -87,23 +87,27 @@ export function registerOrderTools(ctx: ToolContext) {
       const result = await safeStorage(
         () => ctx.storage.orderHistory.add(order),
         "record order",
-      ).map(() => ({
-        content: [
+      ).map(() =>
+        Object.assign(
           {
-            type: "text" as const,
-            text: `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
+            content: [
+              {
+                type: "text" as const,
+                text: `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
+              },
+            ],
           },
-        ],
-        ...appResult("record_order", {
-          orderId: order.orderId,
-          items: order.items,
-          totalItems: order.totalItems,
-          estimatedTotal: order.estimatedTotal,
-          placedAt: order.placedAt,
-          locationId: order.locationId,
-          notes: order.notes,
-        }),
-      }));
+          appResult("record_order", {
+            orderId: order.orderId,
+            items: order.items,
+            totalItems: order.totalItems,
+            estimatedTotal: order.estimatedTotal,
+            placedAt: order.placedAt,
+            locationId: order.locationId,
+            notes: order.notes,
+          }),
+        ),
+      );
 
       return result.isOk() ? result.value : toMcpError(result.error);
     },

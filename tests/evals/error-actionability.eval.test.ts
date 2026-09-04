@@ -6,7 +6,7 @@
  * situation. Each case asserts the recovery tool appears verbatim in the
  * error text — and that following that advice actually works.
  */
-import { Client } from "@modelcontextprotocol/client";
+import type { Client } from "@modelcontextprotocol/client";
 import { reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -94,6 +94,6 @@ describe("error actionability", () => {
     expect(saved.isError).toBeFalsy();
 
     const retried = await call("shop_for_items", { items: [{ name: "milk" }] });
-    expect(retried.isError, contentText(retried)).toBeFalsy();
+    expect(retried.isError, `${contentText(retried)}`).toBeFalsy();
   });
 });

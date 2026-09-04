@@ -1,5 +1,7 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
+import { useCallback, useMemo } from "react";
+
 import {
   Carousel,
   CarouselContent,
@@ -13,6 +15,25 @@ import { EmptyState } from "../../shared/status.js";
 import { type ProductData, type ProductSearchResultsContent } from "../../shared/types.js";
 import { addProductToCart, saveProductToList } from "../tool-calls.js";
 
+const CAROUSEL_OPTS = { align: "start" } as const;
+
+const EMPTY_SEARCH_ICON = (
+  <svg
+    aria-hidden="true"
+    className="size-5"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+    />
+  </svg>
+);
+
 function ProductCarousel({
   products,
   onAddToCart,
@@ -25,7 +46,7 @@ function ProductCarousel({
   canCallTools: boolean;
 }) {
   return (
-    <Carousel opts={{ align: "start" }}>
+    <Carousel opts={CAROUSEL_OPTS}>
       <CarouselContent className="-ms-2">
         {products.map((product) => (
           <CarouselItem
@@ -60,52 +81,56 @@ export function ProductSearchView({
 }) {
   const { results, totalProducts } = data;
 
-  const handleAddToCart = async (name: string, productRef: string, qty: number) => {
-    await addProductToCart(app, {
-      listName: `Cart: ${name}`,
-      productName: name,
-      quantity: qty,
-      productRef,
-    });
-  };
+  const handleAddToCart = useCallback(
+    async (name: string, productRef: string, qty: number) => {
+      await addProductToCart(app, {
+        listName: `Cart: ${name}`,
+        productName: name,
+        quantity: qty,
+        productRef,
+      });
+    },
+    [app],
+  );
 
-  const handleAddToList = async (name: string, productRef: string) => {
-    await saveProductToList(app, {
-      productName: name,
-      quantity: 1,
-      productRef,
-    });
-  };
+  const handleAddToList = useCallback(
+    async (name: string, productRef: string) => {
+      await saveProductToList(app, {
+        productName: name,
+        quantity: 1,
+        productRef,
+      });
+    },
+    [app],
+  );
 
   const hasResults = results.some((r) => !r.failed && r.products.length > 0);
+
+  const headerBadge = useMemo(
+    () => <span className="font-mono text-xs text-gray-400">{totalProducts} items</span>,
+    [totalProducts],
+  );
+  const headerTrailing = useMemo(
+    () => <DisplayModeToggle app={app} hostContext={hostContext} />,
+    [app, hostContext],
+  );
+  const headerSubtitle = useMemo(
+    () => `${results.length} search term${results.length !== 1 ? "s" : ""}`,
+    [results.length],
+  );
 
   return (
     <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title="Product Search"
-        badge={<span className="font-mono text-xs text-gray-400">{totalProducts} items</span>}
-        subtitle={`${results.length} search term${results.length !== 1 ? "s" : ""}`}
-        trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
+        badge={headerBadge}
+        subtitle={headerSubtitle}
+        trailing={headerTrailing}
       />
 
       {!hasResults && (
         <EmptyState
-          icon={
-            <svg
-              aria-hidden="true"
-              className="size-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-              />
-            </svg>
-          }
+          icon={EMPTY_SEARCH_ICON}
           message="No products found"
           description="Try different search terms or check your store location."
         />

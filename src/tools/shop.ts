@@ -171,7 +171,12 @@ export function registerShopTools(ctx: ToolContext) {
             query: terms[index],
             products: result.products,
           });
-          return { ...result, products: ranked };
+          return {
+            term: result.term,
+            products: ranked,
+            count: result.count,
+            failed: result.failed,
+          };
         }),
       );
 

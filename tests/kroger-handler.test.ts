@@ -16,9 +16,11 @@ function makeEnv() {
     KROGER_CLIENT_ID: "test-client-id",
     KROGER_CLIENT_SECRET: "test-client-secret",
     OAUTH_PROVIDER: {
-      completeAuthorization: vi.fn().mockResolvedValue({ redirectTo: "https://mcp.test/done" }),
-      lookupClient: vi.fn().mockResolvedValue(null),
-      parseAuthRequest: vi.fn().mockResolvedValue({
+      completeAuthorization: vi
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue({ redirectTo: "https://mcp.test/done" }),
+      lookupClient: vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue(null),
+      parseAuthRequest: vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
         clientId: "mcp-client",
         codeChallenge: "challenge",
         redirectUri: "https://mcp.test/callback",
@@ -125,7 +127,7 @@ describe("Kroger OAuth handler", () => {
     it("returns 400 when parseAuthRequest throws", async () => {
       const env = makeEnv();
       env.OAUTH_PROVIDER.parseAuthRequest = vi
-        .fn()
+        .fn<(...args: unknown[]) => Promise<unknown>>()
         .mockRejectedValue(new Error("bad request params"));
 
       const response = await KrogerHandler.request(
@@ -140,11 +142,13 @@ describe("Kroger OAuth handler", () => {
 
     it("returns 400 when parsed auth request has no clientId", async () => {
       const env = makeEnv();
-      env.OAUTH_PROVIDER.parseAuthRequest = vi.fn().mockResolvedValue({
-        clientId: undefined,
-        redirectUri: "https://mcp.test/callback",
-        scope: "tools",
-      });
+      env.OAUTH_PROVIDER.parseAuthRequest = vi
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue({
+          clientId: undefined,
+          redirectUri: "https://mcp.test/callback",
+          scope: "tools",
+        });
 
       const response = await KrogerHandler.request(
         `${BASE_URL}/authorize?client_id=mcp-client`,
@@ -210,12 +214,14 @@ describe("Kroger OAuth handler", () => {
           .getSetCookie()
           .find((cookie) => cookie.startsWith("__Host-mcp-approved-clients=")) ?? "";
 
-      env.OAUTH_PROVIDER.parseAuthRequest = vi.fn().mockResolvedValue({
-        clientId: "mcp-client",
-        codeChallenge: "challenge",
-        redirectUri: "https://attacker.test/callback",
-        scope: "tools",
-      });
+      env.OAUTH_PROVIDER.parseAuthRequest = vi
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue({
+          clientId: "mcp-client",
+          codeChallenge: "challenge",
+          redirectUri: "https://attacker.test/callback",
+          scope: "tools",
+        });
 
       const response = await KrogerHandler.request(
         `${BASE_URL}/authorize?client_id=mcp-client`,
@@ -493,7 +499,7 @@ describe("Kroger OAuth handler", () => {
       const env = makeEnv();
       const { stateCookieValue } = await getCallbackSetup(env);
 
-      const fetchMock = vi.fn();
+      const fetchMock = vi.fn<typeof fetch>();
       vi.stubGlobal("fetch", fetchMock);
 
       const response = await KrogerHandler.request(
@@ -738,7 +744,7 @@ describe("Kroger OAuth handler", () => {
           ),
       );
       env.OAUTH_PROVIDER.completeAuthorization = vi
-        .fn()
+        .fn<(...args: unknown[]) => Promise<unknown>>()
         .mockRejectedValue(new Error("authorization server rejected"));
 
       const response = await KrogerHandler.request(

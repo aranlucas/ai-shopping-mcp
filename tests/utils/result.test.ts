@@ -244,20 +244,22 @@ describe("getProps", () => {
 
 // --- safeResolveLocationId ---
 
+function makeMockUserStorage(preferredLocation: unknown = null) {
+  return {
+    preferredLocation: {
+      get: vi.fn<() => Promise<unknown>>().mockResolvedValue(preferredLocation),
+      set: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
+      delete: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
+    },
+    pantry: {},
+    equipment: {},
+    orderHistory: {},
+    shoppingList: {},
+  } as unknown as UserStorage;
+}
+
 describe("safeResolveLocationId", () => {
-  function mockStorage(preferredLocation: unknown = null) {
-    return {
-      preferredLocation: {
-        get: vi.fn().mockResolvedValue(preferredLocation),
-        set: vi.fn(),
-        delete: vi.fn(),
-      },
-      pantry: {},
-      equipment: {},
-      orderHistory: {},
-      shoppingList: {},
-    } as unknown as UserStorage;
-  }
+  const mockStorage = makeMockUserStorage;
 
   it("returns Ok with provided locationId without touching storage", async () => {
     const storage = mockStorage();
@@ -292,7 +294,7 @@ describe("safeResolveLocationId", () => {
   it("returns STORAGE_ERROR when storage read fails", async () => {
     const storage = {
       preferredLocation: {
-        get: vi.fn().mockRejectedValue(new Error("KV unavailable")),
+        get: vi.fn<() => Promise<unknown>>().mockRejectedValue(new Error("KV unavailable")),
       },
     } as unknown as UserStorage;
     const result = await safeResolveLocationId(storage);

@@ -5,6 +5,12 @@ import type { OrderHistoryContent } from "../../shared/types.js";
 
 import { SectionHeader } from "../../shared/components.js";
 
+const RECORDED_BADGE = (
+  <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+    Recorded
+  </Badge>
+);
+
 export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
   const { orderId, items, totalItems, estimatedTotal, placedAt, locationId, notes } = data;
 
@@ -17,15 +23,7 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader
-        title="Order Placed"
-        badge={
-          <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
-            Recorded
-          </Badge>
-        }
-        subtitle={placedDate}
-      />
+      <SectionHeader title="Order Placed" badge={RECORDED_BADGE} subtitle={placedDate} />
 
       <Card size="sm" className="mb-3">
         <CardContent className="flex flex-col gap-1 pt-3">

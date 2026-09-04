@@ -18,7 +18,7 @@
  * (fixture cart contents), tool-call count vs budget, and schema-rejection
  * count (isError results).
  */
-import { Client } from "@modelcontextprotocol/client";
+import type { Client } from "@modelcontextprotocol/client";
 import { env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -135,6 +135,7 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
     ];
 
     for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- agent turns are sequential by design: each turn depends on prior tool results
       const result = parseChatResult(await ai.run(model, { messages, tools }));
 
       if (!result.tool_calls || result.tool_calls.length === 0) break;
@@ -146,6 +147,7 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
 
         let toolResult: ToolCallResult;
         try {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- tool calls run in order so the message history stays deterministic
           toolResult = (await client.callTool({
             name: toolCall.name,
             arguments: parseToolArguments(toolCall.arguments),
@@ -168,37 +170,36 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
   }
 
   for (const scenario of SCENARIOS) {
-    it(
-      scenario.name,
-      async () => {
-        if (scenario.seedPreferredStoreId) {
-          const seeded = (await client.callTool({
-            name: "set_preferred_store",
-            arguments: { storeId: scenario.seedPreferredStoreId },
-          })) as ToolCallResult;
-          expect(seeded.isError).toBeFalsy();
-          stub.cartPuts.length = 0;
+    it(`live scenario: ${scenario.name}`, async () => {
+      if (scenario.seedPreferredStoreId) {
+        const seeded = (await client.callTool({
+          name: "set_preferred_store",
+          arguments: { storeId: scenario.seedPreferredStoreId },
+        })) as ToolCallResult;
+        if (seeded.isError) {
+          throw new Error(`seed step for "${scenario.name}" failed: ${contentText(seeded)}`);
         }
+        stub.cartPuts.length = 0;
+      }
 
-        const stats = await runAgent(scenario.userTask);
-        const cartUpcs = stub.allCartItems().map((item) => item.upc);
+      const stats = await runAgent(scenario.userTask);
+      const cartUpcs = stub.allCartItems().map((item) => item.upc);
 
-        console.log(
-          `[live-eval] ${scenario.name}: toolCalls=${stats.toolCalls} ` +
-            `schemaRejections=${stats.schemaRejections} cart=[${cartUpcs.join(", ")}]`,
-        );
+      console.log(
+        `[live-eval] ${scenario.name}: toolCalls=${stats.toolCalls} ` +
+          `schemaRejections=${stats.schemaRejections} cart=[${cartUpcs.join(", ")}]`,
+      );
 
-        for (const expected of scenario.expectCart) {
-          expect(
-            cartUpcs.some((upc) => upc && expected.anyOf.includes(upc)),
-            `cart is missing "${expected.label}" (got: ${cartUpcs.join(", ") || "empty cart"})`,
-          ).toBe(true);
-        }
-        expect(stats.toolCalls, "tool-call budget exceeded").toBeLessThanOrEqual(
-          scenario.maxToolCalls,
-        );
-      },
-      120_000,
-    );
+      const missingCartItems = scenario.expectCart.filter(
+        (expected) => !cartUpcs.some((upc) => upc && expected.anyOf.includes(upc)),
+      );
+      expect(
+        missingCartItems.map((expected) => expected.label),
+        `cart is missing (got: ${cartUpcs.join(", ") || "empty cart"})`,
+      ).toEqual([]);
+      expect(stats.toolCalls, "tool-call budget exceeded").toBeLessThanOrEqual(
+        scenario.maxToolCalls,
+      );
+    }, 120_000);
   }
 });

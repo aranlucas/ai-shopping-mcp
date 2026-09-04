@@ -39,12 +39,14 @@ function makeStubAi(scoreFor: (text: string, index: number) => number): {
   ai: RerankerAi;
   run: RerankerRunMock;
 } {
-  const run = vi.fn(async (_model: string, options: RerankerRunInput) => ({
-    response: options.contexts.map((context, index) => ({
-      id: index,
-      score: scoreFor(context.text, index),
-    })),
-  }));
+  const run = vi.fn<(_model: string, options: RerankerRunInput) => Promise<RerankerRunOutput>>(
+    async (_model: string, options: RerankerRunInput) => ({
+      response: options.contexts.map((context, index) => ({
+        id: index,
+        score: scoreFor(context.text, index),
+      })),
+    }),
+  );
 
   return { ai: acceptsRerankerAi({ run }), run };
 }
@@ -177,7 +179,7 @@ describe("rankProductMatches", () => {
   it("falls back to original order when ai.run rejects", async () => {
     const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
     const ai = {
-      run: vi.fn(async () => {
+      run: vi.fn<() => unknown>(async () => {
         throw new Error("boom");
       }),
     } as unknown as Ai;
@@ -191,7 +193,7 @@ describe("rankProductMatches", () => {
     vi.useFakeTimers();
     const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
     const ai = {
-      run: vi.fn(() => new Promise<never>(() => {})),
+      run: vi.fn<() => unknown>(() => new Promise<never>(() => {})),
     } as unknown as Ai;
 
     const resultPromise = rankProductMatches({ ai, query: "milk", products });
@@ -203,7 +205,9 @@ describe("rankProductMatches", () => {
 
   it("falls back to original order on a malformed reranker response", async () => {
     const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
-    const ai = { run: vi.fn(async () => ({ request_id: "async-response" })) } as unknown as Ai;
+    const ai = {
+      run: vi.fn<() => unknown>(async () => ({ request_id: "async-response" })),
+    } as unknown as Ai;
 
     const ranked = await rankProductMatches({ ai, query: "milk", products });
 
@@ -213,7 +217,7 @@ describe("rankProductMatches", () => {
   it("falls back to original order when the reranker response references an invalid product index", async () => {
     const products = [makeProduct({ upc: "1" }), makeProduct({ upc: "2" })];
     const ai = {
-      run: vi.fn(async () => ({ response: [{ id: 5, score: 0.9 }] })),
+      run: vi.fn<() => unknown>(async () => ({ response: [{ id: 5, score: 0.9 }] })),
     } as unknown as Ai;
 
     const ranked = await rankProductMatches({ ai, query: "milk", products });

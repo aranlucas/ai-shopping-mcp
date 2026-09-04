@@ -8,7 +8,7 @@
  * needs more calls than budgeted, the eval fails — before a real small model
  * ever does.
  */
-import { Client } from "@modelcontextprotocol/client";
+import type { Client } from "@modelcontextprotocol/client";
 import { reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 

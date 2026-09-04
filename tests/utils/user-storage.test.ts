@@ -7,12 +7,14 @@ import {
 
 function createMockKV(initialData: Record<string, string> = {}) {
   const store = new Map<string, string>(Object.entries(initialData));
-  const get = vi.fn((key: string) => Promise.resolve(store.get(key) ?? null));
-  const put = vi.fn((key: string, value: string) => {
+  const get = vi.fn<(key: string) => Promise<string | null>>((key: string) =>
+    Promise.resolve(store.get(key) ?? null),
+  );
+  const put = vi.fn<(key: string, value: string) => Promise<void>>((key: string, value: string) => {
     store.set(key, value);
     return Promise.resolve();
   });
-  const del = vi.fn((key: string) => {
+  const del = vi.fn<(key: string) => Promise<void>>((key: string) => {
     store.delete(key);
     return Promise.resolve();
   });

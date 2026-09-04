@@ -73,7 +73,7 @@ type RankedProduct = {
 };
 
 function rejectAfter(ms: number): Promise<never> {
-  return new Promise((_, reject) => {
+  return new Promise((_resolve, reject) => {
     setTimeout(() => reject(new Error(`match-ranker timed out after ${ms}ms`)), ms);
   });
 }
@@ -150,9 +150,9 @@ async function rankProductMatchesInner(params: {
   }
 
   // Stable sort descending by final score; original index keeps ties deterministic.
-  scored.sort((a, b) => b.score - a.score || a.index - b.index);
-
-  return scored.map((entry) => entry.product);
+  return scored
+    .toSorted((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.product);
 }
 
 /**
