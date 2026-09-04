@@ -1,4 +1,6 @@
 import type { ClientInfo } from "@cloudflare/workers-oauth-provider"; // Adjust path if necessary
+import { generateCookie, generateSignedCookie } from "hono/cookie";
+import { parse, parseSigned } from "hono/utils/cookie";
 
 import { safeJsonParse } from "./utils/json.js";
 
@@ -85,101 +87,20 @@ function decodeState<T = unknown>(encoded: string): T {
   }
 }
 
-/**
- * Imports a secret key string for HMAC-SHA256 signing.
- * @param secret - The raw secret key string.
- * @returns A promise resolving to the CryptoKey object.
- */
-async function importKey(secret: string): Promise<CryptoKey> {
-  if (!secret) {
+async function parseSignedCookieJson<T>(
+  cookieHeader: string,
+  cookieName: string,
+  cookieSecret: string,
+): Promise<T | null> {
+  if (!cookieSecret) {
     throw new Error(
       "COOKIE_ENCRYPTION_KEY is not defined. A secret key is required for signing cookies.",
     );
   }
-  const enc = new TextEncoder();
-  return crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false, // not extractable
-    ["sign", "verify"], // key usages
-  );
-}
 
-/**
- * Signs data using HMAC-SHA256.
- * @param key - The CryptoKey for signing.
- * @param data - The string data to sign.
- * @returns A promise resolving to the signature as a hex string.
- */
-async function signData(key: CryptoKey, data: string): Promise<string> {
-  const enc = new TextEncoder();
-  const signatureBuffer = await crypto.subtle.sign("HMAC", key, enc.encode(data));
-  // Convert ArrayBuffer to hex string
-  return Array.from(new Uint8Array(signatureBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/**
- * Verifies an HMAC-SHA256 signature.
- * @param key - The CryptoKey for verification.
- * @param signatureHex - The signature to verify (hex string).
- * @param data - The original data that was signed.
- * @returns A promise resolving to true if the signature is valid, false otherwise.
- */
-async function verifySignature(
-  key: CryptoKey,
-  signatureHex: string,
-  data: string,
-): Promise<boolean> {
-  const enc = new TextEncoder();
-  try {
-    // Convert hex signature back to ArrayBuffer
-    const matchResult = signatureHex.match(/.{1,2}/g);
-    if (!matchResult) {
-      console.error("Invalid hex signature format");
-      return false;
-    }
-    const signatureBytes = new Uint8Array(matchResult.map((byte) => Number.parseInt(byte, 16)));
-    return await crypto.subtle.verify("HMAC", key, signatureBytes.buffer, enc.encode(data));
-  } catch (e) {
-    // Handle errors during hex parsing or verification
-    console.error("Error verifying signature:", e);
-    return false;
-  }
-}
-
-export async function createSignedCookiePayload(
-  payloadValue: unknown,
-  cookieSecret: string,
-): Promise<string> {
-  const payload = JSON.stringify(payloadValue);
-  const key = await importKey(cookieSecret);
-  const signature = await signData(key, payload);
-  return `${signature}.${btoa(payload)}`;
-}
-
-export async function parseSignedCookiePayload<T>(
-  cookieValue: string,
-  cookieSecret: string,
-): Promise<T | null> {
-  const parts = cookieValue.split(".");
-
-  if (parts.length !== 2) {
-    console.warn("Invalid cookie format received.");
-    return null;
-  }
-
-  const [signatureHex, base64Payload] = parts;
-  const payload = atob(base64Payload);
-  const key = await importKey(cookieSecret);
-  const isValid = await verifySignature(key, signatureHex, payload);
-
-  if (!isValid) {
-    console.warn("Cookie signature verification failed.");
-    return null;
-  }
+  const signedCookies = await parseSigned(cookieHeader, cookieSecret, cookieName);
+  const payload = signedCookies[cookieName];
+  if (typeof payload !== "string") return null;
 
   return safeJsonParse(payload).match(
     (parsed) => parsed as T,
@@ -202,38 +123,28 @@ async function getApprovedClientsFromCookie(
 ): Promise<ApprovedClientRecord[] | null> {
   if (!cookieHeader) return null;
 
-  const cookieValue = getCookieValue(cookieHeader, COOKIE_NAME);
-  if (!cookieValue) return null;
-
-  const approvedClients = await parseSignedCookiePayload<unknown>(cookieValue, secret);
+  const approvedClients = await parseSignedCookieJson<unknown>(cookieHeader, COOKIE_NAME, secret);
 
   if (!Array.isArray(approvedClients)) {
-    console.warn("Cookie payload is not an array.");
-    return null; // Payload isn't an array
+    return null;
   }
 
   if (!approvedClients.every(isApprovedClientRecord)) {
-    console.warn("Cookie payload contains invalid approval records.");
     return null;
   }
 
   return approvedClients;
 }
 
-function getCookieValue(cookieHeader: string, cookieName: string): string | null {
-  return getCookieValues(cookieHeader, cookieName)[0] ?? null;
-}
-
-function getCookieValues(cookieHeader: string, cookieName: string): string[] {
-  const cookies = cookieHeader.split(";").map((c) => c.trim());
-  return cookies
-    .filter((c) => c.startsWith(`${cookieName}=`))
-    .map((c) => c.substring(cookieName.length + 1));
-}
-
 function generateCSRFProtection() {
   const token = crypto.randomUUID();
-  const setCookie = `${CSRF_COOKIE_NAME}=${token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${TEN_MINUTES_IN_SECONDS}`;
+  const setCookie = generateCookie(CSRF_COOKIE_NAME, token, {
+    httpOnly: true,
+    maxAge: TEN_MINUTES_IN_SECONDS,
+    path: "/",
+    sameSite: "Lax",
+    secure: true,
+  });
   return { setCookie, token };
 }
 
@@ -244,12 +155,20 @@ function validateCSRFToken(formData: FormData, request: Request) {
   }
 
   const cookieHeader = request.headers.get("Cookie") || "";
-  const tokensFromCookies = getCookieValues(cookieHeader, CSRF_COOKIE_NAME);
-  if (!tokensFromCookies.includes(tokenFromForm)) {
+  const tokenMatchesCookie = cookieHeader
+    .split(";")
+    .some((cookie) => parse(cookie, CSRF_COOKIE_NAME)[CSRF_COOKIE_NAME] === tokenFromForm);
+  if (!tokenMatchesCookie) {
     throw new Error("CSRF token mismatch.");
   }
 
-  return `${CSRF_COOKIE_NAME}=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`;
+  return generateCookie(CSRF_COOKIE_NAME, "", {
+    httpOnly: true,
+    maxAge: 0,
+    path: "/",
+    sameSite: "Lax",
+    secure: true,
+  });
 }
 
 // --- Exported Functions ---
@@ -698,14 +617,16 @@ export async function parseRedirectApproval(
     approvedClient,
   ];
 
-  // Sign the updated list
-  const newCookieValue = await createSignedCookiePayload(updatedApprovedClients, cookieSecret);
-
-  // Generate Set-Cookie header
   const headers = new Headers();
   headers.append(
     "Set-Cookie",
-    `${COOKIE_NAME}=${newCookieValue}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=${ONE_YEAR_IN_SECONDS}`,
+    await generateSignedCookie(COOKIE_NAME, JSON.stringify(updatedApprovedClients), cookieSecret, {
+      httpOnly: true,
+      maxAge: ONE_YEAR_IN_SECONDS,
+      path: "/",
+      sameSite: "Lax",
+      secure: true,
+    }),
   );
   headers.append("Set-Cookie", clearCsrfCookie);
 

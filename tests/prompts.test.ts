@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
-
 import { describe, expect, it, beforeEach } from "vitest";
+import type { ZodObject } from "zod/v4";
 
 import { registerPrompts } from "../src/prompts.js";
 
@@ -22,7 +22,7 @@ type CapturedPrompt = {
   config: {
     title?: string;
     description?: string;
-    argsSchema?: { shape: Record<string, unknown> };
+    argsSchema?: ZodObject;
   };
   handler: PromptHandler;
 };
@@ -78,7 +78,7 @@ describe("registerPrompts", () => {
       });
       const text = getText(result);
       expect(text).toContain("Milk, Eggs, Bread");
-      expect(text).toContain("include_location=true");
+      expect(text).toContain("includeLocation=true");
     });
 
     it("includes the DO NOT add items instruction when grocery_list is provided", async () => {
@@ -93,7 +93,7 @@ describe("registerPrompts", () => {
       const result = await callPrompt("plan_shopping_route", {});
       const text = getText(result);
       expect(text).toContain("check my pantry, order history");
-      expect(text).toContain("include_location=true");
+      expect(text).toContain("includeLocation=true");
       expect(text).not.toContain("I have the following grocery list");
     });
 
@@ -135,13 +135,10 @@ describe("registerPrompts", () => {
 
     it("argsSchema rejects zip_code values that are not exactly 5 characters", () => {
       const prompt = getPrompt("set_preferred_store");
-      const schema = prompt.config.argsSchema?.shape as Record<
-        string,
-        { safeParse: (v: unknown) => { success: boolean } }
-      >;
-      expect(schema.zip_code.safeParse("1234").success).toBe(false);
-      expect(schema.zip_code.safeParse("123456").success).toBe(false);
-      expect(schema.zip_code.safeParse("12345").success).toBe(true);
+      const schema = prompt.config.argsSchema;
+      expect(schema?.shape.zip_code.safeParse("1234").success).toBe(false);
+      expect(schema?.shape.zip_code.safeParse("123456").success).toBe(false);
+      expect(schema?.shape.zip_code.safeParse("12345").success).toBe(true);
     });
   });
 
@@ -159,12 +156,8 @@ describe("registerPrompts", () => {
 
     it("argsSchema defaults recipe_type to 'classic apple pie' when not provided", () => {
       const prompt = getPrompt("shop_recipe_ingredients");
-      const schema = prompt.config.argsSchema?.shape as Record<
-        string,
-        { parse: (v: unknown) => string }
-      >;
       // The Zod schema carries the default; the MCP framework applies it before invoking the handler.
-      const applied = schema.recipe_type.parse(undefined);
+      const applied = prompt.config.argsSchema?.shape.recipe_type.parse(undefined);
       expect(applied).toBe("classic apple pie");
     });
 

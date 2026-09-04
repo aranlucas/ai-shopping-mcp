@@ -31,13 +31,19 @@ describe("view tool call helpers", () => {
       createProductShoppingListCall({
         productName: "Whole Milk",
         quantity: 2,
-        upc: "0001111041700",
+        productRef: "kroger:0001111041700",
       }),
     ).toEqual({
       name: "create_shopping_list",
       arguments: {
         name: "Whole Milk",
-        items: [{ quantity: 2, upc: "0001111041700" }],
+        items: [
+          {
+            productName: "Whole Milk",
+            productRef: "kroger:0001111041700",
+            quantity: 2,
+          },
+        ],
       },
     });
   });
@@ -89,7 +95,7 @@ describe("view tool call helpers", () => {
       listName: "Cart: Whole Milk",
       productName: "Whole Milk",
       quantity: 2,
-      upc: "0001111041700",
+      productRef: "kroger:0001111041700",
     });
 
     expect(calls).toEqual([
@@ -97,7 +103,13 @@ describe("view tool call helpers", () => {
         name: "create_shopping_list",
         arguments: {
           name: "Cart: Whole Milk",
-          items: [{ quantity: 2, upc: "0001111041700" }],
+          items: [
+            {
+              productName: "Whole Milk",
+              productRef: "kroger:0001111041700",
+              quantity: 2,
+            },
+          ],
         },
       },
       {
@@ -116,7 +128,7 @@ describe("view tool call helpers", () => {
     await saveProductToList(app, {
       productName: "Sourdough Bread",
       quantity: 1,
-      upc: "0001111041717",
+      productRef: "kroger:0001111041717",
     });
 
     expect(calls).toEqual([
@@ -124,7 +136,13 @@ describe("view tool call helpers", () => {
         name: "create_shopping_list",
         arguments: {
           name: "Sourdough Bread",
-          items: [{ quantity: 1, upc: "0001111041717" }],
+          items: [
+            {
+              productName: "Sourdough Bread",
+              productRef: "kroger:0001111041717",
+              quantity: 1,
+            },
+          ],
         },
       },
     ]);
@@ -137,7 +155,7 @@ describe("view tool call helpers", () => {
       saveProductToList(app, {
         productName: "Sourdough Bread",
         quantity: 1,
-        upc: "0001111041717",
+        productRef: "kroger:0001111041717",
       }),
     ).rejects.toThrow("Shopping list id missing");
   });

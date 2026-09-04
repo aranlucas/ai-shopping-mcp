@@ -1,3 +1,4 @@
+import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { EquipmentItem, PantryItem } from "../utils/user-storage.js";
@@ -67,8 +68,7 @@ function equipmentResponse(text: string, items: EquipmentItem[], actionDetail: s
 }
 
 export function registerInventoryTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "add_to_inventory",
     {
       title: "Add To Inventory",
@@ -95,14 +95,12 @@ export function registerInventoryTools(ctx: ToolContext) {
         const result = await safeStorage(
           () =>
             ctx.storage.pantry.add(
-              items.map(
-                (item): PantryItem => ({
-                  productName: item.name,
-                  quantity: item.quantity ?? 1,
-                  addedAt: now,
-                  expiresAt: item.expiresAt,
-                }),
-              ),
+              items.map((item): PantryItem => ({
+                productName: item.name,
+                quantity: item.quantity ?? 1,
+                addedAt: now,
+                expiresAt: item.expiresAt,
+              })),
             ),
           "add pantry items",
         ).map((pantry) =>
@@ -119,13 +117,11 @@ export function registerInventoryTools(ctx: ToolContext) {
       const result = await safeStorage(
         () =>
           ctx.storage.equipment.add(
-            items.map(
-              (item): EquipmentItem => ({
-                equipmentName: item.name,
-                category: item.category,
-                addedAt: now,
-              }),
-            ),
+            items.map((item): EquipmentItem => ({
+              equipmentName: item.name,
+              category: item.category,
+              addedAt: now,
+            })),
           ),
         "add equipment items",
       ).map((equipment) =>
@@ -140,8 +136,7 @@ export function registerInventoryTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "remove_from_inventory",
     {
       title: "Remove From Inventory",

@@ -154,6 +154,53 @@ async function exchangeCodeForToken(
   return (await response.json()) as TokenResponse;
 }
 
+async function refreshAccessToken(
+  client: RegisteredClient,
+  refreshToken: string,
+): Promise<Response> {
+  return SELF.fetch(
+    new Request(`${MCP_BASE_URL}/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${btoa(`${client.client_id}:${client.client_secret}`)}`,
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }),
+    }),
+  );
+}
+
+function stubExpiringKrogerGrant(refresh: () => Response | Promise<Response>): void {
+  let tokenRequests = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+
+      if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
+        tokenRequests += 1;
+        if (tokenRequests === 1) {
+          return Response.json({
+            access_token: "expiring-kroger-access-token",
+            refresh_token: "single-use-kroger-refresh-token",
+            expires_in: 1,
+          });
+        }
+        return refresh();
+      }
+
+      if (url.href === "https://api.kroger.com/v1/identity/profile") {
+        return Response.json({ data: { id: "real-oauth-user" } });
+      }
+
+      throw new Error(`Unexpected external fetch: ${url.href}`);
+    }),
+  );
+}
+
 async function createAuthorizedMcpClient(accessToken: string): Promise<Client> {
   const transport = new StreamableHTTPClientTransport(new URL(MCP_URL), {
     fetch: fetchThroughSelf,
@@ -161,7 +208,17 @@ async function createAuthorizedMcpClient(accessToken: string): Promise<Client> {
       headers: { Authorization: `Bearer ${accessToken}` },
     },
   });
-  const client = new Client({ name: "vitest-client", version: "1.0.0" });
+  const client = new Client(
+    { name: "vitest-client", version: "1.0.0" },
+    {
+      capabilities: { elicitation: {} },
+      versionNegotiation: { mode: "auto" },
+    },
+  );
+  client.setRequestHandler("elicitation/create", async () => ({
+    action: "accept",
+    content: { confirm: true },
+  }));
   await client.connect(transport);
   return client;
 }
@@ -233,11 +290,16 @@ describe("MCP client over Worker OAuth integration", () => {
     expect(toolNames).toContain("search_products");
     expect(toolNames).toContain("get_meal_planning_context");
     for (const tool of tools.tools) {
-      if (
-        tool.name === "get_meal_planning_context" ||
-        tool.name === "get_shopping_profile" ||
-        tool.name === "view_cart"
-      ) {
+      // Text-only tools: their results are read by the model, not rendered.
+      const textOnlyTools = new Set([
+        "add_shopping_list_items",
+        "edit_shopping_list_item",
+        "get_meal_planning_context",
+        "get_shopping_list",
+        "get_shopping_profile",
+        "view_cart",
+      ]);
+      if (textOnlyTools.has(tool.name)) {
         expect(tool._meta?.ui).toBeUndefined();
       } else {
         expect(tool._meta?.ui).toBeDefined();
@@ -299,5 +361,94 @@ describe("MCP client over Worker OAuth integration", () => {
       .map((entry) => ("text" in entry && typeof entry.text === "string" ? entry.text : ""))
       .join("");
     expect(pantryText).not.toContain("outside an authenticated MCP request");
+  });
+
+  it("does not require persisted MCP session state", async () => {
+    const registeredClient = await registerClient();
+    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+
+    const response = await SELF.fetch(
+      new Request(MCP_URL, {
+        method: "POST",
+        headers: {
+          Accept: "application/json, text/event-stream",
+          Authorization: `Bearer ${token.access_token}`,
+          "Content-Type": "application/json",
+          "Mcp-Session-Id": crypto.randomUUID(),
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("tools");
+  });
+
+  it("returns invalid_grant when Kroger rejects its single-use refresh token", async () => {
+    stubExpiringKrogerGrant(() =>
+      Response.json(
+        { error: "invalid_grant", error_description: "Refresh token is invalid" },
+        { status: 400 },
+      ),
+    );
+    const registeredClient = await registerClient();
+    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+
+    const response = await refreshAccessToken(registeredClient, token.refresh_token);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_grant" });
+  });
+
+  it("returns temporarily_unavailable when Kroger refresh has a transient failure", async () => {
+    stubExpiringKrogerGrant(() =>
+      Response.json(
+        { error: "server_error", error_description: "Kroger is temporarily unavailable" },
+        { status: 503 },
+      ),
+    );
+    const registeredClient = await registerClient();
+    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+
+    const response = await refreshAccessToken(registeredClient, token.refresh_token);
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    await expect(response.json()).resolves.toMatchObject({ error: "temporarily_unavailable" });
+  });
+
+  it("preserves Kroger rate limiting as a retryable OAuth response", async () => {
+    stubExpiringKrogerGrant(() =>
+      Response.json(
+        { error: "rate_limited", error_description: "Too many refresh attempts" },
+        { status: 429 },
+      ),
+    );
+    const registeredClient = await registerClient();
+    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+
+    const response = await refreshAccessToken(registeredClient, token.refresh_token);
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    await expect(response.json()).resolves.toMatchObject({ error: "temporarily_unavailable" });
+  });
+
+  it("requires reauthorization when Kroger does not rotate its refresh token", async () => {
+    stubExpiringKrogerGrant(() =>
+      Response.json({ access_token: "new-access-token", expires_in: 1800 }),
+    );
+    const registeredClient = await registerClient();
+    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+
+    const response = await refreshAccessToken(registeredClient, token.refresh_token);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_grant" });
   });
 });

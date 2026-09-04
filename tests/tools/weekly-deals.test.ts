@@ -13,6 +13,8 @@ import {
   parseCacheEntry,
   registerWeeklyDealsTools,
 } from "../../src/tools/weekly-deals.js";
+import type { TestToolHandler as ToolHandler } from "../v2-tool-handler.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 const weeklyDealsAuthState = vi.hoisted(() => ({
   authContext: {
@@ -440,7 +442,6 @@ describe("formatWeeklyDealsToolResponse", () => {
 // get_weekly_deals handler
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
 
 const mockGetQfcWeeklyDeals = vi.hoisted(() => vi.fn());
@@ -506,6 +507,7 @@ function makeKV(initialData: Map<string, string> = new Map()): {
 }
 
 const DEFAULT_PREFERRED_LOCATION: PreferredLocation = {
+  provider: "kroger",
   locationId: "70500034",
   locationName: "QFC Test Store",
   address: "1 Test St",
@@ -537,12 +539,14 @@ function makeWeeklyDealsContext(
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    catalogs: stubCatalogRegistry(),
     storage: {
       preferredLocation: {
         get: async () => preferredLocation,
         set: async () => {},
       },
     } as unknown as ToolContext["storage"],
+    carts: {} as ToolContext["carts"],
     getEnv: () => (kv ? { USER_DATA_KV: kv } : {}) as Env,
   };
 }
@@ -605,6 +609,30 @@ describe("get_weekly_deals handler", () => {
     expect(mockGetQfcWeeklyDeals).toHaveBeenCalledOnce();
     expect(textFromResult(result)).toContain("Bananas");
     expect(store.size).toBe(1);
+  });
+
+  it("keeps cached deals fresh through the circular and retains a 48-hour stale fallback", async () => {
+    const eventEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const liveData = makeMinimalDealsResponse({
+      printCircular: makeCircular(eventEnd),
+    });
+    mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
+    const { kv, store } = makeKV();
+
+    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+
+    await getWeeklyDealsHandler()(DEFAULT_ARGS);
+
+    const rawEntry = [...store.values()][0];
+    const entry = parseCacheEntry(rawEntry);
+    const expectedFreshUntil = Date.parse(eventEnd);
+    const expectedStaleUntil = expectedFreshUntil + 48 * 60 * 60 * 1000;
+
+    expect(entry?.freshUntil).toBe(expectedFreshUntil);
+    expect(entry?.staleUntil).toBe(expectedStaleUntil);
+    expect(kv.put).toHaveBeenCalledWith(expect.any(String), expect.any(String), {
+      expiration: Math.ceil(expectedStaleUntil / 1000),
+    });
   });
 
   it("serves stale cache with a warning when live fetch fails and a stale entry exists", async () => {

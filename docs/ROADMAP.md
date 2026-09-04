@@ -92,13 +92,20 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 ## Tier 3 — Infrastructure and polish
 
-### 7. Cron-cached weekly deals
+### 7. Ad-lifetime weekly-deals cache — completed
 
-**What:** A Cloudflare cron trigger that pre-fetches and caches the QFC weekly ad in KV; `get_weekly_deals` reads the cache.
+**What:** `get_weekly_deals` caches each QFC/Kroger weekly ad in KV through the circular's
+published expiration time, then retains it for a 48-hour stale fallback before Cloudflare
+deletes the key automatically.
 
-**Why it's good:** The fetch-and-augment in `qfc-weekly-deals.ts` is the slowest call in the repo, and the underlying data changes once a week. Caching makes `get_weekly_deals` fast and makes #1 (deal-aware planning) viable without adding seconds to every meal-planning call.
+**Why it's good:** The fetch-and-augment in `qfc-weekly-deals.ts` is the slowest call in the
+repo, while the underlying circular does not change before its published expiration. The
+first request fills the cache and subsequent requests avoid unnecessary refreshes without a
+scheduled Worker or another operational path.
 
-**How:** `scheduled` handler in the Worker, weekly cron in `wrangler.jsonc`, cache key with the ad's week identifier, fall back to live fetch on cache miss. Cache is global, not per-user.
+**How:** Cache freshness is derived from the latest print or shoppable circular end time. If
+the upstream response has no circular metadata, freshness falls back to six hours. Expired
+ads remain available only when a live refresh fails, for up to 48 hours.
 
 ### 8. Interactive shopping-list view
 
@@ -126,9 +133,8 @@ A guiding constraint for everything below: the Kroger public API only exposes pr
 
 ## Suggested sequencing
 
-1. **#7 (deals cron)** first — small, independent, and it unblocks the headline feature.
-2. **#1 (deal-aware planning)** and **#2 (pantry-aware lists)** next — these are the product's core loop.
-3. **#5 (preferences)** and **#3 (restock)** — compounding context for everything above.
-4. **#4 (price history)**, **#6 (store comparison)**, **#8 (interactive list)**, **#9 (prompts)** as follow-ons, in whatever order interest dictates.
+1. **#1 (deal-aware planning)** and **#2 (pantry-aware lists)** next — these are the product's core loop.
+2. **#5 (preferences)** and **#3 (restock)** — compounding context for everything above.
+3. **#4 (price history)**, **#6 (store comparison)**, **#8 (interactive list)**, **#9 (prompts)** as follow-ons, in whatever order interest dictates.
 
 Every feature lands with tests per `AGENTS.md` — new tools, storage classes, and branches all need coverage before handing back.

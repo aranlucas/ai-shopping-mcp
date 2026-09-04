@@ -1,42 +1,31 @@
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 
 import { Hono } from "hono";
+import { generateSignedCookie, getCookie, getSignedCookie } from "hono/cookie";
 
 import type { KrogerTokenResponse } from "./services/kroger/client.js";
+import type { AppEnv } from "./env.js";
 
 import {
   clientIdAlreadyApproved,
-  createSignedCookiePayload,
-  parseSignedCookiePayload,
   parseRedirectApproval,
   renderApprovalDialog,
 } from "./workers-oauth-utils";
+import { safeJsonParse } from "./utils/json.js";
 
-// Define Env interface with required environment variables
-interface Env {
-  KROGER_CLIENT_ID: string;
-  KROGER_CLIENT_SECRET: string;
-  COOKIE_ENCRYPTION_KEY: string;
-}
+type KrogerEnv = AppEnv & { OAUTH_PROVIDER: OAuthHelpers };
 
 type KrogerOAuthStateCookie = {
   csrfState: string;
   oauthReqInfo: AuthRequest;
 };
 
-const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
+const app = new Hono<{ Bindings: KrogerEnv }>();
 
 app.get("/authorize", async (c) => {
-  console.log("GET /authorize - Starting authorization flow");
-
   let oauthReqInfo: AuthRequest;
   try {
     oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
-    console.log("Parsed auth request:", {
-      clientId: oauthReqInfo.clientId,
-      redirectUri: oauthReqInfo.redirectUri,
-      scope: oauthReqInfo.scope,
-    });
   } catch (parseError) {
     console.error("Failed to parse auth request:", parseError);
     return c.text(
@@ -47,16 +36,13 @@ app.get("/authorize", async (c) => {
 
   const { clientId } = oauthReqInfo;
   if (!clientId) {
-    console.error("Missing clientId in auth request");
     return c.text("Invalid request - missing clientId", 400);
   }
 
   if (await clientIdAlreadyApproved(c.req.raw, oauthReqInfo, c.env.COOKIE_ENCRYPTION_KEY)) {
-    console.log("Client already approved, redirecting to Kroger");
     return redirectToKroger(c.req.raw, oauthReqInfo, c.env);
   }
 
-  console.log("Showing approval dialog");
   return renderApprovalDialog(c.req.raw, {
     client: await c.env.OAUTH_PROVIDER.lookupClient(clientId),
     server: {
@@ -69,8 +55,6 @@ app.get("/authorize", async (c) => {
 });
 
 app.post("/authorize", async (c) => {
-  console.log("POST /authorize - Processing approval");
-
   let state: { oauthReqInfo?: AuthRequest };
   let headers: Headers;
   try {
@@ -78,7 +62,6 @@ app.post("/authorize", async (c) => {
     const result = await parseRedirectApproval(c.req.raw, c.env.COOKIE_ENCRYPTION_KEY);
     state = result.state;
     headers = result.headers;
-    console.log("Parsed approval, state has oauthReqInfo:", !!state.oauthReqInfo);
   } catch (parseError) {
     console.error("Failed to parse approval:", parseError);
     return c.text(
@@ -88,22 +71,18 @@ app.post("/authorize", async (c) => {
   }
 
   if (!state.oauthReqInfo) {
-    console.error("Missing oauthReqInfo in state");
     return c.text("Invalid request - missing oauthReqInfo", 400);
   }
 
-  console.log("Redirecting to Kroger after approval");
   return redirectToKroger(c.req.raw, state.oauthReqInfo as AuthRequest, c.env, headers);
 });
 
 async function redirectToKroger(
   request: Request,
   _oauthReqInfo: AuthRequest, // Stored in cookie instead of state param
-  env: Env & { OAUTH_PROVIDER: OAuthHelpers },
+  env: KrogerEnv,
   headers: HeadersInit = {},
 ) {
-  console.log("Building Kroger redirect URL");
-
   if (!env.KROGER_CLIENT_ID || !env.KROGER_CLIENT_SECRET) {
     console.error("Missing Kroger OAuth credentials in environment");
     return new Response("Server configuration error: Missing Kroger OAuth credentials", {
@@ -125,11 +104,12 @@ async function redirectToKroger(
   // Generate a simple random state for CSRF protection (Kroger requirement)
   // Store oauthReqInfo in a cookie to avoid large state params
   const csrfState = crypto.randomUUID();
-  const oauthStateCookie = await createSignedCookiePayload(
-    { csrfState, oauthReqInfo: _oauthReqInfo },
+  const cookieValue = await generateSignedCookie(
+    "kroger_oauth_state",
+    JSON.stringify({ csrfState, oauthReqInfo: _oauthReqInfo }),
     env.COOKIE_ENCRYPTION_KEY,
+    { httpOnly: true, maxAge: 600, path: "/", sameSite: "Lax", secure: true },
   );
-  const cookieValue = `kroger_oauth_state=${oauthStateCookie}; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/`;
 
   // Order matches Postman: response_type, client_id, scope, redirect_uri, state
   // State is a simple UUID for CSRF protection (not the full oauthReqInfo)
@@ -140,12 +120,6 @@ async function redirectToKroger(
     `&scope=${encodeURIComponent(scope)}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&state=${encodeURIComponent(csrfState)}`;
-  console.log("Kroger OAuth redirect:", {
-    redirect_uri: redirectUri,
-    client_id: env.KROGER_CLIENT_ID ? `${env.KROGER_CLIENT_ID.substring(0, 20)}...` : "MISSING!",
-    full_url_length: fullUrl.length,
-    url_preview: `${fullUrl.substring(0, 150)}...`,
-  });
 
   const responseHeaders = new Headers(headers);
   responseHeaders.append("Set-Cookie", cookieValue);
@@ -184,59 +158,41 @@ app.get("/callback", async (c) => {
   // Verify state parameter exists (CSRF protection)
   const stateParam = c.req.query("state");
   if (!stateParam) {
-    console.error("Callback missing state parameter");
     return c.text("Missing state parameter", 400);
   }
 
-  console.log("Callback received with state:", stateParam);
-
   // Retrieve oauthReqInfo from cookie instead of state parameter
-  const cookieHeader = c.req.header("Cookie");
-  if (!cookieHeader) {
-    console.error("Missing cookie header in callback");
+  const rawOAuthStateCookie = getCookie(c, "kroger_oauth_state");
+  if (!rawOAuthStateCookie) {
     return c.text("Missing authentication cookie", 400);
   }
 
-  const cookies = Object.fromEntries(
-    cookieHeader.split(";").map((c) => {
-      const [key, ...values] = c.trim().split("=");
-      return [key, values.join("=")];
-    }),
-  );
-
-  const oauthStateCookie = cookies.kroger_oauth_state;
-  if (!oauthStateCookie) {
-    console.error("Missing kroger_oauth_state cookie");
-    return c.text("Missing authentication cookie", 400);
-  }
-
-  const parsedStateCookie = await parseSignedCookiePayload<KrogerOAuthStateCookie>(
-    oauthStateCookie,
+  const oauthStateCookie = await getSignedCookie(
+    c,
     c.env.COOKIE_ENCRYPTION_KEY,
+    "kroger_oauth_state",
+  );
+  if (typeof oauthStateCookie !== "string") {
+    return c.text("Invalid authentication cookie", 400);
+  }
+
+  const parsedStateCookie = safeJsonParse(oauthStateCookie).match(
+    (value) => value as KrogerOAuthStateCookie,
+    () => null,
   );
   if (!parsedStateCookie?.oauthReqInfo || !parsedStateCookie.csrfState) {
-    console.error("Failed to parse Kroger OAuth state cookie");
     return c.text("Invalid authentication cookie", 400);
   }
 
   if (parsedStateCookie.csrfState !== stateParam) {
-    console.error("Kroger OAuth state mismatch");
     return c.text("Invalid state parameter", 400);
   }
 
   const { oauthReqInfo } = parsedStateCookie;
-  console.log("Retrieved oauthReqInfo from cookie");
 
   if (!oauthReqInfo.clientId) {
-    console.error("State missing clientId:", JSON.stringify(oauthReqInfo));
     return c.text("Invalid state: missing clientId", 400);
   }
-
-  console.log("OAuth request info:", {
-    clientId: oauthReqInfo.clientId,
-    redirectUri: oauthReqInfo.redirectUri,
-    hasCodeChallenge: !!oauthReqInfo.codeChallenge,
-  });
 
   const code = c.req.query("code");
   if (!code) {
@@ -250,11 +206,6 @@ app.get("/callback", async (c) => {
     grant_type: "authorization_code",
     code: code,
     redirect_uri: redirectUri,
-  });
-
-  console.log("Exchanging authorization code for token:", {
-    redirect_uri: redirectUri,
-    client_id: `${c.env.KROGER_CLIENT_ID.substring(0, 20)}...`,
   });
 
   const tokenResponse = await fetch("https://api.kroger.com/v1/connect/oauth2/token", {
@@ -288,7 +239,7 @@ app.get("/callback", async (c) => {
   const refreshToken = tokenData.refresh_token;
 
   if (!accessToken) {
-    console.error("Token response missing access_token:", tokenData);
+    console.error("Kroger token response did not include an access token");
     return c.text("Missing access token in response", 400);
   }
 
@@ -316,8 +267,6 @@ app.get("/callback", async (c) => {
   const tokenExpiresAt = Date.now() + (tokenData.expires_in || 1800) * 1000;
 
   // Return back to the MCP client a new token
-  console.log("Completing authorization for user:", id);
-
   try {
     const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
       request: oauthReqInfo,
@@ -336,8 +285,6 @@ app.get("/callback", async (c) => {
       },
     });
 
-    console.log("Authorization complete, redirecting to:", `${redirectTo.substring(0, 100)}...`);
-
     // Clear the OAuth state cookie and redirect
     return new Response(null, {
       status: 302,
@@ -354,5 +301,30 @@ app.get("/callback", async (c) => {
     );
   }
 });
+
+function isKrogerEnv(env: Env): env is KrogerEnv {
+  return (
+    "COOKIE_ENCRYPTION_KEY" in env &&
+    typeof env.COOKIE_ENCRYPTION_KEY === "string" &&
+    "KROGER_CLIENT_ID" in env &&
+    typeof env.KROGER_CLIENT_ID === "string" &&
+    "KROGER_CLIENT_SECRET" in env &&
+    typeof env.KROGER_CLIENT_SECRET === "string" &&
+    "OAUTH_PROVIDER" in env &&
+    typeof env.OAUTH_PROVIDER === "object" &&
+    env.OAUTH_PROVIDER !== null
+  );
+}
+
+export const KrogerWorker = {
+  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    if (!isKrogerEnv(env)) {
+      return new Response("Server configuration error: Kroger OAuth is not configured", {
+        status: 500,
+      });
+    }
+    return app.fetch(request, env, ctx);
+  },
+} satisfies ExportedHandler<Env>;
 
 export { app as KrogerHandler };

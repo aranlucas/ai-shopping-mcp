@@ -2,8 +2,8 @@
  * neverthrow utilities for bridging Result types with MCP tool responses
  * and wrapping common async operations.
  */
-import { getMcpAuthContext } from "agents/mcp/server";
-import { type Result, ResultAsync, err, ok, okAsync } from "neverthrow";
+import { getMcpAuthContext } from "agents/mcp";
+import { ResultAsync, err, ok, okAsync } from "neverthrow";
 
 import type { Props, UserStorage } from "../tools/types.js";
 
@@ -25,17 +25,6 @@ type McpToolResult = {
   content: Array<{ type: "text"; text: string }>;
   isError?: true;
 };
-
-/**
- * Converts a Result<string, AppError> into an MCP tool response.
- * Ok values become textResult, Err values become errorResult.
- */
-export function toMcpResponse(result: Result<string, AppError>): McpToolResult {
-  return result.match(
-    (text) => ({ content: [{ type: "text" as const, text }] }),
-    (error) => toMcpError(error),
-  );
-}
 
 /**
  * Converts an AppError directly into an MCP error response.
@@ -120,6 +109,7 @@ export const STORE_ID_RECOVERY_HINT =
 export function safeResolveLocationId(
   storage: UserStorage,
   locationId?: string,
+  provider = "kroger",
 ): ResultAsync<{ locationId: string; locationName?: string }, AppError> {
   if (locationId) {
     return okAsync<{ locationId: string; locationName?: string }, AppError>({
@@ -133,6 +123,15 @@ export function safeResolveLocationId(
         return err(
           notFoundError(
             "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
+          ),
+        );
+      }
+      // Legacy storage rows predate provider-scoped locations and are Kroger-only.
+      const preferredProvider = preferredLocation.provider || "kroger";
+      if (preferredProvider !== provider) {
+        return err(
+          notFoundError(
+            `The preferred store belongs to provider=${preferredProvider}, not provider=${provider}. Provide a locationId for ${provider}.`,
           ),
         );
       }
@@ -156,30 +155,4 @@ export function safeStorage<T>(
   return ResultAsync.fromPromise(operation(), (e) =>
     storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
   );
-}
-
-// --- Fetch Wrapper ---
-
-/**
- * Wraps a fetch call into a ResultAsync, handling network errors and non-ok responses.
- */
-export function safeFetch(
-  input: RequestInfo,
-  init?: RequestInit,
-  context = "fetch",
-): ResultAsync<Response, AppError> {
-  return ResultAsync.fromPromise(fetch(input, init), (e) =>
-    networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
-  ).andThen((response) => {
-    if (!response.ok) {
-      return err(
-        apiError(
-          `${context} failed: ${response.status} ${response.statusText}`,
-          undefined,
-          response.status,
-        ),
-      );
-    }
-    return ok(response);
-  });
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { generateSignedCookie } from "hono/cookie";
 
 import { KrogerHandler } from "../src/kroger-handler.js";
-import { createSignedCookiePayload } from "../src/workers-oauth-utils.js";
 
 const COOKIE_SECRET = "test-cookie-secret";
 const BASE_URL = "https://worker.test";
@@ -99,7 +99,12 @@ async function makeStateCookie(
     codeChallenge: "challenge",
   },
 ): Promise<string> {
-  return createSignedCookiePayload({ csrfState, oauthReqInfo }, COOKIE_SECRET);
+  const cookie = await generateSignedCookie(
+    "kroger_oauth_state",
+    JSON.stringify({ csrfState, oauthReqInfo }),
+    COOKIE_SECRET,
+  );
+  return cookie.slice("kroger_oauth_state=".length).split(";")[0] ?? "";
 }
 
 // ---------------------------------------------------------------------------

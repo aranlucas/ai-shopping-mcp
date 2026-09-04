@@ -13,6 +13,7 @@ import {
   pantryFlagLabel,
 } from "../../src/tools/item-flags.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 function makePantryItem(overrides: Partial<PantryItem> = {}): PantryItem {
   return {
@@ -56,7 +57,9 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    catalogs: stubCatalogRegistry(),
     storage: {} as ToolContext["storage"],
+    carts: {} as ToolContext["carts"],
     getEnv: () =>
       (store
         ? {

@@ -231,5 +231,3 @@ Design: `docs/superpowers/specs/2026-07-02-cart-api-integration-design.md`.
   fragility. It remains the only known automatic cart-ID discovery path.
 - Cart mutation tools (`remove_from_cart` / `update_cart_item`): blocked on
   Partner `cart.basic:rw`; revisit with a Partner app registration.
-- Catalog API V2 (`kroger/catalog.json`): spec committed but unwired; needs
-  its own design.

@@ -2,12 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type {
+  CartStore,
   CartSnapshotItem,
   PreferredLocation,
   ShoppingList,
 } from "../../src/utils/user-storage.js";
 
 import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 function stubProductService(): ToolContext["productService"] {
   return {
@@ -26,8 +29,6 @@ type AuthContext = {
   };
 };
 
-type ToolHandler = (args: Record<string, unknown>, extra?: unknown) => Promise<unknown>;
-
 type CapturedTool = {
   name: string;
   config: unknown;
@@ -41,12 +42,6 @@ const testState = vi.hoisted(() => ({
 
 vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: unknown, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
 }));
 
 // --- Helpers ---
@@ -114,7 +109,7 @@ function makeStorage(
   mirrorItems: Array<CartSnapshotItem & { addedAt: string }> = [],
   storedCartId: string | null = null,
   cartIdSetCalls: string[][] = [],
-): UserStorage {
+): UserStorage & CartStore {
   return {
     pantry: {} as UserStorage["pantry"],
     equipment: {} as UserStorage["equipment"],
@@ -134,7 +129,7 @@ function makeStorage(
         snapshotSetCalls.push([_id, items]);
       },
       clear: async () => {},
-    } as unknown as UserStorage["cartSnapshot"],
+    } as unknown as CartStore["cartSnapshot"],
     cartMirror: {
       getAll: async () => mirrorItems,
       append: async (items: CartSnapshotItem[], addedAt: string) => {
@@ -142,14 +137,14 @@ function makeStorage(
         return [...mirrorItems, ...items.map((item) => ({ ...item, addedAt }))];
       },
       clear: async () => {},
-    } as unknown as UserStorage["cartMirror"],
+    } as unknown as CartStore["cartMirror"],
     cartId: {
       get: async () => storedCartId,
       set: async (cartId: string) => {
         cartIdSetCalls.push([cartId]);
       },
-    } as unknown as UserStorage["cartId"],
-  } as unknown as UserStorage;
+    } as unknown as CartStore["cartId"],
+  } as unknown as UserStorage & CartStore;
 }
 
 type GetCall = { path: string; options: unknown };
@@ -167,7 +162,7 @@ const LIVE_CART = {
 };
 
 function makeContext(
-  storage?: UserStorage,
+  storage?: UserStorage & CartStore,
   putConfig: { status: number; throws?: boolean } = { status: 204 },
   getConfig: { status: number; cart?: typeof LIVE_CART } = { status: 200, cart: LIVE_CART },
   listConfig: { status: number; carts?: Array<typeof LIVE_CART> } = { status: 403 },
@@ -182,15 +177,17 @@ function makeContext(
   const getCalls: GetCall[] = [];
   const actualStorage = storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
 
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
+  };
   const context: ToolContext = {
-    server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
-      },
-      server: {
-        elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
-      },
-    } as unknown as ToolContext["server"],
+    server: server as unknown as ToolContext["server"],
     clients: {
       cartClient: {
         PUT: async (path: string, options: PutOptions) => {
@@ -231,7 +228,9 @@ function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
+    catalogs: stubCatalogRegistry(),
     storage: actualStorage,
+    carts: actualStorage,
     getEnv: () => ({}) as Env,
   };
 
@@ -267,6 +266,7 @@ describe("add_shopping_list_to_cart tool", () => {
       });
 
       expect(isErrorResult(result)).toBe(false);
+      expect(result).not.toHaveProperty("inputRequests");
       expect(textFromResult(result)).toContain("1 item(s)");
       expect(textFromResult(result)).toContain("Tuesday Dinner");
       expect(putCalls).toHaveLength(1);
@@ -324,6 +324,7 @@ describe("add_shopping_list_to_cart tool", () => {
       const storage = makeStorage(
         listFixture(),
         {
+          provider: "kroger",
           locationId: LOCATION_ID,
           locationName: "QFC Broadway",
           address: "500 Broadway E",
@@ -449,6 +450,7 @@ describe("add_shopping_list_to_cart tool", () => {
   describe("inline items path", () => {
     it("adds inline upc/quantity items directly without a listId", async () => {
       const storage = makeStorage(null, {
+        provider: "kroger",
         locationId: LOCATION_ID,
         locationName: "QFC Broadway",
         address: "500 Broadway E",
@@ -513,6 +515,7 @@ describe("add_shopping_list_to_cart tool", () => {
       const storage = makeStorage(
         null,
         {
+          provider: "kroger",
           locationId: LOCATION_ID,
           locationName: "QFC Broadway",
           address: "500 Broadway E",

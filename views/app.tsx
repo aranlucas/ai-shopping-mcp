@@ -2,8 +2,7 @@
  * @file MCP Apps React view for the AI Shopping MCP server.
  */
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-
+import type { CallToolResult } from "@modelcontextprotocol/server";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -44,17 +43,14 @@ function ShoppingApp() {
       app.ontoolinputpartial = (params) => {
         setPartialArgs(params.arguments ?? {});
       };
-      app.ontoolinput = async (input) => {
-        console.info("Received tool call input:", input);
+      app.ontoolinput = async () => {
         setPartialArgs(null);
       };
       app.ontoolresult = async (result) => {
-        console.info("Received tool call result:", result);
         setPartialArgs(null);
         setToolResult(result);
       };
-      app.ontoolcancelled = (params) => {
-        console.info("Tool call cancelled:", params);
+      app.ontoolcancelled = () => {
         setPartialArgs(null);
       };
       app.onerror = console.error;

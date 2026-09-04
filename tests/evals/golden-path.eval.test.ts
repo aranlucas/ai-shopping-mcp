@@ -3,7 +3,7 @@
  *
  * A deterministic agent that can only read `content[0].text` (never
  * structuredContent) walks the documented golden paths, extracting every
- * hand-off id (storeId, upc, listId) with the trivial regexes a small model
+ * hand-off id (storeId, productRef, listId) with trivial regexes a small model
  * effectively relies on. If a format change breaks extraction, or a path
  * needs more calls than budgeted, the eval fails — before a real small model
  * ever does.
@@ -18,6 +18,7 @@ import {
   contentText,
   createEvalMcpClient,
   extractListIds,
+  extractProductRefs,
   extractStoreIds,
   extractUpcs,
   installKrogerFetchStub,
@@ -81,19 +82,19 @@ describe("golden path (scripted agent, text-only)", () => {
     expect(toolCalls).toBe(4);
   });
 
-  it("manual path: search_products → create_shopping_list → add to cart, with exact upc handoff", async () => {
+  it("manual path: search_products → create_shopping_list → add to cart, with exact productRef handoff", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
 
-    const search = await call("search_products", { terms: ["bread"] });
+    const search = await call("search_products", { terms: ["bread"], providers: ["kroger"] });
     const searchText = contentText(search);
-    const upcs = extractUpcs(searchText);
-    expect(upcs.length).toBeGreaterThan(0);
+    const productRefs = extractProductRefs(searchText);
+    expect(productRefs.length).toBeGreaterThan(0);
     // Text must point the model at the next tool.
     expect(searchText).toContain("create_shopping_list");
 
     const created = await call("create_shopping_list", {
       name: "Bread run",
-      items: [{ upc: upcs[0], quantity: 1 }],
+      items: [{ productRef: productRefs[0], quantity: 1 }],
     });
     const listIds = extractListIds(contentText(created));
     expect(listIds).toHaveLength(1);
@@ -102,7 +103,7 @@ describe("golden path (scripted agent, text-only)", () => {
 
     const items = stub.allCartItems();
     expect(items).toHaveLength(1);
-    expect(items[0].upc).toBe(upcs[0]);
+    expect(items[0].upc).toBe(productRefs[0].split(":", 2)[1]);
   });
 
   it("retrying add_shopping_list_to_cart with the same listId does not double-add", async () => {
@@ -168,7 +169,7 @@ describe("golden path (scripted agent, text-only)", () => {
     const result = await call("search_products", { terms: ["milk", "zzz-unfindable"] });
     const text = contentText(result);
 
-    expect(extractUpcs(text).length).toBeGreaterThan(0);
-    expect(text).toContain("No results");
+    expect(extractProductRefs(text).length).toBeGreaterThan(0);
+    expect(text).toContain("No Kroger results");
   });
 });

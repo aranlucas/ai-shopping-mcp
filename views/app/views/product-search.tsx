@@ -6,7 +6,7 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from "@/shared/ui/carousel.js";
+} from "@agents/ui/components/carousel";
 
 import { DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -20,15 +20,18 @@ function ProductCarousel({
   canCallTools,
 }: {
   products: ProductData[];
-  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, productRef: string) => Promise<void>;
   canCallTools: boolean;
 }) {
   return (
     <Carousel opts={{ align: "start" }}>
-      <CarouselContent className="-ml-2">
+      <CarouselContent className="-ms-2">
         {products.map((product) => (
-          <CarouselItem key={product.upc ?? product.description} className="pl-2 basis-52">
+          <CarouselItem
+            key={`${product.product.provider}:${product.product.id}`}
+            className="basis-52 ps-2"
+          >
             <ProductCard
               product={product}
               onAddToCart={onAddToCart}
@@ -38,8 +41,8 @@ function ProductCarousel({
           </CarouselItem>
         ))}
       </CarouselContent>
-      <CarouselPrevious className="left-2 bg-white/90 hover:bg-white shadow-md border-gray-200" />
-      <CarouselNext className="right-2 bg-white/90 hover:bg-white shadow-md border-gray-200" />
+      <CarouselPrevious className="inset-s-2 border-gray-200 bg-white/90 shadow-md hover:bg-white" />
+      <CarouselNext className="inset-e-2 border-gray-200 bg-white/90 shadow-md hover:bg-white" />
     </Carousel>
   );
 }
@@ -57,30 +60,30 @@ export function ProductSearchView({
 }) {
   const { results, totalProducts } = data;
 
-  const handleAddToCart = async (name: string, upc: string, qty: number) => {
+  const handleAddToCart = async (name: string, productRef: string, qty: number) => {
     await addProductToCart(app, {
       listName: `Cart: ${name}`,
       productName: name,
       quantity: qty,
-      upc,
+      productRef,
     });
   };
 
-  const handleAddToList = async (name: string, upc: string) => {
+  const handleAddToList = async (name: string, productRef: string) => {
     await saveProductToList(app, {
       productName: name,
       quantity: 1,
-      upc,
+      productRef,
     });
   };
 
   const hasResults = results.some((r) => !r.failed && r.products.length > 0);
 
   return (
-    <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
+    <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title="Product Search"
-        badge={<span className="text-[11px] text-gray-400 font-mono">{totalProducts} items</span>}
+        badge={<span className="font-mono text-xs text-gray-400">{totalProducts} items</span>}
         subtitle={`${results.length} search term${results.length !== 1 ? "s" : ""}`}
         trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
       />
@@ -90,7 +93,7 @@ export function ProductSearchView({
           icon={
             <svg
               aria-hidden="true"
-              className="w-5 h-5"
+              className="size-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -112,12 +115,12 @@ export function ProductSearchView({
         if (result.failed) {
           return (
             <div
-              key={result.term}
-              className="bg-red-50 rounded-lg px-3 py-2 mb-4 border border-red-100 text-xs text-red-600 flex items-center gap-1.5"
+              key={`${result.provider}:${result.term}`}
+              className="mb-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
             >
               <svg
                 aria-hidden="true"
-                className="w-3.5 h-3.5 shrink-0"
+                className="size-3.5 shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -135,25 +138,25 @@ export function ProductSearchView({
         }
         if (result.products.length === 0) {
           return (
-            <div key={result.term} className="mb-5">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  {result.term}
+            <div key={`${result.provider}:${result.term}`} className="mb-5">
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                  {result.term} · {result.provider}
                 </span>
-                <span className="text-[11px] text-gray-300">·</span>
-                <span className="text-[11px] text-gray-400">No results</span>
+                <span className="text-xs text-gray-300">·</span>
+                <span className="text-xs text-gray-400">No results</span>
               </div>
             </div>
           );
         }
         return (
-          <div key={result.term} className="mb-6">
-            <div className="flex items-center gap-2 mb-2.5">
-              <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          <div key={`${result.provider}:${result.term}`} className="mb-6">
+            <div className="mb-2.5 flex items-center gap-2">
+              <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                 {result.term}
               </span>
-              <span className="text-[11px] text-gray-300">·</span>
-              <span className="text-[11px] text-gray-400">{result.products.length} items</span>
+              <span className="text-xs text-gray-300">·</span>
+              <span className="text-xs text-gray-400">{result.products.length} items</span>
             </div>
             <ProductCarousel
               products={result.products}

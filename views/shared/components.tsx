@@ -2,9 +2,9 @@ import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react
 
 import { ReactNode, useState } from "react";
 
-import { Badge } from "@/shared/ui/badge.js";
-import { Button } from "@/shared/ui/button.js";
-import { Card, CardContent, CardFooter } from "@/shared/ui/card.js";
+import { Badge } from "@agents/ui/components/badge";
+import { Button } from "@agents/ui/components/button";
+import { Card, CardContent, CardFooter } from "@agents/ui/components/card";
 
 import type { ProductData } from "./types.js";
 
@@ -24,13 +24,13 @@ export function SectionHeader({
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <h1 className="text-sm font-semibold text-gray-900 tracking-tight truncate">{title}</h1>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate text-sm font-semibold tracking-tight text-gray-900">{title}</h1>
           {badge}
         </div>
         {trailing}
       </div>
-      {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
+      {subtitle && <p className="mt-0.5 text-xs text-gray-400">{subtitle}</p>}
     </div>
   );
 }
@@ -62,7 +62,7 @@ export function DisplayModeToggle({
     >
       <svg
         aria-hidden="true"
-        className="w-3.5 h-3.5"
+        className="size-3.5"
         fill="none"
         viewBox="0 0 24 24"
         strokeWidth={2}
@@ -87,26 +87,16 @@ export function DisplayModeToggle({
 }
 
 export function FulfillmentTags({ product }: { product: ProductData }) {
-  const item = product.items?.[0];
-  if (!item?.fulfillment) return null;
-
-  const tags: Array<{ label: string; variant: "blue" | "purple" | "green" }> = [];
-  if (item.fulfillment.curbside) tags.push({ label: "Pickup", variant: "blue" });
-  if (item.fulfillment.delivery) tags.push({ label: "Delivery", variant: "purple" });
-  if (item.fulfillment.instore) tags.push({ label: "In-Store", variant: "green" });
-
-  if (tags.length === 0) {
-    return (
-      <div className="flex flex-wrap gap-1 mt-1.5">
-        <Badge variant="red">Out of Stock</Badge>
-      </div>
-    );
-  }
+  const tags: Array<{ label: string; className: string }> = product.pickup
+    ? [{ label: "Pickup", className: "bg-blue-50 text-blue-700" }]
+    : [];
+  if (!product.available) tags.push({ label: "Out of Stock", className: "bg-red-50 text-red-600" });
+  if (tags.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-1 mt-1.5">
+    <div className="mt-1.5 flex flex-wrap gap-1">
       {tags.map((t) => (
-        <Badge key={t.label} variant={t.variant}>
+        <Badge key={t.label} variant="outline" className={t.className}>
           {t.label}
         </Badge>
       ))}
@@ -115,24 +105,24 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
 }
 
 export function PriceDisplay({ product }: { product: ProductData }) {
-  const item = product.items?.[0];
-  if (!item?.price?.regular) {
-    return <span className="text-xs text-gray-400 font-mono">—</span>;
+  if (product.price === undefined) {
+    return <span className="font-mono text-xs text-gray-400">—</span>;
   }
-  const { regular, promo } = item.price;
-  const hasPromo = promo != null && promo !== regular;
+  const hasPromo = product.regularPrice !== undefined && product.regularPrice !== product.price;
 
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span className="text-[15px] font-medium text-emerald-600 font-mono leading-none">
-        ${hasPromo ? promo?.toFixed(2) : regular?.toFixed(2)}
+      <span className="font-mono text-base leading-none font-medium text-emerald-600">
+        ${product.price.toFixed(2)}
       </span>
       {hasPromo && (
         <>
-          <span className="text-xs text-gray-400 line-through font-mono">
-            ${regular?.toFixed(2)}
+          <span className="font-mono text-xs text-gray-400 line-through">
+            ${product.regularPrice?.toFixed(2)}
           </span>
-          <Badge variant="red">Sale</Badge>
+          <Badge variant="outline" className="bg-red-50 text-red-600">
+            Sale
+          </Badge>
         </>
       )}
     </span>
@@ -188,17 +178,17 @@ export function ActionButton({
         state === "done" && variant === "primary"
           ? "bg-emerald-600 text-white hover:bg-emerald-700"
           : state === "done" && variant === "secondary"
-            ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
             : variant === "primary" && state === "idle"
-              ? "bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white border-transparent"
+              ? "border-transparent bg-primary text-white hover:bg-primary/90"
               : undefined
       }
     >
-      {icon && state === "idle" && <span className="shrink-0 w-3 h-3">{icon}</span>}
+      {icon && state === "idle" && <span className="size-3 shrink-0">{icon}</span>}
       {state === "loading" && (
         <svg
           aria-hidden="true"
-          className="animate-spin shrink-0 w-3 h-3"
+          className="size-3 shrink-0 animate-spin"
           viewBox="0 0 24 24"
           fill="none"
         >
@@ -223,29 +213,29 @@ export function ActionButton({
 }
 
 export function ProductActions({
-  upc,
+  productRef,
+  cartEnabled,
   name,
   disabled,
   onAddToCart,
   onAddToList,
 }: {
-  upc: string | undefined;
+  productRef: string;
+  cartEnabled: boolean;
   name: string;
   disabled?: boolean;
-  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, productRef: string) => Promise<void>;
 }) {
   const [cartState, setCartState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [listState, setListState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!upc) return null;
-
   const handleCart = async () => {
     setCartState("loading");
     setErrorMsg(null);
     try {
-      await onAddToCart(name, upc, 1);
+      await onAddToCart(name, productRef, 1);
       setCartState("done");
       setTimeout(() => setCartState("idle"), 2000);
     } catch (e) {
@@ -263,7 +253,7 @@ export function ProductActions({
     setListState("loading");
     setErrorMsg(null);
     try {
-      await onAddToList(name, upc);
+      await onAddToList(name, productRef);
       setListState("done");
       setTimeout(() => setListState("idle"), 2000);
     } catch (e) {
@@ -280,31 +270,33 @@ export function ProductActions({
   return (
     <div>
       <div className="flex gap-1.5">
-        <ActionButton
-          state={cartState}
-          onClick={handleCart}
-          disabled={disabled}
-          idleLabel="Add to Cart"
-          loadingLabel="Adding..."
-          doneLabel="Added!"
-          failLabel="Failed"
-          variant="primary"
-          icon={
-            <svg
-              aria-hidden="true"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-              />
-            </svg>
-          }
-        />
+        {cartEnabled && (
+          <ActionButton
+            state={cartState}
+            onClick={handleCart}
+            disabled={disabled}
+            idleLabel="Add to Cart"
+            loadingLabel="Adding..."
+            doneLabel="Added!"
+            failLabel="Failed"
+            variant="primary"
+            icon={
+              <svg
+                aria-hidden="true"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+                />
+              </svg>
+            }
+          />
+        )}
         <ActionButton
           state={listState}
           onClick={handleList}
@@ -327,39 +319,34 @@ export function ProductActions({
           }
         />
       </div>
-      {errorMsg && <div className="mt-1 text-[11px] text-red-600">{errorMsg}</div>}
+      {errorMsg && <div className="mt-1 text-xs text-red-600">{errorMsg}</div>}
     </div>
   );
 }
 
 function ProductImage({ product }: { product: ProductData }) {
-  const frontImage = product.images?.find(
-    (img) => (img as { default?: boolean }).default || img.perspective === "front",
-  );
-  const sizes = frontImage?.sizes ?? product.images?.[0]?.sizes;
-  const thumbnail =
-    sizes?.find((s) => s.size === "thumbnail" || s.size === "small")?.url ?? sizes?.[0]?.url;
+  const thumbnail = product.imageUrl;
 
   if (!thumbnail) {
-    const initials = (product.description ?? "?")
+    const initials = product.name
       .split(" ")
       .slice(0, 2)
       .map((w) => w[0])
       .join("")
       .toUpperCase();
     return (
-      <div className="w-full aspect-square bg-gray-50 flex items-center justify-center">
+      <div className="flex aspect-square w-full items-center justify-center bg-gray-50">
         <span className="text-xl font-bold text-gray-300">{initials}</span>
       </div>
     );
   }
 
   return (
-    <div className="w-full aspect-square bg-gray-50 overflow-hidden">
+    <div className="aspect-square w-full overflow-hidden bg-gray-50">
       <img
         src={thumbnail}
-        alt={product.description ?? "Product"}
-        className="w-full h-full object-contain p-2"
+        alt={product.name}
+        className="size-full object-contain p-2"
         loading="lazy"
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -377,37 +364,35 @@ export function ProductCard({
 }: {
   product: ProductData;
   canCallTools: boolean;
-  onAddToCart: (name: string, upc: string, qty: number) => Promise<void>;
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
+  onAddToList: (name: string, productRef: string) => Promise<void>;
 }) {
-  const name = product.description || "Unknown Product";
+  const name = product.name;
   const brand = product.brand;
-  const upc = product.upc;
-  const size = product.items?.[0]?.size;
+  const productRef = `${product.product.provider}:${product.product.id}`;
+  const size = product.size;
   const aisle =
-    product.aisleLocations?.[0]?.description ||
-    (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
+    product.aisle?.description ||
+    (product.aisle?.number ? `Aisle ${product.aisle.number}` : undefined);
 
   return (
-    <Card size="sm" className="h-full hover:shadow-md transition-shadow duration-150">
+    <Card size="sm" className="h-full transition-shadow duration-150 hover:shadow-md">
       <ProductImage product={product} />
-      <CardContent className="flex flex-col flex-1 pt-2">
+      <CardContent className="flex flex-1 flex-col pt-2">
         <div className="flex-1">
-          <div className="font-medium text-[13px] text-gray-900 leading-snug line-clamp-2">
-            {name}
-          </div>
+          <div className="line-clamp-2 text-sm leading-snug font-medium text-gray-900">{name}</div>
           {(brand || size) && (
-            <div className="text-[11px] text-gray-400 mt-0.5">
+            <div className="mt-0.5 text-xs text-gray-400">
               {brand}
               {brand && size && " · "}
               {size}
             </div>
           )}
           {aisle && (
-            <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-0.5">
+            <div className="mt-0.5 flex items-center gap-0.5 text-xs text-gray-400">
               <svg
                 aria-hidden="true"
-                className="w-2.5 h-2.5 shrink-0"
+                className="size-2.5 shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -433,17 +418,16 @@ export function ProductCard({
         </div>
         <FulfillmentTags product={product} />
       </CardContent>
-      {upc && (
-        <CardFooter className="pt-2">
-          <ProductActions
-            upc={upc}
-            name={name}
-            disabled={!canCallTools}
-            onAddToCart={onAddToCart}
-            onAddToList={onAddToList}
-          />
-        </CardFooter>
-      )}
+      <CardFooter className="pt-2">
+        <ProductActions
+          productRef={productRef}
+          cartEnabled={product.product.provider === "kroger"}
+          name={name}
+          disabled={!canCallTools}
+          onAddToCart={onAddToCart}
+          onAddToList={onAddToList}
+        />
+      </CardFooter>
     </Card>
   );
 }

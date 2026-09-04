@@ -1,21 +1,14 @@
 import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../services/kroger/product.js";
-import type { ShoppingListItem } from "../utils/user-storage.js";
+import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { appResult } from "../app-results.js";
-import { registerAppTool } from "../utils/app-tool.js";
-import { notFoundError, storageError, validationError } from "../errors.js";
+import { notFoundError, validationError } from "../errors.js";
 import { rankProductMatches } from "../services/match-ranker.js";
-import {
-  getProps,
-  safeResolveLocationId,
-  safeStorage,
-  STORE_ID_RECOVERY_HINT,
-  toMcpError,
-} from "../utils/result.js";
+import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { type LineItem, addLineItemsToCart, toCartSnapshotItems } from "./cart.js";
+import { type LineItem, addLineItemsToCart } from "./cart.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { searchProductsForTerms } from "./product.js";
 import { coercedBooleanSchema, storeIdSchema } from "./schemas.js";
@@ -28,7 +21,7 @@ type Product = ProductComponents["schemas"]["products.productModel"];
  * Resolves the Workers AI binding for semantic match ranking. Ranking itself
  * is best-effort; remote-binding failures are handled inside `rankProductMatches`.
  */
-export function getMatchRankerAi(ctx: ToolContext): Ai {
+function getMatchRankerAi(ctx: ToolContext): Ai {
   return ctx.getEnv().AI;
 }
 
@@ -92,11 +85,50 @@ function formatMatchLineMarkdown(
   return `- ${parts.join(" | ")} (qty ${quantity})`;
 }
 
-export function registerShopTools(ctx: ToolContext) {
-  const { productClient, cartClient } = ctx.clients;
+function shoppingListResponse(listId: string, list: ShoppingList, parts: string[]) {
+  return {
+    content: [{ type: "text" as const, text: parts.join("\n") }],
+    ...appResult("create_shopping_list", {
+      listId,
+      name: list.name,
+      items: list.items,
+    }),
+  };
+}
 
-  registerAppTool(
-    ctx.server,
+async function finishShopForItemsCart(
+  ctx: ToolContext,
+  listId: string,
+  responseText: string,
+  list: ShoppingList,
+  lineItems: LineItem[],
+) {
+  const parts = [responseText];
+  const addResult = await addLineItemsToCart(ctx, ctx.clients.cartClient, lineItems, "PICKUP", {
+    receiptListId: listId,
+  });
+  if (addResult.isErr()) {
+    if (addResult.error.type === "STORAGE_ERROR") {
+      return toMcpError(addResult.error);
+    }
+    parts.push(
+      "",
+      `Cart add failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${listId}"}.`,
+    );
+    return shoppingListResponse(listId, list, parts);
+  }
+
+  parts.push(
+    "",
+    `Added ${lineItems.length} item(s) to your Kroger cart (no need to call add_shopping_list_to_cart).`,
+  );
+  return shoppingListResponse(listId, list, parts);
+}
+
+export function registerShopTools(ctx: ToolContext) {
+  const { productClient } = ctx.clients;
+
+  ctx.server.registerTool(
     "shop_for_items",
     {
       title: "Shop For Items",
@@ -113,8 +145,7 @@ export function registerShopTools(ctx: ToolContext) {
     },
     async ({ items, addToCart, storeId }, requestContext) => {
       getProps();
-
-      const resolvedLocation = await safeResolveLocationId(ctx.storage, storeId);
+      const resolvedLocation = await safeResolveLocationId(ctx.storage, undefined);
       if (resolvedLocation.isErr()) {
         if (resolvedLocation.error.type === "NOT_FOUND") {
           return toMcpError(
@@ -189,6 +220,7 @@ export function registerShopTools(ctx: ToolContext) {
 
       const listItems: ShoppingListItem[] = matched.map((match) => ({
         productName: match.product.description || match.name,
+        ...(match.product.upc ? { product: { provider: "kroger", id: match.product.upc } } : {}),
         upc: match.product.upc,
         quantity: match.quantity,
       }));
@@ -196,13 +228,11 @@ export function registerShopTools(ctx: ToolContext) {
       const listName = `Shopping list ${new Date().toISOString().slice(0, 10)}`;
 
       const createResult = await createShoppingListRecord(ctx.storage, listName, listItems);
-      const shortId = createResult.isOk() ? createResult.value.shortId : undefined;
-      const list = createResult.isOk() ? createResult.value.list : undefined;
+      if (createResult.isErr()) return toMcpError(createResult.error);
+      const { listId, list } = createResult.value;
 
       const parts: string[] = [
-        shortId
-          ? `Created shopping list "${listName}" (listId=${shortId}) with ${matched.length} item(s).`
-          : `Found ${matched.length} item(s). Shopping list could not be saved (${createResult.isErr() ? createResult.error.message : "unknown error"}).`,
+        `Created shopping list "${listName}" (listId=${listId}) with ${matched.length} item(s).`,
         "",
         ...matched.map((match) =>
           formatMatchLineMarkdown(match.name, match.quantity, match.product, match.flags),
@@ -213,30 +243,16 @@ export function registerShopTools(ctx: ToolContext) {
         parts.push("", `No results for: ${notFound.join(", ")}.`);
       }
 
-      const respond = () => ({
-        content: [{ type: "text" as const, text: parts.join("\n") }],
-        ...(shortId && list
-          ? appResult("create_shopping_list", {
-              listId: shortId,
-              name: list.name,
-              items: list.items,
-            })
-          : {}),
-      });
-
       if (!addToCart) {
         parts.push(
           "",
-          shortId
-            ? `Review these matches, then call add_shopping_list_to_cart with listId "${shortId}" to add them to the Kroger cart.`
-            : `Add the matches with ${inlineCartAddRecovery(listItems, locationId)}.`,
+          `Review these matches, then call add_shopping_list_to_cart with listId "${listId}" to add them to the Kroger cart.`,
         );
-        return respond();
+        return shoppingListResponse(listId, list, parts);
       }
 
-      // addToCart: reuse the same confirm-then-PUT path as
-      // add_shopping_list_to_cart so the elicitation confirmation still
-      // gates the write.
+      // addToCart: reuse the same direct PUT path as
+      // add_shopping_list_to_cart.
       const lineItems: LineItem[] = matched.flatMap((match) =>
         match.product.upc
           ? [
@@ -252,55 +268,12 @@ export function registerShopTools(ctx: ToolContext) {
       if (lineItems.length === 0) {
         parts.push(
           "",
-          shortId
-            ? `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${shortId}"} once available.`
-            : `None of the matches had a upc to add to cart. Retry with ${inlineCartAddRecovery(listItems, locationId)}.`,
+          `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${listId}"} once available.`,
         );
-        return respond();
+        return shoppingListResponse(listId, list, parts);
       }
 
-      const addResult = await addLineItemsToCart(
-        ctx,
-        cartClient,
-        lineItems,
-        "PICKUP",
-        requestContext,
-      );
-      if (addResult.isErr()) {
-        parts.push(
-          "",
-          shortId
-            ? `Cart add was cancelled or failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${shortId}"}.`
-            : `Cart add was cancelled or failed. Retry with ${inlineCartAddRecovery(listItems, locationId)}.`,
-        );
-        return respond();
-      }
-
-      // Persist the cart snapshot under the same storage key
-      // add_shopping_list_to_cart checks, so a follow-up call with this
-      // listId short-circuits instead of double-adding. Skip when the list
-      // itself could not be saved — there is no listId to key the receipt.
-      if (shortId) {
-        const snapshot = toCartSnapshotItems(lineItems, "PICKUP");
-        const snapshotResult = await safeStorage(
-          () => ctx.storage.cartSnapshot.set(shortId, snapshot),
-          "persist cart snapshot",
-        );
-        if (snapshotResult.isErr()) {
-          return toMcpError(
-            storageError(
-              "Kroger accepted the cart add, but its local retry receipt could not be saved. The outcome is ambiguous; do not retry because that may add duplicates. Check the Kroger cart first.",
-              snapshotResult.error,
-            ),
-          );
-        }
-      }
-
-      parts.push(
-        "",
-        `Added ${lineItems.length} item(s) to your Kroger cart (no need to call add_shopping_list_to_cart).`,
-      );
-      return respond();
+      return finishShopForItemsCart(ctx, listId, parts.join("\n"), list, lineItems);
     },
   );
 }

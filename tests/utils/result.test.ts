@@ -9,13 +9,11 @@ import { KrogerTokenExpiredError } from "../../src/services/kroger/client.js";
 import {
   fromApiResponse,
   getProps,
-  safeFetch,
   safeJsonParse,
   safeJsonParseWithSchema,
   safeResolveLocationId,
   safeStorage,
   toMcpError,
-  toMcpResponse,
 } from "../../src/utils/result.js";
 
 const authMock = vi.hoisted(() => ({
@@ -25,34 +23,6 @@ const authMock = vi.hoisted(() => ({
 vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => authMock.context,
 }));
-
-// --- toMcpResponse ---
-
-describe("toMcpResponse", () => {
-  it("converts Ok to text result", () => {
-    const result = toMcpResponse(ok("hello"));
-    expect(result).toEqual({
-      content: [{ type: "text", text: "hello" }],
-    });
-    expect(result.isError).toBeUndefined();
-  });
-
-  it("converts Err to error result", () => {
-    const result = toMcpResponse(err(apiError("failed", { code: 500 })));
-    expect(result).toEqual({
-      content: [{ type: "text", text: 'failed: {"code":500}' }],
-      isError: true,
-    });
-  });
-
-  it("converts Err without detail", () => {
-    const result = toMcpResponse(err(authError("not authenticated")));
-    expect(result).toEqual({
-      content: [{ type: "text", text: "not authenticated" }],
-      isError: true,
-    });
-  });
-});
 
 describe("toMcpError", () => {
   it("converts AppError to MCP error response", () => {
@@ -298,6 +268,7 @@ describe("safeResolveLocationId", () => {
 
   it("falls back to preferred location from storage when no locationId provided", async () => {
     const storage = mockStorage({
+      provider: "kroger",
       locationId: "70500847",
       locationName: "QFC #815",
     });
@@ -366,79 +337,6 @@ describe("safeStorage", () => {
     expect(error.type).toBe("STORAGE_ERROR");
     expect(error.message).toContain("write equipment");
     expect(error.message).toContain("503");
-  });
-});
-
-// --- safeFetch ---
-
-describe("safeFetch", () => {
-  it("returns Ok with response on successful fetch", async () => {
-    const mockResponse = new Response("ok", { status: 200 });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse));
-
-    const result = await safeFetch("https://example.com", undefined, "test");
-    expect(result.isOk()).toBe(true);
-    expect(result._unsafeUnwrap().status).toBe(200);
-
-    vi.unstubAllGlobals();
-  });
-
-  it("returns API_ERROR including status on non-ok response", async () => {
-    const mockResponse = new Response("not found", {
-      status: 404,
-      statusText: "Not Found",
-    });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse));
-
-    const result = await safeFetch("https://example.com", undefined, "test");
-    expect(result.isErr()).toBe(true);
-    const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("API_ERROR");
-    expect(error.message).toContain("404");
-
-    vi.unstubAllGlobals();
-  });
-
-  it("returns NETWORK_ERROR on network-level failure", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network error")));
-
-    const result = await safeFetch("https://example.com", undefined, "test");
-    expect(result.isErr()).toBe(true);
-    const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("NETWORK_ERROR");
-    expect(error.message).toContain("network error");
-
-    vi.unstubAllGlobals();
-  });
-
-  it("uses 'fetch' as default context string in NETWORK_ERROR when context is omitted", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
-
-    const result = await safeFetch("https://example.com");
-    expect(result.isErr()).toBe(true);
-    const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("NETWORK_ERROR");
-    expect(error.message).toContain("fetch");
-    expect(error.message).toContain("connection refused");
-
-    vi.unstubAllGlobals();
-  });
-
-  it("uses 'fetch' as default context string in API_ERROR when context is omitted", async () => {
-    const mockResponse = new Response("server error", {
-      status: 503,
-      statusText: "Service Unavailable",
-    });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockResponse));
-
-    const result = await safeFetch("https://example.com");
-    expect(result.isErr()).toBe(true);
-    const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("API_ERROR");
-    expect(error.message).toContain("fetch");
-    expect(error.message).toContain("503");
-
-    vi.unstubAllGlobals();
   });
 });
 

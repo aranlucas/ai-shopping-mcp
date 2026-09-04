@@ -32,7 +32,7 @@ type CacheReadResult =
   | { kind: "stale"; entry: WeeklyDealsCacheEntry };
 
 const WEEKLY_DEALS_CACHE_VERSION = 1;
-const FRESH_CACHE_MS = 6 * 60 * 60 * 1000;
+const FALLBACK_FRESH_CACHE_MS = 6 * 60 * 60 * 1000;
 const STALE_GRACE_MS = 48 * 60 * 60 * 1000;
 
 const weeklyDealsCacheDataSchema = z
@@ -59,15 +59,13 @@ const weeklyDealsCacheEntrySchema = z
     staleUntil: z.number(),
     data: weeklyDealsCacheDataSchema,
   })
-  .transform(
-    (entry): WeeklyDealsCacheEntry => ({
-      version: entry.version,
-      createdAt: entry.createdAt,
-      freshUntil: entry.freshUntil,
-      staleUntil: entry.staleUntil,
-      data: entry.data,
-    }),
-  );
+  .transform((entry): WeeklyDealsCacheEntry => ({
+    version: entry.version,
+    createdAt: entry.createdAt,
+    freshUntil: entry.freshUntil,
+    staleUntil: entry.staleUntil,
+    data: entry.data,
+  }));
 
 export function buildWeeklyDealsCacheKey(params: {
   locationId?: string;
@@ -130,10 +128,8 @@ function writeWeeklyDealsCache(
 
   const now = Date.now();
   const eventEnd = getLatestCircularEndTime(data);
-  const freshUntil = eventEnd ? Math.min(now + FRESH_CACHE_MS, eventEnd) : now + FRESH_CACHE_MS;
-  const staleUntil = eventEnd
-    ? Math.max(freshUntil, eventEnd + STALE_GRACE_MS)
-    : now + FRESH_CACHE_MS + STALE_GRACE_MS;
+  const freshUntil = eventEnd ?? now + FALLBACK_FRESH_CACHE_MS;
+  const staleUntil = freshUntil + STALE_GRACE_MS;
 
   const entry: WeeklyDealsCacheEntry = {
     version: 1,
@@ -143,8 +139,8 @@ function writeWeeklyDealsCache(
     data,
   };
 
-  const expirationTtl = Math.max(300, Math.ceil((staleUntil - now) / 1000));
-  return ResultAsync.fromPromise(kv.put(key, JSON.stringify(entry), { expirationTtl }), (e) =>
+  const expiration = Math.max(Math.ceil(staleUntil / 1000), Math.ceil(now / 1000) + 60);
+  return ResultAsync.fromPromise(kv.put(key, JSON.stringify(entry), { expiration }), (e) =>
     storageError(`Cache write failed: ${e instanceof Error ? e.message : String(e)}`, e),
   );
 }
@@ -157,8 +153,7 @@ export function addCacheWarning(result: QfcDealsApiResponse, message: string): Q
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "get_weekly_deals",
     {
       title: "Get Weekly Deals",

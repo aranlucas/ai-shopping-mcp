@@ -8,6 +8,12 @@
 import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
 import type {
+  CatalogProduct,
+  CatalogProvider,
+  CatalogSearchResult,
+} from "../services/catalog/types.js";
+import { formatProductReference } from "../services/catalog/types.js";
+import type {
   EquipmentItem,
   OrderRecord,
   PantryItem,
@@ -128,15 +134,17 @@ export function formatPreferredLocationCompact(location: PreferredLocation): str
 
 /**
  * COMPACT: Token-efficient shopping list item formatting
- * Format: Name x qty | UPC | Notes
+ * Format: Name x qty | productRef | Notes
  */
 export function formatShoppingListItemCompact(item: ShoppingListItem): string {
   const parts: string[] = [];
 
   parts.push(`${item.productName} x${item.quantity}`);
 
-  if (item.upc) {
-    parts.push(item.upc);
+  if (item.product) {
+    parts.push(`productRef=${formatProductReference(item.product)}`);
+  } else if (item.upc) {
+    parts.push(`productRef=kroger:${item.upc}`);
   }
 
   if (item.notes) {
@@ -168,74 +176,105 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 // the React views because some hosts also expose it to the model.
 // ---------------------------------------------------------------------------
 
-/** One markdown line summarizing a single product for search_products output. */
-export function formatProductSearchLineMarkdown(
-  product: Product,
+/**
+ * One catalog line, in the shared vocabulary.
+ *
+ * The identifier is one namespaced `productRef=` token. Provider adapters own
+ * native UPC/SKU details; generic tools only copy the universal reference.
+ */
+export function formatCatalogProductLine(
+  product: CatalogProduct,
+  provider: CatalogProvider,
   options: { includeLocation?: boolean } = {},
 ): string {
-  const item = product.items?.[0];
-  const parts: string[] = [
-    `upc=${product.upc ?? "unknown"}`,
-    product.description || "Unknown product",
-  ];
+  const parts: string[] = [`productRef=${formatProductReference(product.ref)}`, product.name];
 
   if (product.brand) parts.push(product.brand);
-  if (item?.size) parts.push(item.size);
+  if (product.size) parts.push(product.size);
 
-  if (item?.price) {
-    const { regular, promo } = item.price;
-    if (promo != null && promo !== regular) {
-      parts.push(`$${promo} (was $${regular})`);
-    } else if (regular != null) {
-      parts.push(`$${regular}`);
-    }
+  if (product.price !== undefined) {
+    parts.push(
+      product.regularPrice !== undefined
+        ? `$${product.price} (was $${product.regularPrice})`
+        : `$${product.price}`,
+    );
   }
 
-  const pickup = Boolean(item?.fulfillment?.curbside || item?.fulfillment?.instore);
-  parts.push(`pickup: ${pickup ? "yes" : "no"}`);
+  if (provider.capabilities.cart) parts.push(`pickup: ${product.pickup ? "yes" : "no"}`);
+  if (!product.available) parts.push("out of stock");
 
-  const location = product.aisleLocations?.[0];
-  if (options.includeLocation && location) {
-    const description = location.description?.trim();
-    const number = location.number?.trim();
+  const aisle = product.aisle;
+  if (options.includeLocation && aisle) {
+    const description = aisle.description?.trim();
+    const number = aisle.number?.trim();
     const locationLabel =
       description && number && !description.split(/\s+/).includes(number)
         ? `${description} ${number}`
         : (description ?? number);
     if (locationLabel) parts.push(`location: ${locationLabel}`);
-    if (location.sequenceNumber) parts.push(`route sequence: ${location.sequenceNumber}`);
-    if (location.bayNumber) parts.push(`bay: ${location.bayNumber}`);
-    if (location.side) parts.push(`side: ${location.side}`);
-    if (location.shelfNumber) parts.push(`shelf: ${location.shelfNumber}`);
-    if (location.shelfPositionInBay) {
-      parts.push(`shelf position: ${location.shelfPositionInBay}`);
-    }
+    if (aisle.sequenceNumber) parts.push(`route sequence: ${aisle.sequenceNumber}`);
+    if (aisle.bayNumber) parts.push(`bay: ${aisle.bayNumber}`);
+    if (aisle.side) parts.push(`side: ${aisle.side}`);
+    if (aisle.shelfNumber) parts.push(`shelf: ${aisle.shelfNumber}`);
+    if (aisle.shelfPositionInBay) parts.push(`shelf position: ${aisle.shelfPositionInBay}`);
   }
 
   return `- ${parts.join(" | ")}`;
 }
 
-/** Markdown for search_products: one heading + product lines per search term. */
-export function formatSearchProductsMarkdown(
-  results: Array<{ term: string; products: Product[]; count: number; failed: boolean }>,
+/** Exact product details in the same provider-neutral vocabulary as search. */
+export function formatCatalogProductDetailMarkdown(
+  product: CatalogProduct,
+  provider: CatalogProvider,
+): string {
+  return formatCatalogProductLine(product, provider, { includeLocation: true }).slice(2);
+}
+
+/**
+ * Markdown for search_products: one heading per search term, then one block per
+ * provider that was searched.
+ *
+ * The closing lines name which providers can reach a cart and which cannot,
+ * because that is the one difference between them a model must act on.
+ */
+export function formatCatalogSearchMarkdown(
+  results: CatalogSearchResult[],
+  providers: CatalogProvider[],
   options: { includeLocation?: boolean } = {},
 ): string {
+  const terms = [...new Set(results.map((result) => result.term))];
   const lines: string[] = [];
 
-  for (const result of results) {
-    lines.push(`## ${result.term}`);
-    if (result.failed) {
-      lines.push("Search failed for this term.");
-    } else if (result.products.length === 0) {
-      lines.push("No results.");
-    } else {
-      for (const product of result.products) {
-        lines.push(formatProductSearchLineMarkdown(product, options));
+  for (const term of terms) {
+    lines.push(`## ${term}`);
+    for (const provider of providers) {
+      const result = results.find(
+        (candidate) => candidate.term === term && candidate.provider === provider.id,
+      );
+      if (!result) continue;
+      if (result.failed) {
+        lines.push(`- ${provider.label} search failed for this term.`);
+      } else if (result.products.length === 0) {
+        lines.push(`- No ${provider.label} results.`);
+      } else {
+        for (const product of result.products) {
+          lines.push(formatCatalogProductLine(product, provider, options));
+        }
       }
     }
   }
 
-  lines.push("", "To buy items, pass the exact upc values above to create_shopping_list.");
+  const cartable = providers.filter((provider) => provider.capabilities.cart);
+  const listOnly = providers.filter((provider) => !provider.capabilities.cart);
+  lines.push("");
+  if (cartable.length > 0) {
+    lines.push("To save exact matches, pass the productRef values above to create_shopping_list.");
+  }
+  for (const provider of listOnly) {
+    lines.push(
+      `${provider.label} has no cart: its productRef can be saved to a list but cannot be sent to a cart tool.`,
+    );
+  }
   return lines.join("\n");
 }
 
@@ -305,7 +344,7 @@ export function formatStoreListMarkdown(stores: Location[]): string {
 }
 
 /** Markdown hours block for get_store. */
-export function formatStoreHoursMarkdown(location: Location): string {
+function formatStoreHoursMarkdown(location: Location): string {
   if (!location.hours) return "";
 
   const days = [
@@ -345,7 +384,7 @@ export type WeeklyDealMarkdownItem = {
 };
 
 /** One markdown line for a weekly deal: title, details, price, savings. */
-export function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
+function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
   const parts: string[] = [deal.title];
   if (deal.details) parts.push(deal.details);
   if (deal.price) parts.push(deal.price);

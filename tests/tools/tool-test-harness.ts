@@ -4,6 +4,7 @@ import * as z from "zod/v4";
 import type { ProductService } from "../../src/services/kroger/product-service.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type {
+  CartStore,
   CartSnapshotItem,
   EquipmentItem,
   OrderRecord,
@@ -11,6 +12,8 @@ import type {
   PreferredLocation,
   ShoppingListItem,
 } from "../../src/utils/user-storage.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type ShoppingListRecord = {
   id: string;
@@ -27,34 +30,10 @@ type AuthContext = {
   };
 };
 
-type RegisteredToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
-
-const toolResultSchema = z
-  .object({
-    content: z.array(z.object({ text: z.string() })),
-    isError: z.boolean().optional(),
-    structuredContent: z.unknown().optional(),
-    _meta: z.unknown().optional(),
-  })
-  .loose()
-  .transform((result) => ({
-    ...result,
-    text: result.content[0]?.text ?? "",
-    isError: result.isError ?? false,
-  }));
-
-export type ToolResult = z.infer<typeof toolResultSchema>;
-export type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>;
-
 export type CapturedTool = {
   name: string;
   config: unknown;
   handler: ToolHandler;
-};
-
-export type ElicitResult = {
-  action: "accept" | "decline" | "cancel";
-  content?: { confirm?: boolean };
 };
 
 const testState = vi.hoisted(() => ({
@@ -66,22 +45,7 @@ vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (
-    _server: unknown,
-    name: string,
-    config: unknown,
-    handler: RegisteredToolHandler,
-  ) => {
-    testState.capturedTools.push({
-      name,
-      config,
-      handler: async (args) => toolResultSchema.parse(await handler(args)),
-    });
-  },
-}));
-
-export function authenticate(userId = "user-123") {
+function authenticate(userId = "user-123") {
   testState.authContext = {
     props: {
       id: userId,
@@ -100,7 +64,9 @@ export function resetToolTestHarness() {
   authenticate();
 }
 
-export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
+export function makeStorage(
+  overrides: Partial<UserStorage & CartStore> = {},
+): UserStorage & CartStore {
   const pantryItems: PantryItem[] = [];
   const equipmentItems: EquipmentItem[] = [];
   const orders: OrderRecord[] = [];
@@ -195,7 +161,7 @@ export function makeStorage(overrides: Partial<UserStorage> = {}): UserStorage {
     },
   };
 
-  return { ...storage, ...overrides } as unknown as UserStorage;
+  return { ...storage, ...overrides } as unknown as UserStorage & CartStore;
 }
 
 /**
@@ -217,19 +183,17 @@ export function makeContext(
   storage = makeStorage(),
   productService: ProductService = makeProductService(),
 ): ToolContext {
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
+  };
   return {
-    server: {
-      registerTool: (name: string, config: unknown, handler: RegisteredToolHandler) => {
-        testState.capturedTools.push({
-          name,
-          config,
-          handler: async (args) => toolResultSchema.parse(await handler(args)),
-        });
-      },
-      server: {
-        elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
-      },
-    } as unknown as ToolContext["server"],
+    server: server as unknown as ToolContext["server"],
     clients: {
       cartClient: {
         PUT: async () => ({
@@ -239,30 +203,29 @@ export function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService,
+    catalogs: stubCatalogRegistry(),
     storage,
+    carts: storage,
     getEnv: () => ({}) as Env,
   };
 }
 
-export function makeContextWithElicit(
-  storage: UserStorage,
-  elicitResult: ElicitResult,
+export function makeCartContext(
+  storage: UserStorage & CartStore,
   cartStatus = 204,
   productService: ProductService = makeProductService(),
 ): ToolContext {
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
+  };
   return {
-    server: {
-      registerTool: (name: string, config: unknown, handler: RegisteredToolHandler) => {
-        testState.capturedTools.push({
-          name,
-          config,
-          handler: async (args) => toolResultSchema.parse(await handler(args)),
-        });
-      },
-      server: {
-        elicitInput: async () => elicitResult,
-      },
-    } as unknown as ToolContext["server"],
+    server: server as unknown as ToolContext["server"],
     clients: {
       cartClient: {
         PUT: async () => ({
@@ -272,7 +235,9 @@ export function makeContextWithElicit(
       },
     } as unknown as ToolContext["clients"],
     productService,
+    catalogs: stubCatalogRegistry(),
     storage,
+    carts: storage,
     getEnv: () => ({}) as Env,
   };
 }

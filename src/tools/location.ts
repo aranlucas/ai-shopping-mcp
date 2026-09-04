@@ -26,8 +26,9 @@ import { storeIdSchema } from "./schemas.js";
 type Location = LocationComponents["schemas"]["locations.location"];
 
 /** Location fields rendered by the store list and detail views. */
-export function compactLocation(location: Location): LocationData {
+function compactLocation(location: Location): LocationData {
   return {
+    provider: "kroger",
     locationId: location.locationId,
     name: location.name,
     chain: location.chain,
@@ -47,8 +48,7 @@ export function compactLocation(location: Location): LocationData {
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "search_stores",
     {
       title: "Search Store Locations",
@@ -105,8 +105,7 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "get_store",
     {
       title: "Get Store Details",
@@ -146,8 +145,7 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "set_preferred_store",
     {
       title: "Set Preferred Store",
@@ -177,6 +175,7 @@ export function registerLocationTools(ctx: ToolContext) {
         }
 
         const preferredLocation: PreferredLocation = {
+          provider: "kroger",
           locationId: location.locationId || "",
           locationName: location.name || "",
           address:

@@ -2,7 +2,7 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useState } from "react";
 
-import { Badge } from "@/shared/ui/badge.js";
+import { Badge } from "@agents/ui/components/badge";
 
 import { SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -17,15 +17,19 @@ import { addShoppingListToCartCall, toolResultErrorMessage } from "../tool-calls
 function ShoppingItem({ item }: { item: ShoppingListItemData }) {
   return (
     <div className="flex items-center gap-2.5 py-2.5">
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium leading-snug truncate text-gray-900">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm leading-snug font-medium text-gray-900">
           {item.productName}
         </div>
-        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-          <span className="text-[11px] text-gray-400 font-mono">×{item.quantity}</span>
-          {item.upc && <Badge variant="green">UPC ready</Badge>}
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
+          {item.product && (
+            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+              {item.product.provider}
+            </Badge>
+          )}
           {item.notes && (
-            <span className="text-[11px] text-gray-400 italic truncate max-w-28">{item.notes}</span>
+            <span className="max-w-28 truncate text-xs text-gray-400 italic">{item.notes}</span>
           )}
         </div>
       </div>
@@ -48,18 +52,18 @@ export function ShoppingListView({
 
   if (items.length === 0) {
     return (
-      <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+      <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
         <SectionHeader
           title={name || "Shopping List"}
           badge={
-            <span className="text-[11px] text-gray-400 font-mono truncate max-w-32">{listId}</span>
+            <span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>
           }
         />
         <EmptyState
           icon={
             <svg
               aria-hidden="true"
-              className="w-5 h-5"
+              className="size-5"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -79,8 +83,10 @@ export function ShoppingListView({
     );
   }
 
-  const withUpc = items.filter((i) => i.upc);
-  const withoutUpc = items.filter((i) => !i.upc);
+  const withUpc = items.filter(
+    (item) => item.product?.provider === "kroger" || (!item.product && item.upc),
+  );
+  const withoutUpc = items.filter((item) => !withUpc.includes(item));
 
   const handleCheckout = async () => {
     setCheckoutState("loading");
@@ -107,38 +113,42 @@ export function ShoppingListView({
 
   const handleFindUpcs = () => {
     const names = withoutUpc.map((i) => i.productName).join(", ");
-    sendUserMessage(app, `Find UPCs for these items on my shopping list: ${names}.`);
+    sendUserMessage(app, `Find Kroger matches for these items on my shopping list: ${names}.`);
   };
 
   return (
-    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+    <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title={name || "Shopping List"}
-        badge={
-          <span className="text-[11px] text-gray-400 font-mono truncate max-w-32">{listId}</span>
-        }
+        badge={<span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>}
         subtitle={`${items.length} item${items.length === 1 ? "" : "s"}`}
       />
 
       {/* Status summary */}
-      <div className="flex gap-1.5 mb-3 flex-wrap">
-        <Badge variant="green">{withUpc.length} ready</Badge>
-        {withoutUpc.length > 0 && <Badge variant="yellow">{withoutUpc.length} need UPC</Badge>}
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+          {withUpc.length} ready
+        </Badge>
+        {withoutUpc.length > 0 && (
+          <Badge variant="outline" className="bg-amber-50 text-amber-700">
+            {withoutUpc.length} need UPC
+          </Badge>
+        )}
       </div>
 
       {/* Quick actions */}
       {canCallTools && (withUpc.length > 0 || withoutUpc.length > 0) && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className="mb-3 flex flex-wrap gap-1.5">
           {withUpc.length > 0 && (
             <button
               type="button"
               onClick={handleCheckout}
               disabled={checkoutState === "loading"}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white border-0 cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-primary px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <svg
                 aria-hidden="true"
-                className="w-3 h-3"
+                className="size-3"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -163,11 +173,11 @@ export function ShoppingListView({
             <button
               type="button"
               onClick={handleFindUpcs}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-border text-gray-600 hover:bg-muted bg-transparent cursor-pointer transition-colors"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-transparent px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-muted"
             >
               <svg
                 aria-hidden="true"
-                className="w-3 h-3"
+                className="size-3"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -185,7 +195,7 @@ export function ShoppingListView({
         </div>
       )}
 
-      {checkoutError && <div className="mb-3 text-[11px] text-red-600">{checkoutError}</div>}
+      {checkoutError && <div className="mb-3 text-xs text-red-600">{checkoutError}</div>}
 
       {/* Items */}
       <div className="divide-y divide-border">

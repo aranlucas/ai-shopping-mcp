@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
-import type { PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
+import type { CartStore, PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
 
 import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -22,7 +24,6 @@ type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
 };
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 type CapturedTool = { name: string; config: unknown; handler: ToolHandler };
 
 const testState = vi.hoisted(() => ({
@@ -83,7 +84,6 @@ function makeContext(
   cartOptions: {
     status?: number;
     throws?: boolean;
-    elicitAction?: "accept" | "decline" | "cancel";
     cartPutCalls?: CartPutCall[];
     snapshotSetCalls?: unknown[][];
     mirrorAppendCalls?: unknown[][];
@@ -93,7 +93,6 @@ function makeContext(
   const cartPutCalls = cartOptions.cartPutCalls ?? [];
   const snapshotSetCalls = cartOptions.snapshotSetCalls ?? [];
   const mirrorAppendCalls = cartOptions.mirrorAppendCalls ?? [];
-  const elicitAction = cartOptions.elicitAction ?? "accept";
 
   const storage = {
     preferredLocation: {
@@ -127,20 +126,19 @@ function makeContext(
     pantry: {} as UserStorage["pantry"],
     equipment: {} as UserStorage["equipment"],
     orderHistory: {} as UserStorage["orderHistory"],
-  } as unknown as UserStorage;
+  } as unknown as UserStorage & CartStore;
 
+  const server = {
+    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+      testState.capturedTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, server),
+      });
+    },
+  };
   return {
-    server: {
-      registerTool: (name: string, config: unknown, handler: ToolHandler) => {
-        testState.capturedTools.push({ name, config, handler });
-      },
-      server: {
-        elicitInput: async () =>
-          elicitAction === "accept"
-            ? { action: "accept", content: { confirm: true } }
-            : { action: elicitAction },
-      },
-    } as unknown as ToolContext["server"],
+    server: server as unknown as ToolContext["server"],
     clients: {
       productClient: { GET: productGet },
       cartClient: {
@@ -155,7 +153,9 @@ function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
+    catalogs: stubCatalogRegistry(),
     storage,
+    carts: storage,
     getEnv: () =>
       ({
         AI: { run: async () => ({ data: [] }) },
@@ -176,6 +176,7 @@ function getCapturedHandler(name: string): ToolHandler {
 }
 
 const PREFERRED_LOCATION: PreferredLocation = {
+  provider: "kroger",
   locationId: "70500034",
   locationName: "QFC Broadway",
   address: "417 Broadway E",
@@ -448,30 +449,6 @@ describe("shop_for_items", () => {
       expect(text).toContain("cart");
       expect(text).toContain("no need to call add_shopping_list_to_cart");
       expect(text).not.toContain("Review these matches");
-    });
-
-    it("still returns the created list, unadded, when the cart confirmation is declined", async () => {
-      const cartPutCalls: CartPutCall[] = [];
-
-      registerShopTools(
-        makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION, {
-          elicitAction: "decline",
-          cartPutCalls,
-        }),
-      );
-
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "whole milk" }],
-        addToCart: true,
-      });
-
-      expect(isErrorResult(result)).toBe(false);
-      expect(cartPutCalls).toHaveLength(0);
-      const sc = structuredContentOf(result);
-      expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
-      const text = textFromResult(result);
-      expect(text).toContain("cancelled or failed");
-      expect(text).toContain(`add_shopping_list_to_cart {"listId":"${sc["listId"]}"}`);
     });
   });
 

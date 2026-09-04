@@ -1,9 +1,7 @@
 /**
  * MCP prompts for guided Kroger/QFC shopping workflows.
  */
-
 import type { McpServer } from "@modelcontextprotocol/server";
-
 import * as z from "zod/v4";
 
 export function registerPrompts(server: McpServer) {
@@ -29,7 +27,7 @@ export function registerPrompts(server: McpServer) {
 ${grocery_list}
 
 Please help me by:
-1. Calling search_products once with all items in its terms array and include_location=true to find aisle and shelf locations
+1. Calling search_products once with all items in its terms array and includeLocation=true to find aisle and shelf locations
 2. Organizing the items by department/aisle in a logical order
 3. Suggesting an efficient route through the store
 
@@ -37,7 +35,7 @@ IMPORTANT: DO NOT add items to my cart. Only help me organize the shopping path.
               : `I need help planning a shopping trip. Please help me by:
 
 1. Understanding what items I might need (you can check my pantry, order history, or ask me what I'm looking for)
-2. Once we have a list, call search_products once with all items in its terms array and include_location=true to find aisle and shelf locations
+2. Once we have a list, call search_products once with all items in its terms array and includeLocation=true to find aisle and shelf locations
 3. Organize the items by department/aisle in a logical order
 4. Suggest an efficient route through the store
 

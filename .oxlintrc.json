@@ -1,11 +1,17 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../packages/oxlint-config/tailwind.json"],
+  "jsPlugins": ["oxlint-tailwindcss"],
   "plugins": ["unicorn"],
   "categories": {},
   "rules": {
     "unicorn/filename-case": ["error", { "case": "kebabCase" }]
   },
   "settings": {
+    "tailwindcss": {
+      "entryPoint": "views/styles.css",
+      "timeout": 120000
+    },
     "jsx-a11y": {
       "polymorphicPropName": null,
       "components": {},

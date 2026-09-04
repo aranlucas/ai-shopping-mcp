@@ -27,6 +27,7 @@ describe("MCP App view routing", () => {
       content: [],
       ...appResult("set_preferred_store", {
         store: {
+          provider: "kroger",
           locationId: "70500847",
           locationName: "QFC Broadway",
           address: "500 Broadway E, Seattle, WA 98102",

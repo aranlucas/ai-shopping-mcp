@@ -16,9 +16,11 @@ import type { ToolContext } from "../../src/tools/types.js";
 import { createKrogerClients } from "../../src/services/kroger/client.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerProductTools } from "../../src/tools/product.js";
-import { createShoppingPersistence } from "../../src/utils/user-storage.js";
+import { createCartPersistence } from "../../src/utils/user-storage.js";
+import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
-type ToolHandler = (args: Record<string, unknown>, extra?: unknown) => Promise<unknown>;
 type CapturedTool = { name: string; handler: ToolHandler };
 
 const testState = vi.hoisted(() => ({
@@ -174,22 +176,31 @@ describe("search_products content size", () => {
       } as Awaited<ReturnType<typeof clients.productClient.GET>>;
     });
 
-    const storage = createShoppingPersistence(createMockKV(), {
+    const carts = createCartPersistence(createMockKV(), {
       userId: "response-size-user",
+      clientId: "client-size",
     });
+    const server = {
+      registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+        testState.capturedTools.push({
+          name,
+          handler: wrapV2ToolHandler(handler, server),
+        });
+      },
+    };
     registerProductTools({
-      server: {
-        registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
-          testState.capturedTools.push({
-            name,
-            handler: (args) =>
-              handler(args, { mcpReq: { _meta: {}, notify: async () => undefined } }),
-          });
-        },
-      } as unknown as ToolContext["server"],
+      server: server as unknown as ToolContext["server"],
       clients,
       productService: new ProductService(clients.productClient),
-      storage,
+      // Real Kroger provider over the stubbed client, so the structured
+      // payload this test measures is the one production emits.
+      catalogs: stubCatalogRegistry({
+        kroger: createKrogerCatalogProvider(clients.productClient),
+      }),
+      storage: {
+        preferredLocation: { get: async () => null },
+      } as unknown as ToolContext["storage"],
+      carts,
       getEnv: () =>
         ({
           USER_DATA_KV: { get: async () => null, put: async () => {} },
@@ -211,10 +222,10 @@ describe("search_products content size", () => {
     // Structured content carries only the compact view projection.
     const sc = (
       result as {
-        structuredContent?: { results?: Array<{ products: Array<{ images?: unknown }> }> };
+        structuredContent?: { results?: Array<{ products: Array<{ imageUrl?: unknown }> }> };
       }
     ).structuredContent;
-    expect(sc?.results?.[0]?.products?.[0]?.images).toBeDefined();
+    expect(sc?.results?.[0]?.products?.[0]?.imageUrl).toBeDefined();
     expect(sc?.results?.[0]?.products?.[0]).not.toHaveProperty("nutritionInformation");
   });
 

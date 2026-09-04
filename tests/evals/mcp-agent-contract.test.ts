@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { ToolContext } from "../../src/tools/types.js";
 
@@ -12,6 +12,7 @@ import { registerShopTools } from "../../src/tools/shop.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
@@ -34,15 +35,9 @@ type CapturedTool = {
   handler: ToolHandler;
 };
 
-const testState = vi.hoisted(() => ({
-  capturedTools: [] as CapturedTool[],
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: ToolConfig, handler: ToolHandler) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
-}));
+const testState: { capturedTools: CapturedTool[] } = {
+  capturedTools: [],
+};
 
 function makeContext(): ToolContext {
   return {
@@ -65,7 +60,9 @@ function makeContext(): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    catalogs: stubCatalogRegistry(),
     storage: {} as ToolContext["storage"],
+    carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
   };
 }
@@ -100,11 +97,14 @@ describe("MCP agent contract", () => {
       .sort();
 
     expect(toolNames).toEqual([
+      "add_shopping_list_items",
       "add_shopping_list_to_cart",
       "add_to_inventory",
       "create_shopping_list",
+      "edit_shopping_list_item",
       "get_meal_planning_context",
       "get_product",
+      "get_shopping_list",
       "get_shopping_profile",
       "get_store",
       "get_weekly_deals",
@@ -226,10 +226,19 @@ describe("MCP agent contract", () => {
         items: [{ upc: "0001112223334", quantity: 1 }],
       }).success,
     ).toBe(true);
+    // An item without a Kroger UPC is valid — that is how Trader Joe's
+    // products and plain ingredients reach a list.
     expect(
       createShoppingList.config.inputSchema?.safeParse({
         name: "Dinner",
         items: [{ productName: "Milk", quantity: 1 }],
+      }).success,
+    ).toBe(true);
+    // But an item with neither identifier is not.
+    expect(
+      createShoppingList.config.inputSchema?.safeParse({
+        name: "Dinner",
+        items: [{ quantity: 1 }],
       }).success,
     ).toBe(false);
   });

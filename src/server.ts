@@ -1,18 +1,21 @@
-import OAuthProvider, { GrantType } from "@cloudflare/workers-oauth-provider";
-import { McpServer } from "@modelcontextprotocol/server";
+import OAuthProvider, { GrantType, OAuthError } from "@cloudflare/workers-oauth-provider";
+import * as Sentry from "@sentry/cloudflare";
+import { McpServer, type McpRequestContext } from "@modelcontextprotocol/server";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
+import type { AppEnv } from "./env.js";
 import type { KrogerTokenInfo } from "./services/kroger/client.js";
 import type { GrantProps, Props, ToolContext } from "./tools/types.js";
 
-import { KrogerHandler } from "./kroger-handler.js";
+import { KrogerWorker } from "./kroger-handler.js";
 import { registerPrompts } from "./prompts.js";
 import {
   createKrogerClients,
   isKrogerTokenExpiring,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
+import { createGatewayClient } from "./services/gateway/client.js";
 import { ProductService } from "./services/kroger/product-service.js";
 import { registerCartTools } from "./tools/cart.js";
 import { registerInventoryTools } from "./tools/inventory.js";
@@ -24,9 +27,13 @@ import { registerResources } from "./tools/resources.js";
 import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
+import { createKrogerCatalogProvider } from "./services/catalog/kroger-provider.js";
+import { createTraderJoesCatalogProvider } from "./services/catalog/trader-joes-provider.js";
+import { createTraderJoesClient } from "./services/traderjoes/client.js";
 import { getUserDataKv } from "./utils/kv.js";
+import { createGatewayShoppingStore } from "./utils/gateway-storage.js";
 import { getProps } from "./utils/result.js";
-import { createShoppingPersistence } from "./utils/user-storage.js";
+import { createCartPersistence } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
 /**
@@ -46,11 +53,21 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
   registerResources,
 ];
 
-const SERVER_INFO = { name: "kroger-ai-assistant", version: "1.0.0" } as const;
+const SERVER_INFO = { name: "grocery-shopping-assistant", version: "1.1.0" } as const;
 const SERVER_OPTIONS = {
   instructions:
-    "AI shopping assistant for Kroger/QFC stores. Golden path: call shop_for_items with a list of item names for one-shot shopping-list creation, OR search_products then create_shopping_list for more control — then add_shopping_list_to_cart with the returned listId to add items to the Kroger cart. Call get_shopping_profile before personalized suggestions to read the user's preferred store, pantry, kitchen equipment, and frequently purchased items. Other tools: search_stores/get_store/set_preferred_store for store lookup, add_to_inventory/remove_from_inventory for pantry and kitchen equipment, record_order to log completed purchases, get_weekly_deals for current sales, and get_meal_planning_context for recipe suggestions from pantry contents.",
+    "Grocery assistant with shared stores, pantry, equipment, orders, and lists. Golden path: shop_for_items for one-shot Kroger shopping, or search_products then create_shopping_list for any provider; pass its listId to add_shopping_list_to_cart only for Kroger productRefs. search_products searches all providers by default and returns productRef=<provider>:<id>; preserve exact refs on lists and orders. Edit lists with get_shopping_list, add_shopping_list_items, and edit_shopping_list_item. Store, cart, and deal tools are Kroger-backed. Use get_shopping_profile before personalized suggestions.",
 } as const;
+
+function requestBearerToken(requestContext: McpRequestContext): string | undefined {
+  const validatedToken = requestContext.authInfo?.token?.trim();
+  if (validatedToken) return validatedToken;
+
+  const header = requestContext.requestInfo?.headers.get("authorization")?.trim();
+  if (!header) return undefined;
+  const match = /^Bearer[ \t]+([^ \t]+)$/i.exec(header);
+  return match?.[1];
+}
 
 /**
  * Builds a fresh `McpServer` with all tools/resources/prompts registered.
@@ -59,8 +76,12 @@ const SERVER_OPTIONS = {
  * responses cannot leak between clients. Auth `Props` are read lazily from
  * `getMcpAuthContext()` (populated by `OAuthProvider` and wrapped in the
  * handler's AsyncLocalStorage), so registration itself needs no auth context.
+ * Cart retry receipts are scoped by the authenticated OAuth client rather
+ * than MCP transport state, so the server remains stateless at the protocol
+ * layer.
  */
-function buildServer(env: Env): McpServer {
+function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer {
+  const clientId = requestContext.authInfo?.clientId ?? getProps().id;
   const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
 
   const clients = createKrogerClients((): KrogerTokenInfo | null => {
@@ -75,16 +96,39 @@ function buildServer(env: Env): McpServer {
     return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
   }, getUserDataKv(env));
 
-  const storage = createShoppingPersistence(env.USER_DATA_KV, () => ({
+  const gatewayToken = requestBearerToken(requestContext);
+  if (!gatewayToken) {
+    throw new Error("Authenticated MCP request is missing its bearer token");
+  }
+  const gatewayClient = createGatewayClient(env.GATEWAY_URL, gatewayToken);
+  const storage = createGatewayShoppingStore(gatewayClient);
+  const carts = createCartPersistence(env.USER_DATA_KV, () => ({
     userId: getProps().id,
+    clientId,
   }));
   const productService = new ProductService(clients.productClient);
+  const catalogs = {
+    kroger: createKrogerCatalogProvider(clients.productClient),
+    trader_joes: createTraderJoesCatalogProvider(
+      createTraderJoesClient({
+        ...(env.TRADER_JOES_GRAPHQL_URL === undefined
+          ? {}
+          : { endpoint: env.TRADER_JOES_GRAPHQL_URL }),
+        ...(env.TRADER_JOES_STORE_CODE === undefined
+          ? {}
+          : { storeCode: env.TRADER_JOES_STORE_CODE }),
+        kv: getUserDataKv(env),
+      }),
+    ),
+  } as const;
 
   const ctx: ToolContext = {
     server,
     clients,
     productService,
+    catalogs,
     storage,
+    carts,
     getEnv: () => env,
   };
 
@@ -99,20 +143,22 @@ function buildServer(env: Env): McpServer {
 }
 
 /**
- * MCP SDK v2 stateless handler. The factory builds a fresh server for every
- * request and the Agents wrapper bridges OAuth props into getMcpAuthContext().
- * The handler retains the SDK's default stateless compatibility path for
- * 2025-era MCP clients while serving the stable 2026 protocol.
+ * Stateless MCP API handler.
+ *
+ * The SDK v2 factory creates a fresh server for every request and serves both
+ * the modern protocol and the built-in stateless legacy compatibility lane.
  */
 const mcpApiHandler = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const handler = createMcpHandler(() => buildServer(env), { route: "/mcp" });
+  async fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
+    const handler = createMcpHandler((requestContext) => buildServer(env, requestContext), {
+      route: "/mcp",
+    });
 
     return handler(request, env, ctx);
   },
 };
 
-class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
+class UserInfoHandler extends WorkerEntrypoint<AppEnv, Props> {
   fetch() {
     return Response.json({
       sub: this.ctx.props.id,
@@ -121,13 +167,12 @@ class UserInfoHandler extends WorkerEntrypoint<Env, Props> {
   }
 }
 
-export default new OAuthProvider({
+export const oauthProvider = new OAuthProvider<AppEnv>({
   apiHandlers: {
     "/mcp": mcpApiHandler,
     "/userinfo": UserInfoHandler,
   },
-  // biome-ignore lint/suspicious/noExplicitAny: Hono app type incompatible with OAuthProvider's ExportedHandler type
-  defaultHandler: KrogerHandler as any,
+  defaultHandler: KrogerWorker,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",
@@ -154,42 +199,100 @@ export default new OAuthProvider({
     if (grantType !== GrantType.REFRESH_TOKEN) return {};
 
     if (!refreshToken || !krogerClientId || !krogerClientSecret) {
-      return { accessTokenTTL: 1 }; // Force re-auth
+      throw new OAuthError("invalid_grant", {
+        description: "Kroger authorization is incomplete. Reconnect the MCP server.",
+      });
     }
 
     if (!isKrogerTokenExpiring(accessTokenProps.tokenExpiresAt)) {
-      return { accessTokenProps };
+      const ttl = Math.max(Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000), 60);
+      return { accessTokenProps, accessTokenTTL: ttl };
     }
 
-    return (
-      await refreshKrogerToken(refreshToken, krogerClientId, krogerClientSecret).orTee((error) =>
-        console.error("Kroger token refresh failed:", error.message),
-      )
-    ).match(
-      (result) => {
-        if (!result.refreshToken) {
-          console.error("Kroger refresh missing new refresh token (single-use). Re-auth required.");
-          return { accessTokenTTL: 1 };
-        }
-
-        return {
-          accessTokenProps: {
-            ...accessTokenProps,
-            accessToken: result.accessToken,
-            tokenExpiresAt: result.tokenExpiresAt,
-          },
-          newProps: {
-            ...accessTokenProps,
-            accessToken: result.accessToken,
-            refreshToken: result.refreshToken,
-            tokenExpiresAt: result.tokenExpiresAt,
-            krogerClientId,
-            krogerClientSecret,
-          },
-          accessTokenTTL: result.expiresIn,
-        };
-      },
-      () => ({ accessTokenTTL: 1 }),
+    const refreshResult = await refreshKrogerToken(
+      refreshToken,
+      krogerClientId,
+      krogerClientSecret,
     );
+    if (refreshResult.isErr()) {
+      const error = refreshResult.error;
+      console.error("Kroger token refresh failed:", error.message);
+
+      const upstreamCode =
+        error.type === "API_ERROR" &&
+        error.detail &&
+        typeof error.detail === "object" &&
+        !(error.detail instanceof Error) &&
+        typeof error.detail.error === "string"
+          ? error.detail.error
+          : undefined;
+
+      if (upstreamCode === "invalid_grant" || upstreamCode === "invalid_client") {
+        throw new OAuthError("invalid_grant", {
+          description: "Kroger authorization expired. Reconnect the MCP server.",
+        });
+      }
+
+      if (error.type === "API_ERROR" && error.status === 429) {
+        throw new OAuthError("temporarily_unavailable", {
+          description: "Kroger rate limited the token refresh. Try again shortly.",
+          statusCode: 429,
+          headers: { "Retry-After": "60" },
+        });
+      }
+
+      throw new OAuthError("temporarily_unavailable", {
+        description: "Kroger token refresh is temporarily unavailable. Try again shortly.",
+        statusCode: 503,
+        headers: { "Retry-After": "60" },
+      });
+    }
+
+    const result = refreshResult.value;
+    if (!result.refreshToken) {
+      console.error("Kroger refresh missing new refresh token (single-use). Re-auth required.");
+      throw new OAuthError("invalid_grant", {
+        description: "Kroger did not rotate the refresh token. Reconnect the MCP server.",
+      });
+    }
+
+    return {
+      accessTokenProps: {
+        ...accessTokenProps,
+        accessToken: result.accessToken,
+        tokenExpiresAt: result.tokenExpiresAt,
+      },
+      newProps: {
+        ...accessTokenProps,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        tokenExpiresAt: result.tokenExpiresAt,
+        krogerClientId,
+        krogerClientSecret,
+      },
+      accessTokenTTL: result.expiresIn,
+    };
   },
 });
+
+// Errors-only Sentry: no tracesSampleRate, and without SENTRY_DSN the SDK
+// stays disabled so local dev and unconfigured deploys are unaffected.
+export default Sentry.withSentry(
+  (env: AppEnv) => ({
+    dsn: env.SENTRY_DSN,
+    enabled: Boolean(env.SENTRY_DSN),
+  }),
+  {
+    fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
+      return oauthProvider.fetch(request, env, ctx);
+    },
+    async scheduled(
+      _controller: ScheduledController,
+      env: AppEnv,
+      _ctx: ExecutionContext,
+    ): Promise<void> {
+      const result = await oauthProvider.purgeExpiredData(env, { batchSize: 100 });
+      console.log("OAuth KV cleanup complete:", result);
+    },
+  } satisfies ExportedHandler<AppEnv>,
+);

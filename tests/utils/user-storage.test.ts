@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CorruptPersistenceEntryError,
-  createShoppingPersistence,
+  createCartPersistence,
 } from "../../src/utils/user-storage.js";
 
 function createMockKV(initialData: Record<string, string> = {}) {
@@ -25,129 +25,32 @@ function createMockKV(initialData: Record<string, string> = {}) {
   };
 }
 
-describe("ShoppingPersistence", () => {
-  const identity = { userId: "user1" };
+describe("CartPersistence", () => {
+  const identity = { userId: "user1", clientId: "client1" };
   let mock: ReturnType<typeof createMockKV>;
 
   beforeEach(() => {
     mock = createMockKV();
   });
 
-  it("binds user identity for preferred location", async () => {
-    const storage = createShoppingPersistence(mock.kv, identity);
-    const location = {
-      locationId: "70500847",
-      locationName: "QFC",
-      address: "100 Main St",
-      chain: "QFC",
-      setAt: "2026-07-12T00:00:00.000Z",
-    };
-
-    await storage.preferredLocation.set(location);
-
-    expect(mock.put).toHaveBeenCalledWith(
-      "user:user1:preferred_location",
-      JSON.stringify(location),
-    );
-    expect(await storage.preferredLocation.get()).toEqual(location);
-  });
-
-  it("keeps profile state user-scoped across persistence instances", async () => {
-    const first = createShoppingPersistence(mock.kv, identity);
-    const second = createShoppingPersistence(mock.kv, identity);
-    await first.pantry.add({
-      productName: "Milk",
-      quantity: 1,
-      addedAt: "2026-07-12T00:00:00.000Z",
-    });
-    expect(await second.pantry.getAll()).toHaveLength(1);
-  });
-
-  it("isolates profile state between users", async () => {
-    const first = createShoppingPersistence(mock.kv, identity);
-    const second = createShoppingPersistence(mock.kv, { userId: "user2" });
-    await first.pantry.add({
-      productName: "Milk",
-      quantity: 1,
-      addedAt: "2026-07-12T00:00:00.000Z",
-    });
-    expect(await second.pantry.getAll()).toEqual([]);
-  });
-
-  it("batch-adds pantry items with one read and one write", async () => {
-    const storage = createShoppingPersistence(mock.kv, identity);
-    await storage.pantry.add([
-      { productName: "Milk", quantity: 1, addedAt: "first" },
-      { productName: "MILK", quantity: 2, addedAt: "second" },
-      { productName: "Eggs", quantity: 12, addedAt: "second" },
-    ]);
-
-    expect(mock.get).toHaveBeenCalledTimes(1);
-    expect(mock.put).toHaveBeenCalledTimes(1);
-    expect(await storage.pantry.getAll()).toEqual([
-      { productName: "Milk", quantity: 3, addedAt: "second" },
-      { productName: "Eggs", quantity: 12, addedAt: "second" },
-    ]);
-  });
-
-  it("batch-removes pantry items case-insensitively with one write", async () => {
-    const storage = createShoppingPersistence(mock.kv, identity);
-    await storage.pantry.add([
-      { productName: "Milk", quantity: 1, addedAt: "now" },
-      { productName: "Eggs", quantity: 1, addedAt: "now" },
-      { productName: "Rice", quantity: 1, addedAt: "now" },
-    ]);
-    mock.get.mockClear();
-    mock.put.mockClear();
-
-    expect(await storage.pantry.remove(["MILK", "eggs"])).toEqual([
-      { productName: "Rice", quantity: 1, addedAt: "now" },
-    ]);
-    expect(mock.get).toHaveBeenCalledTimes(1);
-    expect(mock.put).toHaveBeenCalledTimes(1);
-  });
-
-  it("preserves equipment category when a duplicate omits it", async () => {
-    const storage = createShoppingPersistence(mock.kv, identity);
-    await storage.equipment.add({ equipmentName: "Blender", category: "Appliance", addedAt: "a" });
-    const result = await storage.equipment.add({ equipmentName: "BLENDER", addedAt: "b" });
-    expect(result).toEqual([{ equipmentName: "Blender", category: "Appliance", addedAt: "b" }]);
-  });
-
-  it("uses the user-scoped list key and seven-day TTL", async () => {
-    const storage = createShoppingPersistence(
-      mock.kv,
-      identity,
-      () => new Date("2026-07-12T00:00:00.000Z"),
-    );
-    await storage.shoppingList.create("list_deadbeef", "Dinner", [
-      { productName: "Milk", quantity: 1 },
-    ]);
-    expect(mock.put).toHaveBeenCalledWith(
-      "shopping_list:user1:list:list_deadbeef",
-      expect.any(String),
-      { expirationTtl: 604800 },
-    );
-  });
-
-  it("shares shopping lists across stateless requests for the same user", async () => {
-    const first = createShoppingPersistence(mock.kv, identity);
-    const second = createShoppingPersistence(mock.kv, identity);
-    await first.shoppingList.create("list_deadbeef", "Dinner", [
-      { productName: "Milk", quantity: 1 },
-    ]);
-    expect(await second.shoppingList.get("list_deadbeef")).toMatchObject({ name: "Dinner" });
-  });
-
   it("uses the deployed receipt key and seven-day TTL", async () => {
-    const storage = createShoppingPersistence(mock.kv, identity);
+    const carts = createCartPersistence(mock.kv, identity);
     const items = [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" as const }];
-    await storage.cartSnapshot.set("list_deadbeef", items);
+    await carts.cartSnapshot.set("list_deadbeef", items);
     expect(mock.put).toHaveBeenCalledWith(
-      "user:user1:list:list_deadbeef:cart_snapshot",
+      "user:user1:client:client1:list:list_deadbeef:cart_snapshot",
       JSON.stringify(items),
       { expirationTtl: 604800 },
     );
+  });
+
+  it("isolates cart receipts by authenticated client", async () => {
+    const first = createCartPersistence(mock.kv, identity);
+    const second = createCartPersistence(mock.kv, { ...identity, clientId: "client2" });
+    await first.cartSnapshot.set("list_deadbeef", [
+      { upc: "0001111042578", quantity: 1, modality: "PICKUP" },
+    ]);
+    expect(await second.cartSnapshot.get("list_deadbeef")).toBeNull();
   });
 
   it("caps the cart mirror at 100 and renews its seven-day TTL", async () => {
@@ -158,8 +61,8 @@ describe("ShoppingPersistence", () => {
       addedAt: "old",
     }));
     mock = createMockKV({ "user:user1:cart_mirror": JSON.stringify(initial) });
-    const storage = createShoppingPersistence(mock.kv, identity);
-    const result = await storage.cartMirror.append(
+    const carts = createCartPersistence(mock.kv, identity);
+    const result = await carts.cartMirror.append(
       [{ upc: "9999999999999", quantity: 1, modality: "DELIVERY" }],
       "new",
     );
@@ -170,54 +73,28 @@ describe("ShoppingPersistence", () => {
     });
   });
 
-  it("keeps only the 50 newest orders", async () => {
-    const storage = createShoppingPersistence(mock.kv, identity);
-    for (let index = 0; index < 55; index++) {
-      await storage.orderHistory.add({
-        orderId: `order-${index}`,
-        items: [],
-        totalItems: 0,
-        placedAt: String(index),
-      });
-    }
-    const history = await storage.orderHistory.getAll();
-    expect(history).toHaveLength(50);
-    expect(history[0]?.orderId).toBe("order-54");
-  });
-
-  it("does not overwrite corrupt collections as empty during mutation", async () => {
-    mock = createMockKV({ "user:user1:pantry": "{broken" });
-    const storage = createShoppingPersistence(mock.kv, identity);
-    await expect(
-      storage.pantry.add({ productName: "Milk", quantity: 1, addedAt: "now" }),
-    ).rejects.toBeInstanceOf(CorruptPersistenceEntryError);
-    expect(mock.put).not.toHaveBeenCalled();
-  });
-
-  it("keeps tolerant read fallbacks for missing and corrupt optional data", async () => {
-    const missing = createShoppingPersistence(mock.kv, identity);
-    expect(await missing.preferredLocation.get()).toBeNull();
-
-    mock = createMockKV({ "user:user1:preferred_location": "[]" });
-    const corrupt = createShoppingPersistence(mock.kv, identity);
-    expect(await corrupt.preferredLocation.get()).toBeNull();
-  });
-
   it("keeps cart retry receipts strict because corruption cannot prove idempotency", async () => {
     mock = createMockKV({
-      "user:user1:list:list_deadbeef:cart_snapshot": "{broken",
+      "user:user1:client:client1:list:list_deadbeef:cart_snapshot": "{broken",
     });
-    const storage = createShoppingPersistence(mock.kv, identity);
-    await expect(storage.cartSnapshot.get("list_deadbeef")).rejects.toBeInstanceOf(
+    const carts = createCartPersistence(mock.kv, identity);
+    await expect(carts.cartSnapshot.get("list_deadbeef")).rejects.toBeInstanceOf(
       CorruptPersistenceEntryError,
     );
   });
 
+  it("tolerates a corrupt cart mirror read without overwriting it", async () => {
+    mock = createMockKV({ "user:user1:cart_mirror": "{broken" });
+    const carts = createCartPersistence(mock.kv, identity);
+    expect(await carts.cartMirror.getAll()).toEqual([]);
+    expect(mock.put).not.toHaveBeenCalled();
+  });
+
   it("resolves identity lazily for request-scoped Worker auth", async () => {
     let current = identity;
-    const storage = createShoppingPersistence(mock.kv, () => current);
-    await storage.cartId.set("cart-a");
-    current = { userId: "user2" };
-    expect(await storage.cartId.get()).toBeNull();
+    const carts = createCartPersistence(mock.kv, () => current);
+    await carts.cartId.set("cart-a");
+    current = { userId: "user2", clientId: "client2" };
+    expect(await carts.cartId.get()).toBeNull();
   });
 });

@@ -1,7 +1,8 @@
-/** Identity-bound Cloudflare KV persistence for shopping-domain state. */
+/** Tool-facing shopping domain types plus cart-only Cloudflare KV persistence. */
 import * as z from "zod/v4";
 
 import type { PersistenceKv } from "./kv.js";
+import type { ProductReference } from "../services/catalog/types.js";
 
 import { safeJsonParseWithSchema } from "./json.js";
 
@@ -15,7 +16,9 @@ export interface PantryItem {
 export interface OrderRecord {
   orderId: string;
   items: Array<{
-    upc: string;
+    product?: ProductReference;
+    /** @deprecated Kroger compatibility field. */
+    upc?: string;
     productName: string;
     quantity: number;
     price?: number;
@@ -28,6 +31,7 @@ export interface OrderRecord {
 }
 
 export interface PreferredLocation {
+  provider: string;
   locationId: string;
   locationName: string;
   address: string;
@@ -43,9 +47,35 @@ export interface EquipmentItem {
 
 export interface ShoppingListItem {
   productName: string;
+  product?: ProductReference;
+  /** @deprecated Kroger compatibility field. */
   upc?: string;
   quantity: number;
   notes?: string;
+  /**
+   * Durable item id from the gateway. Present on items read back from storage
+   * and absent on items being written, since the store assigns it. Editing
+   * tools address an item by this id.
+   */
+  id?: string;
+  /** Whether a shopper has checked the item off. */
+  checked?: boolean;
+}
+
+/** A list without its items, for pickers that only need to name the list. */
+export interface ShoppingListSummary {
+  id: string;
+  name: string;
+  itemCount: number;
+  updatedAt: string;
+}
+
+/** Fields an edit may change. Omitted fields are left as they are. */
+export interface ShoppingListItemPatch {
+  productName?: string;
+  quantity?: number;
+  notes?: string;
+  checked?: boolean;
 }
 
 export interface ShoppingList {
@@ -64,42 +94,28 @@ export type CartSnapshotItem = {
 
 export type CartMirrorItem = CartSnapshotItem & { addedAt: string };
 
-export type PersistenceIdentity = Readonly<{ userId: string }>;
+export type PersistenceIdentity = Readonly<{ userId: string; clientId: string }>;
+
+export interface CartStore {
+  cartSnapshot: {
+    get(listId: string): Promise<CartSnapshotItem[] | null>;
+    set(listId: string, items: CartSnapshotItem[]): Promise<void>;
+    clear(listId: string): Promise<void>;
+  };
+  cartMirror: {
+    getAll(): Promise<CartMirrorItem[]>;
+    append(items: CartSnapshotItem[], addedAt: string): Promise<CartMirrorItem[]>;
+    clear(): Promise<void>;
+  };
+  cartId: {
+    get(): Promise<string | null>;
+    set(cartId: string): Promise<void>;
+  };
+}
 
 const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7;
-const ORDER_HISTORY_MAX = 50;
 const CART_MIRROR_MAX_ITEMS = 100;
 
-const pantryItemSchema = z.looseObject({
-  productName: z.string(),
-  quantity: z.number(),
-  addedAt: z.string(),
-  expiresAt: z.string().optional(),
-});
-const equipmentItemSchema = z.looseObject({
-  equipmentName: z.string(),
-  category: z.string().optional(),
-  addedAt: z.string(),
-});
-const preferredLocationSchema = z.looseObject({
-  locationId: z.string(),
-  locationName: z.string(),
-  address: z.string(),
-  chain: z.string(),
-  setAt: z.string(),
-});
-const shoppingListItemSchema = z.looseObject({
-  productName: z.string(),
-  upc: z.string().optional(),
-  quantity: z.number(),
-  notes: z.string().optional(),
-});
-const shoppingListSchema = z.looseObject({
-  id: z.string(),
-  name: z.string(),
-  items: z.array(shoppingListItemSchema),
-  createdAt: z.string(),
-});
 const cartSnapshotItemSchema = z.looseObject({
   upc: z.string(),
   quantity: z.number(),
@@ -110,24 +126,8 @@ const cartMirrorItemSchema = z.looseObject({
   ...cartSnapshotItemSchema.shape,
   addedAt: z.string(),
 });
-const orderRecordSchema = z.looseObject({
-  orderId: z.string(),
-  items: z.array(
-    z.looseObject({
-      upc: z.string(),
-      productName: z.string(),
-      quantity: z.number(),
-      price: z.number().optional(),
-    }),
-  ),
-  totalItems: z.number(),
-  estimatedTotal: z.number().optional(),
-  placedAt: z.string(),
-  locationId: z.string().optional(),
-  notes: z.string().optional(),
-});
 
-/** A corrupt collection must not be treated as empty by a later mutation. */
+/** A corrupt cart entry must not be treated as empty by a later mutation. */
 export class CorruptPersistenceEntryError extends Error {
   readonly cause: unknown;
 
@@ -145,12 +145,8 @@ function userKey(userId: string, dataType: string): string {
   return `user:${userId}:${dataType}`;
 }
 
-function listIdentity({ userId }: PersistenceIdentity, listId: string): string {
-  return `${userId}:list:${listId}`;
-}
-
-function listKey(identity: PersistenceIdentity, listId: string): string {
-  return `shopping_list:${listIdentity(identity, listId)}`;
+function listIdentity({ userId, clientId }: PersistenceIdentity, listId: string): string {
+  return `${userId}:client:${clientId}:list:${listId}`;
 }
 
 function cartReceiptKey(identity: PersistenceIdentity, listId: string): string {
@@ -187,20 +183,6 @@ async function readCollection<TSchema extends z.ZodType>(
   return decode(key, value, z.array(schema));
 }
 
-async function readOptionalTolerant<TSchema extends z.ZodType>(
-  kv: PersistenceKv,
-  key: string,
-  schema: TSchema,
-): Promise<z.output<TSchema> | null> {
-  try {
-    return await readOptional(kv, key, schema);
-  } catch (error) {
-    if (!(error instanceof CorruptPersistenceEntryError)) throw error;
-    console.warn("Discarding corrupted KV entry:", error);
-    return null;
-  }
-}
-
 async function readCollectionTolerant<TSchema extends z.ZodType>(
   kv: PersistenceKv,
   key: string,
@@ -216,167 +198,18 @@ async function readCollectionTolerant<TSchema extends z.ZodType>(
 }
 
 /**
- * Deep persistence module bound to one authenticated user.
- * Callers supply domain identifiers only; raw KV keys never cross this boundary.
- * Collection mutations are single read-modify-write operations. KV still offers
- * no transaction or compare-and-swap guarantee, so concurrent writes can race.
+ * Cart-only persistence bound to one authenticated user and MCP session.
+ * Shopping profile, inventory, lists, and order history live in agents-gateway.
  */
-export class ShoppingPersistence {
+export class CartPersistence implements CartStore {
   private readonly getIdentity: () => PersistenceIdentity;
 
   constructor(
     private readonly kv: PersistenceKv,
     identity: PersistenceIdentity | (() => PersistenceIdentity),
-    private readonly now: () => Date = () => new Date(),
   ) {
     this.getIdentity = typeof identity === "function" ? identity : () => identity;
   }
-
-  preferredLocation = {
-    get: async (): Promise<PreferredLocation | null> =>
-      readOptionalTolerant(
-        this.kv,
-        userKey(this.getIdentity().userId, "preferred_location"),
-        preferredLocationSchema,
-      ),
-    set: async (location: PreferredLocation): Promise<void> => {
-      await this.kv.put(
-        userKey(this.getIdentity().userId, "preferred_location"),
-        JSON.stringify(location),
-      );
-    },
-    delete: async (): Promise<void> => {
-      await this.kv.delete(userKey(this.getIdentity().userId, "preferred_location"));
-    },
-  };
-
-  pantry = {
-    getAll: async (): Promise<PantryItem[]> =>
-      readCollectionTolerant(
-        this.kv,
-        userKey(this.getIdentity().userId, "pantry"),
-        pantryItemSchema,
-      ),
-    add: async (items: PantryItem | PantryItem[]): Promise<PantryItem[]> => {
-      const pantry: PantryItem[] = await readCollection(
-        this.kv,
-        userKey(this.getIdentity().userId, "pantry"),
-        pantryItemSchema,
-      );
-      for (const item of Array.isArray(items) ? items : [items]) {
-        const existing = pantry.find(
-          (candidate) => candidate.productName.toLowerCase() === item.productName.toLowerCase(),
-        );
-        if (existing) {
-          existing.quantity += item.quantity;
-          existing.addedAt = item.addedAt;
-        } else {
-          pantry.push(item);
-        }
-      }
-      await this.kv.put(userKey(this.getIdentity().userId, "pantry"), JSON.stringify(pantry));
-      return pantry;
-    },
-    remove: async (names: string | string[]): Promise<PantryItem[]> => {
-      const pantry: PantryItem[] = await readCollection(
-        this.kv,
-        userKey(this.getIdentity().userId, "pantry"),
-        pantryItemSchema,
-      );
-      const normalized = new Set(
-        (Array.isArray(names) ? names : [names]).map((name) => name.toLowerCase()),
-      );
-      const filtered = pantry.filter((item) => !normalized.has(item.productName.toLowerCase()));
-      await this.kv.put(userKey(this.getIdentity().userId, "pantry"), JSON.stringify(filtered));
-      return filtered;
-    },
-    updateQuantity: async (productName: string, quantity: number): Promise<PantryItem[]> => {
-      const pantry: PantryItem[] = await readCollection(
-        this.kv,
-        userKey(this.getIdentity().userId, "pantry"),
-        pantryItemSchema,
-      );
-      const item = pantry.find(
-        (candidate) => candidate.productName.toLowerCase() === productName.toLowerCase(),
-      );
-      if (item) {
-        item.quantity = quantity;
-        await this.kv.put(userKey(this.getIdentity().userId, "pantry"), JSON.stringify(pantry));
-      }
-      return pantry;
-    },
-    clear: async (): Promise<void> => {
-      await this.kv.delete(userKey(this.getIdentity().userId, "pantry"));
-    },
-  };
-
-  equipment = {
-    getAll: async (): Promise<EquipmentItem[]> =>
-      readCollectionTolerant(
-        this.kv,
-        userKey(this.getIdentity().userId, "equipment"),
-        equipmentItemSchema,
-      ),
-    add: async (items: EquipmentItem | EquipmentItem[]): Promise<EquipmentItem[]> => {
-      const equipment: EquipmentItem[] = await readCollection(
-        this.kv,
-        userKey(this.getIdentity().userId, "equipment"),
-        equipmentItemSchema,
-      );
-      for (const item of Array.isArray(items) ? items : [items]) {
-        const existing = equipment.find(
-          (candidate) => candidate.equipmentName.toLowerCase() === item.equipmentName.toLowerCase(),
-        );
-        if (existing) {
-          existing.category = item.category || existing.category;
-          existing.addedAt = item.addedAt;
-        } else {
-          equipment.push(item);
-        }
-      }
-      await this.kv.put(userKey(this.getIdentity().userId, "equipment"), JSON.stringify(equipment));
-      return equipment;
-    },
-    remove: async (names: string | string[]): Promise<EquipmentItem[]> => {
-      const equipment: EquipmentItem[] = await readCollection(
-        this.kv,
-        userKey(this.getIdentity().userId, "equipment"),
-        equipmentItemSchema,
-      );
-      const normalized = new Set(
-        (Array.isArray(names) ? names : [names]).map((name) => name.toLowerCase()),
-      );
-      const filtered = equipment.filter(
-        (item) => !normalized.has(item.equipmentName.toLowerCase()),
-      );
-      await this.kv.put(userKey(this.getIdentity().userId, "equipment"), JSON.stringify(filtered));
-      return filtered;
-    },
-    clear: async (): Promise<void> => {
-      await this.kv.delete(userKey(this.getIdentity().userId, "equipment"));
-    },
-  };
-
-  shoppingList = {
-    create: async (
-      listId: string,
-      name: string,
-      items: ShoppingListItem[],
-    ): Promise<ShoppingList> => {
-      const identity = this.getIdentity();
-      const id = listIdentity(identity, listId);
-      const list = { id, name, items, createdAt: this.now().toISOString() };
-      await this.kv.put(listKey(identity, listId), JSON.stringify(list), {
-        expirationTtl: SEVEN_DAYS_SECONDS,
-      });
-      return list;
-    },
-    get: async (listId: string): Promise<ShoppingList | null> =>
-      readOptionalTolerant(this.kv, listKey(this.getIdentity(), listId), shoppingListSchema),
-    clear: async (listId: string): Promise<void> => {
-      await this.kv.delete(listKey(this.getIdentity(), listId));
-    },
-  };
 
   cartSnapshot = {
     get: async (listId: string): Promise<CartSnapshotItem[] | null> =>
@@ -428,39 +261,11 @@ export class ShoppingPersistence {
       await this.kv.put(userKey(this.getIdentity().userId, "kroger-cart-id"), cartId);
     },
   };
-
-  orderHistory = {
-    getAll: async (): Promise<OrderRecord[]> =>
-      readCollectionTolerant(
-        this.kv,
-        userKey(this.getIdentity().userId, "order_history"),
-        orderRecordSchema,
-      ),
-    add: async (order: OrderRecord): Promise<OrderRecord[]> => {
-      const history = await readCollection(
-        this.kv,
-        userKey(this.getIdentity().userId, "order_history"),
-        orderRecordSchema,
-      );
-      const trimmed = [order, ...history].slice(0, ORDER_HISTORY_MAX);
-      await this.kv.put(
-        userKey(this.getIdentity().userId, "order_history"),
-        JSON.stringify(trimmed),
-      );
-      return trimmed;
-    },
-    getRecent: async (limit = 10): Promise<OrderRecord[]> =>
-      (await this.orderHistory.getAll()).slice(0, limit),
-    clear: async (): Promise<void> => {
-      await this.kv.delete(userKey(this.getIdentity().userId, "order_history"));
-    },
-  };
 }
 
-export function createShoppingPersistence(
+export function createCartPersistence(
   kv: PersistenceKv,
   identity: PersistenceIdentity | (() => PersistenceIdentity),
-  now?: () => Date,
-): ShoppingPersistence {
-  return new ShoppingPersistence(kv, identity, now);
+): CartPersistence {
+  return new CartPersistence(kv, identity);
 }

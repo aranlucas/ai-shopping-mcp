@@ -1,5 +1,5 @@
-import { Badge } from "@/shared/ui/badge.js";
-import { Card, CardContent } from "@/shared/ui/card.js";
+import { Badge } from "@agents/ui/components/badge";
+import { Card, CardContent } from "@agents/ui/components/card";
 
 import type { OrderHistoryContent } from "../../shared/types.js";
 
@@ -16,22 +16,26 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
   });
 
   return (
-    <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
+    <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title="Order Placed"
-        badge={<Badge variant="green">Recorded</Badge>}
+        badge={
+          <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+            Recorded
+          </Badge>
+        }
         subtitle={placedDate}
       />
 
       <Card size="sm" className="mb-3">
-        <CardContent className="pt-3 space-y-1">
+        <CardContent className="flex flex-col gap-1 pt-3">
           <div className="flex items-center justify-between text-xs text-gray-500">
-            <span className="font-mono text-[10px]">{orderId}</span>
+            <span className="font-mono text-xs">{orderId}</span>
             {locationId && (
-              <span className="text-[11px] text-gray-400 flex items-center gap-0.5">
+              <span className="flex items-center gap-0.5 text-xs text-gray-400">
                 <svg
                   aria-hidden="true"
-                  className="w-3 h-3"
+                  className="size-3"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={2}
@@ -54,30 +58,33 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
           </div>
 
           <div className="flex items-baseline justify-between pt-1">
-            <span className="text-[11px] text-gray-500">
+            <span className="text-xs text-gray-500">
               {totalItems} item{totalItems !== 1 ? "s" : ""}
             </span>
             {estimatedTotal != null && estimatedTotal > 0 && (
-              <span className="text-base font-semibold text-emerald-600 font-mono">
+              <span className="font-mono text-base font-semibold text-emerald-600">
                 ${estimatedTotal.toFixed(2)}
               </span>
             )}
           </div>
 
-          {notes && <p className="text-[11px] text-gray-400 italic pt-1">{notes}</p>}
+          {notes && <p className="pt-1 text-xs text-gray-400 italic">{notes}</p>}
         </CardContent>
       </Card>
 
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+      <p className="mb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
         Items · {items.length}
       </p>
       <div className="divide-y divide-border">
         {items.map((item, idx) => (
-          <div key={`${item.upc}-${idx}`} className="flex items-center gap-2.5 py-2.5">
-            <div className="shrink-0 w-6 h-6 rounded bg-gray-100 text-gray-400 flex items-center justify-center">
+          <div
+            key={`${item.product?.provider ?? "legacy"}:${item.product?.id ?? item.upc ?? idx}`}
+            className="flex items-center gap-2.5 py-2.5"
+          >
+            <div className="flex size-6 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-400">
               <svg
                 aria-hidden="true"
-                className="w-3.5 h-3.5"
+                className="size-3.5"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={1.5}
@@ -90,14 +97,12 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
                 />
               </svg>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-medium text-gray-900 truncate">
-                {item.productName}
-              </div>
-              <div className="text-[11px] text-gray-400 font-mono">×{item.quantity}</div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-gray-900">{item.productName}</div>
+              <div className="font-mono text-xs text-gray-400">×{item.quantity}</div>
             </div>
             {item.price != null && (
-              <span className="text-[13px] font-medium text-emerald-600 font-mono shrink-0">
+              <span className="shrink-0 font-mono text-sm font-medium text-emerald-600">
                 ${(item.price * item.quantity).toFixed(2)}
               </span>
             )}

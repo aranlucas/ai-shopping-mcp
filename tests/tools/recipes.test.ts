@@ -4,6 +4,7 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { EquipmentItem, OrderRecord, PantryItem } from "../../src/utils/user-storage.js";
 
 import { computeRestockSuggestions, registerRecipeTools } from "../../src/tools/recipes.js";
+import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type AuthContext = {
   props?: {
@@ -28,17 +29,6 @@ const testState = vi.hoisted(() => ({
 
 vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
-}));
-
-vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (
-    _server: unknown,
-    name: string,
-    config: CapturedTool["config"],
-    handler: ToolHandler,
-  ) => {
-    testState.capturedTools.push({ name, config, handler });
-  },
 }));
 
 function authenticate(userId = "user-123") {
@@ -108,7 +98,9 @@ function makeContext(storage = makeStorage()): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
+    catalogs: stubCatalogRegistry(),
     storage,
+    carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
   };
 }
