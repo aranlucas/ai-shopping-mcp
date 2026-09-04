@@ -44,8 +44,8 @@
     "@toon-format/toon": "^4.1.0",
     "agents": "^0.20.1",
     "class-variance-authority": "^0.7.1",
-    "cn": "^0.2.4",
     "cmdk": "^1.1.1",
+    "cn": "^0.2.4",
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
     "hono": "^4.12.33",
@@ -99,5 +99,5 @@
   "engines": {
     "node": ">=24.18.1"
   },
-  "packageManager": "pnpm@12.2.1"
+  "packageManager": "pnpm@12.3.1"
 }
