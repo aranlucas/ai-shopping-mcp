@@ -161,6 +161,12 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
           };
         }
         if (toolResult.isError) stats.schemaRejections++;
+        if (process.env.EVAL_LOG) {
+          console.log(
+            `[live-eval] ${toolCall.function.name}(${toolCall.function.arguments}) -> ` +
+              `${toolResult.isError ? "ERROR" : "ok"}: ${contentText(toolResult).slice(0, 200)}`,
+          );
+        }
 
         messages.push({ role: "tool", name: toolCall.name, content: contentText(toolResult) });
       }
