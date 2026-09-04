@@ -119,7 +119,11 @@ export function registerProductTools(ctx: ToolContext) {
           `Unknown provider(s): ${unknownProviders.join(", ")}. Available: ${availableProviderIds.join(", ")}.`,
         );
       }
-      const selected = selectedProviderIds.map((id) => ctx.catalogs[id]!);
+      const selected = selectedProviderIds.map((id) => {
+        const provider = ctx.catalogs[id];
+        if (!provider) throw new Error(`Unknown provider: ${id}`);
+        return provider;
+      });
 
       const preferred = await safeStorage(
         () => ctx.storage.preferredLocation.get(),
@@ -175,8 +179,8 @@ export function registerProductTools(ctx: ToolContext) {
       // Only a search that found nothing anywhere and failed somewhere is an
       // error; a Kroger hit with Trader Joe's down is still a useful answer.
       if (totalProducts === 0 && failed.length > 0) {
-        const terms_ = [...new Set(failed.map((result) => result.term))];
-        return errorResult(`Search failed for: ${terms_.join(", ")}. Please try again.`);
+        const failedTerms = [...new Set(failed.map((result) => result.term))];
+        return errorResult(`Search failed for: ${failedTerms.join(", ")}. Please try again.`);
       }
 
       return {

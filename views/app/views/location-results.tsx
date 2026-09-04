@@ -1,6 +1,6 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -12,6 +12,34 @@ import {
   openExternalLink,
   parseToolResult,
 } from "../../shared/types.js";
+
+const EMPTY_LOCATIONS_ICON = (
+  <svg
+    aria-hidden="true"
+    className="size-5"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+    />
+  </svg>
+);
+
+const PREFERRED_STAR_ICON = (
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"
+    />
+  </svg>
+);
 
 function locationToMapsUrl(loc: LocationData): string | null {
   const a = loc.address;
@@ -38,7 +66,7 @@ function LocationCard({
   const [detailState, setDetailState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const mapsUrl = locationToMapsUrl(location);
 
-  const handleSetPreferred = async () => {
+  const handleSetPreferred = useCallback(async () => {
     setPrefState("loading");
     try {
       await onSetPreferred(id);
@@ -47,9 +75,9 @@ function LocationCard({
       setPrefState("error");
       setTimeout(() => setPrefState("idle"), 2000);
     }
-  };
+  }, [id, onSetPreferred]);
 
-  const handleViewDetails = async () => {
+  const handleViewDetails = useCallback(async () => {
     setDetailState("loading");
     try {
       await onViewDetails(id);
@@ -58,7 +86,13 @@ function LocationCard({
       setDetailState("error");
       setTimeout(() => setDetailState("idle"), 2000);
     }
-  };
+  }, [id, onViewDetails]);
+
+  const handleOpenMaps = useCallback(() => {
+    if (mapsUrl) {
+      void openExternalLink(app, mapsUrl);
+    }
+  }, [app, mapsUrl]);
 
   return (
     <div className="rounded-lg border border-border bg-card p-3 transition-all duration-150 hover:border-primary/20 hover:shadow-sm">
@@ -123,9 +157,7 @@ function LocationCard({
           {mapsUrl && (
             <button
               type="button"
-              onClick={() => {
-                void openExternalLink(app, mapsUrl);
-              }}
+              onClick={handleOpenMaps}
               title="Open in Maps"
               aria-label="Open in Maps"
               className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-primary hover:opacity-80"
@@ -180,21 +212,7 @@ function LocationCard({
           doneLabel="Preferred!"
           failLabel="Failed"
           variant="primary"
-          icon={
-            <svg
-              aria-hidden="true"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"
-              />
-            </svg>
-          }
+          icon={PREFERRED_STAR_ICON}
         />
         <ActionButton
           state={detailState}
@@ -226,50 +244,45 @@ export function LocationResultsView({
 }) {
   const { stores } = data;
 
-  const handleSetPreferred = async (id: string) => {
-    const result = await callTool(app, {
-      name: "set_preferred_store",
-      arguments: { storeId: id },
-    });
-    if (result?.isError) throw new Error("Failed to set preferred location");
-  };
+  const handleSetPreferred = useCallback(
+    async (id: string) => {
+      const result = await callTool(app, {
+        name: "set_preferred_store",
+        arguments: { storeId: id },
+      });
+      if (result?.isError) throw new Error("Failed to set preferred location");
+    },
+    [app],
+  );
 
-  const handleViewDetails = async (id: string) => {
-    const result = await callTool(app, {
-      name: "get_store",
-      arguments: { storeId: id },
-    });
-    if (result?.isError) throw new Error("Failed to load details");
-    const parsed = parseToolResult(result);
-    if (parsed) setData(parsed);
-  };
+  const handleViewDetails = useCallback(
+    async (id: string) => {
+      const result = await callTool(app, {
+        name: "get_store",
+        arguments: { storeId: id },
+      });
+      if (result?.isError) throw new Error("Failed to load details");
+      const parsed = parseToolResult(result);
+      if (parsed) setData(parsed);
+    },
+    [app, setData],
+  );
+
+  const headerBadge = useMemo(
+    () => <span className="font-mono text-xs text-gray-400">{stores.length} found</span>,
+    [stores.length],
+  );
+  const headerTrailing = useMemo(
+    () => <DisplayModeToggle app={app} hostContext={hostContext} />,
+    [app, hostContext],
+  );
 
   if (stores.length === 0) {
     return (
       <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
         <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Store Locations</h1>
         <EmptyState
-          icon={
-            <svg
-              aria-hidden="true"
-              className="size-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-              />
-            </svg>
-          }
+          icon={EMPTY_LOCATIONS_ICON}
           message="No locations found"
           description="Try a different zip code or chain name."
         />
@@ -279,11 +292,7 @@ export function LocationResultsView({
 
   return (
     <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader
-        title="Store Locations"
-        badge={<span className="font-mono text-xs text-gray-400">{stores.length} found</span>}
-        trailing={<DisplayModeToggle app={app} hostContext={hostContext} />}
-      />
+      <SectionHeader title="Store Locations" badge={headerBadge} trailing={headerTrailing} />
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {stores.map((loc) => (
           <LocationCard

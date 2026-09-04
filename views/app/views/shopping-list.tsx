@@ -1,6 +1,6 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Badge } from "@agents/ui/components/badge";
 
@@ -13,6 +13,23 @@ import {
   sendUserMessage,
 } from "../../shared/types.js";
 import { addShoppingListToCartCall, toolResultErrorMessage } from "../tool-calls.js";
+
+const EMPTY_LIST_ICON = (
+  <svg
+    aria-hidden="true"
+    className="size-5"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+    />
+  </svg>
+);
 
 function ShoppingItem({ item }: { item: ShoppingListItemData }) {
   return (
@@ -50,45 +67,17 @@ export function ShoppingListView({
   const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  if (items.length === 0) {
-    return (
-      <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-        <SectionHeader
-          title={name || "Shopping List"}
-          badge={
-            <span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>
-          }
-        />
-        <EmptyState
-          icon={
-            <svg
-              aria-hidden="true"
-              className="size-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-              />
-            </svg>
-          }
-          message="This shopping list is empty"
-          description="Add items from product search results."
-        />
-      </div>
-    );
-  }
-
-  const withUpc = items.filter(
-    (item) => item.product?.provider === "kroger" || (!item.product && item.upc),
+  const withUpc = useMemo(
+    () =>
+      items.filter((item) => item.product?.provider === "kroger" || (!item.product && item.upc)),
+    [items],
   );
-  const withoutUpc = items.filter((item) => !withUpc.includes(item));
+  const withoutUpc = useMemo(
+    () => items.filter((item) => !withUpc.includes(item)),
+    [items, withUpc],
+  );
 
-  const handleCheckout = async () => {
+  const handleCheckout = useCallback(async () => {
     setCheckoutState("loading");
     setCheckoutError(null);
 
@@ -109,18 +98,36 @@ export function ShoppingListView({
         setCheckoutError(null);
       }, 5000);
     }
-  };
+  }, [app, listId]);
 
-  const handleFindUpcs = () => {
+  const handleFindUpcs = useCallback(() => {
     const names = withoutUpc.map((i) => i.productName).join(", ");
     sendUserMessage(app, `Find Kroger matches for these items on my shopping list: ${names}.`);
-  };
+  }, [app, withoutUpc]);
+
+  const headerBadge = useMemo(
+    () => <span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>,
+    [listId],
+  );
+
+  if (items.length === 0) {
+    return (
+      <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
+        <SectionHeader title={name || "Shopping List"} badge={headerBadge} />
+        <EmptyState
+          icon={EMPTY_LIST_ICON}
+          message="This shopping list is empty"
+          description="Add items from product search results."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader
         title={name || "Shopping List"}
-        badge={<span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>}
+        badge={headerBadge}
         subtitle={`${items.length} item${items.length === 1 ? "" : "s"}`}
       />
 

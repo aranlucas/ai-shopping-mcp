@@ -455,9 +455,11 @@ describe("search_products", () => {
     const notifications: Array<{ method: string; params: unknown }> = [];
     registerProductTools(makeContext(async () => makeSearchResponse([product])));
 
-    const sendNotification = vi.fn(async (notification: { method: string; params: unknown }) => {
-      notifications.push(notification);
-    });
+    const sendNotification = vi.fn<(notification: { method: string; params: unknown }) => unknown>(
+      async (notification: { method: string; params: unknown }) => {
+        notifications.push(notification);
+      },
+    );
 
     await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
       mcpReq: {

@@ -492,20 +492,23 @@ export function installKrogerFetchStub(passthroughHosts: string[] = []): KrogerF
             status: "active",
             created_at: nowMilliseconds,
             updated_at: nowMilliseconds,
-            items: inputs.map((item, index) => ({
-              id: `item_${index + 1}`,
-              list_id: id,
-              name: String(item["name"] ?? ""),
-              quantity: String(item["quantity"] ?? "1"),
-              note: item["note"] ?? null,
-              ...(item["product"] === undefined ? {} : { product: item["product"] }),
-              ...(item["upc"] === undefined ? {} : { upc: item["upc"] }),
-              position: index,
-              added_by: "eval-user",
-              checked_by: null,
-              checked_at: null,
-              updated_at: nowMilliseconds,
-            })),
+            items: inputs.map((item, index) => {
+              const entry: Record<string, unknown> = {
+                id: `item_${index + 1}`,
+                list_id: id,
+                name: String(item["name"] ?? ""),
+                quantity: String(item["quantity"] ?? "1"),
+                note: item["note"] ?? null,
+                position: index,
+                added_by: "eval-user",
+                checked_by: null,
+                checked_at: null,
+                updated_at: nowMilliseconds,
+              };
+              if (item["product"] !== undefined) entry["product"] = item["product"];
+              if (item["upc"] !== undefined) entry["upc"] = item["upc"];
+              return entry;
+            }),
           };
           lists.set(id, list);
           return Response.json(list, { status: 201 });

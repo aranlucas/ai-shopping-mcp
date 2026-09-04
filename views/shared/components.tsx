@@ -1,6 +1,7 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
-import { ReactNode, useState } from "react";
+import { useCallback, useState } from "react";
+import type { ReactNode, SyntheticEvent } from "react";
 
 import { Badge } from "@agents/ui/components/badge";
 import { Button } from "@agents/ui/components/button";
@@ -9,6 +10,22 @@ import { Card, CardContent, CardFooter } from "@agents/ui/components/card";
 import type { ProductData } from "./types.js";
 
 export { Badge };
+
+const CART_ICON = (
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+    />
+  </svg>
+);
+
+const PLUS_ICON = (
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+  </svg>
+);
 
 export function SectionHeader({
   title,
@@ -46,17 +63,18 @@ export function DisplayModeToggle({
   const available = hostContext?.availableDisplayModes ?? [];
   const supportsFullscreen = available.includes("fullscreen");
   const supportsInline = available.includes("inline");
-  if (!app || !supportsFullscreen || !supportsInline) return null;
   const isFullscreen = current === "fullscreen";
   const next = isFullscreen ? "inline" : "fullscreen";
+  const handleToggleDisplayMode = useCallback(() => {
+    void app?.requestDisplayMode({ mode: next });
+  }, [app, next]);
+  if (!app || !supportsFullscreen || !supportsInline) return null;
 
   return (
     <Button
       variant="ghost"
       size="icon-xs"
-      onClick={() => {
-        void app.requestDisplayMode({ mode: next });
-      }}
+      onClick={handleToggleDisplayMode}
       aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
     >
@@ -231,7 +249,7 @@ export function ProductActions({
   const [listState, setListState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleCart = async () => {
+  const handleCart = useCallback(async () => {
     setCartState("loading");
     setErrorMsg(null);
     try {
@@ -247,9 +265,9 @@ export function ProductActions({
         setErrorMsg(null);
       }, 5000);
     }
-  };
+  }, [name, onAddToCart, productRef]);
 
-  const handleList = async () => {
+  const handleList = useCallback(async () => {
     setListState("loading");
     setErrorMsg(null);
     try {
@@ -265,7 +283,7 @@ export function ProductActions({
         setErrorMsg(null);
       }, 5000);
     }
-  };
+  }, [name, onAddToList, productRef]);
 
   return (
     <div>
@@ -280,21 +298,7 @@ export function ProductActions({
             doneLabel="Added!"
             failLabel="Failed"
             variant="primary"
-            icon={
-              <svg
-                aria-hidden="true"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-                />
-              </svg>
-            }
+            icon={CART_ICON}
           />
         )}
         <ActionButton
@@ -306,17 +310,7 @@ export function ProductActions({
           doneLabel="Saved!"
           failLabel="Failed"
           variant="secondary"
-          icon={
-            <svg
-              aria-hidden="true"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          }
+          icon={PLUS_ICON}
         />
       </div>
       {errorMsg && <div className="mt-1 text-xs text-red-600">{errorMsg}</div>}
@@ -326,6 +320,9 @@ export function ProductActions({
 
 function ProductImage({ product }: { product: ProductData }) {
   const thumbnail = product.imageUrl;
+  const handleImageError = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.style.display = "none";
+  }, []);
 
   if (!thumbnail) {
     const initials = product.name
@@ -348,9 +345,7 @@ function ProductImage({ product }: { product: ProductData }) {
         alt={product.name}
         className="size-full object-contain p-2"
         loading="lazy"
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.display = "none";
-        }}
+        onError={handleImageError}
       />
     </div>
   );

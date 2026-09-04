@@ -209,7 +209,7 @@ describe("gateway shopping storage", () => {
 
     vi.unstubAllGlobals();
     mockGateway(() => ({ body: { items: [{ name: "Milk", quantity: "wrong" }] } }));
-    await expect(makeStore().pantry.getAll()).rejects.toThrow();
+    await expect(makeStore().pantry.getAll()).rejects.toThrow(/quantity/);
   });
 
   it("maps not-found nullable reads to null", async () => {

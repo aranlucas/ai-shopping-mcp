@@ -1,39 +1,46 @@
 import { Badge } from "@agents/ui/components/badge";
+import { useMemo } from "react";
 
 import type { AddShoppingListToCartContent } from "../../shared/types.js";
 
 import { SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
+const EMPTY_CART_ICON = (
+  <svg
+    aria-hidden="true"
+    className="size-5"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+    />
+  </svg>
+);
+
 export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) {
   const { listId, name, items, needsUpc, actionDetail } = data;
   const title = `Cart · ${name}`;
 
-  const headerBadge = listId ? (
-    <span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>
-  ) : undefined;
+  const headerBadge = useMemo(
+    () =>
+      listId ? (
+        <span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>
+      ) : undefined,
+    [listId],
+  );
 
   if (items.length === 0 && needsUpc.length === 0) {
     return (
       <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
         <SectionHeader title={title} badge={headerBadge} />
         <EmptyState
-          icon={
-            <svg
-              aria-hidden="true"
-              className="size-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
-              />
-            </svg>
-          }
+          icon={EMPTY_CART_ICON}
           message="No items in the cart"
           description="Add items with UPCs to your shopping list, then call add_shopping_list_to_cart."
         />

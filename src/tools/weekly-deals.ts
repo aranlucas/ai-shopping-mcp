@@ -296,7 +296,7 @@ export function formatWeeklyDealsToolResponse(
       validTill: deal.validTill,
       category: classifyDealCategory(deal.title),
     }))
-    .sort((a, b) => DEAL_CATEGORIES.indexOf(a.category) - DEAL_CATEGORIES.indexOf(b.category));
+    .toSorted((a, b) => DEAL_CATEGORIES.indexOf(a.category) - DEAL_CATEGORIES.indexOf(b.category));
 
   return {
     content: [

@@ -1,5 +1,5 @@
 import { err, fromThrowable, ok, type Result } from "neverthrow";
-import * as z from "zod/v4";
+import type * as z from "zod/v4";
 
 export const safeJsonParse: (raw: string) => Result<unknown, SyntaxError> = fromThrowable(
   (raw: string): unknown => JSON.parse(raw),

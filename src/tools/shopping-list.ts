@@ -1,4 +1,4 @@
-import { ResultAsync } from "neverthrow";
+import type { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";

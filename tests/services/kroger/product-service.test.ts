@@ -25,7 +25,9 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 describe("ProductService.getProduct", () => {
   it("returns Ok with the product on a successful lookup", async () => {
     const product = makeProduct();
-    const get = vi.fn(async () => ({
+    const get = vi.fn<
+      (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>
+    >(async () => ({
       data: { data: product },
       response: new Response(null, { status: 200 }),
     }));
@@ -39,7 +41,9 @@ describe("ProductService.getProduct", () => {
 
   it("passes locationId as filter.locationId when provided", async () => {
     let capturedQuery: Record<string, string> | undefined;
-    const get = vi.fn(async (_path: unknown, opts: unknown) => {
+    const get = vi.fn<
+      (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>
+    >(async (_path: unknown, opts: unknown) => {
       capturedQuery = (opts as { params: { query: Record<string, string> } }).params.query;
       return {
         data: { data: makeProduct() },
@@ -54,7 +58,9 @@ describe("ProductService.getProduct", () => {
   });
 
   it("returns Err NOT_FOUND when the API returns no product data", async () => {
-    const get = vi.fn(async () => ({
+    const get = vi.fn<
+      (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>
+    >(async () => ({
       data: { data: undefined },
       response: new Response(null, { status: 200 }),
     }));
@@ -68,7 +74,9 @@ describe("ProductService.getProduct", () => {
   });
 
   it("returns Err API_ERROR when the API call fails", async () => {
-    const get = vi.fn(async () => ({
+    const get = vi.fn<
+      (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>
+    >(async () => ({
       error: { reason: "Internal Server Error" },
       response: new Response(null, { status: 500 }),
     }));
@@ -83,7 +91,9 @@ describe("ProductService.getProduct", () => {
 
 describe("ProductService.enrichProductName", () => {
   it("returns the product description on success", async () => {
-    const get = vi.fn(async () => ({
+    const get = vi.fn<
+      (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>
+    >(async () => ({
       data: { data: makeProduct({ description: "Whole Milk" }) },
       response: new Response(null, { status: 200 }),
     }));
@@ -93,7 +103,9 @@ describe("ProductService.enrichProductName", () => {
   });
 
   it("returns null when the product has no description", async () => {
-    const get = vi.fn(async () => ({
+    const get = vi.fn<
+      (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>
+    >(async () => ({
       data: { data: makeProduct({ description: undefined }) },
       response: new Response(null, { status: 200 }),
     }));
@@ -103,7 +115,9 @@ describe("ProductService.enrichProductName", () => {
   });
 
   it("returns null (never throws) when the lookup fails", async () => {
-    const get = vi.fn(async () => ({
+    const get = vi.fn<
+      (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>
+    >(async () => ({
       error: { reason: "boom" },
       response: new Response(null, { status: 500 }),
     }));
@@ -113,7 +127,9 @@ describe("ProductService.enrichProductName", () => {
   });
 
   it("returns null when the product is not found", async () => {
-    const get = vi.fn(async () => ({
+    const get = vi.fn<
+      (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>
+    >(async () => ({
       data: { data: undefined },
       response: new Response(null, { status: 200 }),
     }));

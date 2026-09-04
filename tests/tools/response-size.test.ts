@@ -61,17 +61,17 @@ function getTool(name: string): ToolHandler {
 function createMockKV(): KVNamespace {
   const store = new Map<string, string>();
   return {
-    get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
-    put: vi.fn((key: string, value: string) => {
+    get: vi.fn<(key: string) => unknown>((key: string) => Promise.resolve(store.get(key) ?? null)),
+    put: vi.fn<(key: string, value: string) => unknown>((key: string, value: string) => {
       store.set(key, value);
       return Promise.resolve();
     }),
-    delete: vi.fn((key: string) => {
+    delete: vi.fn<(key: string) => unknown>((key: string) => {
       store.delete(key);
       return Promise.resolve();
     }),
-    list: vi.fn(),
-    getWithMetadata: vi.fn(),
+    list: vi.fn<(...args: unknown[]) => unknown>(),
+    getWithMetadata: vi.fn<(...args: unknown[]) => unknown>(),
   } as unknown as KVNamespace;
 }
 

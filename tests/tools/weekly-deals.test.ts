@@ -444,7 +444,7 @@ describe("formatWeeklyDealsToolResponse", () => {
 
 type CapturedTool = { name: string; handler: ToolHandler };
 
-const mockGetQfcWeeklyDeals = vi.hoisted(() => vi.fn());
+const mockGetQfcWeeklyDeals = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>());
 
 vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
   getQfcWeeklyDeals: mockGetQfcWeeklyDeals,
@@ -494,13 +494,15 @@ function makeKV(initialData: Map<string, string> = new Map()): {
   const store = new Map(initialData);
   return {
     kv: {
-      get: vi.fn(async (key: string) => store.get(key) ?? null),
-      put: vi.fn(async (key: string, value: string, _opts?: unknown) => {
-        store.set(key, value);
-      }),
-      delete: vi.fn(),
-      list: vi.fn(),
-      getWithMetadata: vi.fn(),
+      get: vi.fn<(key: string) => unknown>(async (key: string) => store.get(key) ?? null),
+      put: vi.fn<(key: string, value: string, _opts?: unknown) => unknown>(
+        async (key: string, value: string, _opts?: unknown) => {
+          store.set(key, value);
+        },
+      ),
+      delete: vi.fn<(...args: unknown[]) => unknown>(),
+      list: vi.fn<(...args: unknown[]) => unknown>(),
+      getWithMetadata: vi.fn<(...args: unknown[]) => unknown>(),
     } as unknown as KVNamespace,
     store,
   };
@@ -527,7 +529,7 @@ function makeWeeklyDealsContext(
     } as unknown as ToolContext["server"],
     clients: {
       productClient: {
-        GET: vi.fn(async () => ({
+        GET: vi.fn<() => unknown>(async () => ({
           data: { data: [] },
           response: new Response(null, { status: 200 }),
         })),

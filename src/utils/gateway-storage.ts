@@ -333,13 +333,12 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
         const data = await readGateway(
           client.POST("/api/grocery/pantry", {
             body: {
-              items: (Array.isArray(items) ? items : [items]).map((item) => ({
-                name: item.productName,
-                quantity: item.quantity,
-                ...(item.expiresAt === undefined
-                  ? {}
-                  : { expires_at: toUnixSeconds(item.expiresAt) }),
-              })),
+              items: (Array.isArray(items) ? items : [items]).map((item) => {
+                const base = { name: item.productName, quantity: item.quantity };
+                return item.expiresAt === undefined
+                  ? base
+                  : Object.assign(base, { expires_at: toUnixSeconds(item.expiresAt) });
+              }),
             },
           }),
           pantryResponseSchema,
@@ -383,10 +382,12 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
         const data = await readGateway(
           client.POST("/api/grocery/equipment", {
             body: {
-              items: (Array.isArray(items) ? items : [items]).map((item) => ({
-                name: item.equipmentName,
-                ...(item.category === undefined ? {} : { category: item.category }),
-              })),
+              items: (Array.isArray(items) ? items : [items]).map((item) => {
+                const base = { name: item.equipmentName };
+                return item.category === undefined
+                  ? base
+                  : Object.assign(base, { category: item.category });
+              }),
             },
           }),
           equipmentResponseSchema,

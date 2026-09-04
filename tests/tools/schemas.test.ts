@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { modalityEnum, quantitySchema, storeIdSchema, upcSchema } from "../../src/tools/schemas.js";
 
@@ -22,10 +22,9 @@ describe("upcSchema", () => {
   it("rejects a UPC containing letters", () => {
     const result = upcSchema.safeParse("abc1111041700");
     expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0]?.message).toContain("UPC must be up to 13 digits");
-      expect(result.error.issues[0]?.message).toContain("search_products");
-    }
+    assert(!result.success);
+    expect(result.error.issues[0]?.message).toContain("UPC must be up to 13 digits");
+    expect(result.error.issues[0]?.message).toContain("search_products");
   });
 
   it("rejects a UPC longer than 13 digits", () => {
@@ -49,10 +48,9 @@ describe("storeIdSchema", () => {
   it("rejects a storeId shorter than 8 characters", () => {
     const result = storeIdSchema.safeParse("7050003");
     expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0]?.message).toContain("8-character storeId");
-      expect(result.error.issues[0]?.message).toContain("search_stores");
-    }
+    assert(!result.success);
+    expect(result.error.issues[0]?.message).toContain("8-character storeId");
+    expect(result.error.issues[0]?.message).toContain("search_stores");
   });
 
   it("rejects a storeId longer than 8 characters", () => {

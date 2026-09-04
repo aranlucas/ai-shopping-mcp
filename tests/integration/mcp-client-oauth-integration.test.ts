@@ -289,22 +289,23 @@ describe("MCP client over Worker OAuth integration", () => {
 
     expect(toolNames).toContain("search_products");
     expect(toolNames).toContain("get_meal_planning_context");
-    for (const tool of tools.tools) {
-      // Text-only tools: their results are read by the model, not rendered.
-      const textOnlyTools = new Set([
-        "add_shopping_list_items",
-        "edit_shopping_list_item",
-        "get_meal_planning_context",
-        "get_shopping_list",
-        "get_shopping_profile",
-        "view_cart",
-      ]);
-      if (textOnlyTools.has(tool.name)) {
-        expect(tool._meta?.ui).toBeUndefined();
-      } else {
-        expect(tool._meta?.ui).toBeDefined();
-      }
-    }
+    // Text-only tools: their results are read by the model, not rendered.
+    const textOnlyTools = new Set([
+      "add_shopping_list_items",
+      "edit_shopping_list_item",
+      "get_meal_planning_context",
+      "get_shopping_list",
+      "get_shopping_profile",
+      "view_cart",
+    ]);
+    const uiMismatches = tools.tools
+      .filter(
+        (tool) =>
+          (textOnlyTools.has(tool.name) && tool._meta?.ui !== undefined) ||
+          (!textOnlyTools.has(tool.name) && tool._meta?.ui === undefined),
+      )
+      .map((tool) => tool.name);
+    expect(uiMismatches).toEqual([]);
     expect(client.getInstructions()).toContain("create_shopping_list");
     expect(client.getInstructions()).toContain("add_shopping_list_to_cart");
     expect(client.getInstructions()).toContain("listId");

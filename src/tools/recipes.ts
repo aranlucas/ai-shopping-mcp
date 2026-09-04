@@ -23,7 +23,7 @@ export function computeFrequentlyPurchasedItems(
     }
   }
   return [...itemFrequency.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .toSorted((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([name, count]) => ({ name, count }));
 }
@@ -37,7 +37,7 @@ export type RestockSuggestion = {
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...values].toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
@@ -75,7 +75,7 @@ export function computeRestockSuggestions(
   for (const { displayName, timestamps } of purchasesByName.values()) {
     if (timestamps.length < 3) continue;
 
-    const sorted = [...timestamps].sort((a, b) => a - b);
+    const sorted = [...timestamps].toSorted((a, b) => a - b);
     const intervals: number[] = [];
     for (let i = 1; i < sorted.length; i++) {
       intervals.push(sorted[i] - sorted[i - 1]);
@@ -97,12 +97,13 @@ export function computeRestockSuggestions(
   // Most-overdue first: rank by how many days past the median interval the
   // item is, not raw days-since-last (a rarely-bought item with a long
   // interval shouldn't outrank a frequently-bought item that's well overdue).
-  suggestions.sort((a, b) => {
-    const overdueA = a.daysSinceLast - a.medianIntervalDays;
-    const overdueB = b.daysSinceLast - b.medianIntervalDays;
-    return overdueB - overdueA;
-  });
-  return suggestions.slice(0, 5);
+  return suggestions
+    .toSorted((a, b) => {
+      const overdueA = a.daysSinceLast - a.medianIntervalDays;
+      const overdueB = b.daysSinceLast - b.medianIntervalDays;
+      return overdueB - overdueA;
+    })
+    .slice(0, 5);
 }
 
 const mealPlanningInputSchema = z.object({
@@ -164,16 +165,20 @@ export function registerRecipeTools(ctx: ToolContext) {
 
       const now = Date.now();
       const categorizedPantry = pantry.map((item) => {
-        if (!item.expiresAt) return { ...item, urgency: "none" as const, daysUntil: undefined };
+        if (!item.expiresAt)
+          return Object.assign({}, item, { urgency: "none" as const, daysUntil: undefined });
         const expiresAtMs = new Date(item.expiresAt).getTime();
         if (Number.isNaN(expiresAtMs)) {
-          return { ...item, urgency: "none" as const, daysUntil: undefined };
+          return Object.assign({}, item, { urgency: "none" as const, daysUntil: undefined });
         }
         const daysUntil = Math.floor((expiresAtMs - now) / (1000 * 60 * 60 * 24));
-        if (daysUntil < 0) return { ...item, urgency: "expired" as const, daysUntil };
-        if (daysUntil <= 1) return { ...item, urgency: "critical" as const, daysUntil };
-        if (daysUntil <= 3) return { ...item, urgency: "warning" as const, daysUntil };
-        return { ...item, urgency: "ok" as const, daysUntil };
+        if (daysUntil < 0)
+          return Object.assign({}, item, { urgency: "expired" as const, daysUntil });
+        if (daysUntil <= 1)
+          return Object.assign({}, item, { urgency: "critical" as const, daysUntil });
+        if (daysUntil <= 3)
+          return Object.assign({}, item, { urgency: "warning" as const, daysUntil });
+        return Object.assign({}, item, { urgency: "ok" as const, daysUntil });
       });
 
       const expiringItems = categorizedPantry.filter(

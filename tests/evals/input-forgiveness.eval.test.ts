@@ -7,7 +7,7 @@
  * here is a mistake observed from small models; the eval asserts either
  * acceptance-after-normalization or an error message that names the fix.
  */
-import { Client } from "@modelcontextprotocol/client";
+import type { Client } from "@modelcontextprotocol/client";
 import { reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -48,32 +48,32 @@ describe("input forgiveness", () => {
   describe("normalized (must succeed)", () => {
     it("accepts an unpadded UPC and pads it to 13 digits", async () => {
       const result = await call("get_product", { upc: "1111041700" });
-      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(result.isError, `${contentText(result)}`).toBeFalsy();
       expect(contentText(result)).toContain("0001111041700");
     });
 
     it("accepts a UPC with surrounding whitespace", async () => {
       const result = await call("get_product", { upc: " 0001111041700 " });
-      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
     it("accepts record_order items keyed by upc", async () => {
       const result = await call("record_order", {
         items: [{ upc: "0001111041700", productName: "Milk", quantity: 1 }],
       });
-      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
     it("rejects record_order items keyed by productId instead of upc", async () => {
       const result = await call("record_order", {
         items: [{ productId: "0001111041700", productName: "Milk", quantity: 1 }],
       });
-      expect(result.isError, contentText(result)).toBeTruthy();
+      expect(result.isError, `${contentText(result)}`).toBeTruthy();
     });
 
     it("accepts a storeId with surrounding whitespace", async () => {
       const result = await call("set_preferred_store", { storeId: " 70500847 " });
-      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
     it("accepts lowercase modality and quantities as strings, padding inline UPCs", async () => {
@@ -82,7 +82,7 @@ describe("input forgiveness", () => {
         items: [{ upc: "1111041700", quantity: "2" }],
         modality: "pickup",
       });
-      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(result.isError, `${contentText(result)}`).toBeFalsy();
 
       const items = stub.allCartItems();
       expect(items).toHaveLength(1);
@@ -93,7 +93,7 @@ describe("input forgiveness", () => {
 
     it("accepts limitPerTerm as a string", async () => {
       const result = await call("search_products", { terms: ["milk"], limitPerTerm: "3" });
-      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
     it("ignores unknown extra keys instead of rejecting the call", async () => {
@@ -101,7 +101,7 @@ describe("input forgiveness", () => {
         terms: ["milk"],
         reasoning: "the user asked for milk",
       });
-      expect(result.isError, contentText(result)).toBeFalsy();
+      expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
   });
 

@@ -26,7 +26,7 @@ describe("scheduled OAuth cleanup", () => {
     await scheduled(
       {
         cron: "0 2 * * *",
-        noRetry: vi.fn(),
+        noRetry: vi.fn<() => void>(),
         scheduledTime: Date.now(),
       },
       env as AppEnv,

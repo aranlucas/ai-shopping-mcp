@@ -71,20 +71,23 @@ type StorageSeed = {
   ordersThrows?: boolean;
 };
 
+function storageFailure(): Promise<never> {
+  return Promise.reject(new Error("storage failure"));
+}
+
 function makeStorage(seed: StorageSeed = {}): UserStorage {
-  const reject = () => Promise.reject(new Error("storage failure"));
   return {
     pantry: {
-      getAll: seed.pantryThrows ? reject : async () => seed.pantry ?? [],
+      getAll: seed.pantryThrows ? storageFailure : async () => seed.pantry ?? [],
     },
     equipment: {
-      getAll: seed.equipmentThrows ? reject : async () => seed.equipment ?? [],
+      getAll: seed.equipmentThrows ? storageFailure : async () => seed.equipment ?? [],
     },
     preferredLocation: {
-      get: seed.locationThrows ? reject : async () => seed.location ?? null,
+      get: seed.locationThrows ? storageFailure : async () => seed.location ?? null,
     },
     orderHistory: {
-      getRecent: seed.ordersThrows ? reject : async () => seed.orders ?? [],
+      getRecent: seed.ordersThrows ? storageFailure : async () => seed.orders ?? [],
     },
   } as unknown as UserStorage;
 }
@@ -116,10 +119,29 @@ function getCompleteFn(name: string, field: string): CompleteFn {
     callbacks?: { complete?: Record<string, CompleteFn> };
     _callbacks?: { complete?: Record<string, CompleteFn> };
   };
-  const complete = template.callbacks?.complete ?? template._callbacks?.complete;
+  const complete = template.callbacks?.complete ?? template["_callbacks"]?.complete;
   const fn = complete?.[field];
   expect(fn).toBeTypeOf("function");
   return fn as CompleteFn;
+}
+
+function makeProductClient(overrides: { product?: unknown; error?: boolean } = {}) {
+  return {
+    GET: async () => {
+      if (overrides.error) {
+        return {
+          data: undefined,
+          response: new Response(null, { status: 500, statusText: "Server Error" }),
+        };
+      }
+      const product =
+        "product" in overrides ? overrides.product : { upc: "0001112223334", description: "Milk" };
+      return {
+        data: { data: product },
+        response: new Response(null, { status: 200 }),
+      };
+    },
+  };
 }
 
 describe("registerResources", () => {
@@ -281,27 +303,6 @@ describe("registerResources", () => {
   });
 
   describe("Product Details template", () => {
-    function makeProductClient(overrides: { product?: unknown; error?: boolean } = {}) {
-      return {
-        GET: async () => {
-          if (overrides.error) {
-            return {
-              data: undefined,
-              response: new Response(null, { status: 500, statusText: "Server Error" }),
-            };
-          }
-          const product =
-            "product" in overrides
-              ? overrides.product
-              : { upc: "0001112223334", description: "Milk" };
-          return {
-            data: { data: product },
-            response: new Response(null, { status: 200 }),
-          };
-        },
-      };
-    }
-
     it("rejects an invalid product URI", async () => {
       registerResources(makeContext(makeStorage(), makeProductClient()));
 

@@ -29,12 +29,12 @@ function normalizeScope(scope: unknown): string {
       .filter((item): item is string => typeof item === "string")
       .flatMap((item) => item.split(/\s+/))
       .filter(Boolean)
-      .sort()
+      .toSorted()
       .join(" ");
   }
 
   if (typeof scope === "string") {
-    return scope.split(/\s+/).filter(Boolean).sort().join(" ");
+    return scope.split(/\s+/).filter(Boolean).toSorted().join(" ");
   }
 
   return "";
@@ -83,7 +83,7 @@ function decodeState<T = unknown>(encoded: string): T {
     );
   } catch (e) {
     console.error("Error decoding state:", e);
-    throw new Error("Could not decode state");
+    throw new Error("Could not decode state", { cause: e });
   }
 }
 
@@ -601,7 +601,10 @@ export async function parseRedirectApproval(
   } catch (e) {
     console.error("Error processing form submission:", e);
     // Rethrow or handle as appropriate, maybe return a specific error response
-    throw new Error(`Failed to parse approval form: ${e instanceof Error ? e.message : String(e)}`);
+    throw new Error(
+      `Failed to parse approval form: ${e instanceof Error ? e.message : String(e)}`,
+      { cause: e },
+    );
   }
 
   // Get existing approved clients

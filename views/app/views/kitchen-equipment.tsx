@@ -1,6 +1,6 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Badge } from "@agents/ui/components/badge";
 
@@ -14,6 +14,36 @@ import {
   parseToolResult,
 } from "../../shared/types.js";
 
+const REMOVE_ICON = (
+  <svg
+    aria-label="Remove"
+    className="size-3"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={2.5}
+    stroke="currentColor"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+  </svg>
+);
+
+const EMPTY_EQUIPMENT_ICON = (
+  <svg
+    aria-hidden="true"
+    className="size-5"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={1.5}
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.88-5.88m-3.7 3.8L8.25 12m0 0 2.17-2.17m-2.17 2.17-5.88-5.88A2.652 2.652 0 0 1 6.12 2.37L12 8.25m-1.58 1.58 3.75-3.75M3 21l3.75-3.75"
+    />
+  </svg>
+);
+
 function KitchenEquipmentRow({
   item,
   canCallTools,
@@ -25,7 +55,7 @@ function KitchenEquipmentRow({
 }) {
   const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
-  const handleRemove = async () => {
+  const handleRemove = useCallback(async () => {
     setRemoveState("loading");
     try {
       await onRemove(item.equipmentName);
@@ -34,7 +64,7 @@ function KitchenEquipmentRow({
       setRemoveState("error");
       setTimeout(() => setRemoveState("idle"), 2000);
     }
-  };
+  }, [item.equipmentName, onRemove]);
 
   return (
     <div
@@ -75,18 +105,7 @@ function KitchenEquipmentRow({
         doneLabel=""
         failLabel=""
         variant="secondary"
-        icon={
-          <svg
-            aria-label="Remove"
-            className="size-3"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2.5}
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        }
+        icon={REMOVE_ICON}
       />
     </div>
   );
@@ -105,15 +124,23 @@ export function KitchenEquipmentView({
 }) {
   const { items, actionDetail } = data;
 
-  const handleRemove = async (name: string) => {
-    const result = await callTool(app, {
-      name: "remove_from_inventory",
-      arguments: { inventory: "equipment", items: [{ name }] },
-    });
-    if (result?.isError) throw new Error("Failed to remove equipment");
-    const updated = parseToolResult(result);
-    if (updated) setData(updated);
-  };
+  const handleRemove = useCallback(
+    async (name: string) => {
+      const result = await callTool(app, {
+        name: "remove_from_inventory",
+        arguments: { inventory: "equipment", items: [{ name }] },
+      });
+      if (result?.isError) throw new Error("Failed to remove equipment");
+      const updated = parseToolResult(result);
+      if (updated) setData(updated);
+    },
+    [app, setData],
+  );
+
+  const headerBadge = useMemo(
+    () => <span className="font-mono text-xs text-gray-400">{items.length} items</span>,
+    [items.length],
+  );
 
   if (items.length === 0) {
     return (
@@ -122,22 +149,7 @@ export function KitchenEquipmentView({
           Kitchen Equipment
         </h1>
         <EmptyState
-          icon={
-            <svg
-              aria-hidden="true"
-              className="size-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.88-5.88m-3.7 3.8L8.25 12m0 0 2.17-2.17m-2.17 2.17-5.88-5.88A2.652 2.652 0 0 1 6.12 2.37L12 8.25m-1.58 1.58 3.75-3.75M3 21l3.75-3.75"
-              />
-            </svg>
-          }
+          icon={EMPTY_EQUIPMENT_ICON}
           message="No kitchen equipment saved"
           description="Add tools and appliances to improve meal suggestions."
         />
@@ -147,11 +159,7 @@ export function KitchenEquipmentView({
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader
-        title="Kitchen Equipment"
-        badge={<span className="font-mono text-xs text-gray-400">{items.length} items</span>}
-        subtitle={actionDetail}
-      />
+      <SectionHeader title="Kitchen Equipment" badge={headerBadge} subtitle={actionDetail} />
       <div className="divide-y divide-border">
         {items.map((item) => (
           <KitchenEquipmentRow
