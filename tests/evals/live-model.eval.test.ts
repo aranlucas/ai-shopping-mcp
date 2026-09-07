@@ -32,7 +32,7 @@ import {
 import { SCENARIOS } from "./scenarios.js";
 
 const evalEnv = env as unknown as Record<string, string | undefined>;
-const liveEnabled = Boolean(evalEnv.EVAL_LIVE);
+const liveEnabled = evalEnv.EVAL_LIVE === "1";
 const model = evalEnv.EVAL_MODEL ?? "@cf/meta/llama-3.1-8b-instruct";
 
 const MAX_AGENT_TURNS = 12;
@@ -161,12 +161,6 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
           };
         }
         if (toolResult.isError) stats.schemaRejections++;
-        if (process.env.EVAL_LOG) {
-          console.log(
-            `[live-eval] ${toolCall.function.name}(${toolCall.function.arguments}) -> ` +
-              `${toolResult.isError ? "ERROR" : "ok"}: ${contentText(toolResult).slice(0, 200)}`,
-          );
-        }
 
         messages.push({ role: "tool", name: toolCall.name, content: contentText(toolResult) });
       }
