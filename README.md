@@ -1,6 +1,6 @@
 # Grocery shopping MCP
 
-Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Product search spans multiple store catalogs; cart, store, and weekly-deal tools are Kroger/QFC-backed. OAuth grants live in the existing `OAUTH_KV` namespace; cart retry state and the product/location cache live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
+Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Product search spans multiple store catalogs; cart, store, and weekly-deal tools are Kroger/QFC-backed. OAuth grants live in the existing `OAUTH_KV` namespace; atomic cart operations live in the `CART_OPERATIONS` Durable Object; legacy cart receipts, the assistant cart mirror, and product/location caches live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
 
 ## Local development
 
@@ -50,24 +50,16 @@ searches each named catalog concurrently, returning one block per provider under
 each search term. A provider is anything implementing `CatalogProvider`
 (`src/services/catalog/types.ts`); adding one needs no tool changes.
 
-| provider           | cart | identifier       |
-| ------------------ | ---- | ---------------- |
-| `kroger` (default) | yes  | UPC              |
-| `trader_joes`      | no   | Trader Joe's SKU |
+| provider      | cart | identifier       |
+| ------------- | ---- | ---------------- |
+| `kroger`      | yes  | UPC              |
+| `trader_joes` | no   | Trader Joe's SKU |
 
-The one thing the abstraction deliberately does not hide is what a match can
-_do_. Kroger's API has no SKU concept at all — it keys products, items, and the
-cart route on one 13-digit UPC (`productId`, `upc`, and `itemId` are all
-documented as "the UPC"). A Trader Joe's SKU is a Magento catalog key, not a
-barcode. So `capabilities.cart` and `identifierLabel` are both part of the
-provider contract, and output lines read `kroger upc=` or `trader_joes sku=`
-rather than a bare `upc=`. `identifierLabel` is declared per provider rather
-than inferred from `capabilities.cart`, because what an identifier is called and
-whether it can reach a cart are unrelated facts.
-
-Providers degrade independently: one being unreachable marks its own results
-failed and leaves the others intact. The search only errors when nothing was
-found anywhere _and_ something failed.
+Products use provider-scoped `productRef=<provider>:<id>` tokens. Preserve these
+references on lists and orders. `capabilities.cart` indicates whether the provider
+supports cart writes; Trader Joe's product identifiers must never reach Kroger's cart.
+Omitting `providers` searches every registered provider. Search failures retain their
+error type and recovery guidance while successful providers remain usable.
 
 ### Trader Joe's
 
@@ -97,9 +89,8 @@ limit. The catalog holds no user data, so entries are shared across shoppers.
 Lists live in agents-gateway/D1 and are edited through `get_shopping_list` (with
 no `listId` it returns every list and its id; with one it returns that list's
 items and their `itemId`s), then `add_shopping_list_items` and
-`edit_shopping_list_item`. List items take either a Kroger `upc` or a plain
-`productName`, which is what lets Trader Joe's products, recipe ingredients, and
-free text onto a list alongside Kroger products.
+`edit_shopping_list_item`. List items accept provider-scoped `productRef` values, legacy Kroger `upc` values,
+or plain `productName` entries for unmatched ingredients.
 
 It exposes four workflow prompts:
 
@@ -109,6 +100,32 @@ It exposes four workflow prompts:
 - `plan_meals_from_pantry`
 
 The primary small-model contract is concise text in `content[0].text`. MCP App routing metadata stays in `_meta`; do not treat `structuredContent` as the reasoning payload.
+
+### Cart outcomes and retries
+
+List-backed cart writes reserve an atomic journal entry before contacting Kroger.
+The journal is scoped to the authenticated user and OAuth client. Concurrent calls
+for the same list cannot submit twice. Completed operations remain recorded even
+if the legacy KV receipt fails; pending operations do not expire into permission
+to retry. A lost upstream response is reported as `MUTATION_OUTCOME_UNKNOWN` with
+`recovery: "check_cart"`. Check the real Kroger cart before starting a new operation;
+the assistant mirror is not proof of the upstream outcome.
+
+For inline cart items, supply a unique `operationId` and reuse it for retries.
+Reusing an id with changed items is rejected. Calls without an id remain supported
+for compatibility but have no cross-request deduplication key. A new id means a
+new intentional cart add. The one-shot `shop_for_items` workflow creates a new list
+on every call; retry its cart step using the returned `listId`, not by repeating
+the whole workflow.
+
+The `v3` migration adds the SQLite-backed `CartOperations` class. Deploy the code,
+binding, and migration together. Retain the old `v1`/`v2` migration history.
+
+Gateway and Kroger requests have a 10-second deadline and inherit HTTP request
+cancellation. GET responses with 502/503/504 are retried once after 200ms within
+that same deadline, unless the server supplies `Retry-After`. Mutations are never
+automatically retried. MCP errors include `structuredContent.error` with `code`,
+`message`, and `recovery`; concise text remains the primary model-facing payload.
 
 ## Connect a client
 

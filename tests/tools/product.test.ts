@@ -338,15 +338,17 @@ describe("search_products", () => {
     });
   });
 
-  it("returns textResult 'Search failed for...' when all searches fail with API errors", async () => {
+  it("preserves actionable errors when all searches fail", async () => {
     registerProductTools(makeContext(async () => makeErrorResponse(500)));
 
     const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
 
     const text = textFromResult(result);
-    expect(text).toContain("Search failed for");
+    expect(text).toContain("Failed to search products");
     expect(text).toContain("milk");
-    expect(structuredContentOf(result)).toBeUndefined();
+    expect(structuredContentOf(result)).toMatchObject({
+      error: { code: "API_ERROR", recovery: "retry_later" },
+    });
   });
 
   it("includes successful results in structuredContent while failed terms appear with failed: true", async () => {
@@ -478,6 +480,38 @@ describe("search_products", () => {
     };
     expect(firstParams.progressToken).toBe("tok-1");
     expect(firstParams.total).toBe(2);
+  });
+
+  it("accepts progress token zero and counts progress across providers", async () => {
+    const notifications: unknown[] = [];
+    const context = makeContext(async () => makeSearchResponse([makeProduct()]));
+    const kroger = context.catalogs.kroger;
+    context.catalogs = { kroger, second: { ...kroger, id: "second", label: "Second" } };
+    registerProductTools(context);
+    await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
+      mcpReq: {
+        _meta: { progressToken: 0 },
+        notify: async (notification: unknown) => {
+          notifications.push(notification);
+        },
+      },
+    } as unknown as ServerContext);
+    expect(notifications).toEqual(
+      [1, 2, 3, 4].map((progress) => ({
+        method: "notifications/progress",
+        params: { progressToken: 0, progress, total: 4 },
+      })),
+    );
+  });
+
+  it("reports reconnect guidance for expired authentication", async () => {
+    registerProductTools(makeContext(async () => makeErrorResponse(401)));
+    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+    });
+    expect(textFromResult(result)).toContain("Reconnect");
   });
 
   it("sorts products within each result so pickup-available products come first", async () => {

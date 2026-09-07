@@ -9,12 +9,15 @@ import type { Props, UserStorage } from "../tools/types.js";
 
 import {
   type AppError,
+  AppErrorException,
   apiError,
   authError,
   formatAppError,
   networkError,
   notFoundError,
   storageError,
+  errorRecovery,
+  invalidResponseError,
 } from "../errors.js";
 export { safeJsonParse, safeJsonParseWithSchema } from "./json.js";
 
@@ -24,6 +27,9 @@ export { safeJsonParse, safeJsonParseWithSchema } from "./json.js";
 type McpToolResult = {
   content: Array<{ type: "text"; text: string }>;
   isError?: true;
+  structuredContent?: {
+    error: { code: AppError["type"]; message: string; recovery: ReturnType<typeof errorRecovery> };
+  };
 };
 
 /**
@@ -34,6 +40,9 @@ export function toMcpError(error: AppError): McpToolResult {
   return {
     content: [{ type: "text" as const, text: formatAppError(error) }],
     isError: true as const,
+    structuredContent: {
+      error: { code: error.type, message: error.message, recovery: errorRecovery(error) },
+    },
   };
 }
 
@@ -47,16 +56,27 @@ export function toMcpError(error: AppError): McpToolResult {
  * for endpoints that return no body.
  */
 export function fromApiResponse<T>(
-  promise: Promise<{ data?: T; error?: unknown; response: Response }>,
+  promise:
+    | Promise<{ data?: T; error?: unknown; response: Response }>
+    | (() => Promise<{ data?: T; error?: unknown; response: Response }>),
   context: string,
 ): ResultAsync<T, AppError> {
-  return ResultAsync.fromPromise(promise, (e) => {
+  const mapFailure = (e: unknown): AppError => {
+    if (e instanceof SyntaxError)
+      return invalidResponseError(`${context}: upstream returned malformed JSON.`, e);
     if (e instanceof Error && e.name === "KrogerTokenExpiredError") {
       return authError(e.message);
     }
     return networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e);
-  }).andThen(({ data, error, response }) => {
-    if (error || !response.ok) {
+  };
+  const result =
+    typeof promise === "function"
+      ? ResultAsync.fromThrowable(promise, mapFailure)()
+      : ResultAsync.fromPromise(promise, mapFailure);
+  return result.andThen(({ data, error, response }) => {
+    if (response.status === 401)
+      return err(authError("Authentication expired. Reconnect the MCP server."));
+    if (error !== undefined || !response.ok) {
       return err(apiError(`Failed to ${context}`, error, response.status));
     }
     return ok(data as T);
@@ -148,7 +168,9 @@ export function safeStorage<T>(
   operation: () => Promise<T>,
   context: string,
 ): ResultAsync<T, AppError> {
-  return ResultAsync.fromPromise(operation(), (e) =>
-    storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
-  );
+  return ResultAsync.fromThrowable(operation, (e): AppError =>
+    e instanceof AppErrorException
+      ? e.appError
+      : storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
+  )();
 }

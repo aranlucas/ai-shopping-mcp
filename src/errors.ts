@@ -46,6 +46,19 @@ export interface NetworkError {
   readonly cause?: ErrorCause;
 }
 
+export interface InvalidResponseError {
+  readonly type: "INVALID_RESPONSE";
+  readonly message: string;
+  readonly cause?: ErrorCause;
+}
+
+/** A remote mutation may have committed. Repeating it is unsafe. */
+export interface MutationOutcomeUnknownError {
+  readonly type: "MUTATION_OUTCOME_UNKNOWN";
+  readonly message: string;
+  readonly cause?: ErrorCause;
+}
+
 /** Discriminated union of all application errors */
 export type AppError =
   | ApiError
@@ -53,7 +66,17 @@ export type AppError =
   | NotFoundError
   | ValidationError
   | StorageError
-  | NetworkError;
+  | NetworkError
+  | InvalidResponseError
+  | MutationOutcomeUnknownError;
+
+/** Preserve typed failures across Promise-based adapter interfaces. */
+export class AppErrorException extends Error {
+  constructor(readonly appError: AppError) {
+    super(appError.message);
+    this.name = "AppErrorException";
+  }
+}
 
 // --- Error constructors ---
 
@@ -99,6 +122,43 @@ export const networkError = (message: string, cause?: unknown): NetworkError => 
   message,
   cause: toErrorCause(cause),
 });
+
+export const invalidResponseError = (message: string, cause?: unknown): InvalidResponseError => ({
+  type: "INVALID_RESPONSE",
+  message,
+  cause: toErrorCause(cause),
+});
+
+export const mutationOutcomeUnknown = (
+  message: string,
+  cause?: unknown,
+): MutationOutcomeUnknownError => ({
+  type: "MUTATION_OUTCOME_UNKNOWN",
+  message,
+  cause: toErrorCause(cause),
+});
+
+/** Actionable recovery metadata for MCP consumers, without upstream details. */
+export function errorRecovery(
+  error: AppError,
+): "reconnect" | "retry_later" | "check_cart" | "correct_input" | "contact_support" {
+  switch (error.type) {
+    case "AUTH_ERROR":
+      return "reconnect";
+    case "MUTATION_OUTCOME_UNKNOWN":
+      return "check_cart";
+    case "VALIDATION_ERROR":
+    case "NOT_FOUND":
+      return "correct_input";
+    case "API_ERROR":
+      return error.status === 429 || (error.status ?? 0) >= 500 ? "retry_later" : "correct_input";
+    case "NETWORK_ERROR":
+    case "STORAGE_ERROR":
+      return "retry_later";
+    case "INVALID_RESPONSE":
+      return "contact_support";
+  }
+}
 
 /** Format any AppError into a user-facing message */
 export function formatAppError(error: AppError): string {

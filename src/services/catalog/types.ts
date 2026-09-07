@@ -81,6 +81,7 @@ export type CatalogSearchResult = {
   products: CatalogProduct[];
   /** The provider could not answer for this term. Other providers may still have. */
   failed: boolean;
+  error?: AppError;
 };
 
 export type CatalogSearchOptions = {

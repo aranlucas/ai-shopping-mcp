@@ -18,9 +18,10 @@
     "directory": "./dist/views",
     "binding": "ASSETS",
   },
-  // v1 is retained as migration history so Wrangler can apply v2. The v2
-  // migration deletes the retired MyMCP Durable Object, and there is no active
-  // `durable_objects` binding below.
+  "durable_objects": {
+    "bindings": [{ "name": "CART_OPERATIONS", "class_name": "CartOperations" }],
+  },
+  // Retain the retired MCP transport object's migration history.
   "migrations": [
     {
       "new_sqlite_classes": ["MyMCP"],
@@ -29,6 +30,10 @@
     {
       "deleted_classes": ["MyMCP"],
       "tag": "v2",
+    },
+    {
+      "new_sqlite_classes": ["CartOperations"],
+      "tag": "v3",
     },
   ],
   "kv_namespaces": [

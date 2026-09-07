@@ -305,6 +305,6 @@ describe("search_products across providers", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.text).toContain("Search failed for: chili crunch");
+    expect(result.text).toContain("blocked");
   });
 });

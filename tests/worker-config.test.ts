@@ -6,7 +6,7 @@ import wranglerConfig from "../wrangler.jsonc?raw";
 
 describe("Worker configuration", () => {
   it("does not expose the retired MyMCP Durable Object database binding", () => {
-    expect(wranglerConfig).not.toContain('"durable_objects"');
+    expect(wranglerConfig).toContain('"class_name": "CartOperations"');
     expect(wranglerConfig).not.toContain('"MCP_OBJECT"');
     expect(wranglerConfig).toContain('"deleted_classes": ["MyMCP"]');
     expect(serverSource).not.toContain("class MyMCP");

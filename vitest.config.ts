@@ -26,6 +26,9 @@ export default defineConfig({
                     compatibilityDate: "2025-03-10",
                     compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
                     kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
+                    durableObjects: {
+                      CART_OPERATIONS: { className: "CartOperations", useSQLite: true },
+                    },
                   }),
               // Miniflare's WorkerOptions expose plain variables through
               // `bindings`, not `vars` (which is wrangler-config syntax). Using

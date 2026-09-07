@@ -9,7 +9,7 @@ import type {
   CatalogSearchResult,
 } from "./types.js";
 
-import { notFoundError } from "../../errors.js";
+import { notFoundError, networkError } from "../../errors.js";
 
 function toCatalogProduct(product: TraderJoesProduct): CatalogProduct {
   return {
@@ -42,16 +42,25 @@ export function createTraderJoesCatalogProvider(client: TraderJoesClient): Catal
     label: "Trader Joe's",
     capabilities: { cart: false, aisleLocation: false },
     search(terms: string[], options: CatalogSearchOptions) {
+      let completed = 0;
       // One search per term, in parallel. A term that fails is marked failed
       // rather than failing the batch — one bad term must not lose the rest,
       // and one provider being down must not lose the other's results.
-      return ResultAsync.fromSafePromise(
+      return ResultAsync.fromPromise(
         Promise.all(
           terms.map(async (term): Promise<CatalogSearchResult> => {
             const result = await client.searchProducts(term, {
               limit: options.limitPerTerm,
               ...(options.storeId === undefined ? {} : { storeCode: options.storeId }),
             });
+            completed++;
+            if (options.onTermComplete) {
+              try {
+                await options.onTermComplete(completed, terms.length);
+              } catch (cause) {
+                console.warn("Search progress notification failed:", cause);
+              }
+            }
             return result
               .map((value) => ({
                 provider: "trader_joes" as const,
@@ -62,14 +71,19 @@ export function createTraderJoesCatalogProvider(client: TraderJoesClient): Catal
               .orTee((error) =>
                 console.warn(`Trader Joe's search failed for "${term}":`, error.message),
               )
-              .unwrapOr({
-                provider: "trader_joes" as const,
-                term,
-                products: [],
-                failed: true,
-              });
+              .match(
+                (value) => value,
+                (error) => ({
+                  provider: "trader_joes" as const,
+                  term,
+                  products: [],
+                  failed: true,
+                  error,
+                }),
+              );
           }),
         ),
+        (cause) => networkError("Trader Joe's search could not be completed.", cause),
       );
     },
     get(reference, options: CatalogGetOptions) {

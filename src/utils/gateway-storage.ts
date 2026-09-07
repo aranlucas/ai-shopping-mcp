@@ -1,4 +1,11 @@
 import * as z from "zod/v4";
+import {
+  AppErrorException,
+  apiError,
+  authError,
+  invalidResponseError,
+  networkError,
+} from "../errors.js";
 
 import type { GatewayClient } from "../services/gateway/client.js";
 import type {
@@ -93,49 +100,64 @@ const ordersResponseSchema = z.object({ orders: z.array(orderSchema) });
 
 type GatewayCall = Promise<{ data?: unknown; error?: unknown; response: Response }>;
 
-class GatewayRequestError extends Error {
-  readonly cause: unknown;
+function gatewayFailure(response: Response, error: unknown): AppErrorException {
+  return new AppErrorException(
+    response.status === 401
+      ? authError("Gateway authentication expired. Reconnect the MCP server.")
+      : apiError(`Gateway request failed (${response.status})`, error, response.status),
+  );
+}
 
-  constructor(message: string, cause: unknown) {
-    super(message);
-    this.cause = cause;
-    this.name = "GatewayRequestError";
+async function callGateway(call: GatewayCall) {
+  try {
+    return await call;
+  } catch (cause) {
+    throw new AppErrorException(
+      cause instanceof SyntaxError
+        ? invalidResponseError("Gateway returned malformed JSON.", cause)
+        : networkError("Gateway request could not be completed.", cause),
+    );
   }
 }
 
-function gatewayFailure(response: Response, error: unknown): Error {
-  const detail = z.object({ error: z.string() }).safeParse(error).data?.error;
-  return new GatewayRequestError(
-    `Gateway request failed (${response.status})${detail ? `: ${detail}` : ""}`,
-    error,
-  );
+function parseGateway<TSchema extends z.ZodType>(
+  schema: TSchema,
+  data: unknown,
+): z.output<TSchema> {
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) {
+    throw new AppErrorException(
+      invalidResponseError("Gateway returned an invalid response.", parsed.error),
+    );
+  }
+  return parsed.data;
 }
 
 async function readGateway<TSchema extends z.ZodType>(
   call: GatewayCall,
   schema: TSchema,
 ): Promise<z.output<TSchema>> {
-  const result = await call;
+  const result = await callGateway(call);
   if (!result.response.ok || result.error !== undefined) {
     throw gatewayFailure(result.response, result.error);
   }
-  return schema.parse(result.data);
+  return parseGateway(schema, result.data);
 }
 
 async function readOptionalGateway<TSchema extends z.ZodType>(
   call: GatewayCall,
   schema: TSchema,
 ): Promise<z.output<TSchema> | null> {
-  const result = await call;
+  const result = await callGateway(call);
   if (result.response.status === 404) return null;
   if (!result.response.ok || result.error !== undefined) {
     throw gatewayFailure(result.response, result.error);
   }
-  return schema.parse(result.data);
+  return parseGateway(schema, result.data);
 }
 
 async function expectGatewaySuccess(call: GatewayCall): Promise<void> {
-  const result = await call;
+  const result = await callGateway(call);
   if (!result.response.ok || result.error !== undefined) {
     throw gatewayFailure(result.response, result.error);
   }
@@ -274,13 +296,11 @@ export interface ShoppingStore {
       patch: ShoppingListItemPatch,
     ): Promise<ShoppingListItem>;
     removeItem(listId: string, itemId: string): Promise<void>;
-    clear(listId: string): Promise<void>;
   };
   orderHistory: {
     getAll(): Promise<OrderRecord[]>;
-    add(order: OrderRecord): Promise<OrderRecord[]>;
+    add(order: OrderRecord): Promise<OrderRecord>;
     getRecent(limit?: number): Promise<OrderRecord[]>;
-    clear(): Promise<void>;
   };
 }
 
@@ -466,15 +486,10 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
           }),
         );
       },
-      // Gateway lists are durable records; cart checkout does not delete them.
-      clear: async () => {},
     },
     orderHistory: {
       getAll: () => getOrders(50),
       add: async (order) => {
-        // Preserve the old add() return value without doing a fallible read
-        // after the mutation has already succeeded.
-        const history = await getOrders(50);
         const recorded = await readGateway(
           client.POST("/api/grocery/orders", {
             body: {
@@ -497,16 +512,9 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
           }),
           orderSchema,
         );
-        const adapted = adaptOrder(recorded);
-        return [adapted, ...history.filter((item) => item.orderId !== adapted.orderId)].slice(
-          0,
-          50,
-        );
+        return adaptOrder(recorded);
       },
       getRecent: (limit = 10) => getOrders(limit),
-      clear: async () => {
-        throw new Error("Gateway does not support clearing order history");
-      },
     },
   };
 }

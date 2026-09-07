@@ -1,3 +1,4 @@
+import { errorRecovery } from "../errors.js";
 /**
  * Response formatting utilities for MCP tool responses: compact, non-markdown
  * summaries for storage-backed lists (pantry, equipment, orders, shopping
@@ -253,7 +254,9 @@ export function formatCatalogSearchMarkdown(
       );
       if (!result) continue;
       if (result.failed) {
-        lines.push(`- ${provider.label} search failed for this term.`);
+        lines.push(
+          `- ${provider.label} search failed for this term.${result.error ? ` ${result.error.message} recovery=${errorRecovery(result.error)}` : ""}`,
+        );
       } else if (result.products.length === 0) {
         lines.push(`- No ${provider.label} results.`);
       } else {

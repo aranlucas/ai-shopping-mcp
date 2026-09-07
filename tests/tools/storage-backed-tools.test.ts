@@ -559,7 +559,6 @@ describe("storage-backed tools", () => {
       removeItem: async () => {
         throw new Error("shoppingList.removeItem not used by this test");
       },
-      clear: async () => {},
     };
 
     const ctx = makeCartContext(storage, 204, makeProductService({ "0001111042578": "Milk" }));

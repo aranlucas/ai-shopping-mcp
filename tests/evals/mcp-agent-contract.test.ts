@@ -134,6 +134,14 @@ describe("MCP agent contract", () => {
     expect(toolNames).not.toContain("set_preferred_location");
   });
 
+  it("publishes compatible MCP App resource metadata", () => {
+    const appTools = registerAllTools().filter((tool) => tool.config._meta?.ui?.resourceUri);
+    expect(appTools.length).toBeGreaterThan(0);
+    expect(appTools.map((tool) => tool.config._meta?.["ui/resourceUri"])).toEqual(
+      appTools.map((tool) => tool.config._meta?.ui?.resourceUri),
+    );
+  });
+
   it("gives every tool metadata and exact annotations", () => {
     const tools = registerAllTools();
     for (const tool of tools) {

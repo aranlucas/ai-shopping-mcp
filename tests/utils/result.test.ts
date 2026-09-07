@@ -4,7 +4,7 @@ import * as z from "zod/v4";
 
 import type { Props, UserStorage } from "../../src/tools/types.js";
 
-import { apiError, authError, notFoundError } from "../../src/errors.js";
+import { AppErrorException, apiError, authError, notFoundError } from "../../src/errors.js";
 import { KrogerTokenExpiredError } from "../../src/services/kroger/client.js";
 import {
   fromApiResponse,
@@ -27,7 +27,7 @@ vi.mock("agents/mcp", () => ({
 describe("toMcpError", () => {
   it("converts AppError to MCP error response", () => {
     const result = toMcpError(authError("not authenticated"));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       content: [{ type: "text", text: "not authenticated" }],
       isError: true,
     });
@@ -35,7 +35,7 @@ describe("toMcpError", () => {
 
   it("formats API errors with detail", () => {
     const result = toMcpError(apiError("request failed", { status: 400 }));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       content: [{ type: "text", text: 'request failed: {"status":400}' }],
       isError: true,
     });
@@ -308,6 +308,26 @@ describe("safeResolveLocationId", () => {
 // --- safeStorage ---
 
 describe("safeStorage", () => {
+  it("captures a synchronous throw", async () => {
+    const result = await safeStorage(() => {
+      throw new Error("sync failure");
+    }, "read");
+    expect(result._unsafeUnwrapErr()).toMatchObject({
+      type: "STORAGE_ERROR",
+      message: "read: sync failure",
+    });
+  });
+
+  it("preserves typed adapter failures", async () => {
+    const failure = authError("Reconnect the MCP server.");
+    const result = await safeStorage(() => {
+      throw new AppErrorException(failure);
+    }, "read");
+    expect(result._unsafeUnwrapErr()).toBe(failure);
+    expect(toMcpError(result._unsafeUnwrapErr())).toMatchObject({
+      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+    });
+  });
   it("returns Ok with value on success", async () => {
     const result = await safeStorage(() => Promise.resolve([1, 2, 3]), "test");
     expect(result.isOk()).toBe(true);
