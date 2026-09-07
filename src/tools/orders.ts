@@ -1,3 +1,4 @@
+import { registerAppTool } from "../utils/app-tool.js";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../utils/user-storage.js";
@@ -20,7 +21,7 @@ const orderItemSchema = z
       .describe("productRef from search_products"),
     upc: upcSchema.optional().describe("Deprecated Kroger UPC compatibility input"),
     productName: z.string().max(200),
-    quantity: z.coerce.number().min(1).max(999),
+    quantity: z.coerce.number().int().min(1).max(999),
     price: z.coerce.number().min(0).optional(),
   })
   .refine((item) => Boolean(item.productRef ?? item.upc), {
@@ -37,7 +38,8 @@ export const recordOrderInputSchema = z.object({
 });
 
 export function registerOrderTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "record_order",
     {
       title: "Record Completed Order",

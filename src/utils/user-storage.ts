@@ -1,3 +1,4 @@
+import type { CartOperationStore } from "../cart-operations.js";
 /** Tool-facing shopping domain types plus cart-only Cloudflare KV persistence. */
 import * as z from "zod/v4";
 
@@ -97,6 +98,7 @@ export type CartMirrorItem = CartSnapshotItem & { addedAt: string };
 export type PersistenceIdentity = Readonly<{ userId: string; clientId: string }>;
 
 export interface CartStore {
+  operations: CartOperationStore;
   cartSnapshot: {
     get(listId: string): Promise<CartSnapshotItem[] | null>;
     set(listId: string, items: CartSnapshotItem[]): Promise<void>;
@@ -207,6 +209,7 @@ export class CartPersistence implements CartStore {
   constructor(
     private readonly kv: PersistenceKv,
     identity: PersistenceIdentity | (() => PersistenceIdentity),
+    readonly operations: CartOperationStore,
   ) {
     this.getIdentity = typeof identity === "function" ? identity : () => identity;
   }
@@ -266,6 +269,7 @@ export class CartPersistence implements CartStore {
 export function createCartPersistence(
   kv: PersistenceKv,
   identity: PersistenceIdentity | (() => PersistenceIdentity),
+  operations: CartOperationStore,
 ): CartPersistence {
-  return new CartPersistence(kv, identity);
+  return new CartPersistence(kv, identity, operations);
 }

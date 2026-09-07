@@ -317,6 +317,7 @@ export type TraderJoesClientOptions = {
   storeCode?: string;
   kv?: KvLike | null;
   fetcher?: typeof globalThis.fetch;
+  signal?: AbortSignal;
 };
 
 export function createTraderJoesClient(options: TraderJoesClientOptions = {}): TraderJoesClient {
@@ -345,7 +346,10 @@ export function createTraderJoesClient(options: TraderJoesClientOptions = {}): T
       graphQL.request<unknown, SearchVariables>({
         document: SEARCH_PRODUCTS,
         variables,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.any([
+          AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          ...(options.signal ? [options.signal] : []),
+        ]),
       }),
       toCatalogError,
     ).andThen((data) => {

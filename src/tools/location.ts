@@ -1,3 +1,4 @@
+import { registerAppTool } from "../utils/app-tool.js";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -42,7 +43,8 @@ function compactLocation(location: Location): LocationData {
 export function registerLocationTools(ctx: ToolContext) {
   const { locationClient } = ctx.clients;
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "search_stores",
     {
       title: "Search Store Locations",
@@ -99,7 +101,8 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "get_store",
     {
       title: "Get Store Details",
@@ -139,7 +142,8 @@ export function registerLocationTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "set_preferred_store",
     {
       title: "Set Preferred Store",

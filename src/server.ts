@@ -36,6 +36,8 @@ import { getProps } from "./utils/result.js";
 import { createCartPersistence } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
+export { CartOperations } from "./cart-operations.js";
+
 /**
  * Tool/resource registrars, each invoked with the shared ToolContext.
  * Add a new tool module here — registration order is not significant.
@@ -84,28 +86,45 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
   const clientId = requestContext.authInfo?.clientId ?? getProps().id;
   const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
 
-  const clients = createKrogerClients((): KrogerTokenInfo | null => {
-    const props = getMcpAuthContext()?.props;
-    if (
-      !props ||
-      typeof props.accessToken !== "string" ||
-      typeof props.tokenExpiresAt !== "number"
-    ) {
-      return null;
-    }
-    return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
-  }, getUserDataKv(env));
+  const clients = createKrogerClients(
+    (): KrogerTokenInfo | null => {
+      const props = getMcpAuthContext()?.props;
+      if (
+        !props ||
+        typeof props.accessToken !== "string" ||
+        typeof props.tokenExpiresAt !== "number"
+      ) {
+        return null;
+      }
+      return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
+    },
+    getUserDataKv(env),
+    requestContext.requestInfo?.signal,
+  );
 
   const gatewayToken = requestBearerToken(requestContext);
   if (!gatewayToken) {
     throw new Error("Authenticated MCP request is missing its bearer token");
   }
-  const gatewayClient = createGatewayClient(env.GATEWAY_URL, gatewayToken);
+  const gatewayClient = createGatewayClient(
+    env.GATEWAY_URL,
+    gatewayToken,
+    requestContext.requestInfo?.signal,
+  );
   const storage = createGatewayShoppingStore(gatewayClient);
-  const carts = createCartPersistence(env.USER_DATA_KV, () => ({
-    userId: getProps().id,
-    clientId,
-  }));
+  const journal = env.CART_OPERATIONS.getByName(getProps().id);
+  const carts = createCartPersistence(
+    env.USER_DATA_KV,
+    () => ({
+      userId: getProps().id,
+      clientId,
+    }),
+    {
+      begin: (key, fingerprint) => journal.begin(JSON.stringify([clientId, key]), fingerprint),
+      complete: (key, attempt) => journal.complete(JSON.stringify([clientId, key]), attempt),
+      reject: (key, attempt) => journal.reject(JSON.stringify([clientId, key]), attempt),
+    },
+  );
   const productService = new ProductService(clients.productClient);
   const catalogs = {
     kroger: createKrogerCatalogProvider(clients.productClient),
@@ -118,6 +137,7 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
           ? {}
           : { storeCode: env.TRADER_JOES_STORE_CODE }),
         kv: getUserDataKv(env),
+        signal: requestContext.requestInfo?.signal,
       }),
     ),
   } as const;

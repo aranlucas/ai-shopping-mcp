@@ -1,3 +1,4 @@
+import { cartOperationStore } from "../cart-operation-store.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
@@ -124,6 +125,7 @@ function makeStorage(
       create: async () => storedList ?? listFixture(),
       clear: async () => {},
     } as unknown as UserStorage["shoppingList"],
+    operations: cartOperationStore(),
     cartSnapshot: {
       get: async () => existingSnapshot,
       set: async (_id: string, items: unknown[]) => {
@@ -288,7 +290,7 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(putCalls).toHaveLength(0);
     });
 
-    it("reports an ambiguous completed mutation when the receipt write fails", async () => {
+    it("keeps success and blocks retries when the legacy KV snapshot write fails", async () => {
       const storage = makeStorage(listFixture());
       storage.cartSnapshot.set = async () => {
         throw new Error("KV unavailable");
@@ -302,9 +304,89 @@ describe("add_shopping_list_to_cart tool", () => {
       });
 
       expect(putCalls).toHaveLength(1);
-      expect(isErrorResult(result)).toBe(true);
-      expect(textFromResult(result)).toContain("outcome is ambiguous");
+      expect(isErrorResult(result)).toBe(false);
+      const retry = await getCapturedHandler("add_shopping_list_to_cart")({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
+      expect(textFromResult(retry)).toContain("already added");
+      expect(putCalls).toHaveLength(1);
+    });
+
+    it("submits only once for concurrent calls with the same list", async () => {
+      const { context, putCalls } = makeContext();
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () => handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID })),
+      );
+      expect(putCalls).toHaveLength(1);
+      expect(results.some((result) => !isErrorResult(result))).toBe(true);
+    });
+
+    it("deduplicates inline operation ids and rejects changed payloads", async () => {
+      const { context, putCalls } = makeContext();
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+      const args = {
+        items: [{ upc: "0001111042578", quantity: 1 }],
+        storeId: LOCATION_ID,
+        operationId: "dinner",
+      };
+      expect(isErrorResult(await handler(args))).toBe(false);
+      expect(textFromResult(await handler(args))).toContain("already added");
+      const changed = await handler({ ...args, items: [{ upc: "0001111042578", quantity: 2 }] });
+      expect(isErrorResult(changed)).toBe(true);
+      expect(textFromResult(changed)).toContain("different items");
+      expect(putCalls).toHaveLength(1);
+    });
+
+    it("keeps a lost upstream response blocked on retry", async () => {
+      const { context, putCalls } = makeContext(undefined, { status: 204, throws: true });
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+      const result = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      expect(result).toMatchObject({
+        isError: true,
+        structuredContent: { error: { code: "MUTATION_OUTCOME_UNKNOWN", recovery: "check_cart" } },
+      });
+      const retry = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      expect(textFromResult(retry)).toContain("do not retry");
+      expect(putCalls).toHaveLength(1);
+    });
+
+    it("allows a retry after a definitive upstream rejection", async () => {
+      const config = { status: 429 };
+      const { context, putCalls } = makeContext(undefined, config);
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+      expect(isErrorResult(await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }))).toBe(
+        true,
+      );
+      config.status = 204;
+      expect(isErrorResult(await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }))).toBe(
+        false,
+      );
+      expect(putCalls).toHaveLength(2);
+    });
+
+    it("blocks retries when recording a confirmed success fails", async () => {
+      const { context, putCalls } = makeContext();
+      const journal = context.carts.operations;
+      context.carts.operations = {
+        begin: (key, fingerprint) => journal.begin(key, fingerprint),
+        reject: (key, attempt) => journal.reject(key, attempt),
+        complete: async () => {
+          throw new Error("journal unavailable");
+        },
+      };
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+      const result = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      expect(textFromResult(result)).toContain("Kroger accepted");
       expect(textFromResult(result)).toContain("do not retry");
+      await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      expect(putCalls).toHaveLength(1);
     });
 
     it("uses preferred location from storage when storeId is omitted", async () => {
@@ -592,7 +674,7 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(textFromResult(result)).toContain("Failed to add");
     });
 
-    it("returns a network error when cartClient.PUT throws", async () => {
+    it("returns an unknown mutation outcome when cartClient.PUT throws", async () => {
       const { context } = makeContext(undefined, { status: 204, throws: true });
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
@@ -603,7 +685,7 @@ describe("add_shopping_list_to_cart tool", () => {
       });
 
       expect(isErrorResult(result)).toBe(true);
-      expect(textFromResult(result)).toContain("Network failure");
+      expect(textFromResult(result)).toContain("do not retry");
     });
   });
 

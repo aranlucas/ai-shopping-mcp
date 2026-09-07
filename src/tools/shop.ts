@@ -1,3 +1,4 @@
+import { registerAppTool } from "../utils/app-tool.js";
 import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../services/kroger/product.js";
@@ -27,7 +28,7 @@ function getMatchRankerAi(ctx: ToolContext): Ai {
 
 const shopItemSchema = z.object({
   name: z.string().min(1).max(100).describe("Item to shop for, e.g. 'whole milk'"),
-  quantity: z.coerce.number().min(1).max(999).default(1),
+  quantity: z.coerce.number().int().min(1).max(999).default(1),
 });
 
 export const shopForItemsInputSchema = z.object({
@@ -105,15 +106,27 @@ async function finishShopForItemsCart(
     receiptListId: listId,
   });
   if (addResult.isErr()) {
-    if (addResult.error.type === "STORAGE_ERROR") {
-      return toMcpError(addResult.error);
+    if (
+      addResult.error.type === "STORAGE_ERROR" ||
+      addResult.error.type === "MUTATION_OUTCOME_UNKNOWN"
+    ) {
+      return toMcpError({
+        ...addResult.error,
+        message: `listId=${listId}. ${addResult.error.message}`,
+      });
     }
     parts.push(
       "",
-      `Cart add failed; the shopping list still exists. Retry with add_shopping_list_to_cart {"listId":"${listId}"}.`,
+      `Cart add failed: ${addResult.error.message}. The shopping list still exists. After resolving this error, retry with add_shopping_list_to_cart {"listId":"${listId}"}.`,
     );
     return shoppingListResponse(listId, list, parts);
   }
+
+  if (addResult.value === "already_added")
+    return shoppingListResponse(listId, list, [
+      ...parts,
+      "These items were already added to the Kroger cart.",
+    ]);
 
   parts.push(
     "",
@@ -125,7 +138,8 @@ async function finishShopForItemsCart(
 export function registerShopTools(ctx: ToolContext) {
   const { productClient } = ctx.clients;
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "shop_for_items",
     {
       title: "Shop For Items",
@@ -144,6 +158,7 @@ export function registerShopTools(ctx: ToolContext) {
       getProps();
       const resolvedLocation = await safeResolveLocationId(ctx.storage, undefined);
       if (resolvedLocation.isErr()) {
+        if (resolvedLocation.error.type !== "NOT_FOUND") return toMcpError(resolvedLocation.error);
         return toMcpError(
           notFoundError(
             "No preferred store set. Use search_stores to find a store, then set_preferred_store to save it, and try again.",
@@ -205,6 +220,8 @@ export function registerShopTools(ctx: ToolContext) {
       });
 
       if (matched.length === 0) {
+        const failure = searchResults.find((result) => result.error)?.error;
+        if (failure) return toMcpError(failure);
         return toMcpError(
           validationError(
             `No products found for: ${notFound.join(", ")}. Try different search terms with search_products.`,

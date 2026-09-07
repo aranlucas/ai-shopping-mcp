@@ -1,5 +1,7 @@
 import { ResultAsync, err, ok } from "neverthrow";
 import createClient, { type Middleware } from "openapi-fetch";
+import { requestTimeoutMiddleware } from "../../utils/request-timeout.js";
+import { fetchWithReadRetry } from "../../utils/fetch.js";
 import * as z from "zod/v4";
 
 import type { KvLike } from "../../utils/kv.js";
@@ -220,15 +222,20 @@ export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: numbe
 export function createKrogerClients(
   getTokenInfo: () => KrogerTokenInfo | null,
   kv: KvLike | null = null,
+  signal?: AbortSignal,
 ) {
   const authMiddleware = createKrogerAuthMiddleware(getTokenInfo);
   const cacheMiddleware = createKrogerCacheMiddleware(kv, KROGER_CACHE_TTL_SECONDS);
-  const base = { baseUrl: "https://api.kroger.com" };
+  const base = { baseUrl: "https://api.kroger.com", fetch: fetchWithReadRetry };
 
   const cartClient = createClient<CartPaths>(base);
   const identityClient = createClient<IdentityPaths>(base);
   const locationClient = createClient<LocationPaths>(base);
   const productClient = createClient<ProductPaths>(base);
+
+  for (const client of [cartClient, identityClient, locationClient, productClient]) {
+    client.use(requestTimeoutMiddleware(signal));
+  }
 
   cartClient.use(authMiddleware);
   identityClient.use(authMiddleware);

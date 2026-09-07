@@ -1,3 +1,4 @@
+import { cartOperationStore } from "../cart-operation-store.js";
 /**
  * Response size regression tests.
  *
@@ -176,10 +177,14 @@ describe("search_products content size", () => {
       } as Awaited<ReturnType<typeof clients.productClient.GET>>;
     });
 
-    const carts = createCartPersistence(createMockKV(), {
-      userId: "response-size-user",
-      clientId: "client-size",
-    });
+    const carts = createCartPersistence(
+      createMockKV(),
+      {
+        userId: "response-size-user",
+        clientId: "client-size",
+      },
+      cartOperationStore(),
+    );
     const server = {
       registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
         testState.capturedTools.push({

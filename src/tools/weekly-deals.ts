@@ -1,3 +1,4 @@
+import { registerAppTool } from "../utils/app-tool.js";
 import { ResultAsync, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -152,7 +153,8 @@ export function addCacheWarning(result: QfcDealsApiResponse, message: string): Q
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "get_weekly_deals",
     {
       title: "Get Weekly Deals",

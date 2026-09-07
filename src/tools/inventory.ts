@@ -1,3 +1,4 @@
+import { registerAppTool } from "../utils/app-tool.js";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -67,7 +68,8 @@ function equipmentResponse(text: string, items: EquipmentItem[], actionDetail: s
 }
 
 export function registerInventoryTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "add_to_inventory",
     {
       title: "Add To Inventory",
@@ -135,7 +137,8 @@ export function registerInventoryTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "remove_from_inventory",
     {
       title: "Remove From Inventory",
@@ -210,7 +213,8 @@ export function registerInventoryTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "get_shopping_profile",
     {
       title: "Get Shopping Profile",

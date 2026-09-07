@@ -1,3 +1,4 @@
+import { registerAppTool } from "../utils/app-tool.js";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -61,7 +62,8 @@ const getProductInputSchema = z
   });
 
 export function registerProductTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "search_products",
     {
       title: "Search Products",
@@ -76,10 +78,10 @@ export function registerProductTools(ctx: ToolContext) {
       },
       inputSchema: z.object({
         terms: z
-          .array(z.string().max(100))
+          .array(z.string().trim().min(1).max(100))
           .min(1, { message: "At least one search term is required" })
           .max(10, { message: "Maximum 10 search terms allowed" })
-          .describe("All needed products in one batch, e.g. ['milk', 'bread', 'eggs']"),
+          .describe("Batch terms, e.g. ['milk', 'bread', 'eggs']"),
         stores: z
           .record(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u), z.string().trim().min(1).max(200))
           .optional()
@@ -98,12 +100,12 @@ export function registerProductTools(ctx: ToolContext) {
           .array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u))
           .nonempty()
           .optional()
-          .describe("Catalog provider ids. Omit to search every registered provider."),
+          .describe("Provider ids; omit to search all."),
         includeLocation: z
           .boolean()
           .default(false)
           .describe(
-            "Include aisle, route sequence, bay, side, shelf, and shelf-position details for finding items on the shelf. Important when planning an in-store grocery route.",
+            "Shelf details for finding items on the shelf and planning in-store grocery routes.",
           ),
       }),
     },
@@ -112,7 +114,8 @@ export function registerProductTools(ctx: ToolContext) {
       requestContext,
     ) => {
       const availableProviderIds = Object.keys(ctx.catalogs);
-      const selectedProviderIds = providers ?? availableProviderIds;
+      const selectedProviderIds = [...new Set(providers ?? availableProviderIds)];
+      terms = [...new Set(terms)];
       const unknownProviders = selectedProviderIds.filter((id) => ctx.catalogs[id] === undefined);
       if (unknownProviders.length > 0) {
         return errorResult(
@@ -131,6 +134,8 @@ export function registerProductTools(ctx: ToolContext) {
       ).unwrapOr(null);
 
       const progressToken = requestContext.mcpReq._meta?.progressToken;
+      let completedTotal = 0;
+      const totalSearches = terms.length * selected.length;
 
       // Providers are searched concurrently: they share nothing, so one being
       // slow or down must not serialize behind or sink the others.
@@ -140,17 +145,20 @@ export function registerProductTools(ctx: ToolContext) {
             stores?.[provider.id] ??
             (provider.id === "kroger" ? storeId : undefined) ??
             (preferred?.provider === provider.id ? preferred.locationId : undefined);
+          let completedForProvider = 0;
           const options: CatalogSearchOptions = {
             limitPerTerm,
             includeLocation,
             ...(resolvedStoreId === undefined ? {} : { storeId: resolvedStoreId }),
-            ...(progressToken
+            ...(progressToken !== undefined
               ? {
-                  onTermComplete: async (completed: number, total: number) => {
+                  onTermComplete: async (completed: number) => {
+                    completedTotal += Math.max(0, completed - completedForProvider);
+                    completedForProvider = completed;
                     await ResultAsync.fromPromise(
                       requestContext.mcpReq.notify({
                         method: "notifications/progress",
-                        params: { progressToken, progress: completed, total },
+                        params: { progressToken, progress: completedTotal, total: totalSearches },
                       }),
                       (e) => e,
                     ).orTee((e) => console.error("Failed to send progress notification:", e));
@@ -161,13 +169,16 @@ export function registerProductTools(ctx: ToolContext) {
           const result = await provider.search(terms, options);
           return result
             .orTee((error) => console.warn(`${provider.label} search failed:`, error.message))
-            .unwrapOr(
-              terms.map((term) => ({
-                provider: provider.id,
-                term,
-                products: [],
-                failed: true,
-              })),
+            .match(
+              (value) => value,
+              (error) =>
+                terms.map((term) => ({
+                  provider: provider.id,
+                  term,
+                  products: [],
+                  failed: true,
+                  error,
+                })),
             );
         }),
       );
@@ -179,6 +190,10 @@ export function registerProductTools(ctx: ToolContext) {
       // Only a search that found nothing anywhere and failed somewhere is an
       // error; a Kroger hit with Trader Joe's down is still a useful answer.
       if (totalProducts === 0 && failed.length > 0) {
+        const actionable =
+          failed.find((result) => result.error?.type === "AUTH_ERROR")?.error ??
+          failed.find((result) => result.error)?.error;
+        if (actionable) return toMcpError(actionable);
         const failedTerms = [...new Set(failed.map((result) => result.term))];
         return errorResult(`Search failed for: ${failedTerms.join(", ")}. Please try again.`);
       }
@@ -206,7 +221,8 @@ export function registerProductTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  registerAppTool(
+    ctx.server,
     "get_product",
     {
       title: "Get Product Details",

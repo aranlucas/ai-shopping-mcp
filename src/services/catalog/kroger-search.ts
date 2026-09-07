@@ -17,6 +17,7 @@ export type ProductSearchResult = {
   products: Product[];
   count: number;
   failed: boolean;
+  error?: AppError;
 };
 
 /**
@@ -49,7 +50,13 @@ export async function searchProductsForTerms(
     );
 
     completedSearches++;
-    if (onSearchComplete) await onSearchComplete(completedSearches, totalSearches);
+    if (onSearchComplete) {
+      try {
+        await onSearchComplete(completedSearches, totalSearches);
+      } catch (cause) {
+        console.warn("Search progress notification failed:", cause);
+      }
+    }
 
     // Preserve Result type — map Ok to success shape, log and convert Err
     return apiResult
@@ -65,11 +72,12 @@ export async function searchProductsForTerms(
       .orTee((error) => logProductSearchError(term, error))
       .match(
         (result) => result,
-        () => ({
+        (error) => ({
           term,
           products: [] as Product[],
           count: 0,
           failed: true as const,
+          error,
         }),
       );
   });

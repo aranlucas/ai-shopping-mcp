@@ -1,3 +1,4 @@
+import { networkError } from "../../errors.js";
 import { ResultAsync } from "neverthrow";
 
 import type { components as ProductComponents } from "../kroger/product.js";
@@ -82,7 +83,7 @@ export function createKrogerCatalogProvider(
     label: "Kroger",
     capabilities: { cart: true, aisleLocation: true },
     search(terms: string[], options: CatalogSearchOptions) {
-      return ResultAsync.fromSafePromise(
+      return ResultAsync.fromPromise(
         searchProductsForTerms(
           productClient,
           terms,
@@ -92,12 +93,14 @@ export function createKrogerCatalogProvider(
           },
           options.onTermComplete,
         ),
+        (cause) => networkError("Kroger search could not be completed.", cause),
       ).map((results): CatalogSearchResult[] =>
         results.map((result) => ({
           provider: "kroger" as const,
           term: result.term,
           products: result.products.map(toCatalogProduct),
           failed: result.failed,
+          ...(result.error ? { error: result.error } : {}),
         })),
       );
     },

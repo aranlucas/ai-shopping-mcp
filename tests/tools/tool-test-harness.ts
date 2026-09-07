@@ -1,3 +1,4 @@
+import { cartOperationStore } from "../cart-operation-store.js";
 import { vi } from "vitest";
 
 import type { ProductService } from "../../src/services/kroger/product-service.js";
@@ -111,7 +112,7 @@ export function makeStorage(
     orderHistory: {
       add: async (order: OrderRecord) => {
         orders.push(order);
-        return orders;
+        return order;
       },
       getAll: async () => orders,
       getRecent: async (limit = 10) => orders.slice(0, limit),
@@ -133,6 +134,7 @@ export function makeStorage(
         if (index >= 0) createdLists.splice(index, 1);
       },
     },
+    operations: cartOperationStore(),
     cartSnapshot: {
       get: async (id: string) => snapshots.get(id) ?? null,
       set: async (id: string, items: CartSnapshotItem[]) => {

@@ -1,3 +1,4 @@
+import { cartOperationStore } from "../cart-operation-store.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
@@ -123,6 +124,7 @@ function makeContext(
       get: async (id: string) => createdLists.find((l) => l.id === id) ?? null,
       clear: async () => {},
     },
+    operations: cartOperationStore(),
     cartSnapshot: {
       get: async () => null,
       set: async (id: string, items: unknown[]) => {
