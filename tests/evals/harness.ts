@@ -302,18 +302,13 @@ export type KrogerFetchStub = {
   cartPuts: Array<{ items: CapturedCartItem[] }>;
   /** All cart items across all PUTs, flattened. */
   allCartItems: () => CapturedCartItem[];
-  /** The pre-stub global fetch, for calls that must leave the sandbox (Anthropic API). */
-  realFetch: typeof fetch;
   restore: () => void;
 };
 
 /**
  * Replaces global fetch with a deterministic Kroger API fixture router.
- * Hosts listed in `passthroughHosts` are forwarded to the real fetch
- * (needed for the live-model runner to reach api.anthropic.com).
  */
-export function installKrogerFetchStub(passthroughHosts: string[] = []): KrogerFetchStub {
-  const realFetch = globalThis.fetch;
+export function installKrogerFetchStub(): KrogerFetchStub {
   const cartPuts: Array<{ items: CapturedCartItem[] }> = [];
   let preferredStore: Record<string, unknown> | null = null;
   let pantry: Array<Record<string, unknown>> = [];
@@ -327,10 +322,6 @@ export function installKrogerFetchStub(passthroughHosts: string[] = []): KrogerF
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : null;
       const url = new URL(request ? request.url : input.toString());
-
-      if (passthroughHosts.includes(url.hostname)) {
-        return realFetch(input, init);
-      }
 
       if (url.hostname === "gateway.example" || url.hostname === "agents-gateway.up.railway.app") {
         if (!request) throw new Error("Gateway fixture requires a Request instance");
@@ -576,7 +567,6 @@ export function installKrogerFetchStub(passthroughHosts: string[] = []): KrogerF
   return {
     cartPuts,
     allCartItems: () => cartPuts.flatMap((put) => put.items),
-    realFetch,
     restore: () => vi.unstubAllGlobals(),
   };
 }
