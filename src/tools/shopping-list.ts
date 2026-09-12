@@ -1,4 +1,4 @@
-import { registerAppTool } from "../utils/app-tool.js";
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -194,8 +194,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "get_shopping_list",
     {
       title: "Get Shopping List",
@@ -259,8 +258,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "add_shopping_list_items",
     {
       title: "Add Shopping List Items",
@@ -293,8 +291,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "edit_shopping_list_item",
     {
       title: "Edit Shopping List Item",

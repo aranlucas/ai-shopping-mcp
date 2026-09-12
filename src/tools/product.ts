@@ -1,4 +1,4 @@
-import { registerAppTool } from "../utils/app-tool.js";
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 

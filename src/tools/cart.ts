@@ -1,4 +1,4 @@
-import { registerAppTool } from "../utils/app-tool.js";
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok, type Result } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -438,8 +438,7 @@ export function registerCartTools(ctx: ToolContext) {
     },
   );
 
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "view_cart",
     {
       title: "View Cart",

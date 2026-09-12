@@ -1,4 +1,3 @@
-import { registerAppTool } from "../utils/app-tool.js";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -130,8 +129,7 @@ const mealPlanningInputSchema = z.object({
 });
 
 export function registerRecipeTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
+  ctx.server.registerTool(
     "get_meal_planning_context",
     {
       title: "Get Meal Planning Context",

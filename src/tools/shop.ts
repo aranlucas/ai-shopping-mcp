@@ -1,4 +1,4 @@
-import { registerAppTool } from "../utils/app-tool.js";
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../services/kroger/product.js";
