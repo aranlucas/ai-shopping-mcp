@@ -1,5 +1,5 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
-import type { CallToolResult } from "@modelcontextprotocol/server";
+import type { CallToolResult } from "@modelcontextprotocol/client";
 
 export type {
   AddShoppingListToCartContent,
@@ -46,15 +46,10 @@ export type ToolCall =
       arguments: { terms: string[]; storeId?: string; includeLocation?: boolean };
     };
 
-/** Timeout for app-initiated callServerTool() calls (ms). */
-const TOOL_CALL_TIMEOUT_MS = 15_000;
-
 export function callTool(app: App | null | undefined, call: ToolCall): Promise<CallToolResult> {
   if (!app)
     return Promise.reject(new Error("The shopping app is disconnected. Reopen it and try again."));
-  return app.callServerTool(call as Parameters<App["callServerTool"]>[0], {
-    timeout: TOOL_CALL_TIMEOUT_MS,
-  });
+  return app.callServerTool(call);
 }
 
 /** Open an external URL via the host. No-ops if the host doesn't support openLink. */

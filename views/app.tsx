@@ -2,7 +2,7 @@
  * @file MCP Apps React view for the AI Shopping MCP server.
  */
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps";
-import type { CallToolResult } from "@modelcontextprotocol/server";
+import type { CallToolResult } from "@modelcontextprotocol/client";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -34,7 +34,7 @@ function ShoppingApp() {
   const [partialArgs, setPartialArgs] = useState<Record<string, unknown> | null>(null);
   const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
 
-  const { app, isConnected, error } = useApp({
+  const { app, error } = useApp({
     appInfo: { name: "shopping-app", version: "1.0.0" },
     capabilities: { availableDisplayModes: ["inline", "fullscreen"] },
     onAppCreated: (createdApp) => {
@@ -79,7 +79,7 @@ function ShoppingApp() {
   useHostStyles(app, app?.getHostContext());
 
   if (error) return <ErrorDisplay message={error.message} />;
-  if (!isConnected || !app) return <Loading />;
+  if (!app) return <Loading />;
 
   return (
     <ShoppingAppInner

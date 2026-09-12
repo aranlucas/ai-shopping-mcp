@@ -11,10 +11,7 @@
     // The views import shared types from `src/`, which transitively pulls in
     // files referencing Cloudflare Worker globals (Env, KVNamespace). Include
     // the generated worker types so those resolve under this config too.
-    "types": ["../worker-configuration.d.ts"],
-    "paths": {
-      "@/*": ["./*"]
-    }
+    "types": ["../worker-configuration.d.ts"]
   },
   "include": ["./**/*.ts", "./**/*.tsx"]
 }

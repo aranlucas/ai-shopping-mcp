@@ -9,12 +9,6 @@ const isDevelopment = process.env.NODE_ENV === "development";
 export default defineConfig({
   root: "views/",
   plugins: [tailwindcss(), react(), viteSingleFile()],
-  resolve: {
-    alias: {
-      "@views": path.resolve(import.meta.dirname, "./views"),
-      "@": path.resolve(import.meta.dirname, "views"),
-    },
-  },
   build: {
     sourcemap: isDevelopment ? "inline" : undefined,
     cssMinify: !isDevelopment,

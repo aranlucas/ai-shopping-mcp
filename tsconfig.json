@@ -8,10 +8,7 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"],
-    "paths": {
-      "@/*": ["./views/*"]
-    }
+    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"]
   },
   "exclude": ["views"]
 }

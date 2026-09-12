@@ -185,9 +185,6 @@ a:focus-visible {
   --input: var(--border);
   --ring: var(--primary);
   --radius: var(--radius-card, 0.75rem);
-  --font-sans:
-    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
-    "Noto Color Emoji";
 }
 
 @media (pointer: coarse) {
