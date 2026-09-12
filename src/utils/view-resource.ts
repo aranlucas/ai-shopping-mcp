@@ -18,8 +18,6 @@ import { registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/e
 
 import type { ToolContext } from "../tools/types.js";
 
-export { RESOURCE_MIME_TYPE };
-
 /** Single resource URI shared by all app tools. */
 export const APP_VIEW_URI = "ui://shopping-app";
 
