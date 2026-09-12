@@ -90,7 +90,7 @@ function LocationCard({
 
   const handleOpenMaps = useCallback(() => {
     if (mapsUrl) {
-      void openExternalLink(app, mapsUrl);
+      openExternalLink(app, mapsUrl).catch(console.error);
     }
   }, [app, mapsUrl]);
 

@@ -12,6 +12,7 @@ import type {
 import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
+import { AppErrorException, authError } from "../../src/errors.js";
 
 function stubProductService(): ToolContext["productService"] {
   return {
@@ -816,6 +817,53 @@ describe("view_cart tool", () => {
     await getCapturedHandler("view_cart")({ cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4" });
 
     expect(cartIdSetCalls).toEqual([["2b9b3963-5cac-42f8-9d28-7bebdec0b9e4"]]);
+  });
+
+  it("preserves stored cart-id failures instead of reporting a missing cart", async () => {
+    const storage = makeStorage();
+    storage.cartId.get = () => {
+      throw new AppErrorException(authError("Reconnect the grocery account."));
+    };
+    const readMirror = vi.spyOn(storage.cartMirror, "getAll");
+    const { context, getCalls } = makeContext(storage);
+    registerCartTools(context);
+
+    const result = await getCapturedHandler("view_cart")({});
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+    });
+    expect(readMirror).not.toHaveBeenCalled();
+    expect(getCalls).toHaveLength(0);
+  });
+
+  it("skips stored cart-id reads when the caller provides an id", async () => {
+    const storage = makeStorage();
+    const readId = vi.fn<typeof storage.cartId.get>(() => {
+      throw new Error("storage is down");
+    });
+    storage.cartId.get = readId;
+    const { context, getCalls } = makeContext(storage);
+    registerCartTools(context);
+
+    const result = await getCapturedHandler("view_cart")({ cartId: "explicit-cart-id" });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(readId).not.toHaveBeenCalled();
+    expect(getCalls).toHaveLength(1);
+  });
+
+  it("returns actionable authentication errors instead of a successful mirror fallback", async () => {
+    const { context } = makeContext(makeStorage(), { status: 204 }, { status: 401 });
+    registerCartTools(context);
+
+    const result = await getCapturedHandler("view_cart")({ cartId: "known-cart-id" });
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+    });
   });
 
   it("uses the stored cartId for a live read when no cartId is passed", async () => {

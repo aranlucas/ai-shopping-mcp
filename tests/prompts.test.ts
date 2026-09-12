@@ -184,6 +184,8 @@ describe("registerPrompts", () => {
       expect(text).toContain("get_meal_planning_context");
       expect(text).toContain("numberOfMeals: 4");
       expect(text).toContain("create_shopping_list");
+      expect(text).toContain("includeWeeklyDeals: true");
+      expect(text).toContain("search_products");
     });
 
     it("returns a single user message", async () => {

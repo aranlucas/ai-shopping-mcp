@@ -1,10 +1,8 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
-
-import { useCallback, useMemo, useState } from "react";
-
+import { useCallback, useMemo } from "react";
 import { Badge } from "@agents/ui/components/badge";
-
-import { SectionHeader } from "../../shared/components.js";
+import { ActionButton, SectionHeader } from "../../shared/components.js";
+import { useResettableState } from "../../shared/hooks.js";
 import { EmptyState } from "../../shared/status.js";
 import {
   type ShoppingListContent,
@@ -32,25 +30,34 @@ const EMPTY_LIST_ICON = (
 );
 
 function ShoppingItem({ item }: { item: ShoppingListItemData }) {
+  const ready = item.product?.provider === "kroger" || (!item.product && !!item.upc);
   return (
-    <div className="flex items-center gap-2.5 py-2.5">
+    <li className="flex items-start gap-4 py-4">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm leading-snug font-medium text-gray-900">
+        <div className="text-sm leading-relaxed font-medium wrap-break-word text-gray-900">
           {item.productName}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
-          {item.product && (
-            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
-              {item.product.provider}
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          {item.product && <span className="text-xs text-gray-500">{item.product.provider}</span>}
+          {!ready && (
+            <Badge variant="outline" className="bg-amber-50 text-amber-700">
+              Needs Kroger match
             </Badge>
           )}
-          {item.notes && (
-            <span className="max-w-28 truncate text-xs text-gray-400 italic">{item.notes}</span>
-          )}
         </div>
+        {item.notes && (
+          <p className="mt-1.5 text-sm leading-relaxed wrap-break-word text-gray-500">
+            {item.notes}
+          </p>
+        )}
       </div>
-    </div>
+      <span
+        aria-label={`Quantity: ${item.quantity}`}
+        className="shrink-0 rounded-md bg-muted px-2.5 py-1 text-sm font-medium text-gray-700 tabular-nums"
+      >
+        ×{item.quantity}
+      </span>
+    </li>
   );
 }
 
@@ -64,152 +71,132 @@ export function ShoppingListView({
   canCallTools: boolean;
 }) {
   const { name, items, listId } = data;
-  const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-
-  const withUpc = useMemo(
+  const [cartState, setCartState] = useResettableState(
+    data,
+    (): "idle" | "loading" | "done" | "error" => "idle",
+  );
+  const [cartError, setCartError] = useResettableState(data, (): string | null => null);
+  const [matchState, setMatchState] = useResettableState(
+    data,
+    (): "idle" | "loading" | "done" | "error" => "idle",
+  );
+  const [matchError, setMatchError] = useResettableState(data, (): string | null => null);
+  const readyItems = useMemo(
     () =>
       items.filter((item) => item.product?.provider === "kroger" || (!item.product && item.upc)),
     [items],
   );
-  const withoutUpc = useMemo(
-    () => items.filter((item) => !withUpc.includes(item)),
-    [items, withUpc],
+  const unmatchedItems = useMemo(
+    () => items.filter((item) => !readyItems.includes(item)),
+    [items, readyItems],
   );
 
-  const handleCheckout = useCallback(async () => {
-    setCheckoutState("loading");
-    setCheckoutError(null);
-
+  const handleAddToCart = useCallback(async () => {
+    setCartState("loading");
+    setCartError(null);
     try {
       const result = await callTool(app, addShoppingListToCartCall(listId, "PICKUP"));
-      if (result?.isError) {
+      if (result?.isError)
         throw new Error(toolResultErrorMessage(result, "Failed to add shopping list to cart"));
-      }
-      setCheckoutState("done");
-      setTimeout(() => setCheckoutState("idle"), 2000);
+      setCartState("done");
     } catch (error) {
-      setCheckoutState("error");
-      setCheckoutError(
-        error instanceof Error ? error.message : "Failed to add shopping list to cart",
-      );
-      setTimeout(() => {
-        setCheckoutState("idle");
-        setCheckoutError(null);
-      }, 5000);
+      setCartState("error");
+      setCartError(error instanceof Error ? error.message : "Failed to add shopping list to cart");
     }
-  }, [app, listId]);
+  }, [app, listId, setCartState, setCartError]);
 
-  const handleFindUpcs = useCallback(() => {
-    const names = withoutUpc.map((i) => i.productName).join(", ");
-    sendUserMessage(app, `Find Kroger matches for these items on my shopping list: ${names}.`);
-  }, [app, withoutUpc]);
+  const handleFindMatches = useCallback(async () => {
+    setMatchState("loading");
+    setMatchError(null);
+    try {
+      const names = unmatchedItems.map((item) => item.productName).join(", ");
+      await sendUserMessage(
+        app,
+        `Find Kroger matches for these items on my shopping list: ${names}.`,
+      );
+      setMatchState("done");
+    } catch (error) {
+      setMatchState("error");
+      setMatchError(
+        error instanceof Error ? error.message : "Could not ask the assistant. Try again.",
+      );
+    }
+  }, [app, unmatchedItems, setMatchState, setMatchError]);
 
   const headerBadge = useMemo(
-    () => <span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>,
-    [listId],
+    () => <Badge variant="secondary">{items.length} items</Badge>,
+    [items.length],
   );
 
-  if (items.length === 0) {
-    return (
-      <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-        <SectionHeader title={name || "Shopping List"} badge={headerBadge} />
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
+      <SectionHeader title={name || "Shopping List"} badge={headerBadge} />
+      {items.length === 0 ? (
         <EmptyState
           icon={EMPTY_LIST_ICON}
           message="This shopping list is empty"
           description="Add items from product search results."
         />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader
-        title={name || "Shopping List"}
-        badge={headerBadge}
-        subtitle={`${items.length} item${items.length === 1 ? "" : "s"}`}
-      />
-
-      {/* Status summary */}
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
-          {withUpc.length} ready
-        </Badge>
-        {withoutUpc.length > 0 && (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700">
-            {withoutUpc.length} need UPC
-          </Badge>
-        )}
-      </div>
-
-      {/* Quick actions */}
-      {canCallTools && (withUpc.length > 0 || withoutUpc.length > 0) && (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {withUpc.length > 0 && (
-            <button
-              type="button"
-              onClick={handleCheckout}
-              disabled={checkoutState === "loading"}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-primary px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <svg
-                aria-hidden="true"
-                className="size-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+      ) : (
+        <>
+          <div className="mb-2 border-b border-border pb-5">
+            <p className="mb-3 text-sm text-gray-600">
+              {readyItems.length} of {items.length} items ready for your Kroger pickup cart.
+              {unmatchedItems.length > 0 && ` ${unmatchedItems.length} still need a Kroger match.`}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {readyItems.length > 0 && (
+                <ActionButton
+                  state={cartState}
+                  onClick={handleAddToCart}
+                  disabled={!canCallTools || cartState === "done"}
+                  idleLabel={`Add ${readyItems.length} ${readyItems.length === 1 ? "item" : "items"} to cart`}
+                  loadingLabel="Adding to cart…"
+                  doneLabel="Added to cart"
+                  failLabel="Retry adding to cart"
                 />
-              </svg>
-              {checkoutState === "loading"
-                ? "Adding..."
-                : checkoutState === "done"
-                  ? "Added"
-                  : checkoutState === "error"
-                    ? "Failed"
-                    : `Check out ${withUpc.length} item${withUpc.length === 1 ? "" : "s"}`}
-            </button>
-          )}
-          {withoutUpc.length > 0 && (
-            <button
-              type="button"
-              onClick={handleFindUpcs}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-transparent px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-muted"
-            >
-              <svg
-                aria-hidden="true"
-                className="size-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+              )}
+              {unmatchedItems.length > 0 && (
+                <ActionButton
+                  state={matchState}
+                  onClick={handleFindMatches}
+                  disabled={!app || matchState === "done"}
+                  idleLabel="Find Kroger matches"
+                  loadingLabel="Asking assistant…"
+                  doneLabel="Asked assistant"
+                  failLabel="Retry finding matches"
+                  variant="secondary"
                 />
-              </svg>
-              Find missing UPCs
-            </button>
-          )}
-        </div>
+              )}
+            </div>
+            {cartState === "done" && (
+              <output className="mt-3 block text-sm text-emerald-700">
+                Added to your pickup cart. Review your cart in Kroger to complete your purchase.
+              </output>
+            )}
+            {cartError && (
+              <p role="alert" className="mt-3 text-sm text-red-600">
+                {cartError}
+              </p>
+            )}
+            {matchError && (
+              <p role="alert" className="mt-3 text-sm text-red-600">
+                {matchError}
+              </p>
+            )}
+            {!canCallTools && (
+              <p className="mt-3 text-sm text-gray-500">
+                Ask your assistant to add these items to your cart.
+              </p>
+            )}
+          </div>
+          <ul className="m-0 list-none divide-y divide-border p-0">
+            {items.map((item) => (
+              <ShoppingItem key={item.productName} item={item} />
+            ))}
+          </ul>
+        </>
       )}
-
-      {checkoutError && <div className="mb-3 text-xs text-red-600">{checkoutError}</div>}
-
-      {/* Items */}
-      <div className="divide-y divide-border">
-        {items.map((item) => (
-          <ShoppingItem key={item.productName} item={item} />
-        ))}
-      </div>
     </div>
   );
 }

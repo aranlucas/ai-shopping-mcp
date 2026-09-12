@@ -43,9 +43,10 @@ export async function searchProductsForTerms(
     };
 
     const apiResult = await fromApiResponse(
-      productClient.GET("/v1/products", {
-        params: { query: queryParams },
-      }),
+      () =>
+        productClient.GET("/v1/products", {
+          params: { query: queryParams },
+        }),
       `search products for "${term}"`,
     );
 

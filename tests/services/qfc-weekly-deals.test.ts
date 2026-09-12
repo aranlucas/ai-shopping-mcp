@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ProductSearchFn } from "../../src/services/qfc-weekly-deals.js";
 
+import { AppErrorException, authError } from "../../src/errors.js";
 import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
 
 type KrogerProduct = ProductComponents["schemas"]["products.productModel"];
@@ -148,6 +149,19 @@ function setupPrintAdFetch() {
     }
     if (url.includes(`/api/dacs/evt-print-1/pages/page-1`)) {
       return Promise.resolve(mockOkResponse(MOCK_PAGE_RESPONSE));
+    }
+    return Promise.reject(new Error(`Unmocked URL: ${url}`));
+  });
+}
+
+function setupFailedPrintAdFetchForSearchFallback() {
+  fetchMock.mockImplementation((input: string | Request | URL) => {
+    const url = urlOf(input);
+    if (url.includes("digitalads/v1/circulars")) {
+      return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+    }
+    if (url.includes("przone.net")) {
+      return Promise.resolve(mockErrorResponse(503, { error: "Service Unavailable" }));
     }
     return Promise.reject(new Error(`Unmocked URL: ${url}`));
   });
@@ -570,7 +584,7 @@ describe("getQfcWeeklyDeals", () => {
     }
 
     it("falls back to search API when print-ad listing returns error", async () => {
-      setupFailedPrintFetch();
+      setupFailedPrintAdFetchForSearchFallback();
 
       const searchProducts: ProductSearchFn = vi
         .fn<ProductSearchFn>()
@@ -600,7 +614,7 @@ describe("getQfcWeeklyDeals", () => {
     });
 
     it("includes print-ad failure warning in response", async () => {
-      setupFailedPrintFetch();
+      setupFailedPrintAdFetchForSearchFallback();
 
       const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([
         makeProduct({
@@ -717,9 +731,7 @@ describe("getQfcWeeklyDeals", () => {
       );
     });
 
-    it("returns empty deals (not throws) when print-ad fails and search API errors are all caught per-term", async () => {
-      // Per-term errors in fetchDealsBySearchApi are swallowed via .catch(() => []),
-      // so the overall call succeeds with 0 deals rather than throwing.
+    it("preserves an all-failed search refresh as an error", async () => {
       fetchMock.mockImplementation((input: string | Request | URL) => {
         const url = urlOf(input);
         if (url.includes("digitalads/v1/circulars")) {
@@ -730,7 +742,36 @@ describe("getQfcWeeklyDeals", () => {
 
       const searchProducts: ProductSearchFn = vi
         .fn<ProductSearchFn>()
-        .mockRejectedValue(new Error("Auth error"));
+        .mockRejectedValue(new AppErrorException(authError("Kroger authentication expired.")));
+
+      await expect(
+        getQfcWeeklyDeals({
+          locationId: "70500847",
+          searchProducts,
+        }),
+      ).rejects.toMatchObject({ appError: { type: "AUTH_ERROR" } });
+    });
+
+    it("does not treat rejected searches with an undefined reason as empty success", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+        return Promise.resolve(mockErrorResponse(503));
+      });
+
+      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockRejectedValue(undefined);
+
+      await expect(getQfcWeeklyDeals({ locationId: "70500847", searchProducts })).rejects.toThrow(
+        /Failed to fetch deals/,
+      );
+    });
+
+    it("keeps a legitimate empty search success distinct from failed searches", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([]);
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -740,6 +781,37 @@ describe("getQfcWeeklyDeals", () => {
       expect(result.sourceMode).toBe("search_api");
       expect(result.deals).toHaveLength(0);
       expect(result.warnings.some((w) => w.includes("Print-ad parsing failed"))).toBe(true);
+      expect(result.meta?.degraded).toBeUndefined();
+    });
+
+    it("returns partial search results with a degraded marker", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          if (term === "chicken") {
+            return [
+              makeProduct({
+                productId: "0001111000001",
+                description: "Rotisserie Chicken",
+                regular: 7.99,
+                promo: 4.99,
+              }),
+            ];
+          }
+          throw new Error(`Search failed for ${term}`);
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.deals).toHaveLength(1);
+      expect(result.deals[0]?.title).toBe("Rotisserie Chicken");
+      expect(result.meta).toMatchObject({ degraded: true, failedTermCount: 9 });
+      expect(result.warnings.some((w) => w.includes("partial"))).toBe(true);
     });
 
     it("throws when no print circular is found and no searchProducts provided", async () => {

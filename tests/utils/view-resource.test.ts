@@ -3,11 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext } from "../../src/tools/types.js";
 
-import {
-  APP_VIEW_URI,
-  RESOURCE_MIME_TYPE,
-  registerViewResource,
-} from "../../src/utils/view-resource.js";
+import { APP_VIEW_URI, registerViewResource } from "../../src/utils/view-resource.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
 const EXPECTED_MIME_TYPE = "text/html;profile=mcp-app";
@@ -111,10 +107,6 @@ describe("registerViewResource", () => {
 
       const captured = testState.capturedResources[0];
       expect(captured?.config).toEqual({ mimeType: EXPECTED_MIME_TYPE });
-    });
-
-    it("exports RESOURCE_MIME_TYPE with the expected value", () => {
-      expect(RESOURCE_MIME_TYPE).toBe(EXPECTED_MIME_TYPE);
     });
 
     it("exports APP_VIEW_URI as a non-empty URI string", () => {

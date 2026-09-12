@@ -10,7 +10,7 @@
 @source "../packages/ui/src/components/skeleton.tsx";
 @source "../packages/ui/src/components/spinner.tsx";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
 
 :root {
   color-scheme: light dark;
@@ -21,6 +21,13 @@
    */
   --color-text-primary: light-dark(#1f2937, #f3f4f6);
   --color-background-primary: light-dark(#ffffff, #1a1a1a);
+  --color-background-secondary: light-dark(#ffffff, #242424);
+  --color-background-tertiary: light-dark(#f3f4f6, #303030);
+  --color-text-secondary: light-dark(#4b5563, #d1d5db);
+  --color-text-tertiary: light-dark(#6b7280, #aeb7c4);
+  --color-text-disabled: light-dark(#6b7280, #aeb7c4);
+  --color-border-secondary: light-dark(#e5e7eb, #404040);
+  --color-border-tertiary: light-dark(#d1d5db, #525252);
   --color-background-info: light-dark(#eff6ff, #1e3a5f);
   --border-radius-md: 6px;
   --font-sans:
@@ -33,7 +40,7 @@
   --font-text-md-size: 1rem;
   --font-text-md-line-height: 1.5;
 
-  --color-text-on-accent: #ffffff;
+  --color-text-on-accent: light-dark(#ffffff, #052e16);
 
   /* Remap Tailwind v4 color tokens to MCP host CSS variables.
      In Tailwind v4, utilities like bg-gray-900 resolve to var(--color-gray-900).
@@ -64,23 +71,23 @@
   --color-gray-800: var(--color-text-primary, #1f2937);
   --color-gray-900: var(--color-text-primary, #111827);
   /* ── Success (emerald) ── */
-  --color-emerald-50: var(--color-background-success, #ecfdf5);
+  --color-emerald-50: var(--color-background-success, light-dark(#ecfdf5, #143b2d));
   --color-emerald-500: light-dark(#10b981, #34d399);
-  --color-emerald-600: light-dark(#059669, #34d399);
-  --color-emerald-700: var(--color-text-on-success, #047857);
+  --color-emerald-600: light-dark(#047857, #34d399);
+  --color-emerald-700: var(--color-text-on-success, light-dark(#047857, #6ee7b7));
 
   /* ── Danger (red) ── */
-  --color-red-50: var(--color-background-danger, #fef2f2);
+  --color-red-50: var(--color-background-danger, light-dark(#fef2f2, #421e24));
   --color-red-600: light-dark(#dc2626, #f87171);
 
   /* ── Warning (amber) ── */
-  --color-amber-50: var(--color-background-warning, #fffbeb);
+  --color-amber-50: var(--color-background-warning, light-dark(#fffbeb, #3f3015));
   --color-amber-500: light-dark(#f59e0b, #fbbf24);
-  --color-amber-700: var(--color-text-on-warning, #b45309);
+  --color-amber-700: var(--color-text-on-warning, light-dark(#92400e, #fcd34d));
 
   /* ── Info (blue) ── */
   --color-blue-50: var(--color-background-info, #eff6ff);
-  --color-blue-700: var(--color-text-on-info, #1d4ed8);
+  --color-blue-700: var(--color-text-on-info, light-dark(#1d4ed8, #bfdbfe));
 
   /* ── Purple ── */
   --color-purple-50: light-dark(#faf5ff, #3b0764);
@@ -96,12 +103,35 @@
 
 html,
 body {
+  margin: 0;
   font-family: var(--font-sans);
   font-size: var(--font-text-md-size);
   font-weight: var(--font-weight-normal);
   line-height: var(--font-text-md-line-height);
   color: var(--color-text-primary);
   background-color: var(--color-background-primary, #f9fafb);
+}
+
+button:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--color-background-info);
+  color: var(--color-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @theme inline {
@@ -155,7 +185,11 @@ body {
   --input: var(--border);
   --ring: var(--primary);
   --radius: var(--radius-card, 0.75rem);
-  --font-sans:
-    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
-    "Noto Color Emoji";
+}
+
+@media (pointer: coarse) {
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }

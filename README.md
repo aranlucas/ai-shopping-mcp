@@ -99,6 +99,31 @@ It exposes four workflow prompts:
 - `shop_recipe_ingredients`
 - `plan_meals_from_pantry`
 
+### Planning meals around weekly deals
+
+Pass `includeWeeklyDeals: true` to `get_meal_planning_context` to combine your pantry,
+expiring ingredients, equipment, and recent purchases with up to ten QFC/Kroger offers:
+
+```json
+{
+  "numberOfMeals": 3,
+  "mealType": "dinner",
+  "dietaryPreferences": "vegetarian",
+  "includeWeeklyDeals": true,
+  "storeId": "70500847"
+}
+```
+
+Omit `storeId` to use your preferred Kroger store. This option also works with an
+empty pantry, so the assistant can plan meals from sale items and identify everything
+you need to buy. The host model still writes the meal plan.
+
+The summary reuses the default `get_weekly_deals` cache and preserves offer prices,
+conditions, validity dates, and warnings. Stale ads are explicitly labeled; unavailable
+deals leave pantry context usable with recovery guidance. Call `get_weekly_deals` for
+more offers, then `search_products` to confirm exact products and current prices before
+creating a list. Without `includeWeeklyDeals`, meal planning makes no deal requests.
+
 The primary small-model contract is concise text in `content[0].text`. MCP App routing metadata stays in `_meta`; do not treat `structuredContent` as the reasoning payload.
 
 ### Cart outcomes and retries
@@ -148,6 +173,18 @@ For a client that still needs a local proxy:
 }
 ```
 
+## MCP App preview
+
+Run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html` to review the app with
+sample data and a simulated host. Switch between shopping lists, products, weekly deals,
+stale results, loading, empty, and error states. The **Fail actions** control exercises
+retry feedback; the theme selector checks light and dark rendering. Preview actions do not
+contact a shopping account. The preview entry is excluded from the production app bundle.
+
+Weekly deals can be filtered by category, and **Find product** opens matching products inside
+the app using the deal's store. Shopping-list actions distinguish Kroger matches from unmatched
+items and add matched items to the pickup cart. The user completes the purchase in Kroger.
+
 ## Validation
 
 ```bash
@@ -156,6 +193,12 @@ pnpm test
 pnpm eval:mcp
 pnpm cf-typegen
 ```
+
+`pnpm lint` runs both the standard rules and a focused type-aware pass via `oxlint-tsgolint`.
+Floating Promises (including `void` expressions and `ResultAsync` thenables) and misused async
+callbacks fail lint and build. The focused configuration avoids enabling unrelated type-aware
+style rules across the repository. Synchronous `Result` consumption, including handling an
+`Err` after `await`, still requires review; see the remaining [roadmap](docs/ROADMAP.md).
 
 The live Workers AI reranker check is intentionally separate because it uses Cloudflare credentials and incurs usage:
 

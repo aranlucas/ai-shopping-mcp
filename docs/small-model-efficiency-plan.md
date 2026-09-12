@@ -1,4 +1,9 @@
-# Small-Model Efficiency Plan
+# Small-Model Efficiency Implementation Record
+
+**Historical record (July 2026).** The work below is completed. Tool counts, identifiers,
+storage internals, and host assumptions describe that implementation period and may have
+since changed. Use [ROADMAP.md](ROADMAP.md) for current priorities,
+[VISION.md](VISION.md) for the current architecture, and the eval source for current budgets.
 
 Goal: make this the most efficient grocery-shopping MCP backed by Kroger —
 efficient meaning a small-context model (Haiku-class) completes real shopping
@@ -133,7 +138,7 @@ true}` reuses `add_shopping_list_to_cart`'s confirm-then-PUT path
 
 ### Phase 3 — Efficiency features (ties into ROADMAP.md)
 
-6. **DONE (2026-07). Deal-aware and pantry-aware shopping** (ROADMAP #1/#2):
+6. **DONE (2026-07). Deal-aware and pantry-aware shopping**:
    `shop_for_items` and `create_shopping_list` now append ` | in pantry`
    and/or ` | on sale: $X` per line via the shared best-effort helpers in
    `src/tools/item-flags.ts`. Pantry: case-insensitive containment match
@@ -146,7 +151,7 @@ true}` reuses `add_shopping_list_to_cart`'s confirm-then-PUT path
    `tests/tools/storage-backed-tools.test.ts`. No live-model scenario in
    `scenarios.ts` was added in this pass — the deterministic suites are the
    gate for now.
-7. **DONE (2026-07). Replenishment** (ROADMAP #3): `computeRestockSuggestions`
+7. **DONE (2026-07). Replenishment**: `computeRestockSuggestions`
    (`src/tools/recipes.ts`) groups order history by case-insensitive product
    name, computes the median interval between consecutive purchases for
    items bought 3+ times, and flags items where the time since the last

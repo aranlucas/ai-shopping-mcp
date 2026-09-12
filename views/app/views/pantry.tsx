@@ -198,7 +198,7 @@ export function PantryView({
     sendUserMessage(
       app,
       `Suggest a few recipes I can make from what's currently in my pantry.${focus}`,
-    );
+    ).catch(console.error);
   }, [app, expiring.length]);
 
   const headerBadge = useMemo(

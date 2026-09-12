@@ -3,6 +3,7 @@ import * as z from "zod/v4";
 import type { components as ProductComponents } from "./kroger/product.js";
 import type { Circular, CircularsResponse } from "./kroger/weekly-deals.js";
 
+import { AppErrorException } from "../errors.js";
 import { safeJsonParse, safeJsonParseWithSchema } from "../utils/json.js";
 
 const QFC_WEEKLY_AD_BASE = "https://www.qfc.com";
@@ -66,6 +67,9 @@ export interface QfcDealsApiResponse {
     termCount?: number;
     pageCount?: number;
     augmentedCount?: number;
+    degraded?: boolean;
+    failedTermCount?: number;
+    failureMessages?: string[];
   };
 }
 
@@ -267,17 +271,32 @@ async function fetchDealsBySearchApi(params: {
   locationId: string;
   searchProducts: ProductSearchFn;
   limit?: number;
-}): Promise<{ deals: NormalizedWeeklyDeal[]; termCount: number }> {
+}): Promise<{
+  deals: NormalizedWeeklyDeal[];
+  termCount: number;
+  failedTermCount: number;
+  failures: unknown[];
+}> {
   const limit = Math.max(1, Math.min(params.limit || 50, 200));
 
   const searchPromises = DEAL_SEARCH_TERMS.map((term) =>
-    params
-      .searchProducts(term, params.locationId, PRODUCTS_PER_TERM)
-      .catch(() => [] as KrogerProduct[]),
+    Promise.resolve()
+      .then(() => params.searchProducts(term, params.locationId, PRODUCTS_PER_TERM))
+      .then(
+        (products) => ({ ok: true as const, products }),
+        (error: unknown) => ({ ok: false as const, products: [] as KrogerProduct[], error }),
+      ),
   );
 
   const results = await Promise.all(searchPromises);
-  const allProducts = results.flat();
+  const failures = results.flatMap((result) => (result.ok ? [] : [result.error]));
+  if (failures.length === results.length) {
+    const firstFailure = failures[0];
+    if (firstFailure instanceof AppErrorException) throw firstFailure;
+    throw new Error(`All weekly deal searches failed: ${safeErrorMessage(firstFailure)}`);
+  }
+
+  const allProducts = results.flatMap((result) => result.products);
 
   // Keep only products with an active promo price below the regular price
   const onSale = allProducts.filter((product) => {
@@ -297,7 +316,12 @@ async function fetchDealsBySearchApi(params: {
   });
 
   const deals = unique.slice(0, limit).map(normalizeProductAsDeal);
-  return { deals, termCount: DEAL_SEARCH_TERMS.length };
+  return {
+    deals,
+    termCount: DEAL_SEARCH_TERMS.length,
+    failedTermCount: failures.length,
+    failures,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -458,7 +482,7 @@ async function normalizePrintDeals(params: {
   pageLimit?: number;
   limit?: number;
   signal?: AbortSignal;
-}): Promise<{ deals: NormalizedWeeklyDeal[]; pageCount: number }> {
+}): Promise<{ deals: NormalizedWeeklyDeal[]; pageCount: number; failedPageCount: number }> {
   const listing = await fetchPrintAdListing({
     eventId: params.printCircular.eventId,
     locationId: params.locationId,
@@ -471,17 +495,27 @@ async function normalizePrintDeals(params: {
 
   const selectedPages = pages.slice(0, pageLimit);
   const pageResponses = await Promise.all(
-    selectedPages.map((page) =>
-      page.eventPageId
-        ? fetchPrintAdPage({
-            eventId: params.printCircular.eventId,
-            eventPageId: page.eventPageId,
-            locationId: params.locationId,
-            signal: params.signal,
-          }).catch(() => ({ contents: [] }))
-        : Promise.resolve({ contents: [] }),
-    ),
+    selectedPages.map(async (page) => {
+      if (!page.eventPageId) return { contents: [], error: undefined };
+      try {
+        const response = await fetchPrintAdPage({
+          eventId: params.printCircular.eventId,
+          eventPageId: page.eventPageId,
+          locationId: params.locationId,
+          signal: params.signal,
+        });
+        return { contents: response.contents ?? [], error: undefined };
+      } catch (error) {
+        return { contents: [], error };
+      }
+    }),
   );
+
+  const failedPageCount = pageResponses.filter((page) => page.error !== undefined).length;
+  if (selectedPages.length > 0 && failedPageCount === selectedPages.length) {
+    const firstFailure = pageResponses.find((page) => page.error !== undefined)?.error;
+    throw new Error(`All print-ad pages failed: ${safeErrorMessage(firstFailure)}`);
+  }
 
   const parsedOffers: ParsedDacsOffer[] = [];
   for (const page of pageResponses) {
@@ -525,10 +559,13 @@ async function normalizePrintDeals(params: {
     }),
   );
 
-  return {
-    deals: offers,
-    pageCount: selectedPages.length,
-  };
+  if (failedPageCount > 0 && offers.length === 0) {
+    throw new Error(
+      `Print-ad pages partially failed and returned no offers (${failedPageCount}/${selectedPages.length} failed).`,
+    );
+  }
+
+  return { deals: offers, pageCount: selectedPages.length, failedPageCount };
 }
 
 // ---------------------------------------------------------------------------
@@ -612,7 +649,7 @@ export async function getQfcWeeklyDeals(
   // Primary: print-ad parsing via DACS (no auth required)
   if (printCircular) {
     try {
-      const { deals, pageCount } = await normalizePrintDeals({
+      const { deals, pageCount, failedPageCount } = await normalizePrintDeals({
         printCircular,
         locationId,
         pageLimit: options.pageLimit,
@@ -637,6 +674,12 @@ export async function getQfcWeeklyDeals(
         }
       }
 
+      if (failedPageCount > 0) {
+        warnings.push(
+          `Print-ad data is partial; ${failedPageCount} of ${pageCount} page(s) could not be read.`,
+        );
+      }
+
       return {
         sourceMode: "print_fallback",
         locationId,
@@ -645,7 +688,11 @@ export async function getQfcWeeklyDeals(
         printCircular,
         warnings,
         deals: finalDeals,
-        meta: { pageCount, augmentedCount },
+        meta: {
+          pageCount,
+          augmentedCount,
+          ...(failedPageCount > 0 ? { degraded: true } : {}),
+        },
       };
     } catch (error) {
       warnings.push(
@@ -657,11 +704,17 @@ export async function getQfcWeeklyDeals(
   // Fallback: Kroger Product Search API (requires auth)
   if (options.searchProducts) {
     try {
-      const { deals, termCount } = await fetchDealsBySearchApi({
+      const { deals, termCount, failedTermCount, failures } = await fetchDealsBySearchApi({
         locationId,
         searchProducts: options.searchProducts,
         limit: options.limit,
       });
+
+      if (failedTermCount > 0) {
+        warnings.push(
+          `Weekly deal search was partial: ${failedTermCount} of ${termCount} category searches failed.`,
+        );
+      }
 
       return {
         sourceMode: "search_api",
@@ -671,10 +724,27 @@ export async function getQfcWeeklyDeals(
         printCircular,
         warnings,
         deals,
-        meta: { termCount },
+        meta: {
+          termCount,
+          ...(failedTermCount > 0 ? { degraded: true, failedTermCount } : {}),
+          ...(failures.length > 0
+            ? { failureMessages: failures.map((failure) => safeErrorMessage(failure)).slice(0, 3) }
+            : {}),
+        },
       };
     } catch (error) {
       warnings.push(`Search API deal fetch also failed. (${safeErrorMessage(error)})`);
+      if (error instanceof AppErrorException) {
+        const warningText = warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
+        throw new AppErrorException({
+          ...error.appError,
+          message: `${error.appError.message}${warningText}`,
+        });
+      }
+      throw new Error(
+        `Failed to fetch deals from all sources (division ${divisionCode}). ${warnings.join(" ")}`.trim(),
+        { cause: error },
+      );
     }
   }
 

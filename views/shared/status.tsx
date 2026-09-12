@@ -14,16 +14,16 @@ import { AlertCircleIcon } from "lucide-react";
 
 export function Loading({ message }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2.5 py-16">
+    <output className="flex flex-col items-center justify-center gap-2.5 py-16">
       <Spinner className="size-5 text-primary" />
       <span className="text-xs text-gray-400">{message ?? "Loading..."}</span>
-    </div>
+    </output>
   );
 }
 
 export function ErrorDisplay({ message }: { message: string }) {
   return (
-    <Alert className="mx-3.5 my-3">
+    <Alert role="alert" className="mx-4 my-5 w-auto">
       <AlertCircleIcon />
       <AlertTitle>Something went wrong</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
@@ -54,7 +54,7 @@ export function EmptyState({
 export function ProductCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <Skeleton className="aspect-square w-full rounded-none" />
+      <Skeleton className="aspect-4/3 w-full rounded-none" />
       <div className="flex flex-col gap-2 p-3">
         <Skeleton className="h-3.5 w-full" />
         <Skeleton className="h-3 w-2/3" />
@@ -115,7 +115,7 @@ export function ProductSearchSkeleton() {
           </div>
           <div className="flex gap-2 overflow-hidden">
             {[0, 1, 2].map((j) => (
-              <div key={j} className="w-52 shrink-0">
+              <div key={j} className="w-68 shrink-0">
                 <ProductCardSkeleton />
               </div>
             ))}

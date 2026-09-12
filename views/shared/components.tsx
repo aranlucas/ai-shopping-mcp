@@ -1,7 +1,7 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useState } from "react";
-import type { ReactNode, SyntheticEvent } from "react";
+import type { ReactNode } from "react";
 
 import { Badge } from "@agents/ui/components/badge";
 import { Button } from "@agents/ui/components/button";
@@ -39,15 +39,17 @@ export function SectionHeader({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="mb-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="truncate text-sm font-semibold tracking-tight text-gray-900">{title}</h1>
+    <div className="mb-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-lg font-semibold tracking-tight wrap-break-word text-gray-900">
+            {title}
+          </h1>
           {badge}
         </div>
         {trailing}
       </div>
-      {subtitle && <p className="mt-0.5 text-xs text-gray-400">{subtitle}</p>}
+      {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
     </div>
   );
 }
@@ -66,14 +68,14 @@ export function DisplayModeToggle({
   const isFullscreen = current === "fullscreen";
   const next = isFullscreen ? "inline" : "fullscreen";
   const handleToggleDisplayMode = useCallback(() => {
-    void app?.requestDisplayMode({ mode: next });
+    app?.requestDisplayMode({ mode: next }).catch(console.error);
   }, [app, next]);
   if (!app || !supportsFullscreen || !supportsInline) return null;
 
   return (
     <Button
       variant="ghost"
-      size="icon-xs"
+      size="icon-lg"
       onClick={handleToggleDisplayMode}
       aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
@@ -124,18 +126,18 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
 
 export function PriceDisplay({ product }: { product: ProductData }) {
   if (product.price === undefined) {
-    return <span className="font-mono text-xs text-gray-400">—</span>;
+    return <span className="text-xs text-gray-500">Price unavailable</span>;
   }
-  const hasPromo = product.regularPrice !== undefined && product.regularPrice !== product.price;
+  const hasPromo = product.regularPrice !== undefined && product.regularPrice > product.price;
 
   return (
-    <span className="inline-flex items-baseline gap-1.5">
-      <span className="font-mono text-base leading-none font-medium text-emerald-600">
+    <span className="inline-flex flex-wrap items-baseline gap-2">
+      <span className="text-lg leading-none font-semibold text-emerald-600 tabular-nums">
         ${product.price.toFixed(2)}
       </span>
       {hasPromo && (
         <>
-          <span className="font-mono text-xs text-gray-400 line-through">
+          <span className="text-xs text-gray-500 tabular-nums line-through">
             ${product.regularPrice?.toFixed(2)}
           </span>
           <Badge variant="outline" className="bg-red-50 text-red-600">
@@ -157,9 +159,10 @@ export function ActionButton({
   doneLabel,
   failLabel,
   variant = "primary",
+  labelContext,
 }: {
   state: "idle" | "loading" | "done" | "error";
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
   disabled?: boolean;
   icon?: ReactNode;
   idleLabel: string;
@@ -167,7 +170,13 @@ export function ActionButton({
   doneLabel?: string;
   failLabel?: string;
   variant?: "primary" | "secondary";
+  labelContext?: string;
 }) {
+  const handleClick = useCallback(() => {
+    // Callers own their visible loading/error state. This event boundary also
+    // catches unexpected throws and rejected promises before returning to React.
+    Promise.resolve().then(onClick).catch(console.error);
+  }, [onClick]);
   const label =
     state === "loading"
       ? (loadingLabel ?? "Loading...")
@@ -189,16 +198,18 @@ export function ActionButton({
   return (
     <Button
       variant={shadcnVariant}
-      size="xs"
+      size="default"
       disabled={disabled || state === "loading"}
-      onClick={onClick}
+      aria-busy={state === "loading"}
+      aria-label={labelContext ? `${label}: ${labelContext}` : undefined}
+      onClick={handleClick}
       className={
         state === "done" && variant === "primary"
-          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
           : state === "done" && variant === "secondary"
             ? "border-emerald-300 bg-emerald-50 text-emerald-700"
             : variant === "primary" && state === "idle"
-              ? "border-transparent bg-primary text-white hover:bg-primary/90"
+              ? "border-transparent bg-primary text-primary-foreground hover:bg-primary/90"
               : undefined
       }
     >
@@ -225,7 +236,7 @@ export function ActionButton({
           />
         </svg>
       )}
-      {label}
+      <span aria-live="polite">{label}</span>
     </Button>
   );
 }
@@ -235,6 +246,7 @@ export function ProductActions({
   cartEnabled,
   name,
   disabled,
+  cartDisabled,
   onAddToCart,
   onAddToList,
 }: {
@@ -242,6 +254,7 @@ export function ProductActions({
   cartEnabled: boolean;
   name: string;
   disabled?: boolean;
+  cartDisabled?: boolean;
   onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
   onAddToList: (name: string, productRef: string) => Promise<void>;
 }) {
@@ -260,10 +273,6 @@ export function ProductActions({
       const msg = e instanceof Error ? e.message : "Failed to add to cart";
       setCartState("error");
       setErrorMsg(msg);
-      setTimeout(() => {
-        setCartState("idle");
-        setErrorMsg(null);
-      }, 5000);
     }
   }, [name, onAddToCart, productRef]);
 
@@ -278,25 +287,22 @@ export function ProductActions({
       const msg = e instanceof Error ? e.message : "Failed to add to list";
       setListState("error");
       setErrorMsg(msg);
-      setTimeout(() => {
-        setListState("idle");
-        setErrorMsg(null);
-      }, 5000);
     }
   }, [name, onAddToList, productRef]);
 
   return (
     <div>
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {cartEnabled && (
           <ActionButton
             state={cartState}
             onClick={handleCart}
-            disabled={disabled}
+            disabled={disabled || cartDisabled}
             idleLabel="Add to Cart"
             loadingLabel="Adding..."
             doneLabel="Added!"
-            failLabel="Failed"
+            failLabel="Retry cart"
+            labelContext={name}
             variant="primary"
             icon={CART_ICON}
           />
@@ -305,26 +311,30 @@ export function ProductActions({
           state={listState}
           onClick={handleList}
           disabled={disabled}
-          idleLabel="Save"
+          idleLabel="Save to list"
           loadingLabel="Saving..."
           doneLabel="Saved!"
-          failLabel="Failed"
+          failLabel="Retry save"
+          labelContext={name}
           variant="secondary"
           icon={PLUS_ICON}
         />
       </div>
-      {errorMsg && <div className="mt-1 text-xs text-red-600">{errorMsg}</div>}
+      {errorMsg && (
+        <div role="alert" className="mt-2 text-sm text-red-600">
+          {errorMsg}
+        </div>
+      )}
     </div>
   );
 }
 
 function ProductImage({ product }: { product: ProductData }) {
   const thumbnail = product.imageUrl;
-  const handleImageError = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
-    e.currentTarget.style.display = "none";
-  }, []);
+  const [failedUrl, setFailedUrl] = useState<string | undefined>();
+  const handleImageError = useCallback(() => setFailedUrl(thumbnail), [thumbnail]);
 
-  if (!thumbnail) {
+  if (!thumbnail || failedUrl === thumbnail) {
     const initials = product.name
       .split(" ")
       .slice(0, 2)
@@ -332,14 +342,17 @@ function ProductImage({ product }: { product: ProductData }) {
       .join("")
       .toUpperCase();
     return (
-      <div className="flex aspect-square w-full items-center justify-center bg-gray-50">
-        <span className="text-xl font-bold text-gray-300">{initials}</span>
+      <div className="flex aspect-4/3 w-full flex-col items-center justify-center gap-1 bg-muted">
+        <span aria-hidden="true" className="text-2xl font-semibold text-gray-500">
+          {initials}
+        </span>
+        <span className="text-xs text-gray-500">No image</span>
       </div>
     );
   }
 
   return (
-    <div className="aspect-square w-full overflow-hidden bg-gray-50">
+    <div className="aspect-4/3 w-full overflow-hidden bg-white">
       <img
         src={thumbnail}
         alt={product.name}
@@ -371,11 +384,11 @@ export function ProductCard({
     (product.aisle?.number ? `Aisle ${product.aisle.number}` : undefined);
 
   return (
-    <Card size="sm" className="h-full transition-shadow duration-150 hover:shadow-md">
+    <Card size="sm" className="h-full gap-3 pt-0">
       <ProductImage product={product} />
       <CardContent className="flex flex-1 flex-col pt-2">
         <div className="flex-1">
-          <div className="line-clamp-2 text-sm leading-snug font-medium text-gray-900">{name}</div>
+          <h3 className="text-sm leading-snug font-semibold text-gray-900">{name}</h3>
           {(brand || size) && (
             <div className="mt-0.5 text-xs text-gray-400">
               {brand}
@@ -411,12 +424,15 @@ export function ProductCard({
         <div className="mt-1.5">
           <PriceDisplay product={product} />
         </div>
-        <FulfillmentTags product={product} />
+        <div className="min-h-7">
+          <FulfillmentTags product={product} />
+        </div>
       </CardContent>
       <CardFooter className="pt-2">
         <ProductActions
           productRef={productRef}
           cartEnabled={product.product.provider === "kroger"}
+          cartDisabled={!product.available}
           name={name}
           disabled={!canCallTools}
           onAddToCart={onAddToCart}
