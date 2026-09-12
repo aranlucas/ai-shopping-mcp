@@ -455,8 +455,15 @@ export function registerCartTools(ctx: ToolContext) {
     },
     async ({ cartId }) => {
       getProps();
-      const storedIdResult = await safeStorage(() => ctx.carts.cartId.get(), "read stored cart id");
-      const resolvedId = cartId ?? (storedIdResult.isOk() ? storedIdResult.value : null);
+      let resolvedId = cartId;
+      if (!resolvedId) {
+        const storedIdResult = await safeStorage(
+          () => ctx.carts.cartId.get(),
+          "read stored cart id",
+        );
+        if (storedIdResult.isErr()) return toMcpError(storedIdResult.error);
+        resolvedId = storedIdResult.value ?? undefined;
+      }
 
       if (!resolvedId) {
         return mirrorFallbackResult(
@@ -465,17 +472,17 @@ export function registerCartTools(ctx: ToolContext) {
         );
       }
 
+      const liveCartId = resolvedId;
       const liveResult = await fromApiResponse(
-        cartClient.GET("/v1/carts/{id}", { params: { path: { id: resolvedId } } }),
+        () => cartClient.GET("/v1/carts/{id}", { params: { path: { id: liveCartId } } }),
         "read live cart",
       );
 
       if (liveResult.isErr()) {
+        if (liveResult.error.type === "AUTH_ERROR") return toMcpError(liveResult.error);
         return mirrorFallbackResult(
           ctx,
-          cartId
-            ? `Live cart read failed for cartId=${cartId} — the id may be stale or wrong. Showing items added through this assistant instead.`
-            : `Live cart read failed (${liveResult.error.message}). Showing items added through this assistant instead.`,
+          `Live cart read failed${cartId ? ` for cartId=${cartId}` : ""} (${liveResult.error.message}). Showing items added through this assistant instead.`,
         );
       }
 

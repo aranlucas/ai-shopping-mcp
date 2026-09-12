@@ -62,6 +62,7 @@ export function fromApiResponse<T>(
   context: string,
 ): ResultAsync<T, AppError> {
   const mapFailure = (e: unknown): AppError => {
+    if (e instanceof AppErrorException) return e.appError;
     if (e instanceof SyntaxError)
       return invalidResponseError(`${context}: upstream returned malformed JSON.`, e);
     if (e instanceof Error && e.name === "KrogerTokenExpiredError") {

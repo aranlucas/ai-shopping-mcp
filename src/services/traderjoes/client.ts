@@ -266,7 +266,10 @@ function readCache(
   key: string,
 ): ResultAsync<TraderJoesSearchResult | null, never> {
   if (!kv) return okAsync(null);
-  return ResultAsync.fromPromise(kv.get(key), () => undefined)
+  return ResultAsync.fromThrowable(
+    () => kv.get(key),
+    () => undefined,
+  )()
     .orElse(() => okAsync(null))
     .map((raw) => {
       if (typeof raw !== "string") return null;
@@ -281,9 +284,9 @@ function readCache(
 function writeCache(kv: KvLike | null, key: string, result: TraderJoesSearchResult): void {
   if (!kv) return;
   // Caching is an optimization: a write failure must never fail the search.
-  void Promise.resolve(
-    kv.put(key, JSON.stringify(result), { expirationTtl: CACHE_TTL_SECONDS }),
-  ).catch(() => undefined);
+  Promise.resolve()
+    .then(() => kv.put(key, JSON.stringify(result), { expirationTtl: CACHE_TTL_SECONDS }))
+    .catch(() => undefined);
 }
 
 /**
@@ -342,17 +345,18 @@ export function createTraderJoesClient(options: TraderJoesClientOptions = {}): T
       currentPage: 1,
     };
 
-    return ResultAsync.fromPromise(
-      graphQL.request<unknown, SearchVariables>({
-        document: SEARCH_PRODUCTS,
-        variables,
-        signal: AbortSignal.any([
-          AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-          ...(options.signal ? [options.signal] : []),
-        ]),
-      }),
+    return ResultAsync.fromThrowable(
+      () =>
+        graphQL.request<unknown, SearchVariables>({
+          document: SEARCH_PRODUCTS,
+          variables,
+          signal: AbortSignal.any([
+            AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+            ...(options.signal ? [options.signal] : []),
+          ]),
+        }),
       toCatalogError,
-    ).andThen((data) => {
+    )().andThen((data) => {
       const parsed = searchDataSchema.safeParse(data);
       if (!parsed.success) {
         return err(apiError("Trader Joe's catalog response did not match the expected shape."));

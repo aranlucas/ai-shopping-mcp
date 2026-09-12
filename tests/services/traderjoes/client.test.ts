@@ -40,6 +40,25 @@ function memoryKv(): KvLike & { writes: number } {
 }
 
 describe("Trader Joe's catalog client", () => {
+  it("keeps successful catalog results when KV reads and writes throw synchronously", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => catalogResponse([catalogItem()]));
+    const kv: KvLike = {
+      get: () => {
+        throw new Error("synchronous cache read failure");
+      },
+      put: () => {
+        throw new Error("synchronous cache write failure");
+      },
+    };
+    const client = createTraderJoesClient({ fetcher, kv });
+
+    const result = await client.searchProducts("chili crunch");
+
+    expect(result.isOk()).toBe(true);
+    expect(result._unsafeUnwrap().products[0]?.sku).toBe("076892");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("normalizes catalog items into shopping-list-ready products", async () => {
     const fetcher = vi.fn<() => unknown>(async () => catalogResponse([catalogItem()]));
     const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });

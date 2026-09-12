@@ -18,6 +18,7 @@ import { ProductDetailView } from "./app/views/product-detail.js";
 import { ProductSearchView } from "./app/views/product-search.js";
 import { ShoppingListView } from "./app/views/shopping-list.js";
 import { WeeklyDealsView } from "./app/views/weekly-deals.js";
+import { toolResultErrorMessage } from "./app/tool-calls.js";
 import { useResettableState } from "./shared/hooks.js";
 import {
   ErrorDisplay,
@@ -41,17 +42,25 @@ function ShoppingApp() {
         return {};
       };
       createdApp.ontoolinputpartial = (params) => {
+        setToolResult(null);
         setPartialArgs(params.arguments ?? {});
       };
-      createdApp.ontoolinput = async () => {
+      createdApp.ontoolinput = () => {
+        setToolResult(null);
         setPartialArgs(null);
       };
-      createdApp.ontoolresult = async (result) => {
+      createdApp.ontoolresult = (result) => {
         setPartialArgs(null);
         setToolResult(result);
       };
       createdApp.ontoolcancelled = () => {
         setPartialArgs(null);
+        setToolResult({
+          isError: true,
+          content: [
+            { type: "text", text: "The request was cancelled. Ask your assistant to try again." },
+          ],
+        });
       };
       // oxlint-disable-next-line unicorn/prefer-add-event-listener -- MCP Apps SDK uses `onerror` property assignment, not DOM EventTarget
       createdApp.onerror = console.error;
@@ -130,6 +139,17 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
   const [data, setData] = useResettableState(toolResult, parseToolResult);
   const canCallTools = !!app.getHostCapabilities()?.serverTools;
 
+  if (toolResult?.isError) {
+    return (
+      <ErrorDisplay
+        message={toolResultErrorMessage(
+          toolResult,
+          "The request failed. Ask your assistant to try again.",
+        )}
+      />
+    );
+  }
+
   if (!data) {
     if (partialArgs) {
       switch (toolName) {
@@ -149,7 +169,11 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
         }
       }
     }
-    return <Loading />;
+    return toolResult ? (
+      <ErrorDisplay message="This result has no shopping view. Ask your assistant for the result details." />
+    ) : (
+      <Loading />
+    );
   }
 
   switch (data.view) {

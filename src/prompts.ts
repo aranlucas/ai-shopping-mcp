@@ -150,6 +150,8 @@ Please make sure to check product availability at my preferred location before a
 3. Prioritize expiring ingredients and exclude expired items
 4. For missing ingredients I want to buy, create a shopping list with create_shopping_list
 
+If I ask to plan around sales, include includeWeeklyDeals: true in the context call; use my preferred Kroger store or an explicit storeId. Confirm exact products and current prices with search_products before creating the list.
+
 Do not invent pantry contents; use the context returned by get_meal_planning_context.`,
             },
           },

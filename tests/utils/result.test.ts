@@ -93,6 +93,31 @@ describe("safeJsonParseWithSchema", () => {
 // --- fromApiResponse ---
 
 describe("fromApiResponse", () => {
+  it("captures synchronous adapter throws before a promise is returned", async () => {
+    const result = await fromApiResponse(() => {
+      throw new Error("adapter failed before fetch");
+    }, "read product");
+
+    expect(result._unsafeUnwrapErr()).toMatchObject({
+      type: "NETWORK_ERROR",
+      message: "read product: adapter failed before fetch",
+    });
+  });
+
+  it("preserves typed adapter errors for synchronous and asynchronous failures", async () => {
+    const failure = authError("Reconnect the grocery account.");
+    const sync = await fromApiResponse(() => {
+      throw new AppErrorException(failure);
+    }, "read product");
+    const async = await fromApiResponse(
+      () => Promise.reject(new AppErrorException(failure)),
+      "read product",
+    );
+
+    expect(sync._unsafeUnwrapErr()).toBe(failure);
+    expect(async._unsafeUnwrapErr()).toBe(failure);
+  });
+
   it("returns Ok when data present", async () => {
     const result = await fromApiResponse(
       Promise.resolve({

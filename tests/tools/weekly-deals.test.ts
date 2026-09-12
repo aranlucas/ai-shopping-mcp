@@ -5,6 +5,7 @@ import type { ToolContext } from "../../src/tools/types.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
 import type { PreferredLocation } from "../../src/utils/user-storage.js";
 
+import { AppErrorException, authError } from "../../src/errors.js";
 import {
   addCacheWarning,
   buildWeeklyDealsCacheKey,
@@ -361,6 +362,31 @@ describe("formatWeeklyDealsToolResponse", () => {
     expect((response.structuredContent as { cache: { state: string } }).cache.state).toBe("fresh");
   });
 
+  it("includes the source store and degradation warnings in structuredContent", () => {
+    const result = makeMinimalResult({
+      locationId: "12345678",
+      warnings: ["Live refresh was partial; results were not cached."],
+      meta: { degraded: true, failedTermCount: 1 },
+    });
+
+    const response = formatWeeklyDealsToolResponse(result, "miss");
+    expect(response.structuredContent).toMatchObject({
+      storeId: "12345678",
+      warnings: ["Live refresh was partial; results were not cached."],
+      cache: { state: "miss" },
+    });
+  });
+
+  it("keeps fresh-cache information in markdown without exposing it as a UI warning", () => {
+    const response = formatWeeklyDealsToolResponse(
+      makeMinimalResult({ warnings: ["Served from KV cache."] }),
+      "fresh",
+    );
+
+    expect(getTextContent(response)).toContain("Served from KV cache.");
+    expect(response.structuredContent).toMatchObject({ warnings: [], cache: { state: "fresh" } });
+  });
+
   it("includes deal title, details, price, and savings in a markdown line", async () => {
     const result = makeMinimalResult({
       deals: [
@@ -656,6 +682,34 @@ describe("get_weekly_deals handler", () => {
     expect(textFromResult(result)).toContain("stale");
   });
 
+  it("serves stale cache when a live refresh is partial and does not replace it", async () => {
+    const staleData = makeMinimalDealsResponse({
+      deals: [{ id: "s1", title: "Stale Deal", price: "$2.00", source: "print" }],
+    });
+    const { kv, store } = makeKV();
+    const cacheKey = buildWeeklyDealsCacheKey(CACHE_KEY_PARAMS);
+    store.set(cacheKey, JSON.stringify(makeStaleCacheEntry(staleData)));
+    const originalCache = store.get(cacheKey);
+
+    mockGetQfcWeeklyDeals.mockResolvedValue(
+      makeMinimalDealsResponse({
+        deals: [{ id: "partial", title: "Partial Deal", price: "$1.00", source: "search_api" }],
+        warnings: ["Weekly deal search was partial."],
+        meta: { degraded: true, failedTermCount: 1 },
+      }),
+    );
+
+    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+
+    const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(textFromResult(result)).toContain("Stale Deal");
+    expect(textFromResult(result)).toContain("partial");
+    expect(textFromResult(result)).not.toContain("Partial Deal");
+    expect(store.get(cacheKey)).toBe(originalCache);
+  });
+
   it("returns an MCP error when the live fetch fails and there is no stale cache", async () => {
     mockGetQfcWeeklyDeals.mockRejectedValue(new Error("connection refused"));
     const { kv } = makeKV();
@@ -665,6 +719,61 @@ describe("get_weekly_deals handler", () => {
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
     expect(isErrorResult(result)).toBe(true);
+  });
+
+  it("preserves an upstream auth failure when no stale cache exists", async () => {
+    mockGetQfcWeeklyDeals.mockRejectedValue(
+      new AppErrorException(authError("Kroger authentication expired.")),
+    );
+    const { kv } = makeKV();
+
+    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+
+    const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
+    const structured = result as {
+      isError?: boolean;
+      structuredContent?: { error?: { code?: string; recovery?: string } };
+    };
+
+    expect(structured.isError).toBe(true);
+    expect(structured.structuredContent?.error).toMatchObject({
+      code: "AUTH_ERROR",
+      recovery: "reconnect",
+    });
+  });
+
+  it("survives a synchronous cache read throw and reports the cache failure", async () => {
+    const liveData = makeMinimalDealsResponse();
+    mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
+    const { kv } = makeKV();
+    vi.mocked(kv.get).mockImplementation(() => {
+      throw new Error("KV read unavailable");
+    });
+
+    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+
+    const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(textFromResult(result)).toContain("KV cache read failed");
+    expect(textFromResult(result)).toContain("Bananas");
+  });
+
+  it("survives a synchronous cache write throw without failing live deals", async () => {
+    const liveData = makeMinimalDealsResponse();
+    mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
+    const { kv } = makeKV();
+    vi.mocked(kv.put).mockImplementation(() => {
+      throw new Error("KV write unavailable");
+    });
+
+    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+
+    const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(textFromResult(result)).toContain("Cache write failed");
+    expect(textFromResult(result)).toContain("Bananas");
   });
 
   it("fetches live data without caching when no USER_DATA_KV binding is present in env", async () => {

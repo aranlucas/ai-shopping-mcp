@@ -5,6 +5,8 @@ import * as z from "zod/v4";
 import type { OrderRecord } from "../utils/user-storage.js";
 
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
+import { getMealPlanningDeals } from "./meal-planning-deals.js";
+import { coercedBooleanSchema, storeIdSchema } from "./schemas.js";
 import { type ToolContext, textResult } from "./types.js";
 
 /**
@@ -108,28 +110,23 @@ export function computeRestockSuggestions(
 }
 
 const mealPlanningInputSchema = z.object({
-  numberOfMeals: z
-    .number()
-    .min(1)
-    .max(7)
-    .optional()
-    .default(3)
-    .describe("Number of meal suggestions the host model should generate (1-7)"),
-  mealType: z
-    .enum(["any", "breakfast", "lunch", "dinner", "snack"])
-    .optional()
-    .default("any")
-    .describe("Type of meals the user wants"),
+  numberOfMeals: z.number().min(1).max(7).optional().default(3),
+  mealType: z.enum(["any", "breakfast", "lunch", "dinner", "snack"]).optional().default("any"),
   dietaryPreferences: z
     .string()
     .max(300)
     .optional()
-    .describe("Dietary preferences or restrictions such as vegetarian, low-carb, or gluten-free"),
+    .describe("Dietary restrictions or preferences"),
   prioritizeExpiring: z
     .boolean()
     .optional()
     .default(true)
-    .describe("Whether the host model should prioritize ingredients expiring soon"),
+    .describe("Prioritize ingredients expiring soon"),
+  includeWeeklyDeals: coercedBooleanSchema
+    .optional()
+    .default(false)
+    .describe("Include up to 10 QFC/Kroger offers"),
+  storeId: storeIdSchema.optional().describe("Deal store; defaults to preferred Kroger store"),
 });
 
 export function registerRecipeTools(ctx: ToolContext) {
@@ -139,27 +136,37 @@ export function registerRecipeTools(ctx: ToolContext) {
     {
       title: "Get Meal Planning Context",
       description:
-        "Returns compact pantry, expiry, kitchen equipment, and recent-order context for the host model to write meal suggestions. This tool does not call an LLM or render an app view.",
+        "Returns pantry, expiry, equipment, and recent purchases for host-written meal plans. includeWeeklyDeals:true adds QFC/Kroger offers, even with an empty pantry.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
       inputSchema: mealPlanningInputSchema,
     },
-    async ({ numberOfMeals, mealType, dietaryPreferences, prioritizeExpiring }) => {
+    async ({
+      numberOfMeals,
+      mealType,
+      dietaryPreferences,
+      prioritizeExpiring,
+      includeWeeklyDeals,
+      storeId,
+    }) => {
       const { storage } = ctx;
       getProps();
 
-      const contextResult = await ResultAsync.combine([
-        safeStorage(() => storage.pantry.getAll(), "fetch pantry"),
-        safeStorage(() => storage.equipment.getAll(), "fetch equipment"),
-        safeStorage(() => storage.orderHistory.getRecent(10), "fetch order history"),
+      const [contextResult, weeklyDeals] = await Promise.all([
+        ResultAsync.combine([
+          safeStorage(() => storage.pantry.getAll(), "fetch pantry"),
+          safeStorage(() => storage.equipment.getAll(), "fetch equipment"),
+          safeStorage(() => storage.orderHistory.getRecent(10), "fetch order history"),
+        ]),
+        includeWeeklyDeals ? getMealPlanningDeals(ctx, storeId) : Promise.resolve(undefined),
       ]);
       if (contextResult.isErr()) return toMcpError(contextResult.error);
       const [pantry, equipment, recentOrders] = contextResult.value;
-      if (pantry.length === 0) {
+      if (pantry.length === 0 && !includeWeeklyDeals) {
         return textResult(
           'Your pantry is empty. Add items first using add_to_inventory, e.g. {"inventory":"pantry","items":[{"name":"Eggs"}]}, then try planning meals again.',
         );
@@ -215,6 +222,11 @@ export function registerRecipeTools(ctx: ToolContext) {
       for (const item of availableItems) {
         parts.push(`- ${item.productName} x${item.quantity}`);
       }
+      if (pantry.length === 0) {
+        parts.push("Your pantry is empty. Treat all recipe ingredients as items to buy.");
+      }
+
+      if (weeklyDeals) parts.push(weeklyDeals);
 
       if (equipment.length > 0) {
         parts.push(`\n**Equipment (${equipment.length} items):**`);
@@ -234,7 +246,10 @@ export function registerRecipeTools(ctx: ToolContext) {
       }
 
       parts.push(
-        `\n---\n**Action Required:** Suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using the pantry items above.`,
+        `\n---\n**Action Required:** Suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using ${includeWeeklyDeals ? "the available pantry items and any suitable weekly offers above" : "the pantry items above"}.`,
+        includeWeeklyDeals
+          ? "Respect dietary preferences and offer conditions; do not assume sale items are already in the pantry. Use search_products to confirm exact products and current prices before create_shopping_list."
+          : "",
         "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
         prioritizeExpiring ? "Prioritize using expiring items first to reduce food waste." : "",
         "After suggesting meals, offer to add any missing ingredients to a shopping list using create_shopping_list.",

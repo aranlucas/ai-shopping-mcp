@@ -1,8 +1,8 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { ToolCall } from "../../views/shared/types.js";
+import { type ToolCall, callTool, sendUserMessage } from "../../views/shared/types.js";
 
 import {
   addProductToCart,
@@ -13,19 +13,54 @@ import {
   toolResultErrorMessage,
 } from "../../views/app/tool-calls.js";
 
-function makeToolCallingApp(results: Array<{ isError?: true; structuredContent?: unknown }>) {
+function makeToolCallingApp(
+  results: Array<{ isError?: true; structuredContent?: Record<string, unknown> }>,
+) {
   const calls: ToolCall[] = [];
-  const app = {
-    callServerTool: async (call: unknown) => {
-      calls.push(call as ToolCall);
-      return { content: [], ...results.shift() };
-    },
-  } as unknown as App;
+  const callServerTool = vi.fn<App["callServerTool"]>(async (call) => {
+    calls.push(call as ToolCall);
+    return { content: [], ...results.shift() };
+  });
+  const app = { callServerTool } as unknown as App;
 
   return { app, calls };
 }
 
+function makeMessageApp(result: Awaited<ReturnType<App["sendMessage"]>>) {
+  const sendMessage = vi.fn<App["sendMessage"]>().mockResolvedValue(result);
+  return { app: { sendMessage } as unknown as App, sendMessage };
+}
+
 describe("view tool call helpers", () => {
+  it("rejects server-tool writes when the app is disconnected", async () => {
+    await expect(callTool(null, addShoppingListToCartCall("list_abc12345"))).rejects.toThrow(
+      "shopping app is disconnected",
+    );
+  });
+
+  it("rejects user messages when the app is disconnected", async () => {
+    await expect(sendUserMessage(null, "Find milk")).rejects.toThrow(
+      "shopping app is disconnected",
+    );
+  });
+
+  it("rejects user messages when the host returns an error result", async () => {
+    const { app, sendMessage } = makeMessageApp({ isError: true });
+
+    await expect(sendUserMessage(app, "Find milk")).rejects.toThrow(
+      "assistant could not receive your request",
+    );
+    expect(sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a rejected host message", async () => {
+    const hostError = new Error("host disconnected");
+    const sendMessage = vi.fn<App["sendMessage"]>().mockRejectedValue(hostError);
+    const app = { sendMessage } as unknown as App;
+
+    await expect(sendUserMessage(app, "Find milk")).rejects.toBe(hostError);
+  });
+
   it("creates a create_shopping_list call for a selected product", () => {
     expect(
       createProductShoppingListCall({

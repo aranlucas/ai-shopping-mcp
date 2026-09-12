@@ -95,6 +95,8 @@ type AppResultPayloads = {
     validFrom?: string;
     validTill?: string;
     cache?: { state: "miss" | "fresh" | "stale" };
+    warnings?: string[];
+    storeId?: string;
   };
   search_stores: { stores: LocationData[] };
   get_store: { store: LocationData };

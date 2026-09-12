@@ -86,9 +86,10 @@ export function registerLocationTools(ctx: ToolContext) {
       }
 
       const result = await fromApiResponse(
-        locationClient.GET("/v1/locations", {
-          params: { query: queryParams },
-        }),
+        () =>
+          locationClient.GET("/v1/locations", {
+            params: { query: queryParams },
+          }),
         "search locations",
       ).map((data) => data?.data || []);
 
@@ -121,9 +122,10 @@ export function registerLocationTools(ctx: ToolContext) {
     },
     async ({ storeId }) => {
       const result = await fromApiResponse(
-        locationClient.GET("/v1/locations/{locationId}", {
-          params: { path: { locationId: storeId } },
-        }),
+        () =>
+          locationClient.GET("/v1/locations/{locationId}", {
+            params: { path: { locationId: storeId } },
+          }),
         "get location details",
       ).andThen((data) => {
         const location = data?.data;
@@ -162,9 +164,10 @@ export function registerLocationTools(ctx: ToolContext) {
     },
     async ({ storeId }) => {
       const result = await fromApiResponse(
-        locationClient.GET("/v1/locations/{locationId}", {
-          params: { path: { locationId: storeId } },
-        }),
+        () =>
+          locationClient.GET("/v1/locations/{locationId}", {
+            params: { path: { locationId: storeId } },
+          }),
         "get location details",
       ).andThen((data) => {
         const location = data?.data;

@@ -10,7 +10,7 @@ import {
   CarouselPrevious,
 } from "@agents/ui/components/carousel";
 
-import { DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
+import { Badge, DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import { type ProductData, type ProductSearchResultsContent } from "../../shared/types.js";
 import { addProductToCart, saveProductToList } from "../tool-calls.js";
@@ -46,12 +46,12 @@ function ProductCarousel({
   canCallTools: boolean;
 }) {
   return (
-    <Carousel opts={CAROUSEL_OPTS}>
+    <Carousel opts={CAROUSEL_OPTS} aria-label="Products">
       <CarouselContent className="-ms-2">
         {products.map((product) => (
           <CarouselItem
             key={`${product.product.provider}:${product.product.id}`}
-            className="basis-52 ps-2"
+            className="basis-68 ps-2"
           >
             <ProductCard
               product={product}
@@ -62,8 +62,13 @@ function ProductCarousel({
           </CarouselItem>
         ))}
       </CarouselContent>
-      <CarouselPrevious className="inset-s-2 border-gray-200 bg-white/90 shadow-md hover:bg-white" />
-      <CarouselNext className="inset-e-2 border-gray-200 bg-white/90 shadow-md hover:bg-white" />
+      {products.length > 1 && (
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <span className="me-auto text-xs text-gray-500">Swipe or use the arrows to compare</span>
+          <CarouselPrevious size="icon-lg" className="static translate-y-0" />
+          <CarouselNext size="icon-lg" className="static translate-y-0" />
+        </div>
+      )}
     </Carousel>
   );
 }
@@ -107,7 +112,7 @@ export function ProductSearchView({
   const hasResults = results.some((r) => !r.failed && r.products.length > 0);
 
   const headerBadge = useMemo(
-    () => <span className="font-mono text-xs text-gray-400">{totalProducts} items</span>,
+    () => <Badge variant="secondary">{totalProducts} items</Badge>,
     [totalProducts],
   );
   const headerTrailing = useMemo(
@@ -120,7 +125,7 @@ export function ProductSearchView({
   );
 
   return (
-    <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
+    <div className="mx-auto max-w-4xl px-4 py-5 sm:px-6">
       <SectionHeader
         title="Product Search"
         badge={headerBadge}
@@ -128,7 +133,7 @@ export function ProductSearchView({
         trailing={headerTrailing}
       />
 
-      {!hasResults && (
+      {!hasResults && !results.some((result) => result.failed) && (
         <EmptyState
           icon={EMPTY_SEARCH_ICON}
           message="No products found"
@@ -141,6 +146,7 @@ export function ProductSearchView({
           return (
             <div
               key={`${result.provider}:${result.term}`}
+              role="alert"
               className="mb-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
             >
               <svg
@@ -157,7 +163,8 @@ export function ProductSearchView({
                   d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
                 />
               </svg>
-              Search failed for &ldquo;{result.term}&rdquo;
+              Could not search {result.provider} for &ldquo;{result.term}&rdquo;. Ask your assistant
+              to retry.
             </div>
           );
         }
@@ -175,13 +182,12 @@ export function ProductSearchView({
           );
         }
         return (
-          <div key={`${result.provider}:${result.term}`} className="mb-6">
-            <div className="mb-2.5 flex items-center gap-2">
-              <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                {result.term}
+          <section key={`${result.provider}:${result.term}`} className="mb-7 last:mb-0">
+            <div className="mb-3 flex flex-wrap items-baseline gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">{result.term}</h2>
+              <span className="text-xs text-gray-500">
+                {result.provider} · {result.products.length} items
               </span>
-              <span className="text-xs text-gray-300">·</span>
-              <span className="text-xs text-gray-400">{result.products.length} items</span>
             </div>
             <ProductCarousel
               products={result.products}
@@ -189,7 +195,7 @@ export function ProductSearchView({
               onAddToList={handleAddToList}
               canCallTools={canCallTools}
             />
-          </div>
+          </section>
         );
       })}
     </div>

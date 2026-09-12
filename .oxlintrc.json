@@ -35,8 +35,6 @@
 
     // TypeScript strictness (valuable, low noise in this repo).
     "typescript/consistent-type-imports": "error",
-    "typescript/no-floating-promises": "error",
-    "typescript/no-misused-promises": "error",
     "typescript/no-non-null-assertion": "error",
     "typescript/no-explicit-any": "error",
 

@@ -1,140 +1,129 @@
-# Feature Roadmap
+# Roadmap
 
-Future features for the Kroger/QFC shopping MCP server, prioritized by value relative to effort. Each entry explains why it's worth building, how it fits the existing architecture, and what it depends on.
+Reviewed against the code on September 12, 2026. This is the single prioritized backlog for
+the MCP server. [VISION.md](VISION.md) describes the architecture and host contract;
+[the efficiency plan](small-model-efficiency-plan.md) records earlier implementation work.
 
-This roadmap covers tool-layer features only. `docs/VISION.md` describes the wider system (agent host, frontend, free-model constraint), the host-integration audit, and a cross-cutting improvement backlog that sequences these items.
+## Constraints
 
-A guiding constraint for everything below: the Kroger public API only exposes products, locations, cart, and identity. Coupons, pickup time slots, order history, and nutrition data are **not** available, so every feature here is designed around what we can actually reach — the public API, the QFC weekly-ad scrape, and our own KV data.
+- Keep planning, substitutions, scheduling, and purchase approval in the host. This server
+  supplies catalog data, household context, deterministic enrichment, and cart operations.
+- Use open provider registration and `productRef=<provider>:<id>` at shared boundaries.
+  Kroger supports cart writes; Trader Joe's currently supports browsing and lists. Do not
+  assume every provider supports stores, prices, aisle data, or carts.
+- Shared household data belongs in agents-gateway/D1. New persistent profile fields need a
+  gateway contract and migration, not another Worker KV storage class. KV remains appropriate
+  for caches and cart state; atomic cart operations use the existing Durable Object journal.
 
----
+## Next: MCP and error-handling correctness
 
-## Tier 1 — High value, builds on what exists
+### 1. Resolve the gateway token boundary
 
-### 1. Deal-aware meal planning
+The [current gateway authentication design](GATEWAY_AUTH.md) forwards the incoming MCP OAuth
+bearer token to agents-gateway, which verifies it through the MCP `/userinfo` endpoint and
+resolves the canonical shopper. That design needs review against the
+[MCP authorization rules for token audience and upstream credentials](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization).
 
-**What:** Feed the current week's QFC deals into `get_meal_planning_context` so the host model plans meals around what's on sale, and let shopping-list creation surface sale-priced swaps for list items.
+Design the resource boundaries and a separate gateway credential or token-exchange flow with
+the gateway owner before changing either service. Preserve verified shopper resolution and
+fail-closed ownership checks; do not restore trusted caller-supplied user headers.
 
-**Why it's good:** This is the single thing a human actually does with a weekly ad — "what's cheap this week, and what can I cook with it?" We already have both halves (`get_weekly_deals`, `get_meal_planning_context`); they just don't talk to each other. It turns two standalone tools into the core workflow of the product.
+**Done when:** the documented design addresses upstream token forwarding, and coordinated
+implementation/tests prove audience separation, user isolation, expired-token handling, and
+migration behavior. This is a cross-repository change, not a local auth-header patch.
 
-**How:**
+### 2. Enforce consumption of synchronous Results
 
-- `get_meal_planning_context` optionally calls the QFC deals fetcher (`src/services/qfc-weekly-deals.ts`) and includes a compact deals summary in its structured context output. No sampling — the host model does the planning, consistent with the existing design.
-- Add an `onSale` annotation when shopping-list items match a current deal (reuse the case-insensitive matching conventions from `user-storage.ts`).
+Promise handling is enforced by the regular lint/build path, including floated `ResultAsync`
+values. A Promise settling successfully does not prove its `Err` was handled: discarded
+synchronous `Result` values and ignored results after `await` still need compatible enforcement.
 
-**Depends on:** Deals caching (Tier 3, #8) makes this fast, but it works without it.
+Oxlint's JavaScript plugin API currently lacks the type-aware APIs required by
+`eslint-plugin-neverthrow`. Revisit when a supported integration exists; do not introduce a
+second legacy lint stack or a syntax-only rule that mistakes a returned error for handled work.
 
-### 2. Pantry-aware shopping lists
+**Done when:** the normal lint command rejects discarded Results, while valid propagation and
+explicit recovery pass. Add a failing fixture to demonstrate the integration before adopting it.
 
-**What:** When building a shopping list from a recipe or meal plan, subtract what the pantry already has — "you have flour and eggs; only adding butter."
+### 3. Validate structured tool outputs
 
-**Why it's good:** It makes the pantry feature pay for itself. Today the pantry is write-mostly: users maintain it but nothing meaningful reads it. This closes the loop and directly reduces wasted spend, which is the product's pitch.
+[App results](../src/app-results.ts) have TypeScript types, but the UI parser only checks the
+view name before casting the payload. Tools also do not advertise `outputSchema`.
+Define shared runtime schemas for structured results, validate incoming view data, and expose
+the corresponding [MCP output contracts](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
 
-**How:**
+**Done when:** valid success payloads match their advertised schemas, malformed payloads fail
+gracefully in the app, and error/text-only branches remain valid. Measure schema and response
+token costs before changing budgets. Text-only context tools can stay text-only; MCP output
+schemas are optional, so this is a contract improvement rather than a missing protocol requirement.
 
-- A pantry reconciliation option for shopping-list creation: for each candidate item, check `PantryStorage` using the existing case-insensitive dedup matching, and return a split of "already have" vs "need to buy."
-- Surface the split in the shopping-list view (`views/app/views/`) so the user can override ("actually I'm out of flour").
+## Then: focused product improvements
 
-**Depends on:** Nothing. The matching machinery already exists in `src/utils/user-storage.ts`.
+### Interactive list editing
 
-### 3. Replenishment suggestions from order history
+Wire the [shopping-list view](../views/app/views/shopping-list.tsx) to the existing editing
+tools. Carry durable `itemId` and `checked` state through the app payload and typed action
+bridge; provide quantity, check-off, and removal controls with visible failure handling and
+state refresh. Reuse the runtime output schemas above. No new editing tools are needed.
 
-**What:** A `suggest_restock` tool (or enrichment of the `shopping://user/order-history` resource) that infers purchase cadence — "you buy milk roughly every 10 days; last bought 12 days ago."
+### Aisle-aware lists
 
-**Why it's good:** `OrderHistoryStorage` already keeps the last 50 orders and nothing reads them for insight. This is pure KV reads plus date math — no new Kroger API surface, no scraping — and it gives the assistant something proactive to say, which is what makes an MCP shopping assistant feel useful rather than transactional.
+Add optional aisle enrichment and ordering for a selected store, reusing product lookup's
+existing `includeLocation` support. Keep items with missing aisle data visible, bound lookups,
+and preserve the original list order unless routing is requested. Validate with a fixture
+workflow that produces a route and identifies items with unknown locations.
 
-**How:**
+### Conservative pantry reconciliation
 
-- Compute per-item median interval between purchases across order history; flag items past their interval.
-- Read-only tool (`readOnlyHint: true`, `openWorldHint: false`), output schema in `src/tools/output-schemas.ts`, optionally a small view.
-- Items flagged for restock can flow into #2's pantry-aware list building.
+Build on existing pantry flags and meal context with an explicit “already have / need to buy”
+review. Today's pantry records contain names and quantities, without product references or
+units. Fuzzy name matching cannot justify automatic quantity subtraction. Start with
+user-reviewed suggestions; reliable arithmetic depends on a shared identity/unit contract
+and must account for expired stock. Never silently remove a requested purchase.
 
-**Depends on:** Enough order history accumulating via `record_order` to be useful; degrade gracefully (return "not enough history yet") below a threshold.
+### Read-only list cost estimate
 
----
+Estimate a saved list using exact product references, selected-store prices, and quantities
+before a cart write. Report priced-item coverage, unknown prices, availability, conditional
+promotions, and excluded taxes/fees. Free-text or unmatched items remain explicitly unpriced.
+A missing price is not zero. This feature does not require collecting price history, and an
+estimate request must never mutate the cart.
 
-## Tier 2 — High value, new data surface
+### Persistent household preferences
 
-### 4. Price history and list cost estimation
+Persist dietary preferences, dislikes, and household size in agents-gateway/D1, then include
+them in meal context. Per-call `dietaryPreferences` already exists. The gateway API, migration,
+and shared-client updates are prerequisites; avoid a second Worker-only household profile.
+Treat preferences as planning constraints, not verified product allergen or nutrition data.
 
-**What:** Persist price snapshots from every product search, then (a) show an estimated total before `add_shopping_list_to_cart` sends items to the cart, and (b) flag when a price is unusually high or low.
+## Deferred or outside scope
 
-**Why it's good:** Every `search_products` call already returns prices we throw away. Capturing them is nearly free and unlocks two features users consistently want: "how much will this cost?" before checkout, and "is this actually a good deal?" — which also makes the deal planning in #1 smarter (a "sale" price that matches the everyday price is not a deal).
+- **Price history:** no demonstrated need for per-search snapshot writes yet. Revisit with a
+  concrete price-trend workflow, retention/write budget, and provider/store/currency identity.
+- **Multi-store comparison:** follow a trustworthy single-store estimate. Compare exact
+  products and pack sizes across a small bounded set of stores; name matches alone do not
+  establish comparable baskets, especially across providers.
+- **Standalone sale-substitution or workflow-guide tools:** the host can compose existing
+  search, deals, context, and list tools. Improve guidance and add a failing workflow eval
+  before expanding the tool surface.
+- **A new skills hierarchy or host-framework migration:** no demonstrated requirement in
+  this repo. Validate a consuming host's actual prompt, instruction, and result handling
+  before planning host-specific changes; see the [host contract](VISION.md#host-integration-contract).
+- **Universal automatic mutation retries:** document and test each operation's actual retry
+  semantics. Preserve pending/unknown cart outcomes and avoid retrying non-idempotent writes.
+- **Coupon clipping, pickup-slot booking, and nutrition integrations:** outside the currently
+  supported integrations. Revisit only with a verified supported data source and a concrete
+  workflow; do not expand scraping speculatively.
+- **Server-side meal-plan generation, MCP Sampling, and a recipe database:** the host owns
+  planning and recipe selection. The existing bounded product reranker remains an exception.
+- **Order placement and payment:** the assistant fills the cart; the user completes purchase.
 
-**How:**
+## Delivery gates
 
-- New `PriceHistoryStorage` in `src/utils/user-storage.ts` keyed `price:{locationId}:{upc}`, storing `{price, promoPrice, date}` snapshots with a retention cap (mirror the order-history 50-entry pattern).
-- Write snapshots opportunistically inside existing product-search and deals flows; never add extra API calls just to record prices.
-- `add_shopping_list_to_cart` sums known prices and reports coverage honestly before cart handoff ("estimated $47.20, prices known for 9 of 12 items").
-
-**Watch out for:** KV write volume — batch snapshots per search, and keep keys global (not per-user) since prices are per-store, not per-person.
-
-### 5. Dietary preferences and household profile
-
-**What:** A `PreferencesStorage` class (allergies, dislikes, dietary pattern, household size) with a `manage_preferences` tool and a `shopping://user/preferences` resource, fed into `get_meal_planning_context`.
-
-**Why it's good:** Every downstream suggestion gets better — meal plans that don't propose shellfish to an allergic user, portion math scaled to household size. It's also the pattern this codebase is best at: a small storage class, a CRUD tool, and a resource, exactly like pantry/equipment. Low risk, compounding payoff.
-
-**How:** Follow the `PantryStorage` pattern end-to-end: storage class, `manage_preferences` tool with `readOnlyHint: false` / `openWorldHint: false`, resource registration in `src/tools/resources.ts`, tests in `tests/tools/` and `tests/utils/`.
-
-**Depends on:** Nothing. Pure additive.
-
-### 6. Multi-store price comparison
-
-**What:** Compare a shopping list's cost across two or three nearby stores, reusing the parallel-search pattern.
-
-**Why it's good:** Kroger prices genuinely vary by store, and the data is reachable today — `search_products` already accepts a location filter. The bulk-parallel design rule for `search_products` (1–10 terms, `Promise.all()`, progress notifications) extends naturally to "same terms × N locations."
-
-**How:** A `compare_store_prices` tool that fans out existing product searches across locations and returns a per-store total plus per-item best-store breakdown. Pairs well with a comparison-table view.
-
-**Watch out for:** Request volume (list size × stores); cap at ~3 stores and reuse the progress-notification machinery so long runs feel responsive.
-
----
-
-## Tier 3 — Infrastructure and polish
-
-### 7. Ad-lifetime weekly-deals cache — completed
-
-**What:** `get_weekly_deals` caches each QFC/Kroger weekly ad in KV through the circular's
-published expiration time, then retains it for a 48-hour stale fallback before Cloudflare
-deletes the key automatically.
-
-**Why it's good:** The fetch-and-augment in `qfc-weekly-deals.ts` is the slowest call in the
-repo, while the underlying circular does not change before its published expiration. The
-first request fills the cache and subsequent requests avoid unnecessary refreshes without a
-scheduled Worker or another operational path.
-
-**How:** Cache freshness is derived from the latest print or shoppable circular end time. If
-the upstream response has no circular metadata, freshness falls back to six hours. Expired
-ads remain available only when a live refresh fails, for up to 48 hours.
-
-### 8. Interactive shopping-list view
-
-**What:** Upgrade the shopping-list view so users can check off, remove, and adjust quantities directly in the UI, with actions flowing back through the MCP Apps action bridge.
-
-**Why it's good:** A shopping list is the one surface users want to _touch_ rather than talk at — checking items off in conversation is clumsy. The view plumbing (`views/app/views/`, shared components, `_view` routing) already exists; this is the natural next step for the MCP Apps investment.
-
-**How:** Add focused shopping-list editing tools for check-off, removal, and quantity adjustment; update the dev harness mocks in `views/dev/`; keep structured content aligned with tool-local output schemas.
-
-### 9. Workflow prompts
-
-**What:** A small set of MCP prompts encoding end-to-end workflows: "weekly shop" (deals → meal plan → pantry-reconciled list → cart), "restock check," "clean out the pantry" (plan meals around what's expiring).
-
-**Why it's good:** Cheap to build (`src/prompts.ts` exists and is thin) and high leverage for discoverability — prompts are how MCP clients surface "what can this server do?" Multi-tool workflows are exactly what users won't compose by hand.
-
-**Depends on:** Most valuable after Tier 1 lands, since the workflows it encodes are #1–#3.
-
----
-
-## Explicitly not planned
-
-- **Coupon clipping, pickup time slots, nutrition data** — not in the Kroger public API. Reaching them means expanding the scraping approach beyond the weekly ad, which is fragile and likely against terms. Revisit only if Kroger expands the public API.
-- **Server-side LLM calls in `get_meal_planning_context`** — MCP Sampling was deliberately removed; the host model does the reasoning. Keep it that way.
-- **Order placement / payment** — `add_shopping_list_to_cart` fills the cart; the human completes the purchase. The trust boundary is correct as-is.
-
-## Suggested sequencing
-
-1. **#1 (deal-aware planning)** and **#2 (pantry-aware lists)** next — these are the product's core loop.
-2. **#5 (preferences)** and **#3 (restock)** — compounding context for everything above.
-3. **#4 (price history)**, **#6 (store comparison)**, **#8 (interactive list)**, **#9 (prompts)** as follow-ons, in whatever order interest dictates.
-
-Every feature lands with tests per `AGENTS.md` — new tools, storage classes, and branches all need coverage before handing back.
+Each change needs focused behavior tests plus the applicable repository gates: `pnpm build`,
+`pnpm test`, formatting, and `git diff --check`. Tool changes must preserve the
+[small-model contract](../tests/evals/README.md), including copyable identifiers, actionable
+errors, and bounded text and structured payloads. New workflow behavior needs a deterministic
+MCP eval; live-model runs remain opt-in. Gateway changes also require generated-client checks
+and verification in the gateway repository. Record deployment verification separately from
+implementation status.

@@ -1,5 +1,5 @@
 import { registerAppTool } from "../utils/app-tool.js";
-import { ResultAsync, okAsync } from "neverthrow";
+import { type Result, ResultAsync, err, ok, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
@@ -7,14 +7,14 @@ import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import type { KvLike } from "../utils/kv.js";
 import type { ToolContext } from "./types.js";
 
-import { networkError, notFoundError, storageError } from "../errors.js";
+import { AppErrorException, networkError, notFoundError, storageError } from "../errors.js";
 import { appResult } from "../app-results.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
 import { DEAL_CATEGORIES, classifyDealCategory } from "../utils/deal-category.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 import { safeJsonParseWithSchema } from "../utils/json.js";
 import { getUserDataKv } from "../utils/kv.js";
-import { safeResolveLocationId, toMcpError } from "../utils/result.js";
+import { fromApiResponse, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
 
@@ -97,9 +97,10 @@ function readWeeklyDealsCacheSafe(
 ): ResultAsync<CacheReadResult, AppError> {
   if (!kv) return okAsync({ kind: "miss" as const });
 
-  return ResultAsync.fromPromise(kv.get(key), (e) =>
-    storageError(`Failed to read cache: ${e instanceof Error ? e.message : String(e)}`, e),
-  ).map((raw) => {
+  return ResultAsync.fromThrowable(
+    () => kv.get(key),
+    (e) => storageError(`Failed to read cache: ${e instanceof Error ? e.message : String(e)}`, e),
+  )().map((raw) => {
     const entry = parseCacheEntry(raw);
     if (!entry) return { kind: "miss" as const };
 
@@ -140,9 +141,10 @@ function writeWeeklyDealsCache(
   };
 
   const expiration = Math.max(Math.ceil(staleUntil / 1000), Math.ceil(now / 1000) + 60);
-  return ResultAsync.fromPromise(kv.put(key, JSON.stringify(entry), { expiration }), (e) =>
-    storageError(`Cache write failed: ${e instanceof Error ? e.message : String(e)}`, e),
-  );
+  return ResultAsync.fromThrowable(
+    () => kv.put(key, JSON.stringify(entry), { expiration }),
+    (e) => storageError(`Cache write failed: ${e instanceof Error ? e.message : String(e)}`, e),
+  )();
 }
 
 export function addCacheWarning(result: QfcDealsApiResponse, message: string): QfcDealsApiResponse {
@@ -150,6 +152,156 @@ export function addCacheWarning(result: QfcDealsApiResponse, message: string): Q
     ...result,
     warnings: [...result.warnings, message],
   };
+}
+
+export type LoadedWeeklyDeals = {
+  data: QfcDealsApiResponse;
+  cacheState: "miss" | "fresh" | "stale";
+};
+
+/** Shared store resolution, cache, and live fetch for weekly deals and meal context. */
+export async function loadWeeklyDeals(
+  ctx: ToolContext,
+  {
+    storeId,
+    limit,
+    pageLimit,
+    signal,
+  }: {
+    storeId?: string;
+    limit: number;
+    pageLimit: number;
+    signal?: AbortSignal;
+  },
+): Promise<Result<LoadedWeeklyDeals, AppError>> {
+  let resolvedStoreId = storeId;
+  if (!resolvedStoreId) {
+    const resolved = await safeResolveLocationId(ctx.storage, undefined);
+    if (resolved.isErr()) {
+      return err(
+        resolved.error.type === "NOT_FOUND"
+          ? notFoundError(
+              "No store set. Use search_stores then set_preferred_store, or pass storeId.",
+            )
+          : resolved.error,
+      );
+    }
+    resolvedStoreId = resolved.value.locationId;
+  }
+
+  const kv = getUserDataKv(ctx.getEnv());
+  const cacheKey = buildWeeklyDealsCacheKey({
+    locationId: resolvedStoreId,
+    limit,
+    pageLimit,
+  });
+
+  // Read cache using Result
+  const cacheResult = await readWeeklyDealsCacheSafe(kv, cacheKey);
+
+  let staleEntry: WeeklyDealsCacheEntry | null = null;
+  const cacheReadError = cacheResult.isErr() ? cacheResult.error : undefined;
+
+  const cached = cacheResult.isOk() ? cacheResult.value : null;
+  if (cached) {
+    if (cached.kind === "fresh") {
+      const result = addCacheWarning(cached.entry.data, "Served from KV cache.");
+      return ok({ data: result, cacheState: "fresh" });
+    }
+    if (cached.kind === "stale") {
+      staleEntry = cached.entry;
+    }
+  }
+
+  // Fetch live data
+  const liveResult = await ResultAsync.fromPromise(
+    (async () => {
+      const { productClient } = ctx.clients;
+      const dealsResult = await getQfcWeeklyDeals({
+        locationId: resolvedStoreId,
+        limit,
+        pageLimit,
+        ...(signal ? { signal } : {}),
+        searchProducts: async (term, locId, searchLimit) => {
+          const apiResult = await fromApiResponse(
+            () =>
+              productClient.GET("/v1/products", {
+                ...(signal ? { signal } : {}),
+                params: {
+                  query: {
+                    "filter.term": term,
+                    "filter.locationId": locId,
+                    "filter.limit": searchLimit,
+                  },
+                },
+              }),
+            `search weekly deals for "${term}"`,
+          );
+          return apiResult.match(
+            (value) => value.data ?? [],
+            (error) => {
+              throw new AppErrorException(error);
+            },
+          );
+        },
+      });
+      // The fetcher can return partial data after catching an aborted subrequest.
+      // Preserve stale fallback instead of caching a result from a timed-out refresh.
+      signal?.throwIfAborted();
+      return dealsResult;
+    })(),
+    (e): AppError =>
+      e instanceof AppErrorException
+        ? e.appError
+        : networkError(
+            `Failed to fetch weekly deals: ${e instanceof Error ? e.message : String(e)}`,
+            e,
+          ),
+  );
+
+  if (liveResult.isOk()) {
+    let liveData = liveResult.value;
+    const degraded = liveData.meta?.degraded === true;
+
+    if (degraded && staleEntry) {
+      return ok({
+        data: addCacheWarning(
+          staleEntry.data,
+          "Live refresh was partial; served stale KV cache instead.",
+        ),
+        cacheState: "stale",
+      });
+    }
+
+    if (cacheReadError) {
+      liveData = addCacheWarning(
+        liveData,
+        `KV cache read failed; live deals were fetched without trusting the cache. (${cacheReadError.message})`,
+      );
+    }
+
+    if (degraded) {
+      liveData = addCacheWarning(liveData, "Live refresh was partial; results were not cached.");
+    } else if (!cacheReadError) {
+      const cacheWriteResult = await writeWeeklyDealsCache(kv, cacheKey, liveData);
+      if (cacheWriteResult.isErr()) {
+        liveData = addCacheWarning(
+          liveData,
+          `Cache write failed; live deals are still current for this response. (${cacheWriteResult.error.message})`,
+        );
+      }
+    }
+
+    return ok({ data: liveData, cacheState: "miss" });
+  }
+  if (staleEntry) {
+    const staleData = addCacheWarning(
+      staleEntry.data,
+      `Live refresh failed; served stale KV cache. (${liveResult.error.message})`,
+    );
+    return ok({ data: staleData, cacheState: "stale" });
+  }
+  return err(liveResult.error);
 }
 
 export function registerWeeklyDealsTools(ctx: ToolContext) {
@@ -192,85 +344,9 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
       }),
     },
     async ({ storeId, limit, pageLimit }) => {
-      let resolvedStoreId = storeId;
-      if (!resolvedStoreId) {
-        const resolved = await safeResolveLocationId(ctx.storage, undefined);
-        if (resolved.isErr()) {
-          return toMcpError(
-            notFoundError(
-              "No store set. Use search_stores then set_preferred_store, or pass storeId.",
-            ),
-          );
-        }
-        resolvedStoreId = resolved.value.locationId;
-      }
-
-      const kv = getUserDataKv(ctx.getEnv());
-      const cacheKey = buildWeeklyDealsCacheKey({
-        locationId: resolvedStoreId,
-        limit,
-        pageLimit,
-      });
-
-      // Read cache using Result
-      const cacheResult = await readWeeklyDealsCacheSafe(kv, cacheKey);
-
-      let staleEntry: WeeklyDealsCacheEntry | null = null;
-
-      const cached = cacheResult.isOk() ? cacheResult.value : null;
-      if (cached) {
-        if (cached.kind === "fresh") {
-          const result = addCacheWarning(cached.entry.data, "Served from KV cache.");
-          return formatWeeklyDealsToolResponse(result, "fresh");
-        }
-        if (cached.kind === "stale") {
-          staleEntry = cached.entry;
-        }
-      }
-
-      // Fetch live data
-      const liveResult = await ResultAsync.fromPromise(
-        (async () => {
-          const { productClient } = ctx.clients;
-          const result = await getQfcWeeklyDeals({
-            locationId: resolvedStoreId,
-            limit,
-            pageLimit,
-            searchProducts: async (term, locId, searchLimit) => {
-              const { data, error } = await productClient.GET("/v1/products", {
-                params: {
-                  query: {
-                    "filter.term": term,
-                    "filter.locationId": locId,
-                    "filter.limit": searchLimit,
-                  },
-                },
-              });
-              if (error) return [];
-              return data?.data || [];
-            },
-          });
-          await writeWeeklyDealsCache(kv, cacheKey, result).orTee((e) =>
-            console.warn("Cache write failed (non-fatal):", e.message),
-          );
-          return result;
-        })(),
-        (e): AppError =>
-          networkError(
-            `Failed to fetch weekly deals: ${e instanceof Error ? e.message : String(e)}`,
-            e,
-          ),
-      );
-
-      if (liveResult.isOk()) return formatWeeklyDealsToolResponse(liveResult.value, "miss");
-      if (staleEntry) {
-        const staleData = addCacheWarning(
-          staleEntry.data,
-          `Live refresh failed; served stale KV cache. (${liveResult.error.message})`,
-        );
-        return formatWeeklyDealsToolResponse(staleData, "stale");
-      }
-      return toMcpError(liveResult.error);
+      const result = await loadWeeklyDeals(ctx, { storeId, limit, pageLimit });
+      if (result.isErr()) return toMcpError(result.error);
+      return formatWeeklyDealsToolResponse(result.value.data, result.value.cacheState);
     },
   );
 }
@@ -312,6 +388,18 @@ export function formatWeeklyDealsToolResponse(
       validFrom,
       validTill,
       cache: { state: cacheState },
+      warnings: result.warnings
+        .filter((warning) => warning !== "Served from KV cache.")
+        .map((warning) => {
+          if (warning.startsWith("KV cache read failed")) {
+            return "Saved deals could not be loaded. Showing current results.";
+          }
+          if (warning.startsWith("Cache write failed")) {
+            return "Current deals loaded, but could not be saved for later.";
+          }
+          return warning.replace("stale KV cache", "previously saved deals");
+        }),
+      storeId: result.locationId,
     }),
   };
 }

@@ -6,7 +6,7 @@ import type { ProductData } from "../../src/app-results.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { PreferredLocation } from "../../src/utils/user-storage.js";
 
-import { apiError, authError } from "../../src/errors.js";
+import { AppErrorException, apiError, authError } from "../../src/errors.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { logProductSearchError, registerProductTools } from "../../src/tools/product.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
@@ -428,6 +428,47 @@ describe("search_products", () => {
       inputSchema: { parse: (v: unknown) => { limitPerTerm: number } };
     };
     expect(config.inputSchema.parse({ terms: ["milk"] }).limitPerTerm).toBe(5);
+  });
+
+  it("preserves preferred-store failures and does not issue an unscoped search", async () => {
+    const storage = makeStorage();
+    storage.preferredLocation.get = () => {
+      throw new AppErrorException(authError("Reconnect the grocery account."));
+    };
+    const productGet = vi.fn<ProductGetFn>(async () => makeSearchResponse([]));
+    registerProductTools(makeContext(productGet, storage));
+
+    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+    });
+    expect(productGet).not.toHaveBeenCalled();
+  });
+
+  it("uses an explicit store without reading a broken preferred-store backend", async () => {
+    const storage = makeStorage();
+    const readStore = vi.fn<typeof storage.preferredLocation.get>(() => {
+      throw new Error("storage is down");
+    });
+    storage.preferredLocation.get = readStore;
+    const productGet = vi.fn<ProductGetFn>(async () => makeSearchResponse([]));
+    registerProductTools(makeContext(productGet, storage));
+
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+      storeId: "99887766",
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(readStore).not.toHaveBeenCalled();
+    expect(productGet).toHaveBeenCalledWith(
+      "/v1/products",
+      expect.objectContaining({
+        params: { query: expect.objectContaining({ "filter.locationId": "99887766" }) },
+      }),
+    );
   });
 
   it("resolves preferred location from storage and uses it as 'filter.locationId' when no storeId arg is given", async () => {

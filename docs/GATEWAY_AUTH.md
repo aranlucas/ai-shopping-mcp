@@ -1,5 +1,11 @@
 # Gateway authentication
 
+**Status (September 12, 2026):** this describes the current implementation. The
+[roadmap](ROADMAP.md#1-resolve-the-gateway-token-boundary) tracks an unresolved review of
+MCP token audience separation and upstream credential forwarding. A replacement requires a
+coordinated gateway/MCP design and migration; this document does not establish compliance
+with that boundary.
+
 ## Decision
 
 The shopping MCP authenticates to `agents-gateway` with the MCP OAuth bearer

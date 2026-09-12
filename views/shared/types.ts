@@ -49,11 +49,10 @@ export type ToolCall =
 /** Timeout for app-initiated callServerTool() calls (ms). */
 const TOOL_CALL_TIMEOUT_MS = 15_000;
 
-export function callTool(
-  app: App | null | undefined,
-  call: ToolCall,
-): Promise<CallToolResult> | undefined {
-  return app?.callServerTool(call as Parameters<App["callServerTool"]>[0], {
+export function callTool(app: App | null | undefined, call: ToolCall): Promise<CallToolResult> {
+  if (!app)
+    return Promise.reject(new Error("The shopping app is disconnected. Reopen it and try again."));
+  return app.callServerTool(call as Parameters<App["callServerTool"]>[0], {
     timeout: TOOL_CALL_TIMEOUT_MS,
   });
 }
@@ -64,10 +63,12 @@ export async function openExternalLink(app: App | null | undefined, url: string)
   await app.openLink({ url });
 }
 
-/** Send a short message to the host on behalf of the user. Best-effort. */
-export function sendUserMessage(app: App | null | undefined, text: string): void {
-  app?.sendMessage({
+/** Send a user-requested message; callers own visible pending and failure states. */
+export async function sendUserMessage(app: App | null | undefined, text: string): Promise<void> {
+  if (!app) throw new Error("The shopping app is disconnected. Reopen it and try again.");
+  const result = await app.sendMessage({
     role: "user",
     content: [{ type: "text", text }],
   });
+  if (result.isError) throw new Error("The assistant could not receive your request. Try again.");
 }

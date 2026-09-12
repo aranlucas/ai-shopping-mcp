@@ -128,10 +128,20 @@ export function registerProductTools(ctx: ToolContext) {
         return provider;
       });
 
-      const preferred = await safeStorage(
-        () => ctx.storage.preferredLocation.get(),
-        "fetch preferred location",
-      ).unwrapOr(null);
+      // A saved store is only needed for providers without an explicit store.
+      // If the lookup fails, do not silently search a different store scope.
+      const needsPreferred = selected.some(
+        (provider) => !stores?.[provider.id] && !(provider.id === "kroger" && storeId),
+      );
+      let preferred: Awaited<ReturnType<typeof ctx.storage.preferredLocation.get>> = null;
+      if (needsPreferred) {
+        const preferredResult = await safeStorage(
+          () => ctx.storage.preferredLocation.get(),
+          "fetch preferred location",
+        );
+        if (preferredResult.isErr()) return toMcpError(preferredResult.error);
+        preferred = preferredResult.value;
+      }
 
       const progressToken = requestContext.mcpReq._meta?.progressToken;
       let completedTotal = 0;
@@ -155,13 +165,14 @@ export function registerProductTools(ctx: ToolContext) {
                   onTermComplete: async (completed: number) => {
                     completedTotal += Math.max(0, completed - completedForProvider);
                     completedForProvider = completed;
-                    await ResultAsync.fromPromise(
-                      requestContext.mcpReq.notify({
-                        method: "notifications/progress",
-                        params: { progressToken, progress: completedTotal, total: totalSearches },
-                      }),
+                    await ResultAsync.fromThrowable(
+                      () =>
+                        requestContext.mcpReq.notify({
+                          method: "notifications/progress",
+                          params: { progressToken, progress: completedTotal, total: totalSearches },
+                        }),
                       (e) => e,
-                    ).orTee((e) => console.error("Failed to send progress notification:", e));
+                    )().orTee((e) => console.error("Failed to send progress notification:", e));
                   },
                 }
               : {}),

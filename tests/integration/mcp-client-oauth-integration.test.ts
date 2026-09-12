@@ -268,6 +268,17 @@ describe("MCP client over Worker OAuth integration", () => {
           });
         }
 
+        if (url.href === "https://gateway.example/api/grocery/preferred-store") {
+          return Response.json({
+            provider: "kroger",
+            location_id: "70500847",
+            name: "QFC Test Store",
+            address: "1 Test St",
+            chain: "QFC",
+            set_at: Math.floor(Date.parse("2026-01-01T00:00:00Z") / 1000),
+          });
+        }
+
         throw new Error(`Unexpected external fetch: ${url.href}`);
       }),
     );
