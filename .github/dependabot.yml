@@ -10,3 +10,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # @cloudflare/vitest-pool-workers only supports vitest 4; ignore
+    # vitest 5+ until the pool adds support, or `pnpm test` breaks.
+    ignore:
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/coverage-istanbul"
+        update-types: ["version-update:semver-major"]
