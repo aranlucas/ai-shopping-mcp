@@ -1,5 +1,5 @@
-import { Badge } from "@agents/ui/components/badge";
-import { Card, CardContent } from "@agents/ui/components/card";
+import { Badge } from "../../shared/ui/badge";
+import { Card, CardContent } from "../../shared/ui/card";
 
 import type { OrderHistoryContent } from "../../shared/types.js";
 

@@ -1,15 +1,9 @@
 import type { ReactNode } from "react";
 
-import { Alert, AlertDescription, AlertTitle } from "@agents/ui/components/alert";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@agents/ui/components/empty";
-import { Skeleton } from "@agents/ui/components/skeleton";
-import { Spinner } from "@agents/ui/components/spinner";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./ui/empty";
+import { Skeleton } from "./ui/skeleton";
+import { Spinner } from "./ui/spinner";
 import { AlertCircleIcon } from "lucide-react";
 
 export function Loading({ message }: { message?: string }) {

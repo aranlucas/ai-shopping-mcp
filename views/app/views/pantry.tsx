@@ -2,8 +2,8 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useMemo, useState } from "react";
 
-import { Badge } from "@agents/ui/components/badge";
-import { Separator } from "@agents/ui/components/separator";
+import { Badge } from "../../shared/ui/badge";
+import { Separator } from "../../shared/ui/separator";
 
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";

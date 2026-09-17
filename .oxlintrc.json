@@ -104,7 +104,7 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": ["worker-configuration.d.ts", "packages/**", "dist/**", "coverage/**"],
+  "ignorePatterns": ["worker-configuration.d.ts", "views/shared/ui/**", "dist/**", "coverage/**"],
   "overrides": [
     {
       "files": ["scripts/**/*.mjs", "scripts/**/*.js"],

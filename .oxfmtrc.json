@@ -6,5 +6,9 @@
     "preserveWhitespace": false,
     "stylesheet": "./views/styles.css"
   },
-  "ignorePatterns": ["worker-configuration.d.ts", "src/services/gateway/schema.d.ts", "packages/**"]
+  "ignorePatterns": [
+    "worker-configuration.d.ts",
+    "src/services/gateway/schema.d.ts",
+    "views/shared/ui/**"
+  ]
 }
