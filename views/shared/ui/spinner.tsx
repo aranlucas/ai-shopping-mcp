@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { cn } from "@agents/ui/lib/utils";
+import { cn } from "./utils";
 import { Loader2Icon } from "lucide-react";
 
 function Spinner({ className, ...props }: React.ComponentProps<"svg">) {

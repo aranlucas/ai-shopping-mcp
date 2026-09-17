@@ -1,14 +1,14 @@
-@import "@agents/ui/styles/primitives.css";
+@import "./shared/ui/primitives.css";
 
-@source "../packages/ui/src/components/alert.tsx";
-@source "../packages/ui/src/components/badge.tsx";
-@source "../packages/ui/src/components/button.tsx";
-@source "../packages/ui/src/components/card.tsx";
-@source "../packages/ui/src/components/carousel.tsx";
-@source "../packages/ui/src/components/empty.tsx";
-@source "../packages/ui/src/components/separator.tsx";
-@source "../packages/ui/src/components/skeleton.tsx";
-@source "../packages/ui/src/components/spinner.tsx";
+@source "./shared/ui/alert.tsx";
+@source "./shared/ui/badge.tsx";
+@source "./shared/ui/button.tsx";
+@source "./shared/ui/card.tsx";
+@source "./shared/ui/carousel.tsx";
+@source "./shared/ui/empty.tsx";
+@source "./shared/ui/separator.tsx";
+@source "./shared/ui/skeleton.tsx";
+@source "./shared/ui/spinner.tsx";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
 

@@ -2,7 +2,7 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useMemo, useState } from "react";
 
-import { Badge } from "@agents/ui/components/badge";
+import { Badge } from "../../shared/ui/badge";
 
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
