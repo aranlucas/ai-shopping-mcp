@@ -1,4 +1,4 @@
-import { Badge } from "../../shared/ui/badge";
+import { Badge } from "../../ui/badge";
 import { useMemo } from "react";
 
 import type { AddShoppingListToCartContent } from "../../shared/types.js";

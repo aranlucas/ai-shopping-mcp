@@ -3,9 +3,9 @@ import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react
 import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
 
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardFooter } from "./ui/card";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Card, CardContent, CardFooter } from "../ui/card";
 
 import type { ProductData } from "./types.js";
 

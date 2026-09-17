@@ -1,6 +1,6 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useCallback, useMemo } from "react";
-import { Badge } from "../../shared/ui/badge";
+import { Badge } from "../../ui/badge";
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { useResettableState } from "../../shared/hooks.js";
 import { EmptyState } from "../../shared/status.js";

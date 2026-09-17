@@ -1,8 +1,8 @@
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "../../shared/ui/badge";
-import { Button } from "../../shared/ui/button";
-import { Card, CardContent, CardFooter } from "../../shared/ui/card";
+import { Badge } from "../../ui/badge";
+import { Button } from "../../ui/button";
+import { Card, CardContent, CardFooter } from "../../ui/card";
 import { ActionButton, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { useResettableState } from "../../shared/hooks.js";
 import { EmptyState } from "../../shared/status.js";

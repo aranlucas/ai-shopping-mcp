@@ -8,7 +8,7 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from "../../shared/ui/carousel";
+} from "../../ui/carousel";
 
 import { Badge, DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
