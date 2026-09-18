@@ -1,12 +1,13 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../services/kroger/product.js";
 import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { appResult } from "../app-results.js";
-import { notFoundError, validationError } from "../errors.js";
-import { rankProductMatches } from "../services/match-ranker.js";
+import { apiError, notFoundError, validationError } from "../errors.js";
+import { selectProductMatches } from "../services/product-selector.js";
 import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type LineItem, addLineItemsToCart } from "./cart.js";
@@ -17,14 +18,6 @@ import { createShoppingListRecord } from "./shopping-list.js";
 import { type ToolContext } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
-
-/**
- * Resolves the Workers AI binding for semantic match ranking. Ranking itself
- * is best-effort; remote-binding failures are handled inside `rankProductMatches`.
- */
-function getMatchRankerAi(ctx: ToolContext): Ai {
-  return ctx.getEnv().AI;
-}
 
 const shopItemSchema = z.object({
   name: z.string().min(1).max(100).describe("Item to shop for, e.g. 'whole milk'"),
@@ -42,15 +35,6 @@ export const shopForItemsInputSchema = z.object({
     .default(false)
     .describe("Also add matched items to the Kroger cart (PICKUP) after creating the list"),
 });
-
-/** Picks the best product match for a name: first pickup-available result, else the first result. */
-function pickBestMatch(products: Product[]): Product | undefined {
-  const withPickup = products.find((product) => {
-    const item = product.items?.[0];
-    return Boolean(item?.fulfillment?.curbside || item?.fulfillment?.instore);
-  });
-  return withPickup ?? products[0];
-}
 
 /**
  * One markdown line: searched name → matched product, brand, size, price,
@@ -170,30 +154,26 @@ export function registerShopTools(ctx: ToolContext) {
       const terms = items.map((item) => item.name);
       const searchResults = await searchProductsForTerms(productClient, terms, {
         locationId,
-        limitPerTerm: 5,
+        limitPerTerm: 20,
       });
 
-      // Semantic re-ranking: each term's candidates are reordered
-      // best-match-first before the existing pickup-first heuristic runs.
-      // AI errors degrade to the original search order.
-      // See docs/small-model-efficiency-plan.md "Server-side AI" #8.
-      const ai = getMatchRankerAi(ctx);
-      const rankedResults = await Promise.all(
-        searchResults.map(async (result, index) => {
-          if (result.failed || result.products.length === 0) return result;
-          const ranked = await rankProductMatches({
-            ai,
-            query: terms[index],
-            products: result.products,
-          });
-          return {
-            term: result.term,
-            products: ranked,
-            count: result.count,
-            failed: result.failed,
-          };
+      const ai = ctx.getEnv().AI;
+      const selectionResult = await ResultAsync.fromPromise(
+        selectProductMatches({
+          ai,
+          items: searchResults.map((result) => ({
+            query: result.term,
+            products: result.failed ? [] : result.products,
+          })),
+          forPickup: addToCart,
         }),
+        () =>
+          apiError(
+            "Jev product selection failed. No shopping list or cart changes were made. Check Cloudflare AI Gateway access and retry.",
+          ),
       );
+      if (selectionResult.isErr()) return toMcpError(selectionResult.error);
+      const selections = selectionResult.value;
 
       const [pantry, deals] = await Promise.all([
         getPantryForFlags(ctx),
@@ -203,10 +183,11 @@ export function registerShopTools(ctx: ToolContext) {
       const matched: Array<{ name: string; quantity: number; product: Product; flags: string[] }> =
         [];
       const notFound: string[] = [];
+      const unresolved: string[] = [];
 
       items.forEach((item, index) => {
-        const result = rankedResults[index];
-        const best = result && !result.failed ? pickBestMatch(result.products) : undefined;
+        const selection = selections[index];
+        const best = selection?.status === "selected" ? selection.product : undefined;
         if (best) {
           matched.push({
             name: item.name,
@@ -214,6 +195,8 @@ export function registerShopTools(ctx: ToolContext) {
             product: best,
             flags: itemFlagLabels(item.name, pantry, deals),
           });
+        } else if (!searchResults[index].failed && searchResults[index].products.length > 0) {
+          unresolved.push(item.name);
         } else {
           notFound.push(item.name);
         }
@@ -224,7 +207,9 @@ export function registerShopTools(ctx: ToolContext) {
         if (failure) return toMcpError(failure);
         return toMcpError(
           validationError(
-            `No products found for: ${notFound.join(", ")}. Try different search terms with search_products.`,
+            unresolved.length > 0
+              ? `No suitable match for: ${[...notFound, ...unresolved].join(", ")}. Review alternatives with search_products.`
+              : `No products found for: ${notFound.join(", ")}. Try different search terms with search_products.`,
           ),
         );
       }
@@ -252,6 +237,12 @@ export function registerShopTools(ctx: ToolContext) {
 
       if (notFound.length > 0) {
         parts.push("", `No results for: ${notFound.join(", ")}.`);
+      }
+      if (unresolved.length > 0) {
+        parts.push(
+          "",
+          `No suitable match for: ${unresolved.join(", ")}. Review alternatives with search_products.`,
+        );
       }
 
       if (!addToCart) {

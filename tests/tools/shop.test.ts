@@ -9,6 +9,7 @@ import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
+import { stubJevAi, type JevRun } from "../jev-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -72,14 +73,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 }
 
 function makeStubAi() {
-  return {
-    run: async (_model: string, options: { contexts: { text?: string }[] }) => ({
-      response: options.contexts.map((context, index) => ({
-        id: index,
-        score: context.text?.startsWith("Whole Milk") ? 0.9 : 0.1,
-      })),
-    }),
-  };
+  return stubJevAi("Whole Milk");
 }
 
 function makeMinimalKv() {
@@ -175,7 +169,7 @@ function makeContext(
     carts: storage,
     getEnv: () =>
       ({
-        AI: { run: async () => ({ data: [] }) },
+        AI: stubJevAi(),
         USER_DATA_KV: { get: async () => null, put: async () => {} },
       }) as unknown as Env,
   };
@@ -380,6 +374,111 @@ describe("shop_for_items", () => {
   });
 
   describe("semantic match ranking", () => {
+    it("selects multiple grocery items in one Jev call and preserves quantities", async () => {
+      const milk = makeProduct();
+      const eggs = makeProduct({ upc: "0002000000029", description: "Eggs" });
+      const ctx = makeContext(
+        async (_path, options) =>
+          makeSearchResponse(options.params.query?.["filter.term"] === "milk" ? [milk] : [eggs]),
+        PREFERRED_LOCATION,
+      );
+      const run = vi.fn<JevRun>(stubJevAi().gateway("default").run);
+      ctx.getEnv = () => ({ AI: { gateway: () => ({ run }) } }) as unknown as Env;
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [
+          { name: "milk", quantity: 2 },
+          { name: "eggs", quantity: 3 },
+        ],
+      });
+      expect(isErrorResult(result)).toBe(false);
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(structuredContentOf(result).items).toEqual([
+        expect.objectContaining({ upc: milk.upc, quantity: 2 }),
+        expect.objectContaining({ upc: eggs.upc, quantity: 3 }),
+      ]);
+    });
+
+    it("can select the twentieth product in the expanded candidate pool", async () => {
+      const products = Array.from({ length: 20 }, (_, index) =>
+        makeProduct({ upc: String(index + 1).padStart(13, "0"), description: `Milk ${index + 1}` }),
+      );
+      const ctx = makeContext(async (_path, options) => {
+        expect(options.params.query?.["filter.limit"]).toBe(20);
+        return makeSearchResponse(products);
+      }, PREFERRED_LOCATION);
+      ctx.getEnv = () => ({ AI: stubJevAi("Milk 20") }) as unknown as Env;
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+      expect(isErrorResult(result)).toBe(false);
+      expect(structuredContentOf(result).items).toEqual([
+        expect.objectContaining({ productName: "Milk 20", upc: "0000000000020" }),
+      ]);
+    });
+
+    it("surfaces Jev failure before any list or cart mutation", async () => {
+      const cartPutCalls: CartPutCall[] = [];
+      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION, {
+        cartPutCalls,
+      });
+      const create = vi.spyOn(ctx.storage.shoppingList, "create");
+      ctx.getEnv = () =>
+        ({
+          AI: {
+            gateway: () => ({
+              run: async () => {
+                throw new Error("offline");
+              },
+            }),
+          },
+        }) as unknown as Env;
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "milk" }],
+        addToCart: true,
+      });
+      expect(isErrorResult(result)).toBe(true);
+      expect(textFromResult(result)).toContain("Jev product selection failed");
+      expect(create).not.toHaveBeenCalled();
+      expect(cartPutCalls).toHaveLength(0);
+    });
+
+    it("does not put an abstained item in a list or cart", async () => {
+      const cartPutCalls: CartPutCall[] = [];
+      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION, {
+        cartPutCalls,
+      });
+      const create = vi.spyOn(ctx.storage.shoppingList, "create");
+      ctx.getEnv = () =>
+        ({
+          AI: {
+            gateway: () => ({
+              run: async () =>
+                Response.json({
+                  model: "jev-test",
+                  answers: {
+                    item_0: {
+                      type: "choice",
+                      choice: "no_match",
+                      confidence: 1,
+                      probabilities: { candidate_0: 0, no_match: 1, needs_review: 0 },
+                    },
+                  },
+                }),
+            }),
+          },
+        }) as unknown as Env;
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "milk" }],
+        addToCart: true,
+      });
+      expect(isErrorResult(result)).toBe(true);
+      expect(textFromResult(result)).toContain("No suitable match");
+      expect(create).not.toHaveBeenCalled();
+      expect(cartPutCalls).toHaveLength(0);
+    });
+
     // Both pickup-available, so the old first-pickup-available heuristic
     // alone would pick the wrong (first-listed) product for "milk".
     function makeAdversarialCandidates() {
@@ -482,7 +581,7 @@ describe("shop_for_items", () => {
       const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
       ctx.getEnv = () =>
         ({
-          AI: { run: async () => ({ data: [] }) },
+          AI: stubJevAi(),
           USER_DATA_KV: {
             get: async (key: string) => store.get(key) ?? null,
             put: async (key: string, value: string) => {

@@ -45,6 +45,29 @@ The server exposes 18 tools:
 
 ### Catalog providers
 
+`shop_for_items` uses TypeSafe Jev (`typesafe/jev-1.13`) by default through the existing
+Cloudflare `AI` binding and the `default` AI Gateway, using OpenRouter BYOK. It sends the entire list
+(up to 10 requested items) in one inference call, with one Choice question and
+up to 20 candidate products per item. Jev chooses one candidate or
+returns no match / needs review. Explicitly out-of-stock products are excluded;
+`addToCart: true` also requires a UPC and curbside fulfillment. Model errors,
+invalid responses, or a five-second timeout return a tool error before any list or
+cart write. There is no fallback model or heuristic picker.
+
+Store an OpenRouter key under alias `default` on the `default` gateway. The
+Worker binding authenticates automatically; no provider key is stored in the
+application. Jev uses OpenRouter's Decisions API through
+`AI.gateway("default").run()` with provider `openrouter` and endpoint
+`../alpha/decisions`. This resolves outside OpenRouter's usual `/api/v1` base
+to `/api/alpha/decisions`. Gateway retries are explicitly limited to one attempt.
+The live smoke test (`pnpm test:selector:live`) runs an ephemeral local Worker
+with a remote AI binding using Wrangler login or Cloudflare environment credentials.
+See the [Jev research and implementation note](docs/jev-model-research.md),
+[best-practices research](docs/jev-best-practices.md), and
+[live challenge-set results](docs/jev-evaluation.md). Run `pnpm eval:selector:live`
+for the 30-case live evaluation, or append an output path and `--holdout` for
+12 additional fixed cases. These use synthetic catalogs and never write a list or cart.
+
 `search_products` is provider-agnostic. It takes a `providers` array and
 searches each named catalog concurrently, returning one block per provider under
 each search term. A provider is anything implementing `CatalogProvider`
@@ -200,10 +223,10 @@ callbacks fail lint and build. The focused configuration avoids enabling unrelat
 style rules across the repository. Synchronous `Result` consumption, including handling an
 `Err` after `await`, still requires review; see the remaining [roadmap](docs/ROADMAP.md).
 
-The live Workers AI reranker check is intentionally separate because it uses Cloudflare credentials and incurs usage:
+The live Jev selection check is separate because it uses Cloudflare credentials and incurs usage. It exercises the production selector with synthetic products, including a no-match case, without shopping-list or cart writes:
 
 ```bash
-pnpm test:reranker:live
+pnpm test:selector:live
 ```
 
 Locally it uses the active Wrangler login. In CI it requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
