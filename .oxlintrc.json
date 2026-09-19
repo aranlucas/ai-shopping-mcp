@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "extends": ["./.oxlintrc.tailwind.json"],
-  "jsPlugins": ["oxlint-tailwindcss"],
+  "jsPlugins": ["oxlint-tailwindcss", "@shadcn/lint"],
   "plugins": [
     "eslint",
     "typescript",
@@ -68,6 +68,12 @@
     "promise/no-nesting": "error"
   },
   "settings": {
+    "shadcn": {
+      "componentImports": [
+        "^(?:\\.\\./)*(?:\\./)?(?:shared/)?ui/",
+        "^(?:\\.\\./)*(?:\\./)?(?:shared/)?components(?:\\.js)?$"
+      ]
+    },
     "tailwindcss": {
       "entryPoint": "views/styles.css",
       "timeout": 120000
@@ -111,6 +117,30 @@
     "coverage/**"
   ],
   "overrides": [
+    {
+      "files": ["views/**/*.tsx"],
+      "rules": {
+        "shadcn/no-restyle": [
+          "error",
+          {
+            "allow": ["layout"],
+            "contracts": [
+              // Containers let callers arrange their contents and spacing.
+              {
+                "pattern": "^(Card|CardHeader|CardContent|CardFooter|Empty)$",
+                "allow": ["layout", "spacing"]
+              },
+              // Item padding pairs with the content's negative gutter margin.
+              { "pattern": "^CarouselItem$", "allow": ["layout", "ps"] },
+              // Placeholders match the outline of the content they represent.
+              { "pattern": "^Skeleton$", "allow": ["layout", "rounded"] }
+            ]
+          }
+        ],
+        "shadcn/require-static-classes": "error",
+        "shadcn/no-inline-styles": "error"
+      }
+    },
     {
       "files": ["scripts/**/*.mjs", "scripts/**/*.js"],
       "rules": {

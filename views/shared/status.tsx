@@ -14,8 +14,8 @@ import { AlertCircleIcon } from "lucide-react";
 
 export function Loading({ message }: { message?: string }) {
   return (
-    <output className="flex flex-col items-center justify-center gap-2.5 py-16">
-      <Spinner className="size-5 text-primary" />
+    <output className="flex flex-col items-center justify-center gap-2.5 py-16 text-primary">
+      <Spinner className="size-5" />
       <span className="text-xs text-gray-400">{message ?? "Loading..."}</span>
     </output>
   );
@@ -41,7 +41,7 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <Empty className="border-0 py-14">
+    <Empty className="py-14">
       <EmptyHeader>
         <EmptyMedia>{icon}</EmptyMedia>
         <EmptyTitle>{message}</EmptyTitle>

@@ -76,19 +76,19 @@ function ExpiryBadge({
   const soonLabel = useMemo(() => `${daysUntil}d left`, [daysUntil]);
   if (daysUntil < 0)
     return (
-      <Badge variant="outline" className="bg-red-50 text-red-600">
+      <Badge variant="outline" tone="danger">
         Expired
       </Badge>
     );
   if (daysUntil === 0)
     return (
-      <Badge variant="outline" className="bg-red-50 text-red-600">
+      <Badge variant="outline" tone="danger">
         Today
       </Badge>
     );
   if (daysUntil <= 3)
     return (
-      <Badge variant="outline" className="bg-amber-50 text-amber-700">
+      <Badge variant="outline" tone="warning">
         {soonLabel}
       </Badge>
     );

@@ -100,10 +100,7 @@ export function ProductDetailView({
                 Category
               </p>
               <div className="flex flex-wrap gap-1">
-                <Badge
-                  variant="secondary"
-                  className="bg-gray-100 text-gray-500"
-                >
+                <Badge variant="secondary" tone="muted">
                   {product.category}
                 </Badge>
               </div>

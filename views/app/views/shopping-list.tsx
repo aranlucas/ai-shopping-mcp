@@ -48,7 +48,7 @@ function ShoppingItem({ item }: { item: ShoppingListItemData }) {
             </span>
           )}
           {!ready && (
-            <Badge variant="outline" className="bg-amber-50 text-amber-700">
+            <Badge variant="outline" tone="warning">
               Needs Kroger match
             </Badge>
           )}

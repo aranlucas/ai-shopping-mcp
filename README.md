@@ -207,6 +207,16 @@ callbacks fail lint and build. The focused configuration avoids enabling unrelat
 style rules across the repository. Synchronous `Result` consumption, including handling an
 `Err` after `await`, still requires review; see the remaining [roadmap](docs/ROADMAP.md).
 
+The same command runs [`@shadcn/lint`](https://github.com/shadcn-ui/lint) on the
+React views. `.oxlintrc.json` enables `no-restyle`, `require-static-classes`, and
+`no-inline-styles`, and recognizes relative UI imports and the shared component
+barrel. Components own their appearance: use Badge `tone` values (`success`,
+`warning`, `danger`, `info`, or `muted`) and Button variants instead of overriding
+their colors. Explicit contracts allow container spacing, carousel item gutters,
+and skeleton rounding. Shared UI implementations retain their existing lint
+exclusion. The existing Tailwind plugin continues to check utility validity,
+arbitrary values, and hardcoded colors via `.oxlintrc.tailwind.json`.
+
 The live Jev selection check is separate because it uses Cloudflare credentials and incurs usage. It exercises the production selector with synthetic products, including a no-match case, without shopping-list or cart writes:
 
 ```bash

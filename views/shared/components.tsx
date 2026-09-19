@@ -126,17 +126,16 @@ export function DisplayModeToggle({
 }
 
 export function FulfillmentTags({ product }: { product: ProductData }) {
-  const tags: Array<{ label: string; className: string }> = product.pickup
-    ? [{ label: "Pickup", className: "bg-blue-50 text-blue-700" }]
+  const tags: Array<{ label: string; tone: "info" | "danger" }> = product.pickup
+    ? [{ label: "Pickup", tone: "info" }]
     : [];
-  if (!product.available)
-    tags.push({ label: "Out of Stock", className: "bg-red-50 text-red-600" });
+  if (!product.available) tags.push({ label: "Out of Stock", tone: "danger" });
   if (tags.length === 0) return null;
 
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">
       {tags.map((t) => (
-        <Badge key={t.label} variant="outline" className={t.className}>
+        <Badge key={t.label} variant="outline" tone={t.tone}>
           {t.label}
         </Badge>
       ))}
@@ -161,7 +160,7 @@ export function PriceDisplay({ product }: { product: ProductData }) {
           <span className="text-xs text-gray-500 tabular-nums line-through">
             ${product.regularPrice?.toFixed(2)}
           </span>
-          <Badge variant="outline" className="bg-red-50 text-red-600">
+          <Badge variant="outline" tone="danger">
             Sale
           </Badge>
         </>
@@ -209,7 +208,9 @@ export function ActionButton({
 
   const shadcnVariant =
     state === "done"
-      ? ("secondary" as const)
+      ? variant === "primary"
+        ? ("success" as const)
+        : ("success-outline" as const)
       : state === "error"
         ? ("destructive" as const)
         : variant === "primary"
@@ -224,15 +225,6 @@ export function ActionButton({
       aria-busy={state === "loading"}
       aria-label={labelContext ? `${label}: ${labelContext}` : undefined}
       onClick={handleClick}
-      className={
-        state === "done" && variant === "primary"
-          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
-          : state === "done" && variant === "secondary"
-            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-            : variant === "primary" && state === "idle"
-              ? "border-transparent bg-primary text-primary-foreground hover:bg-primary/90"
-              : undefined
-      }
     >
       {icon && state === "idle" && (
         <span className="size-3 shrink-0">{icon}</span>
