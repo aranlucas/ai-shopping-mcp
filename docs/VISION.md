@@ -39,8 +39,8 @@ client with `pnpm generate:gateway`; `pnpm api:check` checks generated-client dr
 
 Catalog identity is provider-neutral: `ProductReference` contains an open `provider` name
 and its opaque `id`, rendered in model-facing text as `productRef=<provider>:<id>`.
-UPC and SKU belong to adapters. Capabilities are explicit: Trader Joe's currently supports
-browsing and lists, while Kroger supports cart writes using its native UPCs. Generic tools
+UPC and SKU belong to adapters. Kroger is the only registered provider and supports
+cart writes using its native UPCs. Capabilities are explicit: generic tools
 must not assume that search implies support for carts, locations, aisle data, or checkout.
 
 ## Design principles

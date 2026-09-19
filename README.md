@@ -78,39 +78,14 @@ searches each named catalog concurrently, returning one block per provider under
 each search term. A provider is anything implementing `CatalogProvider`
 (`src/services/catalog/types.ts`); adding one needs no tool changes.
 
-| provider      | cart | identifier       |
-| ------------- | ---- | ---------------- |
-| `kroger`      | yes  | UPC              |
-| `trader_joes` | no   | Trader Joe's SKU |
+Kroger is the only registered provider. It supports cart writes and uses UPCs
+as product identifiers.
 
 Products use provider-scoped `productRef=<provider>:<id>` tokens. Preserve these
 references on lists and orders. `capabilities.cart` indicates whether the provider
-supports cart writes; Trader Joe's product identifiers must never reach Kroger's cart.
+supports cart writes; only Kroger product identifiers may reach Kroger's cart.
 Omitting `providers` searches every registered provider. Search failures retain their
 error type and recovery guidance while successful providers remain usable.
-
-### Trader Joe's
-
-Trader Joe's publishes no partner API, and unlike Kroger it has **no cart or
-checkout API at all** — the storefront is browse-only. What it does expose is
-the unauthenticated Magento GraphQL endpoint the website itself calls
-(`https://www.traderjoes.com/api/graphql`), which answers catalog queries scoped
-to a store code. The client (`src/services/traderjoes/client.ts`) talks to it
-through `graphql-request` and reads nothing else.
-
-The endpoint is undocumented and unversioned, so responses are Zod-validated and
-schema drift surfaces as a normal tool error. It also sits behind Akamai bot
-management that rejects some server egress addresses with a 403 regardless of
-the query — that case is reported distinctly from a bad query. Two optional
-Worker vars exist for it:
-
-- `TRADER_JOES_GRAPHQL_URL` — point at an allowed egress proxy if Cloudflare's
-  addresses are blocked
-- `TRADER_JOES_STORE_CODE` — the store code prices are quoted against (default
-  `701`)
-
-Results are cached in `USER_DATA_KV` for 30 minutes, keyed by query, store, and
-limit. The catalog holds no user data, so entries are shared across shoppers.
 
 ### Editing a list by hand
 

@@ -794,14 +794,14 @@ describe("get_product", () => {
     expect(sc.product).not.toHaveProperty("allergensDescription");
   });
 
-  it("dispatches a Trader Joe's productRef through its catalog provider", async () => {
+  it("dispatches a Sample Catalog productRef through its catalog provider", async () => {
     const ctx = makeContext(async () => makeDetailResponse(undefined));
     ctx.catalogs = {
       ...ctx.catalogs,
-      trader_joes: stubCatalogProvider({
+      sample_catalog: stubCatalogProvider({
         products: [
           {
-            ref: { provider: "trader_joes", id: "076892" },
+            ref: { provider: "sample_catalog", id: "076892" },
             name: "Chili Onion Crunch",
             price: 3.99,
             available: true,
@@ -812,17 +812,19 @@ describe("get_product", () => {
     registerProductTools(ctx);
 
     const result = await getCapturedHandler("get_product")({
-      productRef: "trader_joes:076892",
+      productRef: "sample_catalog:076892",
     });
 
     const sc = structuredContentOf(result) as { product: ProductData };
     expect(isErrorResult(result)).toBe(false);
     expect(sc.product).toMatchObject({
-      product: { provider: "trader_joes", id: "076892" },
+      product: { provider: "sample_catalog", id: "076892" },
       name: "Chili Onion Crunch",
       price: 3.99,
     });
-    expect(textFromResult(result)).toContain("productRef=trader_joes:076892");
+    expect(textFromResult(result)).toContain(
+      "productRef=sample_catalog:076892",
+    );
   });
 
   it("returns MCP error when API response has no product data (data.data is undefined)", async () => {
@@ -907,8 +909,9 @@ describe("get_product", () => {
       inputSchema: { parse: (value: unknown) => { productRef: string } };
     };
     expect(
-      config.inputSchema.parse({ productRef: "trader_joes:076892" }).productRef,
-    ).toBe("trader_joes:076892");
+      config.inputSchema.parse({ productRef: "sample_catalog:076892" })
+        .productRef,
+    ).toBe("sample_catalog:076892");
   });
 
   it("rejects a upc containing letters", () => {

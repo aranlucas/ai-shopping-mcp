@@ -267,8 +267,7 @@ describe("MCP agent contract", () => {
         items: [{ upc: "0001112223334", quantity: 1 }],
       }).success,
     ).toBe(true);
-    // An item without a Kroger UPC is valid — that is how Trader Joe's
-    // products and plain ingredients reach a list.
+    // Plain ingredients can reach a list without a Kroger UPC.
     expect(
       createShoppingList.config.inputSchema?.safeParse({
         name: "Dinner",

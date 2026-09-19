@@ -29,9 +29,9 @@ const PREFERRED_STORE = {
   chain: "QFC",
   setAt: "2026-09-12T00:00:00Z",
 };
-const TRADER_JOES_STORE = {
+const OTHER_PROVIDER_STORE = {
   ...PREFERRED_STORE,
-  provider: "trader_joes",
+  provider: "sample_catalog",
   locationId: "701",
 };
 const CACHE_KEY = buildWeeklyDealsCacheKey({
@@ -163,18 +163,18 @@ describe("meal planning with weekly deals", () => {
   });
 
   it("honors an explicit Kroger store without changing a different provider's preference", async () => {
-    await context.storage.preferredLocation.set(TRADER_JOES_STORE);
+    await context.storage.preferredLocation.set(OTHER_PROVIDER_STORE);
     await call({ includeWeeklyDeals: true, storeId: ` ${STORE_ID} ` });
     expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
       expect.objectContaining({ locationId: STORE_ID }),
     );
     expect(await context.storage.preferredLocation.get()).toMatchObject({
-      provider: "trader_joes",
+      provider: "sample_catalog",
       locationId: "701",
     });
   });
 
-  it.each([null, TRADER_JOES_STORE])(
+  it.each([null, OTHER_PROVIDER_STORE])(
     "preserves pantry context and store recovery guidance for preference %j",
     async (preferred) => {
       context.storage.preferredLocation.get = async () => preferred;

@@ -137,11 +137,9 @@ const LIST: ShoppingListContent = {
       quantity: 3,
     },
     {
-      productName: "Trader Joe’s brown jasmine rice",
-      product: { provider: "traderjoes", id: "preview-rice" },
+      productName: "Brown jasmine rice",
       quantity: 1,
-      notes:
-        "Keep this item on the list until a Kroger alternative is selected.",
+      notes: "Keep this item on the list until a product is selected.",
     },
     {
       productName: "A large bunch of fresh herbs for the weekend meal",

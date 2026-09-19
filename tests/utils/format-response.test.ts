@@ -359,9 +359,9 @@ const krogerProvider: CatalogProvider = {
   },
 };
 
-const traderJoesProvider: CatalogProvider = {
-  id: "trader_joes",
-  label: "Trader Joe's",
+const sampleCatalogProvider: CatalogProvider = {
+  id: "sample_catalog",
+  label: "Sample Catalog",
   capabilities: { cart: false, aisleLocation: false },
   search: () => {
     throw new Error("not used by formatter tests");
@@ -398,15 +398,15 @@ describe("formatCatalogProductLine", () => {
   it("calls a cartless provider's identifier a sku, and omits pickup", () => {
     const line = formatCatalogProductLine(
       {
-        ref: { provider: "trader_joes", id: "076892" },
+        ref: { provider: "sample_catalog", id: "076892" },
         name: "Chili Onion Crunch",
         price: 3.99,
         size: "6 Ounce",
         available: true,
       },
-      traderJoesProvider,
+      sampleCatalogProvider,
     );
-    expect(line).toContain("productRef=trader_joes:076892");
+    expect(line).toContain("productRef=sample_catalog:076892");
     expect(line).not.toContain("pickup:");
   });
 
@@ -490,11 +490,11 @@ describe("formatCatalogSearchMarkdown", () => {
           failed: false,
         },
         {
-          provider: "trader_joes",
+          provider: "sample_catalog",
           term: "crunch",
           products: [
             {
-              ref: { provider: "trader_joes", id: "076892" },
+              ref: { provider: "sample_catalog", id: "076892" },
               name: "Chili Onion Crunch",
               available: true,
             },
@@ -502,11 +502,11 @@ describe("formatCatalogSearchMarkdown", () => {
           failed: false,
         },
       ],
-      [krogerProvider, traderJoesProvider],
+      [krogerProvider, sampleCatalogProvider],
     );
     expect(text.match(/## crunch/gu)).toHaveLength(1);
     expect(text).toContain("productRef=kroger:");
-    expect(text).toContain("productRef=trader_joes:076892");
+    expect(text).toContain("productRef=sample_catalog:076892");
   });
 
   it("passes the location opt-in through to product lines", () => {
@@ -568,13 +568,20 @@ describe("formatCatalogSearchMarkdown", () => {
     );
 
     const withoutCart = formatCatalogSearchMarkdown(
-      [{ provider: "trader_joes", term: "milk", products: [], failed: false }],
-      [traderJoesProvider],
+      [
+        {
+          provider: "sample_catalog",
+          term: "milk",
+          products: [],
+          failed: false,
+        },
+      ],
+      [sampleCatalogProvider],
     );
     expect(withoutCart).not.toContain(
       "pass the productRef values above to create_shopping_list",
     );
-    expect(withoutCart).toContain("Trader Joe's has no cart");
+    expect(withoutCart).toContain("Sample Catalog has no cart");
   });
 });
 

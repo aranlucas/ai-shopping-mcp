@@ -1,16 +1,8 @@
 /**
- * Provider-agnostic product catalog.
- *
- * The shopping tools speak this vocabulary, not any one retailer's. A provider
- * is anything that can answer "what products match these words" — Kroger's REST
- * product API, Trader Joe's GraphQL storefront, and whatever comes next. Adding
- * one means implementing `CatalogProvider` and registering it; no tool changes.
- *
- * The one thing the abstraction refuses to hide is what a match can *do*.
- * Kroger products carry a UPC and can be put in a cart; Trader Joe's publishes
- * no cart API at all, so its products can only reach a shopping list. That
- * difference drives real behavior, so `capabilities.cart` is part of the
- * contract and every result carries the provider it came from.
+ * Provider-agnostic product catalog. Kroger is the registered provider.
+ * Additional catalogs implement CatalogProvider without changing the tools.
+ * Capabilities describe which operations a provider supports beyond search;
+ * every product carries a provider-scoped identity.
  */
 import type { ResultAsync } from "neverthrow";
 
@@ -113,7 +105,7 @@ export type CatalogCapabilities = {
 
 export interface CatalogProvider {
   readonly id: CatalogProviderId;
-  /** Human name used in tool output, e.g. "Trader Joe's". */
+  /** Human name used in tool output, e.g. "Kroger". */
   readonly label: string;
   readonly capabilities: CatalogCapabilities;
   search(

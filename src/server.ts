@@ -35,8 +35,6 @@ import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { createKrogerCatalogProvider } from "./services/catalog/kroger-provider.js";
-import { createTraderJoesCatalogProvider } from "./services/catalog/trader-joes-provider.js";
-import { createTraderJoesClient } from "./services/traderjoes/client.js";
 import { getUserDataKv } from "./utils/kv.js";
 import { createGatewayShoppingStore } from "./utils/gateway-storage.js";
 import { getProps } from "./utils/result.js";
@@ -151,18 +149,6 @@ function buildServer(
   const productService = new ProductService(clients.productClient);
   const catalogs = {
     kroger: createKrogerCatalogProvider(clients.productClient),
-    trader_joes: createTraderJoesCatalogProvider(
-      createTraderJoesClient({
-        ...(env.TRADER_JOES_GRAPHQL_URL === undefined
-          ? {}
-          : { endpoint: env.TRADER_JOES_GRAPHQL_URL }),
-        ...(env.TRADER_JOES_STORE_CODE === undefined
-          ? {}
-          : { storeCode: env.TRADER_JOES_STORE_CODE }),
-        kv: getUserDataKv(env),
-        signal: requestContext.requestInfo?.signal,
-      }),
-    ),
   } as const;
 
   const ctx: ToolContext = {

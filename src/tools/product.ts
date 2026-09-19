@@ -101,9 +101,7 @@ export function registerProductTools(ctx: ToolContext) {
             z.string().trim().min(1).max(200),
           )
           .optional()
-          .describe(
-            "Provider-specific store ids, e.g. {kroger:'70500847',trader_joes:'701'}",
-          ),
+          .describe("Provider-specific store ids, e.g. {kroger:'70500847'}"),
         storeId: storeIdSchema
           .optional()
           .describe("Deprecated Kroger store id; prefer stores.kroger"),
@@ -242,7 +240,7 @@ export function registerProductTools(ctx: ToolContext) {
       const failed = results.filter((result) => result.failed);
 
       // Only a search that found nothing anywhere and failed somewhere is an
-      // error; a Kroger hit with Trader Joe's down is still a useful answer.
+      // error; successful results remain useful when another search fails.
       if (totalProducts === 0 && failed.length > 0) {
         const actionable =
           failed.find((result) => result.error?.type === "AUTH_ERROR")?.error ??

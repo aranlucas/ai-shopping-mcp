@@ -22,10 +22,10 @@ export function stubCatalogProvider(
   } = {},
 ): CatalogProvider {
   const { products = [], error, ...rest } = overrides;
-  const id = rest.id ?? "trader_joes";
+  const id = rest.id ?? "sample_catalog";
   return {
     id,
-    label: rest.label ?? "Trader Joe's",
+    label: rest.label ?? "Sample Catalog",
     capabilities: rest.capabilities ?? { cart: false, aisleLocation: false },
     search:
       rest.search ??
@@ -61,7 +61,7 @@ export function stubCatalogProvider(
   };
 }
 
-/** The default registry: both providers present, neither returning anything. */
+/** The production registry shape, with no products unless overridden. */
 export function stubCatalogRegistry(
   overrides: Partial<CatalogRegistry> = {},
 ): CatalogRegistry {
@@ -71,7 +71,6 @@ export function stubCatalogRegistry(
       label: "Kroger",
       capabilities: { cart: true, aisleLocation: true },
     }),
-    trader_joes: stubCatalogProvider(),
     ...overrides,
   };
 }
