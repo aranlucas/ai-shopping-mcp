@@ -21,24 +21,31 @@ function toAisle(product: Product): CatalogAisle | undefined {
   const location = product.aisleLocations?.[0];
   if (!location) return undefined;
   return {
-    ...(location.description === undefined
-      ? {}
-      : { description: location.description }),
-    ...(location.number === undefined ? {} : { number: location.number }),
-    ...(location.sequenceNumber === undefined
-      ? {}
-      : { sequenceNumber: location.sequenceNumber }),
-    ...(location.bayNumber === undefined
-      ? {}
-      : { bayNumber: location.bayNumber }),
-    ...(location.side === undefined ? {} : { side: location.side }),
-    ...(location.shelfNumber === undefined
-      ? {}
-      : { shelfNumber: location.shelfNumber }),
-    ...(location.shelfPositionInBay === undefined
-      ? {}
-      : { shelfPositionInBay: location.shelfPositionInBay }),
+    description: location.description,
+    number: location.number,
+    sequenceNumber: location.sequenceNumber,
+    bayNumber: location.bayNumber,
+    side: location.side,
+    shelfNumber: location.shelfNumber,
+    shelfPositionInBay: location.shelfPositionInBay,
   };
+}
+
+function toImageUrl(product: Product): string | undefined {
+  const images = (product.images ?? []).map((image) => {
+    const sizes = image.sizes?.filter((size) => size.url) ?? [];
+    const url =
+      sizes.find((size) => size.size === "thumbnail")?.url ??
+      sizes.find((size) => size.size === "small")?.url ??
+      sizes[0]?.url;
+    return { default: image.default, perspective: image.perspective, url };
+  });
+
+  return (
+    images.find((image) => image.default && image.url)?.url ??
+    images.find((image) => image.perspective === "front" && image.url)?.url ??
+    images.find((image) => image.url)?.url
+  );
 }
 
 export function toCatalogProduct(product: Product): CatalogProduct {
@@ -49,33 +56,20 @@ export function toCatalogProduct(product: Product): CatalogProduct {
   // it is positive and actually differs from the shelf price.
   const hasPromo = promo != null && promo > 0 && promo !== regular;
   const price = hasPromo ? promo : (regular ?? undefined);
-  const aisle = toAisle(product);
-  const image =
-    product.images?.find(
-      (candidate) => candidate.default || candidate.perspective === "front",
-    ) ?? product.images?.[0];
-  const imageUrl =
-    image?.sizes?.find(
-      (candidate) =>
-        candidate.size === "thumbnail" || candidate.size === "small",
-    )?.url ?? image?.sizes?.[0]?.url;
 
   return {
     ref: { provider: "kroger", id: product.upc ?? "" },
     name: product.description ?? "Unknown product",
-    ...(product.brand === undefined ? {} : { brand: product.brand }),
-    ...(price === undefined ? {} : { price }),
-    ...(hasPromo && regular != null ? { regularPrice: regular } : {}),
-    ...(item?.size === undefined ? {} : { size: item.size }),
-    ...(product.categories?.[0] === undefined
-      ? {}
-      : { category: product.categories[0] }),
-    ...(imageUrl === undefined ? {} : { imageUrl }),
-    ...(aisle === undefined ? {} : { aisle }),
-    // Kroger's search filter already restricts to items sold at the store, so
-    // presence in the response is availability.
-    available: true,
-    pickup: Boolean(item?.fulfillment?.curbside || item?.fulfillment?.instore),
+    brand: product.brand,
+    price,
+    regularPrice: hasPromo ? regular : undefined,
+    size: item?.size,
+    category: product.categories?.[0],
+    imageUrl: toImageUrl(product),
+    aisle: toAisle(product),
+    // Missing stock data is not evidence that a listed product is unavailable.
+    available: item?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK",
+    pickup: item?.fulfillment?.curbside === true,
   };
 }
 
@@ -102,9 +96,7 @@ export function createKrogerCatalogProvider(
           terms,
           {
             limitPerTerm: options.limitPerTerm,
-            ...(options.storeId === undefined
-              ? {}
-              : { locationId: options.storeId }),
+            locationId: options.storeId,
           },
           options.onTermComplete,
         ),
@@ -115,7 +107,7 @@ export function createKrogerCatalogProvider(
           term: result.term,
           products: result.products.map(toCatalogProduct),
           failed: result.failed,
-          ...(result.error ? { error: result.error } : {}),
+          error: result.error,
         })),
       );
     },

@@ -625,9 +625,9 @@ describe("search_products", () => {
   it("sorts products within each result so pickup-available products come first", async () => {
     const noPickup = makeProduct({
       upc: "1111111111111",
-      description: "No Pickup Product",
+      description: "In-store Only Product",
       items: [
-        { itemId: "i1", fulfillment: { curbside: false, instore: false } },
+        { itemId: "i1", fulfillment: { curbside: false, instore: true } },
       ],
     });
     const withPickup = makeProduct({
