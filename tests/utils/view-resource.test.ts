@@ -7,7 +7,6 @@ import {
   APP_VIEW_URI,
   registerViewResource,
 } from "../../src/utils/view-resource.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 const EXPECTED_MIME_TYPE = "text/html;profile=mcp-app";
 
@@ -62,7 +61,6 @@ function makeContext(env: Env): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
-    catalogs: stubCatalogRegistry(),
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => env,

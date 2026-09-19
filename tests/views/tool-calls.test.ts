@@ -9,7 +9,9 @@ import {
 } from "../../views/shared/types.js";
 
 import {
-  addProductToCart,
+  addListToCart,
+  cartResultContent,
+  needsCartCheck,
   addShoppingListToCartCall,
   createProductShoppingListCall,
   saveProductToList,
@@ -75,7 +77,7 @@ describe("view tool call helpers", () => {
       createProductShoppingListCall({
         productName: "Whole Milk",
         quantity: 2,
-        productRef: "kroger:0001111041700",
+        upc: "0001111041700",
       }),
     ).toEqual({
       name: "create_shopping_list",
@@ -84,7 +86,7 @@ describe("view tool call helpers", () => {
         items: [
           {
             productName: "Whole Milk",
-            productRef: "kroger:0001111041700",
+            upc: "0001111041700",
             quantity: 2,
           },
         ],
@@ -99,6 +101,32 @@ describe("view tool call helpers", () => {
         listId: "list_abc12345",
         modality: "PICKUP",
       },
+    });
+  });
+
+  it("decodes the authoritative cart outcome from structured content", () => {
+    expect(
+      cartResultContent({
+        content: [],
+        _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
+        structuredContent: {
+          outcome: "already_added",
+          addedCount: 1,
+          requestedCount: 1,
+          listId: "list-1",
+          name: "Dinner",
+          items: [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" }],
+          needsUpc: [],
+        },
+      }),
+    ).toMatchObject({ outcome: "already_added", addedCount: 1 });
+  });
+
+  it("rejects a fulfilled cart call without a valid structured outcome", async () => {
+    const { app } = makeToolCallingApp([{}]);
+    await expect(addListToCart(app, "list-1")).rejects.toMatchObject({
+      code: "MALFORMED_CART_RESULT",
+      recovery: "check_cart",
     });
   });
 
@@ -129,43 +157,6 @@ describe("view tool call helpers", () => {
     ).toBe("No shopping list found");
   });
 
-  it("adds a selected product to cart through a listId", async () => {
-    const { app, calls } = makeToolCallingApp([
-      { structuredContent: { listId: "list_abc12345" } },
-      {},
-    ]);
-
-    await addProductToCart(app, {
-      listName: "Cart: Whole Milk",
-      productName: "Whole Milk",
-      quantity: 2,
-      productRef: "kroger:0001111041700",
-    });
-
-    expect(calls).toEqual([
-      {
-        name: "create_shopping_list",
-        arguments: {
-          name: "Cart: Whole Milk",
-          items: [
-            {
-              productName: "Whole Milk",
-              productRef: "kroger:0001111041700",
-              quantity: 2,
-            },
-          ],
-        },
-      },
-      {
-        name: "add_shopping_list_to_cart",
-        arguments: {
-          listId: "list_abc12345",
-          modality: "PICKUP",
-        },
-      },
-    ]);
-  });
-
   it("saves a selected product by creating a shopping list without cart checkout", async () => {
     const { app, calls } = makeToolCallingApp([
       { structuredContent: { listId: "list_def67890" } },
@@ -174,7 +165,7 @@ describe("view tool call helpers", () => {
     await saveProductToList(app, {
       productName: "Sourdough Bread",
       quantity: 1,
-      productRef: "kroger:0001111041717",
+      upc: "0001111041717",
     });
 
     expect(calls).toEqual([
@@ -185,7 +176,7 @@ describe("view tool call helpers", () => {
           items: [
             {
               productName: "Sourdough Bread",
-              productRef: "kroger:0001111041717",
+              upc: "0001111041717",
               quantity: 1,
             },
           ],
@@ -201,8 +192,27 @@ describe("view tool call helpers", () => {
       saveProductToList(app, {
         productName: "Sourdough Bread",
         quantity: 1,
-        productRef: "kroger:0001111041717",
+        upc: "0001111041717",
       }),
     ).rejects.toThrow("Shopping list id missing");
+  });
+  it("preserves recovery for saved-list cart actions too", async () => {
+    const { app } = makeToolCallingApp([
+      {
+        isError: true,
+        structuredContent: {
+          error: { code: "MUTATION_OUTCOME_UNKNOWN", recovery: "check_cart" },
+        },
+      },
+    ]);
+    await expect(addListToCart(app, "list-1")).rejects.toSatisfy(
+      needsCartCheck,
+    );
+  });
+
+  it("does not mark an already disconnected app as an unknown mutation", async () => {
+    await expect(addListToCart(null, "list-1")).rejects.toSatisfy(
+      (error: unknown) => !needsCartCheck(error),
+    );
   });
 });

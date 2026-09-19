@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { UserStorage } from "../../src/tools/types.js";
-import type { OrderRecord } from "../../src/utils/user-storage.js";
+import type { OrderRecord } from "../../src/domain/shopping.js";
 
 import {
   getCapturedHandler,

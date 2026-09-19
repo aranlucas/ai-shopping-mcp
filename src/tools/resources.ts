@@ -145,10 +145,7 @@ export function registerResources(ctx: ToolContext) {
           ordersResult.map((orders) => {
             for (const order of orders) {
               for (const item of order.items) {
-                const upc =
-                  item.product?.provider === "kroger"
-                    ? item.product.id
-                    : item.upc;
+                const upc = item.upc;
                 if (upc && /^\d{13}$/.test(upc)) {
                   upcs.add(upc);
                 }

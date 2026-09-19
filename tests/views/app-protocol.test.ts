@@ -81,7 +81,6 @@ describe("MCP Apps v2 protocol bridge", () => {
         structuredContent: {
           results: [
             {
-              provider: "kroger",
               term: "milk",
               products: [],
               failed: false,
@@ -95,7 +94,6 @@ describe("MCP Apps v2 protocol bridge", () => {
         view: "search_products",
         results: [
           {
-            provider: "kroger",
             term: "milk",
             products: [],
             failed: false,

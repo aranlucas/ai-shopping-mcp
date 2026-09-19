@@ -3,11 +3,11 @@ import type { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
-import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
+import type { ShoppingList, ShoppingListItem } from "../domain/shopping.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
-import { parseProductReference } from "../services/catalog/types.js";
+import { productReferenceInputSchema } from "../domain/product-identity.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
 import {
   getProps,
@@ -25,32 +25,27 @@ import { upcSchema } from "./schemas.js";
 import { type ToolContext, type UserStorage, textResult } from "./types.js";
 
 /**
- * One item to write to a list. Exact catalog matches use the universal
- * `productRef=<provider>:<id>` returned by search_products. Free-form ingredients
- * can use productName alone. `upc` remains a deprecated Kroger compatibility input.
+ * One item to write to a list. Exact matches use a normalized UPC. The legacy
+ * `productRef=kroger:<UPC>` form is accepted only at this schema boundary.
+ * Free-form ingredients can use productName alone.
  */
-const productRefSchema = z
-  .string()
-  .trim()
-  .refine((value) => parseProductReference(value) !== null, {
-    message: "productRef must be <provider>:<provider-scoped-id>.",
-  });
-
 export const shoppingListItemInputSchema = z
   .object({
-    productRef: productRefSchema
+    productRef: productReferenceInputSchema
       .optional()
-      .describe("productRef from search_products"),
-    upc: upcSchema
-      .optional()
-      .describe("Deprecated Kroger UPC compatibility input"),
+      .describe("Legacy Kroger productRef from search_products"),
+    upc: upcSchema.optional().describe("13-digit UPC from search_products"),
     productName: z.string().trim().min(1).max(200).optional(),
     quantity: z.coerce.number().min(1).max(999).default(1),
     notes: z.string().max(500).optional(),
   })
   .refine((item) => Boolean(item.productRef ?? item.upc ?? item.productName), {
-    message: "Each item needs a productRef or a productName.",
-  });
+    message: "Each item needs a UPC or a productName.",
+  })
+  .transform(({ productRef, upc, ...item }) => ({
+    ...item,
+    ...((upc ?? productRef) ? { upc: upc ?? productRef } : {}),
+  }));
 
 const listIdSchema = z.string().trim().min(1);
 const itemIdSchema = z.string().trim().min(1);
@@ -90,9 +85,9 @@ export const getShoppingListInputSchema = z.object({
 type ShoppingListItemInput = z.output<typeof shoppingListItemInputSchema>;
 
 /**
- * Resolves each input item to the universal stored model. Kroger references
- * retain best-effort name enrichment; all other providers preserve the exact
- * reference and use the supplied name (or opaque id as a last-resort label).
+ * Resolves each input item to the domain model. The schema has already
+ * normalized legacy productRef values, so this callback only enriches a UPC
+ * when the caller omitted a name.
  */
 async function toStoredItems(
   ctx: ToolContext,
@@ -100,33 +95,19 @@ async function toStoredItems(
 ): Promise<ShoppingListItem[]> {
   return Promise.all(
     items.map(async (item) => {
-      const product = item.productRef
-        ? parseProductReference(item.productRef)
-        : item.upc
-          ? { provider: "kroger", id: item.upc }
-          : null;
       const productName =
         item.productName ??
-        (product?.provider === "kroger"
-          ? ((await ctx.productService.enrichProductName(product.id)) ??
-            product.id)
-          : (product?.id ?? ""));
+        (item.upc
+          ? ((await ctx.productService.enrichProductName(item.upc)) ?? item.upc)
+          : "");
       return {
         productName,
-        ...(product === null ? {} : { product }),
-        ...(product?.provider === "kroger" ? { upc: product.id } : {}),
-        // ShoppingListItem.quantity is required, so it is defaulted here as
-        // well as in the schema rather than relying on parsing having run.
-        quantity: item.quantity ?? 1,
+        ...(item.upc === undefined ? {} : { upc: item.upc }),
+        quantity: item.quantity,
         ...(item.notes === undefined ? {} : { notes: item.notes }),
       } satisfies ShoppingListItem;
     }),
   );
-}
-
-/** Client-id hint for ShoppingStore implementations that accept caller-generated ids. */
-function generateRequestedListId(): string {
-  return `list_${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 
 export type CreateShoppingListResult = { listId: string; list: ShoppingList };
@@ -140,9 +121,8 @@ export function createShoppingListRecord(
   name: string,
   items: ShoppingListItem[],
 ): ResultAsync<CreateShoppingListResult, AppError> {
-  const requestedId = generateRequestedListId();
   return safeStorage(
-    () => storage.shoppingList.create(requestedId, name, items),
+    () => storage.shoppingList.create({ name, items }),
     "create shopping list",
   ).map((list) => ({ listId: list.id, list }));
 }
@@ -154,7 +134,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Create Shopping List",
       description:
-        'Creates a named shopping list; returns `listId` for add_shopping_list_to_cart. Give exact catalog items the `productRef` returned by search_products, and use `productName` for free text. Example: {"name":"Tuesday dinner","items":[{"productRef":"kroger:0001111041700","productName":"Milk","quantity":1}]}',
+        'Creates a named shopping list; returns `listId` for add_shopping_list_to_cart. Give exact Kroger items their `upc` from search_products, and use `productName` for free text. Example: {"name":"Tuesday dinner","items":[{"upc":"0001111041700","productName":"Milk","quantity":1}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -166,12 +146,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
     async ({ name: listName, items }) => {
       getProps();
-
-      if (items.length === 0) {
-        return toMcpError(
-          validationError("Shopping list must include at least one item."),
-        );
-      }
 
       const enrichedItems = await toStoredItems(ctx, items);
 
@@ -280,7 +254,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const lines = list.items
         .map(
           (item, index) =>
-            `${index + 1}. itemId=${item.id ?? "unknown"} ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
+            `${index + 1}. itemId=${item.id} ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
         )
         .join("\n");
       return textResult(
@@ -294,7 +268,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     {
       title: "Add Shopping List Items",
       description:
-        "Appends items to an existing list, keeping what is already on it. Use productRef for exact catalog matches from any provider, or productName for free text.",
+        "Appends items to an existing list, keeping what is already on it. Use upc for exact Kroger matches, or productName for free text.",
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -315,7 +289,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const lines = added
         .map(
           (item, index) =>
-            `${index + 1}. itemId=${item.id ?? "unknown"} ${formatShoppingListItemCompact(item)}`,
+            `${index + 1}. itemId=${item.id} ${formatShoppingListItemCompact(item)}`,
         )
         .join("\n");
       return textResult(

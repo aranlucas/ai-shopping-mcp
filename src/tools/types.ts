@@ -1,7 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { ProductService } from "../services/kroger/product-service.js";
-import type { CatalogRegistry } from "../services/catalog/types.js";
 import type { ShoppingStore } from "../utils/gateway-storage.js";
 import type { CartStore } from "../utils/user-storage.js";
 
@@ -30,12 +29,6 @@ export type ToolContext = {
   server: McpServer;
   clients: KrogerClients;
   productService: ProductService;
-  /**
-   * Product catalogs available to this request, keyed by provider id. Tools
-   * search through this registry rather than any one retailer's client, so a
-   * new provider needs no tool changes.
-   */
-  catalogs: CatalogRegistry;
   storage: ShoppingStore;
   carts: CartStore;
   getEnv: () => Env;

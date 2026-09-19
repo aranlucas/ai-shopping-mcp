@@ -7,6 +7,7 @@ import { Separator } from "../../shared/ui/separator";
 
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
+import { classifyExpiry } from "../../../src/services/expiry.js";
 import {
   type AppData,
   type PantryItemData,
@@ -57,42 +58,35 @@ function ExpiryBadge({
   expiresAt: string | undefined;
   now: number;
 }) {
-  const expiryDate = useMemo(
-    () => (expiresAt ? new Date(expiresAt) : null),
-    [expiresAt],
-  );
-  if (!expiresAt || !expiryDate) return null;
-  const daysUntil = Math.floor(
-    (expiryDate.getTime() - now) / (1000 * 60 * 60 * 24),
-  );
-  const expiryLabel = useMemo(
-    () =>
-      expiryDate.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      }),
-    [expiryDate],
-  );
-  const soonLabel = useMemo(() => `${daysUntil}d left`, [daysUntil]);
-  if (daysUntil < 0)
+  const expiry = classifyExpiry(expiresAt, now);
+  if (expiry.status === "none" || expiry.status === "invalid") return null;
+  if (expiry.status === "expired")
     return (
       <Badge variant="outline" tone="danger">
         Expired
       </Badge>
     );
-  if (daysUntil === 0)
+  if (expiry.status === "today")
     return (
       <Badge variant="outline" tone="danger">
         Today
       </Badge>
     );
-  if (daysUntil <= 3)
+  if (expiry.status === "soon")
     return (
       <Badge variant="outline" tone="warning">
-        {soonLabel}
+        {expiry.daysUntil}d left
       </Badge>
     );
-  return <span className="text-xs text-gray-400">Exp {expiryLabel}</span>;
+  return (
+    <span className="text-xs text-gray-400">
+      Exp{" "}
+      {new Date(expiresAt ?? "").toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      })}
+    </span>
+  );
 }
 
 function PantryItemRow({
@@ -121,13 +115,8 @@ function PantryItemRow({
     }
   }, [item.productName, onRemove]);
 
-  const isExpiringSoon = useMemo(() => {
-    if (!item.expiresAt) return false;
-    const d = Math.floor(
-      (new Date(item.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
-    );
-    return d >= 0 && d <= 3;
-  }, [item.expiresAt, now]);
+  const expiry = classifyExpiry(item.expiresAt, now);
+  const isExpiringSoon = expiry.status === "today" || expiry.status === "soon";
 
   return (
     <div
@@ -199,11 +188,8 @@ export function PantryView({
   const expiring = useMemo(
     () =>
       items.filter((i) => {
-        if (!i.expiresAt) return false;
-        const d = Math.floor(
-          (new Date(i.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
-        );
-        return d >= 0 && d <= 3;
+        const expiry = classifyExpiry(i.expiresAt, now);
+        return expiry.status === "today" || expiry.status === "soon";
       }),
     [items, now],
   );

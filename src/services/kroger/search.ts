@@ -1,24 +1,32 @@
 /**
- * Kroger product search, shared by the Kroger catalog provider, the
+ * Kroger product search, shared by the product search tool, the
  * `search_products` MCP App payload, and `shop_for_items`. Those three need the
- * full Kroger records, not the provider-agnostic projection, so this stays
- * Kroger-shaped on purpose.
+ * full Kroger records for product selection and presentation.
  */
 import type { AppError } from "../../errors.js";
-import type { KrogerClients } from "../kroger/client.js";
-import type { components as ProductComponents } from "../kroger/product.js";
+import type { KrogerClients } from "./client.js";
+import type { components as ProductComponents } from "./product.js";
 
 import { fromApiResponse } from "../../utils/result.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
-export type ProductSearchResult = {
+export type ProductSearchRequest = {
+  requestId: string;
   term: string;
-  products: Product[];
-  count: number;
-  failed: boolean;
-  error?: AppError;
 };
+
+export type ProductSearchSuccess = ProductSearchRequest & {
+  status: "success";
+  products: Product[];
+};
+
+export type ProductSearchFailure = ProductSearchRequest & {
+  status: "failed";
+  error: AppError;
+};
+
+export type ProductSearchResult = ProductSearchSuccess | ProductSearchFailure;
 
 /**
  * Searches Kroger products for each term in parallel. Shared by `search_products`
@@ -27,16 +35,16 @@ export type ProductSearchResult = {
  */
 export async function searchProductsForTerms(
   productClient: KrogerClients["productClient"],
-  terms: string[],
+  requests: ProductSearchRequest[],
   params: { locationId?: string; limitPerTerm: number },
   onSearchComplete?: (completed: number, total: number) => Promise<void> | void,
 ): Promise<ProductSearchResult[]> {
   let completedSearches = 0;
-  const totalSearches = terms.length;
+  const totalSearches = requests.length;
 
-  const searchPromises = terms.map(async (term) => {
+  const searchPromises = requests.map(async (request) => {
     const queryParams: Record<string, string | number> = {
-      "filter.term": term,
+      "filter.term": request.term,
       ...(params.locationId ? { "filter.locationId": params.locationId } : {}),
       "filter.fulfillment": "ais",
       "filter.limit": params.limitPerTerm,
@@ -47,7 +55,7 @@ export async function searchProductsForTerms(
         productClient.GET("/v1/products", {
           params: { query: queryParams },
         }),
-      `search products for "${term}"`,
+      `search products for "${request.term}"`,
     );
 
     completedSearches++;
@@ -63,30 +71,25 @@ export async function searchProductsForTerms(
     return apiResult
       .map((data) => {
         const products = data?.data || [];
-        return {
-          term,
-          products,
-          count: products.length,
-          failed: false as const,
-        };
+        return Object.assign(
+          {
+            status: "success" as const,
+            products,
+          },
+          request,
+        );
       })
-      .orTee((error) => logProductSearchError(term, error))
+      .orTee((error) => logProductSearchError(request.term, error))
       .match(
         (result) => result,
-        (error) => ({
-          term,
-          products: [] as Product[],
-          count: 0,
-          failed: true as const,
-          error,
-        }),
+        (error) => ({ ...request, status: "failed" as const, error }),
       );
   });
 
   const results = await Promise.all(searchPromises);
 
   for (const result of results) {
-    if (!result.failed && result.count > 0) {
+    if (result.status === "success" && result.products.length > 0) {
       result.products.sort((a, b) => {
         const aItem = a.items?.[0];
         const bItem = b.items?.[0];

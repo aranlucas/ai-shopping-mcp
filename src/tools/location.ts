@@ -2,7 +2,7 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
-import type { PreferredLocation } from "../utils/user-storage.js";
+import type { PreferredLocation } from "../domain/shopping.js";
 import type { ToolContext } from "./types.js";
 import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { LocationData } from "../app-results.js";
@@ -23,7 +23,6 @@ type Location = LocationComponents["schemas"]["locations.location"];
 /** Location fields rendered by the store list and detail views. */
 function compactLocation(location: Location): LocationData {
   return {
-    provider: "kroger",
     locationId: location.locationId,
     name: location.name,
     chain: location.chain,
@@ -192,7 +191,6 @@ export function registerLocationTools(ctx: ToolContext) {
         }
 
         const preferredLocation: PreferredLocation = {
-          provider: "kroger",
           locationId: location.locationId || "",
           locationName: location.name || "",
           address:

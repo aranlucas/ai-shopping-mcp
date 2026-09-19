@@ -1,8 +1,9 @@
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
-import type { OrderRecord } from "../utils/user-storage.js";
+import type { OrderRecord } from "../domain/shopping.js";
 
+import { classifyExpiry } from "../services/expiry.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { getMealPlanningDeals } from "./meal-planning-deals.js";
 import { coercedBooleanSchema, storeIdSchema } from "./schemas.js";
@@ -190,37 +191,36 @@ export function registerRecipeTools(ctx: ToolContext) {
 
       const now = Date.now();
       const categorizedPantry = pantry.map((item) => {
-        if (!item.expiresAt)
-          return Object.assign({}, item, {
-            urgency: "none" as const,
-            daysUntil: undefined,
-          });
-        const expiresAtMs = new Date(item.expiresAt).getTime();
-        if (Number.isNaN(expiresAtMs)) {
-          return Object.assign({}, item, {
-            urgency: "none" as const,
-            daysUntil: undefined,
-          });
-        }
-        const daysUntil = Math.floor(
-          (expiresAtMs - now) / (1000 * 60 * 60 * 24),
-        );
-        if (daysUntil < 0)
+        const expiry = classifyExpiry(item.expiresAt, now);
+        if (expiry.status === "expired")
           return Object.assign({}, item, {
             urgency: "expired" as const,
-            daysUntil,
+            daysUntil: expiry.daysUntil,
           });
-        if (daysUntil <= 1)
+        if (
+          expiry.status === "today" ||
+          (expiry.status === "soon" && expiry.daysUntil <= 1)
+        )
           return Object.assign({}, item, {
             urgency: "critical" as const,
-            daysUntil,
+            daysUntil: expiry.daysUntil,
           });
-        if (daysUntil <= 3)
+        if (expiry.status === "soon")
           return Object.assign({}, item, {
             urgency: "warning" as const,
-            daysUntil,
+            daysUntil: expiry.daysUntil,
           });
-        return Object.assign({}, item, { urgency: "ok" as const, daysUntil });
+        const daysUntil =
+          expiry.status === "none" || expiry.status === "invalid"
+            ? undefined
+            : expiry.daysUntil;
+        return Object.assign({}, item, {
+          urgency:
+            expiry.status === "none" || expiry.status === "invalid"
+              ? ("none" as const)
+              : ("ok" as const),
+          daysUntil,
+        });
       });
 
       const expiringItems = categorizedPantry.filter(

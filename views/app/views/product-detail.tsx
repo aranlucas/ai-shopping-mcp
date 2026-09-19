@@ -9,7 +9,7 @@ import {
   ProductActions,
 } from "../../shared/components.js";
 import { type ProductDetailContent } from "../../shared/types.js";
-import { addProductToCart, saveProductToList } from "../tool-calls.js";
+import { saveProductToList } from "../tool-calls.js";
 
 export function ProductDetailView({
   data,
@@ -23,30 +23,14 @@ export function ProductDetailView({
   const { product } = data;
   const name = product.name;
   const brand = product.brand;
-  const productRef = `${product.product.provider}:${product.product.id}`;
-
-  const handleAddToCart = useCallback(
-    async (
-      productName: string,
-      selectedProductRef: string,
-      quantity: number,
-    ) => {
-      await addProductToCart(app, {
-        listName: `Cart: ${productName}`,
-        productName,
-        quantity,
-        productRef: selectedProductRef,
-      });
-    },
-    [app],
-  );
+  const upc = product.upc;
 
   const handleAddToList = useCallback(
-    async (productName: string, selectedProductRef: string) => {
+    async (productName: string, selectedUpc: string) => {
       await saveProductToList(app, {
         productName,
         quantity: 1,
-        productRef: selectedProductRef,
+        upc: selectedUpc,
       });
     },
     [app],
@@ -70,11 +54,11 @@ export function ProductDetailView({
         {/* Actions */}
         <div className="flex gap-1.5 border-b border-border px-4 py-3">
           <ProductActions
-            productRef={productRef}
-            cartEnabled={product.product.provider === "kroger"}
+            app={app}
+            upc={upc}
+            cartDisabled={!product.available}
             name={name}
             disabled={!canCallTools}
-            onAddToCart={handleAddToCart}
             onAddToList={handleAddToList}
           />
         </div>
@@ -121,9 +105,9 @@ export function ProductDetailView({
 
           <div>
             <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
-              Product reference
+              UPC
             </p>
-            <p className="font-mono text-xs text-gray-400">{productRef}</p>
+            <p className="font-mono text-xs text-gray-400">{upc}</p>
           </div>
         </div>
       </div>

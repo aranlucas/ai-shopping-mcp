@@ -4,6 +4,7 @@
  */
 import { getMcpAuthContext } from "agents/mcp";
 import { ResultAsync, err, ok, okAsync } from "neverthrow";
+import { isVerifiedShopperId } from "./shopper-identity.js";
 
 import type { Props, UserStorage } from "../tools/types.js";
 
@@ -120,7 +121,7 @@ export function getProps(): Props {
   const props = getMcpAuthContext()?.props;
   if (
     !props ||
-    typeof props.id !== "string" ||
+    !isVerifiedShopperId(props.id) ||
     typeof props.accessToken !== "string" ||
     typeof props.tokenExpiresAt !== "number"
   ) {
@@ -142,7 +143,6 @@ export function getProps(): Props {
 export function safeResolveLocationId(
   storage: UserStorage,
   locationId?: string,
-  provider = "kroger",
 ): ResultAsync<{ locationId: string; locationName?: string }, AppError> {
   if (locationId) {
     return okAsync<{ locationId: string; locationName?: string }, AppError>({
@@ -158,15 +158,6 @@ export function safeResolveLocationId(
       return err(
         notFoundError(
           "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
-        ),
-      );
-    }
-    // Legacy storage rows predate provider-scoped locations and are Kroger-only.
-    const preferredProvider = preferredLocation.provider || "kroger";
-    if (preferredProvider !== provider) {
-      return err(
-        notFoundError(
-          `The preferred store belongs to provider=${preferredProvider}, not provider=${provider}. Provide a locationId for ${provider}.`,
         ),
       );
     }

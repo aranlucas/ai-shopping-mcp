@@ -21,9 +21,8 @@ import { createCartPersistence } from "../../src/utils/user-storage.js";
 import {
   type TestToolHandler as ToolHandler,
   wrapV2ToolHandler,
+  type TestToolConfig,
 } from "../v2-tool-handler.js";
-import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type CapturedTool = { name: string; handler: ToolHandler };
 
@@ -206,10 +205,14 @@ describe("search_products content size", () => {
       cartOperationStore(),
     );
     const server = {
-      registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
+      registerTool: (
+        name: string,
+        config: TestToolConfig,
+        handler: ToolHandler,
+      ) => {
         testState.capturedTools.push({
           name,
-          handler: wrapV2ToolHandler(handler, server),
+          handler: wrapV2ToolHandler(handler, config),
         });
       },
     };
@@ -217,11 +220,6 @@ describe("search_products content size", () => {
       server: server as unknown as ToolContext["server"],
       clients,
       productService: new ProductService(clients.productClient),
-      // Real Kroger provider over the stubbed client, so the structured
-      // payload this test measures is the one production emits.
-      catalogs: stubCatalogRegistry({
-        kroger: createKrogerCatalogProvider(clients.productClient),
-      }),
       storage: {
         preferredLocation: { get: async () => null },
       } as unknown as ToolContext["storage"],
@@ -232,7 +230,7 @@ describe("search_products content size", () => {
         }) as unknown as Env,
     });
 
-    return getTool("search_products")({ terms });
+    return getTool("search_products")({ terms, limitPerTerm: productsPerTerm });
   }
 
   it("stays under 15 KB for 5 terms × 10 products", async () => {
@@ -253,18 +251,19 @@ describe("search_products content size", () => {
       }
     ).structuredContent;
     expect(sc?.results?.[0]?.products?.[0]?.imageUrl).toBeDefined();
+    expect(sc?.results?.[0]).not.toHaveProperty("provider");
     expect(sc?.results?.[0]?.products?.[0]).not.toHaveProperty(
       "nutritionInformation",
     );
   });
 
-  it("stays under 60 KB for 25 terms × 10 products (worst-case bulk search)", async () => {
-    const terms = Array.from({ length: 25 }, (_, i) => `item${i + 1}`);
+  it("stays under 30 KB for 10 terms × 10 products (worst-case bulk search)", async () => {
+    const terms = Array.from({ length: 10 }, (_, i) => `item${i + 1}`);
     const result = await runSearch(terms, 10);
     const chars = measureContentChars(result);
 
-    // 25 terms × 10 products with compact items array should stay well under 60 KB.
+    // 10 terms × 10 products is the registered bulk-search maximum.
     // Without flat compaction this would exceed the 262 K-token context limit.
-    expect(chars).toBeLessThan(60_000);
+    expect(chars).toBeLessThan(30_000);
   });
 });

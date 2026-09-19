@@ -6,6 +6,10 @@ import type { AppError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 
 import { appResult } from "../app-results.js";
+import {
+  cartItemsFingerprint,
+  claimCartOperation,
+} from "../cart-operations.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { CartSnapshotItem } from "../utils/user-storage.js";
 
@@ -25,7 +29,9 @@ type CartItem = components["schemas"]["cart.cartItemModel"];
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
 type LiveCart = components["schemas"]["carts.cartModel"];
 
-type CartAddStatus = "added" | "already_added";
+type CartAddStatus = "added" | "already_added" | "needs_match";
+
+type CartOutcome = "added" | "already_added" | "needs_match";
 
 export type LineItem = { upc: string; quantity: number; productName?: string };
 
@@ -80,6 +86,21 @@ function toCartSnapshotItems(
   }));
 }
 
+function cartResultPayload(payload: {
+  listId?: string;
+  name: string;
+  items: CartSnapshotItem[];
+  needsUpc: Array<{ productName: string; quantity: number }>;
+  outcome: CartOutcome;
+  requestedCount: number;
+  actionDetail: string;
+}) {
+  return appResult("add_shopping_list_to_cart", {
+    ...payload,
+    addedCount: payload.items.length,
+  });
+}
+
 /**
  * PUTs the given line items to the Kroger cart. Shared by every cart-write
  * path (listId, inline items, and `shop_for_items`'s `addToCart`) so the
@@ -110,7 +131,15 @@ export async function addLineItemsToCart(
     ? `list:${options.receiptListId}`
     : `inline:${options.operationId ?? crypto.randomUUID()}`;
   const claim = await safeStorage(
-    () => ctx.carts.operations.begin(operationKey, JSON.stringify(cartItems)),
+    () =>
+      claimCartOperation(
+        ctx.carts.operations,
+        operationKey,
+        cartItemsFingerprint(cartItems),
+        options.receiptListId
+          ? () => ctx.carts.cartSnapshot.get(options.receiptListId as string)
+          : undefined,
+      ),
     "claim cart operation",
   );
   if (claim.isErr()) return err<CartAddStatus, AppError>(claim.error);
@@ -128,6 +157,18 @@ export async function addLineItemsToCart(
       ),
     );
   const { attempt } = claim.value;
+
+  // A list with no cartable items still claims and reconciles the operation so
+  // a pre-journal receipt cannot be silently bypassed. There is no upstream
+  // mutation to make, so release the claim and let the tool report needs_match.
+  if (lineItems.length === 0) {
+    const released = await safeStorage(
+      () => ctx.carts.operations.reject(operationKey, attempt),
+      "release empty cart operation",
+    );
+    if (released.isErr()) return err<CartAddStatus, AppError>(released.error);
+    return ok("needs_match");
+  }
 
   const addResult = await fromApiResponse(
     () =>
@@ -214,9 +255,23 @@ async function handleInlineItemsCart(
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   if (addResult.value === "already_added")
-    return textResult(
-      "These items were already added to your Kroger cart for this operation. Check the cart before adding more.",
-    );
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: "These items were already added to your Kroger cart for this operation. Check the cart before adding more.",
+        },
+      ],
+      ...cartResultPayload({
+        listId: undefined,
+        name: "Inline items",
+        items: toCartSnapshotItems(items, modality),
+        needsUpc: [],
+        outcome: "already_added",
+        requestedCount: items.length,
+        actionDetail: "Already added to cart for this operation",
+      }),
+    };
   const resolved = locationResult.value;
   const locationInfo = resolved.locationName
     ? ` at ${resolved.locationName}`
@@ -229,11 +284,13 @@ async function handleInlineItemsCart(
         text: `Added ${items.length} item(s) to cart${locationInfo}:\n${items.map((i) => `  - ${i.upc} x${i.quantity}`).join("\n")}`,
       },
     ],
-    ...appResult("add_shopping_list_to_cart", {
+    ...cartResultPayload({
       listId: undefined,
       name: "Inline items",
       items: items.map((i) => ({ upc: i.upc, quantity: i.quantity, modality })),
       needsUpc: [],
+      outcome: "added",
+      requestedCount: items.length,
       actionDetail: `Added ${items.length} item(s) to cart`,
     }),
   };
@@ -246,33 +303,6 @@ async function handleListIdCart(
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
 ) {
-  const existingSnapshotResult = await safeStorage(
-    () => ctx.carts.cartSnapshot.get(listId),
-    "check existing cart snapshot",
-  );
-
-  if (existingSnapshotResult.isErr())
-    return toMcpError(existingSnapshotResult.error);
-  const existingSnapshot = existingSnapshotResult.value;
-
-  if (existingSnapshot && existingSnapshot.length > 0) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: "These items were already added to your cart from this list. Create a new list with create_shopping_list if you want to add more.",
-        },
-      ],
-      ...appResult("add_shopping_list_to_cart", {
-        listId,
-        name: "",
-        items: existingSnapshot,
-        needsUpc: [],
-        actionDetail: "Already added to cart from this list",
-      }),
-    };
-  }
-
   const listResult = await safeStorage(
     () => ctx.storage.shoppingList.get(listId),
     "fetch shopping list",
@@ -288,30 +318,32 @@ async function handleListIdCart(
   }
 
   const cartable = list.items.flatMap((item) => {
-    const upc =
-      item.product?.provider === "kroger"
-        ? item.product.id
-        : item.product === undefined
-          ? item.upc
-          : undefined;
-    return upc ? [{ item, upc }] : [];
+    return item.upc ? [{ item, upc: item.upc }] : [];
   });
   const cartableItems = new Set(cartable.map(({ item }) => item));
   const withoutUpc = list.items.filter((item) => !cartableItems.has(item));
 
   if (cartable.length === 0) {
+    const emptyAddResult = await addLineItemsToCart(
+      ctx,
+      cartClient,
+      [],
+      modality,
+      { receiptListId: listId },
+    );
+    if (emptyAddResult.isErr()) return toMcpError(emptyAddResult.error);
     return {
       content: [
         {
           type: "text" as const,
           text:
-            `Shopping list "${list.name}" has no Kroger product references ready to add to the cart.\n` +
+            `Shopping list "${list.name}" has no matched Kroger UPCs ready to add to the cart.\n` +
             (withoutUpc.length > 0
-              ? `Use search_products with providers=["kroger"] for: ${withoutUpc.map((i) => i.productName).join(", ")}.`
+              ? `Use search_products for: ${withoutUpc.map((i) => i.productName).join(", ")}.`
               : ""),
         },
       ],
-      ...appResult("add_shopping_list_to_cart", {
+      ...cartResultPayload({
         listId,
         name: list.name,
         items: [],
@@ -319,7 +351,10 @@ async function handleListIdCart(
           productName: i.productName,
           quantity: i.quantity,
         })),
-        actionDetail: "No Kroger items to add",
+        outcome: "needs_match",
+        requestedCount: list.items.length,
+        actionDetail:
+          "No Kroger items to add; match items to Kroger before retrying",
       }),
     };
   }
@@ -344,19 +379,17 @@ async function handleListIdCart(
     },
   );
   if (addResult.isErr()) return toMcpError(addResult.error);
-  if (addResult.value === "already_added")
-    return textResult(
-      `These items were already added to your Kroger cart from listId=${listId}.`,
-    );
-
   const snapshot = toCartSnapshotItems(lineItems, modality);
+  const alreadyAdded = addResult.value === "already_added";
 
   const locationInfo = resolved.locationName
     ? ` at ${resolved.locationName}`
     : ` (Store: ${resolved.locationId})`;
 
   const resultParts: string[] = [
-    `Added ${cartable.length} item(s) from list "${list.name}" to cart${locationInfo}:\n${cartable.map(({ item }) => `  - ${item.productName} x${item.quantity}`).join("\n")}`,
+    alreadyAdded
+      ? `These ${cartable.length} item(s) were already added to your Kroger cart from list "${list.name}".`
+      : `Added ${cartable.length} item(s) from list "${list.name}" to cart${locationInfo}:\n${cartable.map(({ item }) => `  - ${item.productName} x${item.quantity}`).join("\n")}`,
   ];
 
   if (withoutUpc.length > 0) {
@@ -367,7 +400,7 @@ async function handleListIdCart(
 
   return {
     content: [{ type: "text" as const, text: resultParts.join("\n\n") }],
-    ...appResult("add_shopping_list_to_cart", {
+    ...cartResultPayload({
       listId,
       name: list.name,
       items: snapshot,
@@ -375,7 +408,11 @@ async function handleListIdCart(
         productName: i.productName,
         quantity: i.quantity,
       })),
-      actionDetail: `Added ${cartable.length} item(s) from list "${list.name}" to cart`,
+      outcome: alreadyAdded ? "already_added" : "added",
+      requestedCount: list.items.length,
+      actionDetail: alreadyAdded
+        ? `Already added ${cartable.length} item(s) from list "${list.name}"`
+        : `Added ${cartable.length} item(s) from list "${list.name}" to cart`,
     }),
   };
 }

@@ -392,6 +392,17 @@ describe("getQfcWeeklyDeals", () => {
   });
 
   describe("search API augmentation of print deals", () => {
+    it("uses the regular price when Kroger reports promo zero", async () => {
+      setupPrintAdFetch();
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts: vi
+          .fn<ProductSearchFn>()
+          .mockResolvedValue([makeProduct({ regular: 4, promo: 0 })]),
+      });
+      expect(result.deals[0].price).toBe("$4.00");
+      expect(result.deals[0].savings).toBeUndefined();
+    });
     it("augments a deal with promo price and savings when product has promo", async () => {
       setupPrintAdFetch();
       const searchProducts: ProductSearchFn = vi
@@ -652,8 +663,23 @@ describe("getQfcWeeklyDeals", () => {
       });
 
       expect(
-        result.warnings.some((w) => w.includes("Print-ad parsing failed")),
+        result.warnings.some((warning) => warning.code === "print_ad_failed"),
       ).toBe(true);
+    });
+
+    it("excludes zero-promo products from fallback sale discovery", async () => {
+      setupFailedPrintFetch();
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts: vi
+          .fn<ProductSearchFn>()
+          .mockResolvedValue([
+            makeProduct({ productId: "not-on-sale", regular: 4, promo: 0 }),
+            makeProduct({ productId: "on-sale", regular: 4, promo: 3 }),
+          ]),
+      });
+      expect(result.deals).toHaveLength(1);
+      expect(result.deals[0].price).toBe("$3.00");
     });
 
     it("filters out search API products without promo pricing", async () => {
@@ -811,7 +837,7 @@ describe("getQfcWeeklyDeals", () => {
       expect(result.sourceMode).toBe("search_api");
       expect(result.deals).toHaveLength(0);
       expect(
-        result.warnings.some((w) => w.includes("Print-ad parsing failed")),
+        result.warnings.some((warning) => warning.code === "print_ad_failed"),
       ).toBe(true);
       expect(result.meta?.degraded).toBeUndefined();
     });
@@ -843,7 +869,9 @@ describe("getQfcWeeklyDeals", () => {
       expect(result.deals).toHaveLength(1);
       expect(result.deals[0]?.title).toBe("Rotisserie Chicken");
       expect(result.meta).toMatchObject({ degraded: true, failedTermCount: 9 });
-      expect(result.warnings.some((w) => w.includes("partial"))).toBe(true);
+      expect(
+        result.warnings.some((warning) => warning.code === "search_partial"),
+      ).toBe(true);
     });
 
     it("throws when no print circular is found and no searchProducts provided", async () => {
@@ -897,11 +925,41 @@ describe("getQfcWeeklyDeals", () => {
       });
 
       expect(
-        result.warnings.some((w) =>
-          w.includes("Unable to fetch weekly circulars"),
+        result.warnings.some(
+          (warning) => warning.code === "circular_fetch_failed",
         ),
       ).toBe(true);
       expect(result.sourceMode).toBe("search_api");
+    });
+
+    it("rejects malformed circular metadata before selecting a print source", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(
+            mockOkResponse({ data: [{ eventId: "missing-required-fields" }] }),
+          );
+        }
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts: vi.fn<ProductSearchFn>().mockResolvedValue([
+          makeProduct({
+            productId: "malformed-circular-fallback",
+            regular: 4,
+            promo: 3,
+          }),
+        ]),
+      });
+
+      expect(result.sourceMode).toBe("search_api");
+      expect(
+        result.warnings.some(
+          (warning) => warning.code === "circular_fetch_failed",
+        ),
+      ).toBe(true);
     });
   });
 

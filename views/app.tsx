@@ -186,7 +186,7 @@ function ShoppingAppInner({
       }
     }
     return toolResult ? (
-      <ErrorDisplay message="This result has no shopping view. Ask your assistant for the result details." />
+      <ErrorDisplay message="This result has no valid shopping view. Ask your assistant for the result details." />
     ) : (
       <Loading />
     );

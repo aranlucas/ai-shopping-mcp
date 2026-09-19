@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { components as ProductComponents } from "../../../src/services/kroger/product.js";
 
-import { toCatalogProduct } from "../../../src/services/catalog/kroger-provider.js";
+import { toProductData } from "../../../src/services/kroger/product-data.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 type Inventory =
   ProductComponents["schemas"]["products.productItemInventoryModel"];
 
-describe("toCatalogProduct", () => {
+describe("toProductData", () => {
   it.each<{ stockLevel: Inventory["stockLevel"]; available: boolean }>([
     { stockLevel: "HIGH", available: true },
     { stockLevel: "LOW", available: true },
@@ -17,7 +17,8 @@ describe("toCatalogProduct", () => {
   ])(
     "reports $stockLevel stock as available=$available",
     ({ stockLevel, available }) => {
-      const product = toCatalogProduct({
+      const product = toProductData({
+        upc: "0001111041700",
         items: [{ inventory: { stockLevel }, fulfillment: { instore: true } }],
       });
 
@@ -33,9 +34,10 @@ describe("toCatalogProduct", () => {
   ])(
     "requires curbside fulfillment for pickup: $fulfillment",
     ({ fulfillment, pickup }) => {
-      expect(toCatalogProduct({ items: [{ fulfillment }] }).pickup).toBe(
-        pickup,
-      );
+      expect(
+        toProductData({ upc: "0001111041700", items: [{ fulfillment }] })
+          .pickup,
+      ).toBe(pickup);
     },
   );
 
@@ -50,7 +52,10 @@ describe("toCatalogProduct", () => {
     { price: { promo: 3 }, expected: { price: 3 } },
     { price: undefined, expected: {} },
   ])("preserves current and sale prices for $price", ({ price, expected }) => {
-    const product = toCatalogProduct({ items: [{ price }] });
+    const product = toProductData({
+      upc: "0001111041700",
+      items: [{ price }],
+    });
 
     expect({
       price: product.price,
@@ -73,16 +78,18 @@ describe("toCatalogProduct", () => {
       },
     ];
 
-    expect(toCatalogProduct({ images }).imageUrl).toBe(
+    expect(toProductData({ upc: "0001111041700", images }).imageUrl).toBe(
       "https://example.com/thumbnail.jpg",
     );
-    expect(toCatalogProduct({ images: images.toReversed() }).imageUrl).toBe(
-      "https://example.com/thumbnail.jpg",
-    );
+    expect(
+      toProductData({ upc: "0001111041700", images: images.toReversed() })
+        .imageUrl,
+    ).toBe("https://example.com/thumbnail.jpg");
   });
 
   it("skips unusable images and sizes when choosing a front image", () => {
-    const product = toCatalogProduct({
+    const product = toProductData({
+      upc: "0001111041700",
       images: [
         { default: true, sizes: [{ size: "thumbnail", url: "" }] },
         {
@@ -103,7 +110,8 @@ describe("toCatalogProduct", () => {
   });
 
   it("uses another usable image when no default or front image is present", () => {
-    const product = toCatalogProduct({
+    const product = toProductData({
+      upc: "0001111041700",
       images: [
         { perspective: "back" },
         {
@@ -116,26 +124,32 @@ describe("toCatalogProduct", () => {
     expect(product.imageUrl).toBe("https://example.com/left.jpg");
   });
 
-  it("projects only catalog aisle fields and preserves leading zeros in identity", () => {
-    const product = toCatalogProduct({
+  it("projects the UPC and optional aisle fields while preserving leading zeros", () => {
+    const raw = {
       upc: "0001111041700",
       description: "Milk",
       aisleLocations: [{ number: "10", numberOfFacings: "5", side: "L" }],
-    });
+    };
 
-    expect(product.ref).toEqual({ provider: "kroger", id: "0001111041700" });
-    expect(product.aisle).toEqual({ number: "10", side: "L" });
-    expect(product.aisle).not.toHaveProperty("numberOfFacings");
+    expect(toProductData(raw, true)).toMatchObject({
+      upc: "0001111041700",
+      name: "Milk",
+      aisle: { number: "10", side: "L" },
+    });
+    expect(toProductData(raw, true).aisle).not.toHaveProperty(
+      "numberOfFacings",
+    );
+    expect(toProductData(raw).aisle).toBeUndefined();
   });
 
-  it("omits missing optional fields from the serialized catalog response", () => {
-    const product = toCatalogProduct({
+  it("omits missing optional fields from the serialized Kroger response", () => {
+    const product = toProductData({
       upc: "123",
       images: [{ sizes: [{}] }],
     });
 
     expect(JSON.parse(JSON.stringify(product))).toEqual({
-      ref: { provider: "kroger", id: "123" },
+      upc: "123",
       name: "Unknown product",
       available: true,
       pickup: false,

@@ -615,7 +615,7 @@ describe("Kroger OAuth handler", () => {
       expect(await response.text()).toContain("Missing access token");
     });
 
-    it("falls back to 'unknown' userId when user profile fetch fails", async () => {
+    it("does not authorize when the user profile fetch fails", async () => {
       const env = makeEnv();
       const csrfState = "csrf-profile-fail";
       const cookieValue = await makeStateCookie(csrfState);
@@ -645,11 +645,64 @@ describe("Kroger OAuth handler", () => {
         env,
       );
 
-      expect(response.status).toBe(302);
-      expect(env.OAUTH_PROVIDER.completeAuthorization).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: "unknown" }),
-      );
+      expect(response.status).toBe(503);
+      expect(env.OAUTH_PROVIDER.completeAuthorization).not.toHaveBeenCalled();
     });
+
+    it.each([
+      {},
+      { data: {} },
+      { data: { id: "" } },
+      { data: { id: "   " } },
+      { data: { id: "unknown" } },
+      { data: { id: 123 } },
+    ])(
+      "rejects invalid profile %j without issuing a grant",
+      async (profile) => {
+        const env = makeEnv();
+        const csrfState = "invalid-profile";
+        const cookie = await makeStateCookie(csrfState);
+        vi.stubGlobal(
+          "fetch",
+          vi
+            .fn()
+            .mockResolvedValueOnce(
+              Response.json({ access_token: "token", expires_in: 1800 }),
+            )
+            .mockResolvedValueOnce(Response.json(profile)),
+        );
+        const response = await KrogerHandler.request(
+          `${BASE_URL}/callback?code=code&state=${csrfState}`,
+          { headers: { Cookie: `kroger_oauth_state=${cookie}` } },
+          env,
+        );
+        expect(response.status).toBe(502);
+        expect(env.OAUTH_PROVIDER.completeAuthorization).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["network", "malformed"])(
+      "rejects a %s profile failure without issuing a grant",
+      async (failure) => {
+        const env = makeEnv();
+        const csrfState = "failed-profile";
+        const cookie = await makeStateCookie(csrfState);
+        const fetchMock = vi
+          .fn<typeof fetch>()
+          .mockResolvedValueOnce(Response.json({ access_token: "token" }));
+        if (failure === "network")
+          fetchMock.mockRejectedValueOnce(new Error("timeout"));
+        else fetchMock.mockResolvedValueOnce(new Response("not json"));
+        vi.stubGlobal("fetch", fetchMock);
+        const response = await KrogerHandler.request(
+          `${BASE_URL}/callback?code=code&state=${csrfState}`,
+          { headers: { Cookie: `kroger_oauth_state=${cookie}` } },
+          env,
+        );
+        expect(response.status).toBe(503);
+        expect(env.OAUTH_PROVIDER.completeAuthorization).not.toHaveBeenCalled();
+      },
+    );
 
     it("full happy path: exchanges code, fetches profile, redirects to MCP client", async () => {
       const env = makeEnv();

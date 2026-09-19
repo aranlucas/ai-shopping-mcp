@@ -1,10 +1,12 @@
+import type { CartState } from "../app/cart-action.js";
+import { useCartAction } from "../app/use-cart-action.js";
 import type {
   App,
   McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useState } from "react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -197,29 +199,27 @@ export function ActionButton({
     // catches unexpected throws and rejected promises before returning to React.
     Promise.resolve().then(onClick).catch(console.error);
   }, [onClick]);
-  const label =
-    state === "loading"
-      ? (loadingLabel ?? "Loading...")
-      : state === "done"
-        ? (doneLabel ?? "Done!")
-        : state === "error"
-          ? (failLabel ?? "Failed")
-          : idleLabel;
-
-  const shadcnVariant =
-    state === "done"
-      ? variant === "primary"
-        ? ("success" as const)
-        : ("success-outline" as const)
-      : state === "error"
-        ? ("destructive" as const)
-        : variant === "primary"
-          ? ("default" as const)
-          : ("outline" as const);
+  const label = {
+    idle: idleLabel,
+    loading: loadingLabel ?? "Loading...",
+    done: doneLabel ?? "Done!",
+    error: failLabel ?? "Failed",
+  }[state];
+  const baseVariant = { primary: "default", secondary: "outline" } as const;
+  const successVariant = {
+    primary: "success",
+    secondary: "success-outline",
+  } as const;
+  const shadcnVariant = {
+    idle: baseVariant[variant],
+    loading: baseVariant[variant],
+    done: successVariant[variant],
+    error: "destructive",
+  } as const;
 
   return (
     <Button
-      variant={shadcnVariant}
+      variant={shadcnVariant[state]}
       size="default"
       disabled={disabled || state === "loading"}
       aria-busy={state === "loading"}
@@ -256,50 +256,156 @@ export function ActionButton({
   );
 }
 
+export function CartCheckLink({ app }: { app: App | null }) {
+  const [error, setError] = useState<string | null>(null);
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>) => {
+      if (!app?.getHostCapabilities?.()?.openLinks) return;
+      event.preventDefault();
+      setError(null);
+      app
+        .openLink({ url: "https://www.kroger.com/cart" })
+        .then((result) => {
+          if (result.isError)
+            setError(
+              "Could not open Kroger. Open your cart in Kroger directly.",
+            );
+          return result;
+        })
+        .catch(() =>
+          setError("Could not open Kroger. Open your cart in Kroger directly."),
+        );
+    },
+    [app],
+  );
+  return (
+    <>
+      <a
+        href="https://www.kroger.com/cart"
+        onClick={handleClick}
+        target="_blank"
+        rel="noreferrer"
+        className="text-sm font-medium underline"
+      >
+        Check Kroger cart
+      </a>
+      {error && <span role="alert">{error}</span>}
+    </>
+  );
+}
+
+const CART_BUTTON_STATE = {
+  idle: "idle",
+  submitting: "loading",
+  added: "done",
+  already_added: "done",
+  retryable: "error",
+} as const;
+
+/** Render recovery and button state from the same cart outcome. */
+export function CartActionControl({
+  app,
+  state,
+  onSubmit,
+  ...labels
+}: {
+  app: App | null;
+  state: CartState;
+  onSubmit: () => Promise<void>;
+  disabled?: boolean;
+  idleLabel: string;
+  loadingLabel: string;
+  doneLabel: string;
+  failLabel: string;
+  labelContext?: string;
+}) {
+  if (state.status === "needs_match") {
+    return (
+      <div>
+        <p role="alert" className="mt-2 text-sm text-amber-700">
+          {state.message}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {state.status === "check_cart" ? (
+        <CartCheckLink app={app} />
+      ) : (
+        <ActionButton
+          {...labels}
+          state={CART_BUTTON_STATE[state.status]}
+          doneLabel={
+            state.status === "already_added"
+              ? "Already added"
+              : labels.doneLabel
+          }
+          onClick={onSubmit}
+          disabled={
+            labels.disabled ||
+            state.status === "added" ||
+            state.status === "already_added"
+          }
+          icon={CART_ICON}
+        />
+      )}
+      {"message" in state && (
+        <p
+          role="alert"
+          className={`mt-2 text-sm ${
+            state.status === "already_added"
+              ? "text-emerald-700"
+              : "text-red-600"
+          }`}
+        >
+          {state.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ProductActions({
-  productRef,
-  cartEnabled,
+  app,
+  upc,
   name,
   disabled,
   cartDisabled,
-  onAddToCart,
   onAddToList,
 }: {
-  productRef: string;
-  cartEnabled: boolean;
+  app: App | null;
+  upc: string;
   name: string;
   disabled?: boolean;
   cartDisabled?: boolean;
-  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
-  onAddToList: (name: string, productRef: string) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
-  const [cartState, setCartState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const cart = useCartAction(
+    app,
+    {
+      kind: "product",
+      product: {
+        listName: `Cart: ${name}`,
+        productName: name,
+        upc,
+        quantity: 1,
+      },
+      modality: "PICKUP",
+    },
+    2000,
+  );
   const [listState, setListState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleCart = useCallback(async () => {
-    setCartState("loading");
-    setErrorMsg(null);
-    try {
-      await onAddToCart(name, productRef, 1);
-      setCartState("done");
-      setTimeout(() => setCartState("idle"), 2000);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to add to cart";
-      setCartState("error");
-      setErrorMsg(msg);
-    }
-  }, [name, onAddToCart, productRef]);
-
   const handleList = useCallback(async () => {
     setListState("loading");
     setErrorMsg(null);
     try {
-      await onAddToList(name, productRef);
+      await onAddToList(name, upc);
       setListState("done");
       setTimeout(() => setListState("idle"), 2000);
     } catch (e) {
@@ -307,25 +413,22 @@ export function ProductActions({
       setListState("error");
       setErrorMsg(msg);
     }
-  }, [name, onAddToList, productRef]);
+  }, [name, onAddToList, upc]);
 
   return (
     <div>
       <div className="flex flex-wrap gap-2">
-        {cartEnabled && (
-          <ActionButton
-            state={cartState}
-            onClick={handleCart}
-            disabled={disabled || cartDisabled}
-            idleLabel="Add to Cart"
-            loadingLabel="Adding..."
-            doneLabel="Added!"
-            failLabel="Retry cart"
-            labelContext={name}
-            variant="primary"
-            icon={CART_ICON}
-          />
-        )}
+        <CartActionControl
+          app={app}
+          state={cart.state}
+          onSubmit={cart.submit}
+          disabled={disabled || cartDisabled}
+          idleLabel="Add to Cart"
+          loadingLabel="Adding..."
+          doneLabel="Added!"
+          failLabel="Retry cart"
+          labelContext={name}
+        />
         <ActionButton
           state={listState}
           onClick={handleList}
@@ -390,19 +493,19 @@ function ProductImage({ product }: { product: ProductData }) {
 }
 
 export function ProductCard({
+  app,
   product,
   canCallTools,
-  onAddToCart,
   onAddToList,
 }: {
+  app: App | null;
   product: ProductData;
   canCallTools: boolean;
-  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
-  onAddToList: (name: string, productRef: string) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
   const name = product.name;
   const brand = product.brand;
-  const productRef = `${product.product.provider}:${product.product.id}`;
+  const upc = product.upc;
   const size = product.size;
   const aisle =
     product.aisle?.description ||
@@ -457,12 +560,11 @@ export function ProductCard({
       </CardContent>
       <CardFooter className="pt-2">
         <ProductActions
-          productRef={productRef}
-          cartEnabled={product.product.provider === "kroger"}
+          app={app}
+          upc={upc}
           cartDisabled={!product.available}
           name={name}
           disabled={!canCallTools}
-          onAddToCart={onAddToCart}
           onAddToList={onAddToList}
         />
       </CardFooter>

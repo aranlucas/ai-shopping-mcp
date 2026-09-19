@@ -10,7 +10,7 @@ import type { createShoppingListInputSchema } from "./shopping-list.js";
 export type AddShoppingListToCartArgs = z.infer<
   typeof addShoppingListToCartInputSchema
 >;
-export type CreateShoppingListArgs = z.infer<
+export type CreateShoppingListArgs = z.input<
   typeof createShoppingListInputSchema
 >;
 export type AddToInventoryArgs = z.infer<typeof addToInventoryInputSchema>;

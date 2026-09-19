@@ -8,9 +8,9 @@ the MCP server. [VISION.md](VISION.md) describes the architecture and host contr
 
 - Keep planning, substitutions, scheduling, and purchase approval in the host. This server
   supplies catalog data, household context, deterministic enrichment, and cart operations.
-- Use open provider registration and `productRef=<provider>:<id>` at shared boundaries.
-  Kroger is the only registered provider and supports cart writes. Do not assume future
-  providers support stores, prices, aisle data, or carts.
+- Support Kroger/QFC only. Use UPCs and one Kroger store ID throughout the domain;
+  normalize old namespaced references at compatibility boundaries. Do not introduce
+  provider registries or capability routing without a concrete supported integration.
 - Shared household data belongs in agents-gateway/D1. New persistent profile fields need a
   gateway contract and migration, not another Worker KV storage class. KV remains appropriate
   for caches and cart state; atomic cart operations use the existing Durable Object journal.
@@ -47,10 +47,14 @@ explicit recovery pass. Add a failing fixture to demonstrate the integration bef
 
 ### 3. Validate structured tool outputs
 
-[App results](../src/app-results.ts) have TypeScript types, but the UI parser only checks the
-view name before casting the payload. Tools also do not advertise `outputSchema`.
-Define shared runtime schemas for structured results, validate incoming view data, and expose
-the corresponding [MCP output contracts](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+[App results](../src/app-results.ts) now have shared runtime schemas for all eleven views.
+TypeScript payload types are inferred from those schemas, and the UI validates incoming
+payloads before rendering, including nested products and list items. Malformed results
+show the existing error view. Regression tests cover every view and invalid nested data.
+
+Remaining: tools do not advertise `outputSchema`. Expose the corresponding
+[MCP output contracts](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
+while accounting for success, error, and text-only branches.
 
 **Done when:** valid success payloads match their advertised schemas, malformed payloads fail
 gracefully in the app, and error/text-only branches remain valid. Measure schema and response
@@ -99,10 +103,10 @@ Treat preferences as planning constraints, not verified product allergen or nutr
 ## Deferred or outside scope
 
 - **Price history:** no demonstrated need for per-search snapshot writes yet. Revisit with a
-  concrete price-trend workflow, retention/write budget, and provider/store/currency identity.
+  concrete price-trend workflow, retention/write budget, and store/currency identity.
 - **Multi-store comparison:** follow a trustworthy single-store estimate. Compare exact
   products and pack sizes across a small bounded set of stores; name matches alone do not
-  establish comparable baskets, especially across providers.
+  establish comparable baskets, even across Kroger locations.
 - **Standalone sale-substitution or workflow-guide tools:** the host can compose existing
   search, deals, context, and list tools. Improve guidance and add a failing workflow eval
   before expanding the tool surface.

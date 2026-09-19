@@ -1,152 +1,252 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
+import * as z from "zod/v4";
+import {
+  normalizeProductIdentity,
+  productReferenceSchema,
+} from "./domain/product-identity.js";
 
-/** Namespaced CallToolResult metadata key used to route the shared MCP App. */
 const APP_VIEW_META_KEY = "dev.aranlucas/view";
+const dealSchema = z.object({
+  title: z.string(),
+  details: z.string().optional(),
+  price: z.string().optional(),
+  savings: z.string().nullable().optional(),
+  validFrom: z.string().optional(),
+  validTill: z.string().optional(),
+  category: z.string(),
+});
+const locationSchema = z.object({
+  locationId: z.string().optional(),
+  name: z.string().optional(),
+  chain: z.string().optional(),
+  address: z
+    .object({
+      addressLine1: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zipCode: z.string().optional(),
+    })
+    .optional(),
+  phone: z.string().optional(),
+  departments: z
+    .array(
+      z.object({ name: z.string().optional(), phone: z.string().optional() }),
+    )
+    .optional(),
+});
+const productFieldsSchema = z.object({
+  upc: z.string().trim().min(1),
+  name: z.string(),
+  brand: z.string().optional(),
+  category: z.string().optional(),
+  size: z.string().optional(),
+  price: z.number().optional(),
+  regularPrice: z.number().optional(),
+  imageUrl: z.string().optional(),
+  url: z.string().optional(),
+  available: z.boolean(),
+  pickup: z.boolean().optional(),
+  aisle: z
+    .object({
+      bayNumber: z.string().optional(),
+      description: z.string().optional(),
+      number: z.string().optional(),
+      sequenceNumber: z.string().optional(),
+      side: z.string().optional(),
+      shelfNumber: z.string().optional(),
+      shelfPositionInBay: z.string().optional(),
+    })
+    .optional(),
+});
 
-export type DealData = {
-  title: string;
-  details?: string;
-  price?: string;
-  savings?: string | null;
-  validFrom?: string;
-  validTill?: string;
-  category: string;
+/**
+ * Normalize persisted app payloads at the wire boundary. Product results used
+ * to carry `{ product: { provider, id } }`; the app now exposes Kroger UPCs
+ * directly. A legacy non-Kroger identity is terminal so a conflicting `upc`
+ * cannot accidentally make that product cartable as Kroger.
+ */
+const productSchema = z.preprocess((value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (!("product" in record)) return record;
+
+  const legacy = productReferenceSchema.safeParse(record.product);
+  if (!legacy.success || legacy.data.provider !== "kroger") {
+    return { ...record, upc: undefined };
+  }
+
+  const upc = normalizeProductIdentity({
+    product: legacy.data,
+    upc: typeof record.upc === "string" ? record.upc : undefined,
+  });
+  if (!upc) return { ...record, upc: undefined };
+
+  const { product: _product, ...withoutLegacyProduct } = record;
+  return { ...withoutLegacyProduct, upc };
+}, productFieldsSchema);
+const pantryItemSchema = z.object({
+  productName: z.string(),
+  quantity: z.number(),
+  addedAt: z.string().optional(),
+  expiresAt: z.string().optional(),
+});
+const equipmentItemSchema = z.object({
+  equipmentName: z.string(),
+  category: z.string().optional(),
+  addedAt: z.string().optional(),
+});
+const shoppingListItemSchema = z
+  .object({
+    productName: z.string(),
+    product: productReferenceSchema.optional(),
+    upc: z.string().optional(),
+    quantity: z.number(),
+    notes: z.string().optional(),
+    id: z.string().optional(),
+    checked: z.boolean().optional(),
+  })
+  .transform(({ upc, product, ...item }) => {
+    const normalizedUpc = normalizeProductIdentity({ product, upc });
+    return { ...item, ...(normalizedUpc ? { upc: normalizedUpc } : {}) };
+  });
+const orderItemSchema = z
+  .object({
+    product: productReferenceSchema.optional(),
+    upc: z.string().optional(),
+    productName: z.string(),
+    quantity: z.number(),
+    price: z.number().optional(),
+  })
+  .transform(({ upc, product, ...item }) => {
+    const normalizedUpc = normalizeProductIdentity({ product, upc });
+    return { ...item, ...(normalizedUpc ? { upc: normalizedUpc } : {}) };
+  });
+const cartResultSchema = z
+  .object({
+    outcome: z.enum(["added", "already_added", "needs_match"]),
+    addedCount: z.number().int().nonnegative(),
+    requestedCount: z.number().int().nonnegative(),
+    listId: z.string().optional(),
+    name: z.string(),
+    items: z.array(
+      z.object({
+        upc: z.string(),
+        quantity: z.number(),
+        modality: z.enum(["PICKUP", "DELIVERY"]),
+        productName: z.string().optional(),
+      }),
+    ),
+    needsUpc: z.array(
+      z.object({ productName: z.string(), quantity: z.number() }),
+    ),
+    actionDetail: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.addedCount !== value.items.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["addedCount"],
+        message: "addedCount must equal the number of returned cart items",
+      });
+    }
+    if (value.addedCount > value.requestedCount) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["requestedCount"],
+        message: "requestedCount cannot be less than addedCount",
+      });
+    }
+    if (value.outcome === "needs_match" && value.addedCount !== 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["outcome"],
+        message: "needs_match cannot report added cart items",
+      });
+    }
+    if (
+      (value.outcome === "added" || value.outcome === "already_added") &&
+      value.addedCount === 0
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["outcome"],
+        message: `${value.outcome} must report at least one cart item`,
+      });
+    }
+  });
+
+/** Shared wire contracts; view types are inferred so validation cannot drift. */
+export const appPayloadSchemas = {
+  get_weekly_deals: z.object({
+    deals: z.array(dealSchema),
+    validFrom: z.string().optional(),
+    validTill: z.string().optional(),
+    cache: z.object({ state: z.enum(["miss", "fresh", "stale"]) }).optional(),
+    warnings: z.array(z.string()).optional(),
+    storeId: z.string().optional(),
+  }),
+  search_stores: z.object({ stores: z.array(locationSchema) }),
+  get_store: z.object({ store: locationSchema }),
+  set_preferred_store: z.object({
+    store: z.object({
+      locationId: z.string(),
+      locationName: z.string(),
+      address: z.string(),
+      chain: z.string(),
+      setAt: z.string(),
+    }),
+    actionDetail: z.string(),
+  }),
+  search_products: z.object({
+    results: z.array(
+      z.object({
+        term: z.string(),
+        products: z.array(productSchema),
+        failed: z.boolean(),
+        error: z.string().optional(),
+      }),
+    ),
+    totalProducts: z.number(),
+  }),
+  get_product: z.object({ product: productSchema }),
+  pantry: z.object({
+    items: z.array(pantryItemSchema),
+    actionDetail: z.string().optional(),
+  }),
+  kitchen_equipment: z.object({
+    items: z.array(equipmentItemSchema),
+    actionDetail: z.string().optional(),
+  }),
+  create_shopping_list: z.object({
+    listId: z.string(),
+    name: z.string(),
+    items: z.array(shoppingListItemSchema),
+    actionDetail: z.string().optional(),
+  }),
+  add_shopping_list_to_cart: cartResultSchema,
+  record_order: z.object({
+    orderId: z.string(),
+    items: z.array(orderItemSchema),
+    totalItems: z.number(),
+    estimatedTotal: z.number().optional(),
+    placedAt: z.string(),
+    locationId: z.string().optional(),
+    notes: z.string().optional(),
+  }),
 };
-
-export type LocationData = {
-  provider?: string;
-  locationId?: string;
-  name?: string;
-  chain?: string;
-  address?: {
-    addressLine1?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-  };
-  phone?: string;
-  departments?: Array<{ name?: string; phone?: string }>;
-};
-
-type PreferredStoreData = {
-  provider: string;
-  locationId: string;
-  locationName: string;
-  address: string;
-  chain: string;
-  setAt: string;
-};
-
-export type ProductData = {
-  product: { provider: string; id: string };
-  name: string;
-  brand?: string;
-  category?: string;
-  size?: string;
-  price?: number;
-  regularPrice?: number;
-  imageUrl?: string;
-  url?: string;
-  available: boolean;
-  pickup?: boolean;
-  aisle?: {
-    bayNumber?: string;
-    description?: string;
-    number?: string;
-    sequenceNumber?: string;
-    side?: string;
-    shelfNumber?: string;
-    shelfPositionInBay?: string;
-  };
-};
-
-export type PantryItemData = {
-  productName: string;
-  quantity: number;
-  addedAt?: string;
-  expiresAt?: string;
-};
-
-export type KitchenEquipmentItemData = {
-  equipmentName: string;
-  category?: string;
-  addedAt?: string;
-};
-
-export type ShoppingListItemData = {
-  productName: string;
-  product?: { provider: string; id: string };
-  upc?: string;
-  quantity: number;
-  notes?: string;
-};
-
-type OrderItemData = {
-  product?: { provider: string; id: string };
-  upc?: string;
-  productName: string;
-  quantity: number;
-  price?: number;
-};
-
+export type DealData = z.infer<typeof dealSchema>;
+export type LocationData = z.infer<typeof locationSchema>;
+export type ProductData = z.infer<typeof productSchema>;
+export type PantryItemData = z.infer<typeof pantryItemSchema>;
+export type KitchenEquipmentItemData = z.infer<typeof equipmentItemSchema>;
+export type ShoppingListItemData = z.infer<typeof shoppingListItemSchema>;
 type AppResultPayloads = {
-  get_weekly_deals: {
-    deals: DealData[];
-    validFrom?: string;
-    validTill?: string;
-    cache?: { state: "miss" | "fresh" | "stale" };
-    warnings?: string[];
-    storeId?: string;
-  };
-  search_stores: { stores: LocationData[] };
-  get_store: { store: LocationData };
-  set_preferred_store: {
-    store: PreferredStoreData;
-    actionDetail: string;
-  };
-  search_products: {
-    results: Array<{
-      provider: string;
-      term: string;
-      products: ProductData[];
-      count?: number;
-      failed: boolean;
-    }>;
-    totalProducts: number;
-  };
-  get_product: { product: ProductData };
-  pantry: { items: PantryItemData[]; actionDetail?: string };
-  kitchen_equipment: {
-    items: KitchenEquipmentItemData[];
-    actionDetail?: string;
-  };
-  create_shopping_list: {
-    listId: string;
-    name: string;
-    items: ShoppingListItemData[];
-    actionDetail?: string;
-  };
-  add_shopping_list_to_cart: {
-    listId?: string;
-    name: string;
-    items: Array<{
-      upc: string;
-      quantity: number;
-      modality: "PICKUP" | "DELIVERY";
-      productName?: string;
-    }>;
-    needsUpc: Array<{ productName: string; quantity: number }>;
-    actionDetail?: string;
-  };
-  record_order: {
-    orderId: string;
-    items: OrderItemData[];
-    totalItems: number;
-    estimatedTotal?: number;
-    placedAt: string;
-    locationId?: string;
-    notes?: string;
-  };
+  [View in keyof typeof appPayloadSchemas]: z.infer<
+    (typeof appPayloadSchemas)[View]
+  >;
 };
 
 export type AppViewName = keyof AppResultPayloads;
@@ -223,5 +323,9 @@ export function parseAppResult(
     return null;
   }
 
-  return { ...structuredContent, view } as AppData;
+  const parsed =
+    appPayloadSchemas[view as AppViewName].safeParse(structuredContent);
+  if (!parsed.success) return null;
+  // The validated schema is selected by the same view discriminator.
+  return { ...parsed.data, view } as AppData;
 }

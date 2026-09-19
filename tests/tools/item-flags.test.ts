@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
 import type { ToolContext } from "../../src/tools/types.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
-import type { PantryItem } from "../../src/utils/user-storage.js";
+import type { PantryItem } from "../../src/domain/shopping.js";
 
 import {
   dealFlagLabel,
@@ -13,7 +13,6 @@ import {
   pantryFlagLabel,
 } from "../../src/tools/item-flags.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 function makePantryItem(overrides: Partial<PantryItem> = {}): PantryItem {
   return {
@@ -61,7 +60,6 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
-    catalogs: stubCatalogRegistry(),
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () =>

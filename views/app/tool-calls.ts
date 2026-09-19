@@ -1,20 +1,69 @@
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import {
+  type AddShoppingListToCartContent,
   type AddShoppingListToCartArgs,
   type ToolCall,
   callTool,
+  parseToolResult,
 } from "../shared/types.js";
 
-type ProductShoppingListInput = {
+export type ProductShoppingListInput = {
   listName?: string;
   productName: string;
   quantity: number;
-  productRef: string;
+  upc: string;
 };
 
-type ProductCartInput = ProductShoppingListInput & {
-  modality?: AddShoppingListToCartArgs["modality"];
-};
+export class CartActionError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+    readonly recovery?: string,
+  ) {
+    super(message);
+    this.name = "CartActionError";
+  }
+}
+
+export function cartResultError(result: CallToolResult): CartActionError {
+  const content = result.structuredContent;
+  const error =
+    content && typeof content === "object" && "error" in content
+      ? content.error
+      : undefined;
+  const detail =
+    error && typeof error === "object"
+      ? (error as Record<string, unknown>)
+      : {};
+  return new CartActionError(
+    toolResultErrorMessage(result, "Failed to add to cart"),
+    typeof detail.code === "string" ? detail.code : undefined,
+    typeof detail.recovery === "string" ? detail.recovery : undefined,
+  );
+}
+
+export function needsCartCheck(error: unknown): boolean {
+  return (
+    error instanceof CartActionError &&
+    (error.code === "MUTATION_OUTCOME_UNKNOWN" ||
+      error.recovery === "check_cart")
+  );
+}
+
+/** Validate the structured cart payload before a UI state transition. */
+export function cartResultContent(
+  result: CallToolResult,
+): AddShoppingListToCartContent {
+  const data = parseToolResult(result);
+  if (!data || data.view !== "add_shopping_list_to_cart") {
+    throw new CartActionError(
+      "The cart response was malformed. Check your Kroger cart before retrying.",
+      "MALFORMED_CART_RESULT",
+      "check_cart",
+    );
+  }
+  return data;
+}
 
 type CreateShoppingListCall = Extract<
   ToolCall,
@@ -29,13 +78,13 @@ export function createProductShoppingListCall({
   listName,
   productName,
   quantity,
-  productRef,
+  upc,
 }: ProductShoppingListInput): CreateShoppingListCall {
   return {
     name: "create_shopping_list",
     arguments: {
       name: listName ?? productName,
-      items: [{ productRef, productName, quantity }],
+      items: [{ upc, productName, quantity }],
     },
   };
 }
@@ -81,36 +130,48 @@ export function toolResultErrorMessage(
   );
 }
 
-export async function saveProductToList(
+export async function createProductList(
   app: Parameters<typeof callTool>[0],
   input: ProductShoppingListInput,
-): Promise<void> {
+): Promise<string> {
   const result = await callTool(app, createProductShoppingListCall(input));
   if (result?.isError) {
     throw new Error(
       toolResultErrorMessage(result, "Failed to create shopping list"),
     );
   }
-  shoppingListIdFromResult(result);
+  return shoppingListIdFromResult(result);
 }
 
-export async function addProductToCart(
+export async function saveProductToList(
   app: Parameters<typeof callTool>[0],
-  { modality = "PICKUP", ...input }: ProductCartInput,
+  input: ProductShoppingListInput,
 ): Promise<void> {
-  const listResult = await callTool(app, createProductShoppingListCall(input));
-  if (listResult?.isError) {
+  await createProductList(app, input);
+}
+
+/** Shared error semantics for product and saved-list cart actions. */
+export async function addListToCart(
+  app: Parameters<typeof callTool>[0],
+  listId: string,
+  modality: AddShoppingListToCartArgs["modality"] = "PICKUP",
+): Promise<AddShoppingListToCartContent> {
+  if (!app)
     throw new Error(
-      toolResultErrorMessage(listResult, "Failed to create shopping list"),
+      "The shopping app is disconnected. Reopen it and try again.",
+    );
+  let result: CallToolResult;
+  try {
+    result = await callTool(app, addShoppingListToCartCall(listId, modality));
+  } catch {
+    throw new CartActionError(
+      "Cart confirmation was lost. Check your Kroger cart before adding again.",
+      "MUTATION_OUTCOME_UNKNOWN",
+      "check_cart",
     );
   }
-  const shoppingListId = shoppingListIdFromResult(listResult);
-
-  const result = await callTool(
-    app,
-    addShoppingListToCartCall(shoppingListId, modality),
-  );
   if (result?.isError) {
-    throw new Error(toolResultErrorMessage(result, "Failed to add to cart"));
+    throw cartResultError(result);
   }
+  return cartResultContent(result);
 }

@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
+import { type WeeklyDealWarning } from "../../src/services/weekly-deals/schema.js";
 import type { ToolContext } from "../../src/tools/types.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
-import type { PreferredLocation } from "../../src/utils/user-storage.js";
+import type { PreferredLocation } from "../../src/domain/shopping.js";
 
 import { AppErrorException, authError } from "../../src/errors.js";
 import {
@@ -14,8 +15,11 @@ import {
   parseCacheEntry,
   registerWeeklyDealsTools,
 } from "../../src/tools/weekly-deals.js";
-import type { TestToolHandler as ToolHandler } from "../v2-tool-handler.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
+import {
+  type TestToolConfig,
+  type TestToolHandler as ToolHandler,
+  wrapV2ToolHandler,
+} from "../v2-tool-handler.js";
 
 const weeklyDealsAuthState = vi.hoisted(() => ({
   authContext: {
@@ -59,6 +63,10 @@ function makeMinimalResult(
     deals: [],
     ...overrides,
   };
+}
+
+function legacyWarning(message: string): WeeklyDealWarning {
+  return { code: "legacy", details: { message } };
 }
 
 function makeCircular(eventEndDate: string, eventStartDate = "2025-01-01") {
@@ -169,6 +177,22 @@ describe("parseCacheEntry", () => {
     expect(result?.freshUntil).toBe(entry.freshUntil);
     expect(result?.staleUntil).toBe(entry.staleUntil);
   });
+
+  it("rejects a deal whose optional fields have the wrong runtime type", () => {
+    const entry = JSON.parse(JSON.stringify(makeCacheEntry())) as {
+      data: { deals: unknown[] };
+    };
+    entry.data.deals = [
+      {
+        id: "deal-1",
+        title: "Milk",
+        source: "print",
+        price: { malformed: true },
+      },
+    ];
+
+    expect(parseCacheEntry(JSON.stringify(entry))).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -215,19 +239,22 @@ describe("getLatestCircularEndTime", () => {
 describe("addCacheWarning", () => {
   it("appends a warning to an empty warnings array", () => {
     const result = makeMinimalResult({ warnings: [] });
-    const updated = addCacheWarning(result, "Test warning");
-    expect(updated.warnings).toEqual(["Test warning"]);
+    const warning = legacyWarning("Test warning");
+    const updated = addCacheWarning(result, warning);
+    expect(updated.warnings).toEqual([warning]);
   });
 
   it("appends to existing warnings", () => {
-    const result = makeMinimalResult({ warnings: ["First warning"] });
-    const updated = addCacheWarning(result, "Second warning");
-    expect(updated.warnings).toEqual(["First warning", "Second warning"]);
+    const first = legacyWarning("First warning");
+    const second = legacyWarning("Second warning");
+    const result = makeMinimalResult({ warnings: [first] });
+    const updated = addCacheWarning(result, second);
+    expect(updated.warnings).toEqual([first, second]);
   });
 
   it("does not mutate the original result", () => {
     const result = makeMinimalResult({ warnings: [] });
-    addCacheWarning(result, "A warning");
+    addCacheWarning(result, legacyWarning("A warning"));
     expect(result.warnings).toHaveLength(0);
   });
 
@@ -236,7 +263,7 @@ describe("addCacheWarning", () => {
       sourceMode: "search_api",
       locationId: "12345678",
     });
-    const updated = addCacheWarning(result, "msg");
+    const updated = addCacheWarning(result, legacyWarning("msg"));
     expect(updated.sourceMode).toBe("search_api");
     expect(updated.locationId).toBe("12345678");
   });
@@ -325,7 +352,10 @@ describe("formatWeeklyDealsToolResponse", () => {
 
   it("includes warnings when present", async () => {
     const result = makeMinimalResult({
-      warnings: ["Print-ad parsing failed", "Using fallback"],
+      warnings: [
+        legacyWarning("Print-ad parsing failed"),
+        legacyWarning("Using fallback"),
+      ],
       deals: [
         { id: "1", title: "Chicken", price: "$4.99", source: "search_api" },
       ],
@@ -342,7 +372,7 @@ describe("formatWeeklyDealsToolResponse", () => {
         "2025-01-07T00:00:00Z",
         "2025-01-01T00:00:00Z",
       ),
-      warnings: ["Some warning"],
+      warnings: [legacyWarning("Some warning")],
       deals: [{ id: "1", title: "Beef", price: "$5.99", source: "print" }],
     });
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
@@ -397,7 +427,12 @@ describe("formatWeeklyDealsToolResponse", () => {
   it("includes the source store and degradation warnings in structuredContent", () => {
     const result = makeMinimalResult({
       locationId: "12345678",
-      warnings: ["Live refresh was partial; results were not cached."],
+      warnings: [
+        {
+          code: "live_refresh_partial",
+          details: { action: "not_cached" },
+        },
+      ],
       meta: { degraded: true, failedTermCount: 1 },
     });
 
@@ -411,7 +446,7 @@ describe("formatWeeklyDealsToolResponse", () => {
 
   it("keeps fresh-cache information in markdown without exposing it as a UI warning", () => {
     const response = formatWeeklyDealsToolResponse(
-      makeMinimalResult({ warnings: ["Served from KV cache."] }),
+      makeMinimalResult({ warnings: [{ code: "cache_served" }] }),
       "fresh",
     );
 
@@ -517,7 +552,11 @@ describe("formatWeeklyDealsToolResponse", () => {
 // get_weekly_deals handler
 // ---------------------------------------------------------------------------
 
-type CapturedTool = { name: string; handler: ToolHandler };
+type CapturedTool = {
+  name: string;
+  config: TestToolConfig;
+  handler: ToolHandler;
+};
 
 const mockGetQfcWeeklyDeals = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(),
@@ -588,7 +627,6 @@ function makeKV(initialData: Map<string, string> = new Map()): {
 }
 
 const DEFAULT_PREFERRED_LOCATION: PreferredLocation = {
-  provider: "kroger",
   locationId: "70500034",
   locationName: "QFC Test Store",
   address: "1 Test St",
@@ -602,8 +640,16 @@ function makeWeeklyDealsContext(
 ): ToolContext {
   return {
     server: {
-      registerTool: (name: string, _config: unknown, handler: ToolHandler) => {
-        capturedWeeklyDealsTools.push({ name, handler });
+      registerTool: (
+        name: string,
+        config: TestToolConfig,
+        handler: Parameters<typeof wrapV2ToolHandler>[0],
+      ) => {
+        capturedWeeklyDealsTools.push({
+          name,
+          config,
+          handler: wrapV2ToolHandler(handler, config),
+        });
       },
     } as unknown as ToolContext["server"],
     clients: {
@@ -620,7 +666,6 @@ function makeWeeklyDealsContext(
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
-    catalogs: stubCatalogRegistry(),
     storage: {
       preferredLocation: {
         get: async () => preferredLocation,
@@ -776,7 +821,7 @@ describe("get_weekly_deals handler", () => {
             source: "search_api",
           },
         ],
-        warnings: ["Weekly deal search was partial."],
+        warnings: [legacyWarning("Weekly deal search was partial.")],
         meta: { degraded: true, failedTermCount: 1 },
       }),
     );

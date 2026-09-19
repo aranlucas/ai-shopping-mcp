@@ -19,7 +19,7 @@ every model invocation is free.
 
 ## Responsibilities and storage
 
-- **This repository:** the Cloudflare Worker MCP server, provider adapters, OAuth integration,
+- **This repository:** the Cloudflare Worker MCP server, Kroger API adapters, OAuth integration,
   deterministic household/catalog enrichment, cart operations, and MCP Apps views.
 - **The agent host:** conversation state, model selection, meal planning, substitutions,
   workflow orchestration, scheduling, and user approval. Host frameworks and deployments
@@ -37,11 +37,11 @@ The checked-in gateway contract is [openapi/grocery-gateway.yaml](../openapi/gro
 Coordinate shared contract changes with the gateway repository and regenerate this Worker's
 client with `pnpm generate:gateway`; `pnpm api:check` checks generated-client drift.
 
-Catalog identity is provider-neutral: `ProductReference` contains an open `provider` name
-and its opaque `id`, rendered in model-facing text as `productRef=<provider>:<id>`.
-UPC and SKU belong to adapters. Kroger is the only registered provider and supports
-cart writes using its native UPCs. Capabilities are explicit: generic tools
-must not assume that search implies support for carts, locations, aisle data, or checkout.
+This server supports Kroger/QFC only. Products are identified by UPC and store-scoped
+requests use a single Kroger `storeId`. Product search, detail, and cart operations call
+the concrete Kroger services directly. Older namespaced product references are normalized
+at input, gateway, and app-result boundaries; no provider registry or capability dispatch
+is needed in the domain or views.
 
 ## Design principles
 
@@ -94,7 +94,7 @@ This is the behavior a consuming host must verify, not an audit of an external d
 
 | Surface                   | Integration requirement                                                                                                                                                                                               |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tool inputs and results   | Preserve copyable `productRef`, `storeId`, `listId`, and `itemId` values. Use concise result text as the main model-facing representation.                                                                            |
+| Tool inputs and results   | Preserve copyable `upc`, `storeId`, `listId`, and `itemId` values. Use concise result text as the main model-facing representation.                                                                                   |
 | Structured results        | Keep UI data available to the renderer without duplicating it unnecessarily in model context. Some hosts expose `structuredContent` to models, so server evals already budget representative structured payloads too. |
 | Apps metadata             | App routing uses `_meta["dev.aranlucas/view"]`; render views only when the client supports MCP Apps. Unsupported UI capabilities must not block the text workflow.                                                    |
 | Instructions and prompts  | Decide explicitly how the host exposes server instructions and workflow prompts. Do not assume a particular framework injects them automatically.                                                                     |

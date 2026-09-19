@@ -6,7 +6,6 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
@@ -121,7 +120,6 @@ function makeContext(
     productService: new ProductService(
       productClient as KrogerClients["productClient"],
     ),
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
@@ -448,8 +446,20 @@ describe("registerResources", () => {
               {
                 orderId: "o1",
                 items: [
-                  { upc: "2222222222222", productName: "Eggs", quantity: 1 },
-                  { upc: "short", productName: "Bad", quantity: 1 },
+                  {
+                    upc: "2222222222222",
+                    productName: "Eggs",
+                    quantity: 1,
+                  },
+                  {
+                    upc: "short",
+                    productName: "Bad",
+                    quantity: 1,
+                  },
+                  {
+                    productName: "Other store",
+                    quantity: 1,
+                  },
                 ],
                 totalItems: 2,
                 placedAt: "x",
@@ -463,6 +473,7 @@ describe("registerResources", () => {
       const all = await complete("");
       expect(all).toContain("2222222222222");
       expect(all).not.toContain("short");
+      expect(all).not.toContain("1111111111111");
 
       const prefixed = await complete("2222");
       expect(prefixed).toEqual(["2222222222222"]);
@@ -476,7 +487,11 @@ describe("registerResources", () => {
               {
                 orderId: "o1",
                 items: [
-                  { upc: "3333333333333", productName: "Milk", quantity: 1 },
+                  {
+                    upc: "3333333333333",
+                    productName: "Milk",
+                    quantity: 1,
+                  },
                 ],
                 totalItems: 1,
                 placedAt: "x",
@@ -484,7 +499,11 @@ describe("registerResources", () => {
               {
                 orderId: "o2",
                 items: [
-                  { upc: "3333333333333", productName: "Milk", quantity: 1 },
+                  {
+                    upc: "3333333333333",
+                    productName: "Milk",
+                    quantity: 1,
+                  },
                 ],
                 totalItems: 1,
                 placedAt: "x",

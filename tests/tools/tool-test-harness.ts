@@ -6,22 +6,25 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type {
   CartStore,
   CartSnapshotItem,
+} from "../../src/utils/user-storage.js";
+import type {
   EquipmentItem,
   OrderRecord,
   PantryItem,
   PreferredLocation,
   ShoppingListItem,
-} from "../../src/utils/user-storage.js";
+  StoredShoppingListItem,
+} from "../../src/domain/shopping.js";
 import {
   type TestToolHandler as ToolHandler,
   wrapV2ToolHandler,
+  type TestToolConfig,
 } from "../v2-tool-handler.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type ShoppingListRecord = {
   id: string;
   name: string;
-  items: ShoppingListItem[];
+  items: StoredShoppingListItem[];
   createdAt: string;
 };
 
@@ -77,7 +80,12 @@ export function makeStorage(
   const createdLists: ShoppingListRecord[] = [];
   const snapshots = new Map<string, CartSnapshotItem[]>();
 
-  const storage = {
+  const requireList = (id: string) => {
+    const list = createdLists.find((candidate) => candidate.id === id);
+    if (!list) throw new Error(`Missing list ${id}`);
+    return list;
+  };
+  const storage: UserStorage & CartStore = {
     pantry: {
       add: async (items: PantryItem | PantryItem[]) => {
         pantryItems.push(...(Array.isArray(items) ? items : [items]));
@@ -96,6 +104,13 @@ export function makeStorage(
         pantryItems.length = 0;
       },
       getAll: async () => pantryItems,
+      updateQuantity: async (name, quantity) => {
+        const item = pantryItems.find(
+          (candidate) => candidate.productName === name,
+        );
+        if (item) item.quantity = quantity;
+        return pantryItems;
+      },
     },
     equipment: {
       add: async (items: EquipmentItem | EquipmentItem[]) => {
@@ -125,11 +140,21 @@ export function makeStorage(
       getRecent: async (limit = 10) => orders.slice(0, limit),
     },
     shoppingList: {
-      create: async (id: string, name: string, items: ShoppingListItem[]) => {
+      create: async ({
+        name,
+        items,
+      }: {
+        name: string;
+        items: ShoppingListItem[];
+      }) => {
         const record: ShoppingListRecord = {
-          id,
+          id: `list_${crypto.randomUUID()}`,
           name,
-          items,
+          items: items.map((item) => ({
+            ...item,
+            id: crypto.randomUUID(),
+            checked: false,
+          })),
           createdAt: new Date().toISOString(),
         };
         createdLists.push(record);
@@ -137,9 +162,33 @@ export function makeStorage(
       },
       get: async (id: string) =>
         createdLists.find((list) => list.id === id) ?? null,
-      clear: async (id: string) => {
-        const index = createdLists.findIndex((list) => list.id === id);
-        if (index >= 0) createdLists.splice(index, 1);
+      list: async () =>
+        createdLists.map((list) => ({
+          id: list.id,
+          name: list.name,
+          itemCount: list.items.length,
+          updatedAt: list.createdAt,
+        })),
+      addItems: async (id, items) => {
+        const stored = items.map((item) => ({
+          ...item,
+          id: crypto.randomUUID(),
+          checked: false,
+        }));
+        requireList(id).items.push(...stored);
+        return stored;
+      },
+      updateItem: async (listId, itemId, patch) => {
+        const item = requireList(listId).items.find(
+          (candidate) => candidate.id === itemId,
+        );
+        if (!item) throw new Error(`Missing item ${itemId}`);
+        Object.assign(item, patch);
+        return item;
+      },
+      removeItem: async (listId, itemId) => {
+        const list = requireList(listId);
+        list.items = list.items.filter((item) => item.id !== itemId);
       },
     },
     operations: cartOperationStore(),
@@ -167,10 +216,13 @@ export function makeStorage(
         preferredLocations.push(location);
       },
       get: async () => preferredLocations.at(-1) ?? null,
+      delete: async () => {
+        preferredLocations.length = 0;
+      },
     },
   };
 
-  return { ...storage, ...overrides } as unknown as UserStorage & CartStore;
+  return { ...storage, ...overrides };
 }
 
 /**
@@ -197,11 +249,15 @@ export function makeContext(
   productService: ProductService = makeProductService(),
 ): ToolContext {
   const server = {
-    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+    registerTool: (
+      name: string,
+      config: TestToolConfig,
+      handler: ToolHandler,
+    ) => {
       testState.capturedTools.push({
         name,
         config,
-        handler: wrapV2ToolHandler(handler, server),
+        handler: wrapV2ToolHandler(handler, config),
       });
     },
   };
@@ -216,7 +272,6 @@ export function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService,
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,
@@ -229,11 +284,15 @@ export function makeCartContext(
   productService: ProductService = makeProductService(),
 ): ToolContext {
   const server = {
-    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+    registerTool: (
+      name: string,
+      config: TestToolConfig,
+      handler: ToolHandler,
+    ) => {
       testState.capturedTools.push({
         name,
         config,
-        handler: wrapV2ToolHandler(handler, server),
+        handler: wrapV2ToolHandler(handler, config),
       });
     },
   };
@@ -248,7 +307,6 @@ export function makeCartContext(
       },
     } as unknown as ToolContext["clients"],
     productService,
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,

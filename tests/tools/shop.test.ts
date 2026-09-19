@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type {
-  CartStore,
   PreferredLocation,
   ShoppingList,
-} from "../../src/utils/user-storage.js";
+  ShoppingListItem,
+} from "../../src/domain/shopping.js";
+import type { CartStore } from "../../src/utils/user-storage.js";
 
 import {
   registerShopTools,
@@ -17,8 +18,8 @@ import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 import {
   type TestToolHandler as ToolHandler,
   wrapV2ToolHandler,
+  type TestToolConfig,
 } from "../v2-tool-handler.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 import { stubJevAi, type JevRun } from "../jev-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -127,15 +128,22 @@ function makeContext(
       set: async () => {},
     },
     shoppingList: {
-      create: async (
-        id: string,
-        name: string,
-        items: ShoppingList["items"],
-      ) => {
+      create: async ({
+        name,
+        items,
+      }: {
+        name: string;
+        items: ShoppingListItem[];
+      }) => {
+        const id = `list_${(createdLists.length + 1).toString(16).padStart(8, "0")}`;
         const list: ShoppingList = {
           id,
           name,
-          items,
+          items: items.map((item, index) => ({
+            ...item,
+            id: `item-${createdLists.length}-${index}`,
+            checked: false,
+          })),
           createdAt: new Date().toISOString(),
         };
         createdLists.push(list);
@@ -166,11 +174,15 @@ function makeContext(
   } as unknown as UserStorage & CartStore;
 
   const server = {
-    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+    registerTool: (
+      name: string,
+      config: TestToolConfig,
+      handler: ToolHandler,
+    ) => {
       testState.capturedTools.push({
         name,
         config,
-        handler: wrapV2ToolHandler(handler, server),
+        handler: wrapV2ToolHandler(handler, config),
       });
     },
   };
@@ -190,7 +202,6 @@ function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: storage,
     getEnv: () =>
@@ -213,7 +224,6 @@ function getCapturedHandler(name: string): ToolHandler {
 }
 
 const PREFERRED_LOCATION: PreferredLocation = {
-  provider: "kroger",
   locationId: "70500034",
   locationName: "QFC Broadway",
   address: "417 Broadway E",
@@ -267,11 +277,10 @@ describe("shop_for_items", () => {
       _meta: { "dev.aranlucas/view": "create_shopping_list" },
     });
     expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
-    expect(
-      (sc["items"] as Array<{ productName: string; upc?: string }>).map(
-        (i) => i.upc,
-      ),
-    ).toEqual(["0001111041700", "0002000000029"]);
+    expect((sc["items"] as Array<{ upc?: string }>).map((i) => i.upc)).toEqual([
+      "0001111041700",
+      "0002000000029",
+    ]);
 
     const text = textFromResult(result);
     expect(text).toContain("whole milk → Kroger 2% Reduced Fat Milk");
@@ -340,6 +349,83 @@ describe("shop_for_items", () => {
     const sc = structuredContentOf(result);
     expect((sc["items"] as unknown[]).length).toBe(1);
   });
+
+  it.each([0, undefined, 3.49, 2.99])(
+    "normalizes promo=%s in the shopping response",
+    async (promo) => {
+      registerShopTools(
+        makeContext(
+          async () => ({
+            data: {
+              data: [
+                makeProduct({
+                  items: [
+                    {
+                      price: { regular: 3.49, promo },
+                      fulfillment: { curbside: true },
+                    },
+                  ],
+                }),
+              ],
+            },
+            response: new Response(null, { status: 200 }),
+          }),
+          PREFERRED_LOCATION,
+        ),
+      );
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "milk" }],
+      });
+      const text = textFromResult(result);
+      expect(text).toContain(promo === 2.99 ? "$2.99 (was $3.49)" : "$3.49");
+      expect(text).not.toContain("$0");
+      expect(text.includes("(was")).toBe(promo === 2.99);
+    },
+  );
+
+  it.each(["timeout", "rate-limit"])(
+    "preserves a partial %s failure alongside successful matches",
+    async (failure) => {
+      const cartPutCalls: CartPutCall[] = [];
+      registerShopTools(
+        makeContext(
+          async (_path, options) => {
+            if (options.params.query?.["filter.term"] === "milk")
+              return {
+                data: { data: [makeProduct()] },
+                response: new Response(null, { status: 200 }),
+              };
+            if (failure === "timeout") throw new Error("Search timed out");
+            return { error: {}, response: new Response(null, { status: 429 }) };
+          },
+          PREFERRED_LOCATION,
+          { cartPutCalls },
+        ),
+      );
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [
+          { name: "milk", quantity: 1 },
+          { name: "eggs", quantity: 1 },
+        ],
+        addToCart: true,
+      });
+      const text = textFromResult(result);
+      expect(isErrorResult(result)).toBe(false);
+      expect(text).toContain("Some searches failed");
+      expect(text).toContain(
+        failure === "timeout" ? "NETWORK_ERROR" : "API_ERROR",
+      );
+      expect(text).toContain("recovery: retry_later");
+      expect(text).not.toContain("No results for: eggs");
+      expect((structuredContentOf(result)["items"] as unknown[]).length).toBe(
+        1,
+      );
+      expect(cartPutCalls).toHaveLength(1);
+      expect(cartPutCalls[0].options.body).toEqual({
+        items: [{ upc: "0001111041700", quantity: 1, modality: "PICKUP" }],
+      });
+    },
+  );
 
   it("returns an error when every name has zero results", async () => {
     registerShopTools(
@@ -472,9 +558,15 @@ describe("shop_for_items", () => {
       });
       expect(isErrorResult(result)).toBe(false);
       expect(run).toHaveBeenCalledTimes(1);
-      expect(structuredContentOf(result).items).toEqual([
-        expect.objectContaining({ upc: milk.upc, quantity: 2 }),
-        expect.objectContaining({ upc: eggs.upc, quantity: 3 }),
+      expect(structuredContentOf(result)["items"]).toEqual([
+        expect.objectContaining({
+          upc: milk.upc,
+          quantity: 2,
+        }),
+        expect.objectContaining({
+          upc: eggs.upc,
+          quantity: 3,
+        }),
       ]);
     });
 
@@ -495,7 +587,7 @@ describe("shop_for_items", () => {
         items: [{ name: "milk" }],
       });
       expect(isErrorResult(result)).toBe(false);
-      expect(structuredContentOf(result).items).toEqual([
+      expect(structuredContentOf(result)["items"]).toEqual([
         expect.objectContaining({
           productName: "Milk 20",
           upc: "0000000000020",

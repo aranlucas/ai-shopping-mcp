@@ -1,10 +1,32 @@
-import * as z from "zod/v4";
+import { normalizeKrogerPrice } from "./kroger/price.js";
+import type * as z from "zod/v4";
 
-import type { components as ProductComponents } from "./kroger/product.js";
-import type { Circular, CircularsResponse } from "./kroger/weekly-deals.js";
+import type {
+  Circular,
+  NormalizedWeeklyDeal,
+  ProductSearchProduct,
+  QfcDealsApiResponse,
+} from "./weekly-deals/schema.js";
 
 import { AppErrorException } from "../errors.js";
-import { safeJsonParse, safeJsonParseWithSchema } from "../utils/json.js";
+import { safeJsonParse } from "../utils/json.js";
+import {
+  circularsResponseSchema,
+  dacsListingResponseSchema,
+  dacsMapConfigSchema,
+  dacsOfferDetailsSchema,
+  dacsPageResponseSchema,
+  normalizedWeeklyDealsResultSchema,
+  productSearchProductsSchema,
+  weeklyDealWarning,
+} from "./weekly-deals/schema.js";
+
+export type {
+  NormalizedWeeklyDeal,
+  QfcDealsApiResponse,
+  WeeklyDealWarning,
+  WeeklyDealWarningCode,
+} from "./weekly-deals/schema.js";
 
 const QFC_WEEKLY_AD_BASE = "https://www.qfc.com";
 const KROGER_DIGITAL_ADS_BASE = "https://api.kroger.com";
@@ -13,8 +35,6 @@ const DACS_PUBLIC_API_KEY = "bqwwosbzrzcvffztxzyczieljzsahmkp";
 const DEFAULT_QFC_LOCATION_ID = "70500847";
 
 type JsonRecord = Record<string, unknown>;
-type KrogerProduct = ProductComponents["schemas"]["products.productModel"];
-
 /**
  * Callback for searching Kroger products via the authenticated Product API.
  * Returns an array of products matching the search term at the given location.
@@ -23,7 +43,7 @@ export type ProductSearchFn = (
   term: string,
   locationId: string,
   limit: number,
-) => Promise<KrogerProduct[]>;
+) => Promise<unknown[]>;
 
 export interface QfcWeeklyDealsOptions {
   locationId?: string;
@@ -39,70 +59,8 @@ export interface QfcWeeklyDealsOptions {
   signal?: AbortSignal;
 }
 
-export interface NormalizedWeeklyDeal {
-  id: string;
-  title: string;
-  details?: string;
-  price?: string;
-  savings?: string;
-  loyalty?: string;
-  department?: string;
-  validFrom?: string;
-  validTill?: string;
-  disclaimer?: string;
-  imageUrl?: string;
-  source: "search_api" | "print";
-  rawType?: string;
-}
-
-export interface QfcDealsApiResponse {
-  sourceMode: "search_api" | "print_fallback";
-  locationId: string;
-  divisionCode: string;
-  shoppableCircular?: Circular;
-  printCircular?: Circular;
-  warnings: string[];
-  deals: NormalizedWeeklyDeal[];
-  meta?: {
-    termCount?: number;
-    pageCount?: number;
-    augmentedCount?: number;
-    degraded?: boolean;
-    failedTermCount?: number;
-    failureMessages?: string[];
-  };
-}
-
-interface DacsListingResponse {
-  pages?: Array<{
-    eventPageId?: string;
-    page?: string;
-  }>;
-  adId?: string;
-  adTitle?: string;
-  startDate?: string;
-  endDate?: string;
-}
-
-interface DacsPageResponse {
-  eventPageId?: string;
-  contents?: Array<{
-    contentType?: string;
-    mapConfig?: string;
-  }>;
-}
-
-const dacsOfferDetailsSchema = z.looseObject({
-  headline: z.string().optional(),
-  bodyCopy: z.string().nullable().optional(),
-  pricingText: z.string().nullable().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  imageURL: z.string().nullable().optional(),
-  disclaimer: z.string().nullable().optional(),
-  isShoppable: z.boolean().optional(),
-});
-
+type DacsListingResponse = z.output<typeof dacsListingResponseSchema>;
+type DacsPageResponse = z.output<typeof dacsPageResponseSchema>;
 type DacsOfferDetails = z.output<typeof dacsOfferDetailsSchema>;
 
 interface ParsedDacsOffer {
@@ -113,15 +71,7 @@ interface ParsedDacsOffer {
   offerVersionProductGroupId?: string;
 }
 
-const dacsMapConfigSchema = z.looseObject({
-  content: z.looseObject({
-    id: z.number(),
-    headline: z.string(),
-    bodyCopy: z.string().nullable().optional(),
-    imageURL: z.string().nullable().optional(),
-    offerVersionProductGroupId: z.number().optional(),
-  }),
-});
+type DealProduct = ProductSearchProduct;
 
 function getDefaultLocationId(locationId?: string): string {
   return locationId || DEFAULT_QFC_LOCATION_ID;
@@ -137,6 +87,12 @@ function safeErrorMessage(error: unknown): string {
   return String(error);
 }
 
+function normalizedResult(
+  value: z.input<typeof normalizedWeeklyDealsResultSchema>,
+): QfcDealsApiResponse {
+  return normalizedWeeklyDealsResultSchema.parse(value);
+}
+
 function formatPrice(
   value: number | null | undefined,
   uom?: string | null,
@@ -147,10 +103,11 @@ function formatPrice(
   return uom ? `${price}/${uom}` : price;
 }
 
-async function fetchJson<T>(
+async function fetchJson<TSchema extends z.ZodType>(
   url: string,
+  schema: TSchema,
   init?: RequestInit,
-): Promise<{ data: T; response: Response }> {
+): Promise<{ data: z.output<TSchema>; response: Response }> {
   const response = await fetch(url, init);
   const text = await response.text();
   const parsed = text
@@ -172,7 +129,11 @@ async function fetchJson<T>(
     throw new Error(`HTTP ${response.status} for ${url}: ${errorText}`);
   }
 
-  return { data: parsed as T, response };
+  const validated = schema.safeParse(parsed);
+  if (!validated.success) {
+    throw new Error(`Invalid response from ${url}: ${validated.error.message}`);
+  }
+  return { data: validated.data, response };
 }
 
 async function fetchQfcWeeklyCirculars(params: {
@@ -184,7 +145,7 @@ async function fetchQfcWeeklyCirculars(params: {
   url.searchParams.append("filter.tags", "CLASSIC_VIEW");
   url.searchParams.append("filter.div", params.divisionCode);
 
-  const { data } = await fetchJson<CircularsResponse>(url.toString(), {
+  const { data } = await fetchJson(url.toString(), circularsResponseSchema, {
     headers: { accept: "application/json", "user-agent": "Mozilla/5.0" },
     signal: params.signal,
   });
@@ -244,22 +205,22 @@ const DEAL_SEARCH_TERMS = [
 
 const PRODUCTS_PER_TERM = 50;
 
-function normalizeProductAsDeal(product: KrogerProduct): NormalizedWeeklyDeal {
+function productDealPrice(product: DealProduct) {
+  const { price, regularPrice } = normalizeKrogerPrice(
+    product.items?.[0]?.price,
+  );
+  return {
+    price: price === undefined ? undefined : formatPrice(price),
+    savings:
+      price !== undefined && regularPrice !== undefined && regularPrice > price
+        ? `Save ${formatPrice(regularPrice - price)} (was ${formatPrice(regularPrice)})`
+        : undefined,
+  };
+}
+
+function normalizeProductAsDeal(product: DealProduct): NormalizedWeeklyDeal {
   const item = product.items?.[0];
-  const promo = item?.price?.promo;
-  const regular = item?.price?.regular;
-
-  let price: string | undefined;
-  let savings: string | undefined;
-
-  if (typeof promo === "number") {
-    price = formatPrice(promo);
-    if (typeof regular === "number" && regular > promo) {
-      savings = `Save ${formatPrice(regular - promo)} (was ${formatPrice(regular)})`;
-    }
-  } else if (typeof regular === "number") {
-    price = formatPrice(regular);
-  }
+  const { price, savings } = productDealPrice(product);
 
   const department = product.categories?.[0];
   const title = product.description || "Unknown Product";
@@ -271,7 +232,11 @@ function normalizeProductAsDeal(product: KrogerProduct): NormalizedWeeklyDeal {
     defaultImage?.sizes?.[0]?.url;
 
   return {
-    id: product.productId || product.upc || Math.random().toString(36).slice(2),
+    id:
+      product.productId ||
+      product.upc ||
+      product.description?.trim().toLowerCase().replace(/\s+/g, "-") ||
+      "unknown-product",
     title,
     details: item?.size || undefined,
     price,
@@ -300,10 +265,18 @@ async function fetchDealsBySearchApi(params: {
         params.searchProducts(term, params.locationId, PRODUCTS_PER_TERM),
       )
       .then(
-        (products) => ({ ok: true as const, products }),
+        (products) => {
+          const parsed = productSearchProductsSchema.safeParse(products);
+          if (!parsed.success) {
+            throw new Error(
+              `Invalid product search response: ${parsed.error.message}`,
+            );
+          }
+          return { ok: true as const, products: parsed.data };
+        },
         (error: unknown) => ({
           ok: false as const,
-          products: [] as KrogerProduct[],
+          products: [],
           error,
         }),
       ),
@@ -325,13 +298,11 @@ async function fetchDealsBySearchApi(params: {
 
   // Keep only products with an active promo price below the regular price
   const onSale = allProducts.filter((product) => {
-    const item = product.items?.[0];
-    const promo = item?.price?.promo;
-    const regular = item?.price?.regular;
+    const { price, regularPrice } = normalizeKrogerPrice(
+      product.items?.[0]?.price,
+    );
     return (
-      typeof promo === "number" &&
-      typeof regular === "number" &&
-      promo < regular
+      price !== undefined && regularPrice !== undefined && price < regularPrice
     );
   });
 
@@ -365,7 +336,7 @@ async function fetchPrintAdListing(params: {
   const url = new URL(`/api/dacs/${params.eventId}`, DACS_BASE);
   url.searchParams.set("location", params.locationId);
 
-  const { data } = await fetchJson<DacsListingResponse>(url.toString(), {
+  const { data } = await fetchJson(url.toString(), dacsListingResponseSchema, {
     headers: {
       accept: "*/*",
       "user-agent": "Mozilla/5.0",
@@ -392,7 +363,7 @@ async function fetchPrintAdPage(params: {
   );
   url.searchParams.set("location", params.locationId);
 
-  const { data } = await fetchJson<DacsPageResponse>(url.toString(), {
+  const { data } = await fetchJson(url.toString(), dacsPageResponseSchema, {
     headers: {
       accept: "*/*",
       "user-agent": "Mozilla/5.0",
@@ -419,7 +390,7 @@ async function fetchPrintAdOfferDetails(params: {
   );
   url.searchParams.set("location", params.locationId);
 
-  const response = await fetch(url.toString(), {
+  const { data } = await fetchJson(url.toString(), dacsOfferDetailsSchema, {
     headers: {
       accept: "*/*",
       "user-agent": "Mozilla/5.0",
@@ -430,32 +401,19 @@ async function fetchPrintAdOfferDetails(params: {
     },
     signal: params.signal,
   });
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} for ${url}`);
-  }
-
-  return safeJsonParseWithSchema(text, dacsOfferDetailsSchema).match(
-    (data) => data,
-    (error) => {
-      throw new Error(
-        `Invalid DACS offer response for ${url}: ${String(error)}`,
-      );
-    },
-  );
+  return data;
 }
 
 function parseDacsOfferFromMapConfig(
   mapConfig: string,
 ): ParsedDacsOffer | null {
-  const parsed = safeJsonParseWithSchema(mapConfig, dacsMapConfigSchema).match(
-    (value) => value,
+  const parsed = safeJsonParse(mapConfig).match(
+    (value) => dacsMapConfigSchema.safeParse(value),
     () => null,
   );
-  if (!parsed) return null;
+  if (!parsed || !parsed.success) return null;
 
-  const { content } = parsed;
+  const { content } = parsed.data;
   const title = content.headline.trim();
   if (!title) return null;
 
@@ -637,32 +595,25 @@ async function augmentPrintDealsWithSearchApi(
   locationId: string,
 ): Promise<{ augmented: NormalizedWeeklyDeal[]; augmentedCount: number }> {
   const augmentPromises = deals.map(async (deal) => {
-    const products = await searchProducts(deal.title, locationId, 5).catch(
-      () => [] as KrogerProduct[],
+    const rawProducts = await searchProducts(deal.title, locationId, 5).catch(
+      () => [] as unknown[],
     );
+    const parsedProducts = productSearchProductsSchema.safeParse(rawProducts);
+    const products = parsedProducts.success ? parsedProducts.data : [];
 
     // Prefer a product that has a promo price, otherwise take any priced product
     const match =
-      products.find((p) => typeof p.items?.[0]?.price?.promo === "number") ||
-      products.find((p) => typeof p.items?.[0]?.price?.regular === "number");
+      products.find(
+        (p) =>
+          normalizeKrogerPrice(p.items?.[0]?.price).regularPrice !== undefined,
+      ) ||
+      products.find(
+        (p) => normalizeKrogerPrice(p.items?.[0]?.price).price !== undefined,
+      );
 
     if (!match) return deal;
 
-    const item = match.items?.[0];
-    const promo = item?.price?.promo;
-    const regular = item?.price?.regular;
-
-    let price: string | undefined;
-    let savings: string | undefined;
-
-    if (typeof promo === "number") {
-      price = formatPrice(promo);
-      if (typeof regular === "number" && regular > promo) {
-        savings = `Save ${formatPrice(regular - promo)} (was ${formatPrice(regular)})`;
-      }
-    } else if (typeof regular === "number") {
-      price = formatPrice(regular);
-    }
+    const { price, savings } = productDealPrice(match);
 
     if (!price) return deal;
     return { ...deal, price, savings };
@@ -685,7 +636,7 @@ export async function getQfcWeeklyDeals(
 ): Promise<QfcDealsApiResponse> {
   const locationId = getDefaultLocationId(options.locationId);
   const divisionCode = inferDivisionCode(locationId, options.divisionCode);
-  const warnings: string[] = [];
+  const warnings: QfcDealsApiResponse["warnings"] = [];
 
   // Fetch circular metadata for date context (no auth required)
   let shoppableCircular: Circular | undefined;
@@ -700,7 +651,9 @@ export async function getQfcWeeklyDeals(
     printCircular = selected.print;
   } catch (error) {
     warnings.push(
-      `Unable to fetch weekly circulars for date context: ${safeErrorMessage(error)}`,
+      weeklyDealWarning("circular_fetch_failed", {
+        error: safeErrorMessage(error),
+      }),
     );
   }
 
@@ -729,18 +682,23 @@ export async function getQfcWeeklyDeals(
           augmentedCount = result.augmentedCount;
         } catch (error) {
           warnings.push(
-            `Search API pricing augmentation failed: ${safeErrorMessage(error)}`,
+            weeklyDealWarning("search_augmentation_failed", {
+              error: safeErrorMessage(error),
+            }),
           );
         }
       }
 
       if (failedPageCount > 0) {
         warnings.push(
-          `Print-ad data is partial; ${failedPageCount} of ${pageCount} page(s) could not be read.`,
+          weeklyDealWarning("print_ad_partial", {
+            failedPages: failedPageCount,
+            totalPages: pageCount,
+          }),
         );
       }
 
-      return {
+      return normalizedResult({
         sourceMode: "print_fallback",
         locationId,
         divisionCode,
@@ -753,10 +711,12 @@ export async function getQfcWeeklyDeals(
           augmentedCount,
           ...(failedPageCount > 0 ? { degraded: true } : {}),
         },
-      };
+      });
     } catch (error) {
       warnings.push(
-        `Print-ad parsing failed; falling back to search API. (${safeErrorMessage(error)})`,
+        weeklyDealWarning("print_ad_failed", {
+          error: safeErrorMessage(error),
+        }),
       );
     }
   }
@@ -773,11 +733,14 @@ export async function getQfcWeeklyDeals(
 
       if (failedTermCount > 0) {
         warnings.push(
-          `Weekly deal search was partial: ${failedTermCount} of ${termCount} category searches failed.`,
+          weeklyDealWarning("search_partial", {
+            failedTerms: failedTermCount,
+            totalTerms: termCount,
+          }),
         );
       }
 
-      return {
+      return normalizedResult({
         sourceMode: "search_api",
         locationId,
         divisionCode,
@@ -796,26 +759,27 @@ export async function getQfcWeeklyDeals(
               }
             : {}),
         },
-      };
+      });
     } catch (error) {
       warnings.push(
-        `Search API deal fetch also failed. (${safeErrorMessage(error)})`,
+        weeklyDealWarning("search_failed", {
+          error: safeErrorMessage(error),
+        }),
       );
       if (error instanceof AppErrorException) {
-        const warningText = warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
         throw new AppErrorException({
           ...error.appError,
-          message: `${error.appError.message}${warningText}`,
+          message: error.appError.message,
         });
       }
       throw new Error(
-        `Failed to fetch deals from all sources (division ${divisionCode}). ${warnings.join(" ")}`.trim(),
+        `Failed to fetch deals from all sources (division ${divisionCode}). ${safeErrorMessage(error)}`.trim(),
         { cause: error },
       );
     }
   }
 
   throw new Error(
-    `Failed to fetch deals from all sources (division ${divisionCode}). ${warnings.join(" ")}`.trim(),
+    `Failed to fetch deals from all sources (division ${divisionCode}).`.trim(),
   );
 }

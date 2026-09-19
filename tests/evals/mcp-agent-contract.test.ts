@@ -12,7 +12,6 @@ import { registerShopTools } from "../../src/tools/shop.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
@@ -75,7 +74,6 @@ function makeContext(): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
-    catalogs: stubCatalogRegistry(),
     storage: {} as ToolContext["storage"],
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
@@ -253,6 +251,18 @@ describe("MCP agent contract", () => {
     expect(
       searchProducts.config.inputSchema?.safeParse({
         terms: Array.from({ length: 11 }, (_, i) => `term-${i}`),
+      }).success,
+    ).toBe(false);
+    expect(
+      searchProducts.config.inputSchema?.safeParse({
+        terms: ["milk"],
+        providers: ["kroger"],
+      }).success,
+    ).toBe(false);
+    expect(
+      searchProducts.config.inputSchema?.safeParse({
+        terms: ["milk"],
+        stores: { kroger: "70500847" },
       }).success,
     ).toBe(false);
     expect(

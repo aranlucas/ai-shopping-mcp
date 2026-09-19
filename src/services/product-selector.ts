@@ -26,8 +26,8 @@ export type SelectorAi = {
 };
 
 export type ProductSelection =
-  | { status: "selected"; product: Product }
-  | { status: "unresolved" };
+  | { requestId: string; status: "selected"; product: Product }
+  | { requestId: string; status: "unresolved" };
 
 const probability = z.number().min(0).max(1);
 const responseSchema = z.object({
@@ -59,14 +59,14 @@ function candidateDescription(product: Product) {
 /** One Jev request for the entire list. Failures propagate without fallback. */
 export async function selectProductMatches(params: {
   ai: SelectorAi;
-  items: Array<{ query: string; products: Product[] }>;
+  items: Array<{ requestId: string; query: string; products: Product[] }>;
   forPickup: boolean;
 }): Promise<ProductSelection[]> {
   const { ai, items, forPickup } = params;
   const entries = items
-    .map((item, index) => ({
-      id: `item_${index}`,
-      index,
+    .map((item) => ({
+      id: item.requestId,
+      requestId: item.requestId,
       query: item.query,
       products: item.products.filter((product) => {
         const variant = product.items?.[0];
@@ -78,10 +78,20 @@ export async function selectProductMatches(params: {
       }),
     }))
     .filter((entry) => entry.products.length > 0);
-  const selections: ProductSelection[] = items.map(() => ({
-    status: "unresolved",
-  }));
-  if (entries.length === 0) return selections;
+  const selections = new Map<string, ProductSelection>(
+    items.map((item) => [
+      item.requestId,
+      { requestId: item.requestId, status: "unresolved" as const },
+    ]),
+  );
+  const getSelection = (requestId: string): ProductSelection => {
+    const selection = selections.get(requestId);
+    if (!selection)
+      throw new Error(`Missing selection for request ${requestId}`);
+    return selection;
+  };
+  if (entries.length === 0)
+    return items.map((item) => getSelection(item.requestId));
 
   const questions = Object.fromEntries(
     entries.map((entry) => [
@@ -187,13 +197,14 @@ export async function selectProductMatches(params: {
         confidence: answer.confidence,
       });
       if (answer.choice !== "no_match" && answer.choice !== "needs_review") {
-        selections[entry.index] = {
+        selections.set(entry.requestId, {
+          requestId: entry.requestId,
           status: "selected",
           product: entry.products[keys.indexOf(answer.choice)],
-        };
+        });
       }
     }
-    return selections;
+    return items.map((item) => getSelection(item.requestId));
   } finally {
     clearTimeout(timer);
   }

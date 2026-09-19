@@ -5,13 +5,12 @@ import type {
   EquipmentItem,
   OrderRecord,
   PantryItem,
-} from "../../src/utils/user-storage.js";
+} from "../../src/domain/shopping.js";
 
 import {
   computeRestockSuggestions,
   registerRecipeTools,
 } from "../../src/tools/recipes.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type AuthContext = {
   props?: {
@@ -111,7 +110,6 @@ function makeContext(storage = makeStorage()): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
@@ -212,15 +210,15 @@ describe("recipe tools", () => {
           {
             orderId: "o1",
             items: [
-              { upc: "0000000000001", productName: "Milk", quantity: 1 },
-              { upc: "0000000000002", productName: "Eggs", quantity: 1 },
+              { productName: "Milk", quantity: 1 },
+              { productName: "Eggs", quantity: 1 },
             ],
             totalItems: 2,
             placedAt: isoDaysFromNow(-2),
           },
           {
             orderId: "o2",
-            items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
+            items: [{ productName: "Milk", quantity: 1 }],
             totalItems: 1,
             placedAt: isoDaysFromNow(-1),
           },
@@ -359,8 +357,7 @@ describe("recipe tools", () => {
     ): OrderRecord {
       return {
         orderId: id,
-        items: items.map((item, i) => ({
-          upc: String(i + 1).padStart(13, "0"),
+        items: items.map((item) => ({
           productName: item.productName,
           quantity: item.quantity ?? 1,
         })),
@@ -461,7 +458,7 @@ describe("recipe tools", () => {
     it("ignores orders with an unparseable placedAt date", () => {
       const badOrder: OrderRecord = {
         orderId: "bad",
-        items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
+        items: [{ productName: "Milk", quantity: 1 }],
         totalItems: 1,
         placedAt: "not-a-date",
       };

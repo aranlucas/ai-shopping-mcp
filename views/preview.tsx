@@ -26,12 +26,11 @@ const PRODUCTS: ProductSearchResultsContent = {
   totalProducts: 4,
   results: [
     {
-      provider: "kroger",
       term: "Strawberries",
       failed: false,
       products: [
         {
-          product: { provider: "kroger", id: "preview-1" },
+          upc: "0001111000001",
           name: "Fresh Organic Strawberries",
           brand: "Simple Truth Organic",
           size: "1 lb",
@@ -42,7 +41,7 @@ const PRODUCTS: ProductSearchResultsContent = {
           aisle: { description: "Produce" },
         },
         {
-          product: { provider: "kroger", id: "preview-2" },
+          upc: "0001111000002",
           name: "Fresh Strawberries, Family Size",
           size: "2 lb",
           price: 6.99,
@@ -50,14 +49,14 @@ const PRODUCTS: ProductSearchResultsContent = {
           pickup: true,
         },
         {
-          product: { provider: "kroger", id: "preview-3" },
+          upc: "0001111000003",
           name: "Frozen Unsweetened Whole Strawberries",
           size: "16 oz",
           available: true,
           imageUrl: "data:image/png;base64,broken",
         },
         {
-          product: { provider: "kroger", id: "preview-4" },
+          upc: "0001111000004",
           name: "Chocolate Dipped Strawberries",
           size: "6 ct",
           price: 8.99,
@@ -121,19 +120,19 @@ const LIST: ShoppingListContent = {
   items: [
     {
       productName: "Fresh organic strawberries",
-      product: { provider: "kroger", id: "preview-1" },
+      upc: "0001111000001",
       quantity: 2,
       notes: "Choose ripe berries for breakfast and the spinach salad.",
     },
     {
       productName: "Boneless skinless chicken breasts, family pack",
-      product: { provider: "kroger", id: "preview-chicken" },
+      upc: "0001111000005",
       quantity: 1,
       notes: "Enough for two dinners. Freeze half after shopping.",
     },
     {
       productName: "Greek yogurt, plain and unsweetened",
-      product: { provider: "kroger", id: "preview-yogurt" },
+      upc: "0001111000006",
       quantity: 3,
     },
     {
@@ -154,6 +153,12 @@ function Preview() {
   const [view, setView] = useState("deals");
   const [theme, setTheme] = useState("light");
   const [fail, setFail] = useState(false);
+  const [unknownCart, setUnknownCart] = useState(false);
+  const handleUnknownCart = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) =>
+      setUnknownCart(event.target.checked),
+    [],
+  );
   const [lastAction, setLastAction] = useState("No actions yet.");
   const handleView = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => setView(event.target.value),
@@ -178,6 +183,22 @@ function Preview() {
         callServerTool: async (call: ToolCall) => {
           setLastAction(`Calling ${call.name}…`);
           await new Promise((resolve) => setTimeout(resolve, 600));
+          if (unknownCart && call.name === "add_shopping_list_to_cart")
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Preview: cart confirmation was lost. Check your Kroger cart before adding again.",
+                },
+              ],
+              isError: true,
+              structuredContent: {
+                error: {
+                  code: "MUTATION_OUTCOME_UNKNOWN",
+                  recovery: "check_cart",
+                },
+              },
+            };
           if (fail)
             return {
               content: [
@@ -196,6 +217,26 @@ function Preview() {
               content: [],
               structuredContent: { listId: "preview-created-list" },
             };
+          if (call.name === "add_shopping_list_to_cart")
+            return {
+              content: [],
+              ...appResult("add_shopping_list_to_cart", {
+                outcome: "added",
+                addedCount: 1,
+                requestedCount: 1,
+                listId: "preview-list",
+                name: "Preview cart",
+                items: [
+                  {
+                    upc: "0001111042578",
+                    quantity: 1,
+                    modality: "PICKUP",
+                  },
+                ],
+                needsUpc: [],
+                actionDetail: "Added 1 item(s) to cart",
+              }),
+            };
           return { content: [] };
         },
         sendMessage: async () => {
@@ -207,7 +248,7 @@ function Preview() {
         },
         updateModelContext: async () => ({}),
       }) as unknown as App,
-    [fail],
+    [fail, unknownCart],
   );
   const staleDeals = useMemo(
     () => ({
@@ -226,7 +267,6 @@ function Preview() {
       totalProducts: 0,
       results: [
         {
-          provider: "kroger",
           term: "Strawberries",
           failed: true,
           products: [],
@@ -274,6 +314,14 @@ function Preview() {
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={fail} onChange={handleFail} />
             Fail actions
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={unknownCart}
+              onChange={handleUnknownCart}
+            />
+            Unknown cart outcome
           </label>
         </div>
         <output className="mx-auto mt-2 block max-w-4xl text-xs text-gray-500">

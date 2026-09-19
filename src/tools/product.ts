@@ -1,78 +1,43 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
-import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
-import type {
-  CatalogProduct,
-  CatalogSearchOptions,
-} from "../services/catalog/types.js";
-import type { ProductData } from "../app-results.js";
-
 import { appResult } from "../app-results.js";
+import { productReferenceInputSchema } from "../domain/product-identity.js";
+import { toProductData } from "../services/kroger/product-data.js";
+import { searchProductsForTerms } from "../services/kroger/search.js";
 import {
-  formatCatalogProductDetailMarkdown,
-  formatCatalogSearchMarkdown,
+  formatProductDetails,
+  formatProductSearchMarkdown,
 } from "../utils/format-response.js";
 import { safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
-import { type ToolContext, errorResult } from "./types.js";
-import { parseProductReference } from "../services/catalog/types.js";
+import type { ToolContext } from "./types.js";
 
-// Re-exported so `shop_for_items` and existing tests keep one import site for
-// the Kroger-shaped search, which now lives in the catalog service layer.
 export {
   type ProductSearchResult,
   logProductSearchError,
   searchProductsForTerms,
-} from "../services/catalog/kroger-search.js";
-
-/** Universal structured result shared by every provider and MCP App view. */
-function compactCatalogProduct(
-  product: CatalogProduct,
-  includeLocation = false,
-): ProductData {
-  return {
-    product: product.ref,
-    name: product.name,
-    available: product.available,
-    ...(product.brand === undefined ? {} : { brand: product.brand }),
-    ...(product.category === undefined ? {} : { category: product.category }),
-    ...(product.size === undefined ? {} : { size: product.size }),
-    ...(product.price === undefined ? {} : { price: product.price }),
-    ...(product.regularPrice === undefined
-      ? {}
-      : { regularPrice: product.regularPrice }),
-    ...(product.imageUrl === undefined ? {} : { imageUrl: product.imageUrl }),
-    ...(product.url === undefined ? {} : { url: product.url }),
-    ...(product.pickup === undefined ? {} : { pickup: product.pickup }),
-    ...(includeLocation && product.aisle !== undefined
-      ? { aisle: product.aisle }
-      : {}),
-  };
-}
+} from "../services/kroger/search.js";
 
 const getProductInputSchema = z
-  .object({
-    productRef: z
-      .string()
-      .trim()
-      .refine((value) => parseProductReference(value) !== null, {
-        message: "Use productRef=<provider>:<id> from search_products",
-      })
+  .strictObject({
+    upc: upcSchema.optional().describe("UPC from search_products"),
+    productRef: productReferenceInputSchema
       .optional()
-      .describe("Exact productRef from search_products"),
-    upc: upcSchema
-      .optional()
-      .describe("Deprecated Kroger UPC compatibility input"),
+      .describe("Legacy kroger:<UPC> reference"),
     storeId: storeIdSchema
       .optional()
-      .describe("Provider-scoped store id for availability and pricing"),
+      .describe("Kroger store ID for pricing and availability"),
   })
-  .refine((value) => Boolean(value.productRef) !== Boolean(value.upc), {
-    message:
-      "Provide exactly one productRef from search_products (or legacy Kroger upc)",
-  });
+  .refine(({ upc, productRef }) => Boolean(upc) !== Boolean(productRef), {
+    message: "Provide one UPC (or a legacy Kroger productRef).",
+  })
+  .transform(({ upc, productRef, ...params }) => ({
+    ...params,
+    upc: upc ?? productRef,
+  }))
+  .pipe(z.object({ upc: upcSchema, storeId: storeIdSchema.optional() }));
 
 export function registerProductTools(ctx: ToolContext) {
   registerAppTool(
@@ -81,7 +46,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Search Products",
       description:
-        "Batch catalog search. Put every needed item in one terms array; do not call once per item. Omit providers to search all. Matches return `productRef=<provider>:<id>`.",
+        "Search Kroger products in one batch. Put every needed item in the terms array; do not call once per item. Copy returned UPCs into shopping lists and orders. Uses the preferred Kroger store unless storeId is supplied.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -89,188 +54,93 @@ export function registerProductTools(ctx: ToolContext) {
         idempotentHint: true,
         openWorldHint: true,
       },
-      inputSchema: z.object({
+      inputSchema: z.strictObject({
         terms: z
           .array(z.string().trim().min(1).max(100))
           .min(1, { message: "At least one search term is required" })
           .max(10, { message: "Maximum 10 search terms allowed" })
           .describe("Batch terms, e.g. ['milk', 'bread', 'eggs']"),
-        stores: z
-          .record(
-            z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u),
-            z.string().trim().min(1).max(200),
-          )
-          .optional()
-          .describe("Provider-specific store ids, e.g. {kroger:'70500847'}"),
         storeId: storeIdSchema
           .optional()
-          .describe("Deprecated Kroger store id; prefer stores.kroger"),
+          .describe("Kroger store ID; defaults to your preferred store"),
         limitPerTerm: z.coerce
           .number()
           .int()
           .min(1)
           .max(10)
           .default(5)
-          .describe("Max products to return per search term (1-10)"),
-        providers: z
-          .array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u))
-          .nonempty()
-          .optional()
-          .describe("Provider ids; omit to search all."),
+          .describe("Max products per term (1-10)"),
         includeLocation: z
           .boolean()
           .default(false)
-          .describe(
-            "Shelf details for finding items on the shelf and planning in-store grocery routes.",
-          ),
+          .describe("Include aisle and shelf details for in-store shopping"),
       }),
     },
     async (
-      { terms, stores, storeId, limitPerTerm, providers, includeLocation },
+      { terms, storeId, limitPerTerm, includeLocation },
       requestContext,
     ) => {
-      const availableProviderIds = Object.keys(ctx.catalogs);
-      const selectedProviderIds = [
-        ...new Set(providers ?? availableProviderIds),
-      ];
-      terms = [...new Set(terms)];
-      const unknownProviders = selectedProviderIds.filter(
-        (id) => ctx.catalogs[id] === undefined,
-      );
-      if (unknownProviders.length > 0) {
-        return errorResult(
-          `Unknown provider(s): ${unknownProviders.join(", ")}. Available: ${availableProviderIds.join(", ")}.`,
-        );
-      }
-      const selected = selectedProviderIds.map((id) => {
-        const provider = ctx.catalogs[id];
-        if (!provider) throw new Error(`Unknown provider: ${id}`);
-        return provider;
-      });
-
-      // A saved store is only needed for providers without an explicit store.
-      // If the lookup fails, do not silently search a different store scope.
-      const needsPreferred = selected.some(
-        (provider) =>
-          !stores?.[provider.id] && !(provider.id === "kroger" && storeId),
-      );
-      let preferred: Awaited<
-        ReturnType<typeof ctx.storage.preferredLocation.get>
-      > = null;
-      if (needsPreferred) {
-        const preferredResult = await safeStorage(
+      let locationId = storeId;
+      if (!locationId) {
+        const preferred = await safeStorage(
           () => ctx.storage.preferredLocation.get(),
           "fetch preferred location",
         );
-        if (preferredResult.isErr()) return toMcpError(preferredResult.error);
-        preferred = preferredResult.value;
+        if (preferred.isErr()) return toMcpError(preferred.error);
+        locationId = preferred.value?.locationId;
       }
-
+      const requests = [...new Set(terms)].map((term, index) => ({
+        requestId: `term_${index}`,
+        term,
+      }));
       const progressToken = requestContext.mcpReq._meta?.progressToken;
-      let completedTotal = 0;
-      const totalSearches = terms.length * selected.length;
-
-      // Providers are searched concurrently: they share nothing, so one being
-      // slow or down must not serialize behind or sink the others.
-      const perProvider = await Promise.all(
-        selected.map(async (provider) => {
-          const resolvedStoreId =
-            stores?.[provider.id] ??
-            (provider.id === "kroger" ? storeId : undefined) ??
-            (preferred?.provider === provider.id
-              ? preferred.locationId
-              : undefined);
-          let completedForProvider = 0;
-          const options: CatalogSearchOptions = {
-            limitPerTerm,
-            includeLocation,
-            ...(resolvedStoreId === undefined
-              ? {}
-              : { storeId: resolvedStoreId }),
-            ...(progressToken !== undefined
-              ? {
-                  onTermComplete: async (completed: number) => {
-                    completedTotal += Math.max(
-                      0,
-                      completed - completedForProvider,
-                    );
-                    completedForProvider = completed;
-                    await ResultAsync.fromThrowable(
-                      () =>
-                        requestContext.mcpReq.notify({
-                          method: "notifications/progress",
-                          params: {
-                            progressToken,
-                            progress: completedTotal,
-                            total: totalSearches,
-                          },
-                        }),
-                      (e) => e,
-                    )().orTee((e) =>
-                      console.error("Failed to send progress notification:", e),
-                    );
-                  },
-                }
-              : {}),
-          };
-          const result = await provider.search(terms, options);
-          return result
-            .orTee((error) =>
-              console.warn(`${provider.label} search failed:`, error.message),
-            )
-            .match(
-              (value) => value,
-              (error) =>
-                terms.map((term) => ({
-                  provider: provider.id,
-                  term,
-                  products: [],
-                  failed: true,
-                  error,
-                })),
-            );
-        }),
+      const results = await searchProductsForTerms(
+        ctx.clients.productClient,
+        requests,
+        { locationId, limitPerTerm },
+        async (completed, total) => {
+          if (progressToken === undefined) return;
+          await requestContext.mcpReq.notify({
+            method: "notifications/progress",
+            params: { progressToken, progress: completed, total },
+          });
+        },
       );
-      const results = perProvider.flat();
-
       const totalProducts = results.reduce(
-        (sum, result) => sum + result.products.length,
+        (sum, result) =>
+          sum + (result.status === "success" ? result.products.length : 0),
         0,
       );
-      const failed = results.filter((result) => result.failed);
-
-      // Only a search that found nothing anywhere and failed somewhere is an
-      // error; successful results remain useful when another search fails.
-      if (totalProducts === 0 && failed.length > 0) {
-        const actionable =
-          failed.find((result) => result.error?.type === "AUTH_ERROR")?.error ??
-          failed.find((result) => result.error)?.error;
-        if (actionable) return toMcpError(actionable);
-        const failedTerms = [...new Set(failed.map((result) => result.term))];
-        return errorResult(
-          `Search failed for: ${failedTerms.join(", ")}. Please try again.`,
-        );
-      }
+      const failures = results.filter((result) => result.status === "failed");
+      const failure =
+        failures.find((result) => result.error.type === "AUTH_ERROR") ??
+        failures[0];
+      if (totalProducts === 0 && failure) return toMcpError(failure.error);
 
       return {
         content: [
           {
             type: "text" as const,
-            text: formatCatalogSearchMarkdown(results, selected, {
-              includeLocation,
-            }),
+            text: formatProductSearchMarkdown(results, { includeLocation }),
           },
         ],
         ...appResult("search_products", {
-          results: results.map((result) => ({
-            provider: result.provider,
-            term: result.term,
-            products: result.products.map((product) =>
-              compactCatalogProduct(product, includeLocation),
-            ),
-            count: result.products.length,
-            failed: result.failed,
-          })),
+          results: results.map((result) =>
+            result.status === "failed"
+              ? {
+                  term: result.term,
+                  products: [],
+                  failed: true,
+                  error: result.error.message,
+                }
+              : {
+                  term: result.term,
+                  products: result.products.map((product) =>
+                    toProductData(product, includeLocation),
+                  ),
+                  failed: false,
+                },
+          ),
           totalProducts,
         }),
       };
@@ -283,7 +153,7 @@ export function registerProductTools(ctx: ToolContext) {
     {
       title: "Get Product Details",
       description:
-        "Gets one exact catalog product by universal productRef. Legacy Kroger upc is accepted.",
+        "Get one Kroger product by its UPC, with price, availability, and shelf location.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -293,38 +163,15 @@ export function registerProductTools(ctx: ToolContext) {
       },
       inputSchema: getProductInputSchema,
     },
-    async ({ productRef, upc, storeId }) => {
-      const reference = productRef
-        ? parseProductReference(productRef)
-        : upc
-          ? { provider: "kroger", id: upc }
-          : null;
-      if (!reference)
-        return errorResult("Provide a productRef from search_products.");
-
-      const provider = ctx.catalogs[reference.provider];
-      if (!provider) {
-        return errorResult(
-          `Unknown provider=${reference.provider}. Available: ${Object.keys(ctx.catalogs).join(", ")}.`,
-        );
-      }
-      const result = await provider.get(
-        reference,
-        storeId === undefined ? {} : { storeId },
-      );
-
+    async ({ upc, storeId }) => {
+      const result = await ctx.productService.getProduct(upc, storeId);
       if (result.isErr()) return toMcpError(result.error);
-      const product = result.value;
+      const product = toProductData(result.value, true);
       return {
         content: [
-          {
-            type: "text" as const,
-            text: formatCatalogProductDetailMarkdown(product, provider),
-          },
+          { type: "text" as const, text: formatProductDetails(product) },
         ],
-        ...appResult("get_product", {
-          product: compactCatalogProduct(product, true),
-        }),
+        ...appResult("get_product", { product }),
       };
     },
   );

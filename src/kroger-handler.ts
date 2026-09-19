@@ -4,6 +4,7 @@ import type {
 } from "@cloudflare/workers-oauth-provider";
 
 import { Hono } from "hono";
+import * as z from "zod/v4";
 import { generateSignedCookie, getCookie, getSignedCookie } from "hono/cookie";
 
 import type { KrogerTokenResponse } from "./services/kroger/client.js";
@@ -15,6 +16,7 @@ import {
   renderApprovalDialog,
 } from "./workers-oauth-utils";
 import { safeJsonParse } from "./utils/json.js";
+import { isVerifiedShopperId } from "./utils/shopper-identity.js";
 
 type KrogerEnv = AppEnv & { OAUTH_PROVIDER: OAuthHelpers };
 
@@ -24,6 +26,11 @@ type KrogerOAuthStateCookie = {
 };
 
 const app = new Hono<{ Bindings: KrogerEnv }>();
+const profileSchema = z.object({
+  data: z.object({
+    id: z.string().refine(isVerifiedShopperId),
+  }),
+});
 
 app.get("/authorize", async (c) => {
   let oauthReqInfo: AuthRequest;
@@ -268,26 +275,39 @@ app.get("/callback", async (c) => {
   }
 
   // Fetch the user profile from Kroger using direct fetch
-  const profileResponse = await fetch(
-    "https://api.kroger.com/v1/identity/profile",
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
+  let id: string;
+  try {
+    const profileResponse = await fetch(
+      "https://api.kroger.com/v1/identity/profile",
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(15_000),
       },
-      signal: AbortSignal.timeout(15_000),
-    },
-  );
+    );
 
-  let id = "unknown";
-  if (profileResponse.ok) {
-    const profileData = (await profileResponse.json()) as {
-      data?: { id?: string };
-    };
-    id = profileData?.data?.id || "unknown";
-  } else {
-    console.warn("Failed to fetch user profile, using 'unknown' as user ID");
+    if (!profileResponse.ok) {
+      return c.text(
+        "Unable to verify your Kroger identity. Please reconnect and try again.",
+        503,
+      );
+    }
+    const profile = profileSchema.safeParse(await profileResponse.json());
+    if (!profile.success) {
+      return c.text(
+        "Kroger returned an invalid user profile. Please reconnect and try again.",
+        502,
+      );
+    }
+    id = profile.data.data.id;
+  } catch {
+    return c.text(
+      "Unable to verify your Kroger identity. Please reconnect and try again.",
+      503,
+    );
   }
 
   // Calculate when the token expires (current time + expires_in seconds)
