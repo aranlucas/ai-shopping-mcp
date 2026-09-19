@@ -4,7 +4,7 @@ import type { KrogerClients } from "../../../src/services/kroger/client.js";
 import {
   searchProductsForTerms,
   type ProductSearchRequest,
-} from "../../../src/services/catalog/kroger-search.js";
+} from "../../../src/services/kroger/search.js";
 
 type SearchResponse = {
   data?: unknown;

@@ -873,12 +873,6 @@ export function extractUpcs(text: string): string[] {
   return [...text.matchAll(/upc=(\d{13})/g)].map((match) => match[1]);
 }
 
-export function extractProductRefs(text: string): string[] {
-  return [...text.matchAll(/productRef=([a-z][a-z0-9_]{0,63}:[^\s|]+)/g)].map(
-    (match) => match[1],
-  );
-}
-
 export function extractListIds(text: string): string[] {
   return [...text.matchAll(/listId=(list_[0-9a-f]{32})/g)].map(
     (match) => match[1],

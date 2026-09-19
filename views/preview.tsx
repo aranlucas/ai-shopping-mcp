@@ -26,12 +26,11 @@ const PRODUCTS: ProductSearchResultsContent = {
   totalProducts: 4,
   results: [
     {
-      provider: "kroger",
       term: "Strawberries",
       failed: false,
       products: [
         {
-          product: { provider: "kroger", id: "preview-1" },
+          upc: "0001111000001",
           name: "Fresh Organic Strawberries",
           brand: "Simple Truth Organic",
           size: "1 lb",
@@ -42,7 +41,7 @@ const PRODUCTS: ProductSearchResultsContent = {
           aisle: { description: "Produce" },
         },
         {
-          product: { provider: "kroger", id: "preview-2" },
+          upc: "0001111000002",
           name: "Fresh Strawberries, Family Size",
           size: "2 lb",
           price: 6.99,
@@ -50,14 +49,14 @@ const PRODUCTS: ProductSearchResultsContent = {
           pickup: true,
         },
         {
-          product: { provider: "kroger", id: "preview-3" },
+          upc: "0001111000003",
           name: "Frozen Unsweetened Whole Strawberries",
           size: "16 oz",
           available: true,
           imageUrl: "data:image/png;base64,broken",
         },
         {
-          product: { provider: "kroger", id: "preview-4" },
+          upc: "0001111000004",
           name: "Chocolate Dipped Strawberries",
           size: "6 ct",
           price: 8.99,
@@ -121,19 +120,19 @@ const LIST: ShoppingListContent = {
   items: [
     {
       productName: "Fresh organic strawberries",
-      product: { provider: "kroger", id: "preview-1" },
+      upc: "0001111000001",
       quantity: 2,
       notes: "Choose ripe berries for breakfast and the spinach salad.",
     },
     {
       productName: "Boneless skinless chicken breasts, family pack",
-      product: { provider: "kroger", id: "preview-chicken" },
+      upc: "0001111000005",
       quantity: 1,
       notes: "Enough for two dinners. Freeze half after shopping.",
     },
     {
       productName: "Greek yogurt, plain and unsweetened",
-      product: { provider: "kroger", id: "preview-yogurt" },
+      upc: "0001111000006",
       quantity: 3,
     },
     {
@@ -268,7 +267,6 @@ function Preview() {
       totalProducts: 0,
       results: [
         {
-          provider: "kroger",
           term: "Strawberries",
           failed: true,
           products: [],

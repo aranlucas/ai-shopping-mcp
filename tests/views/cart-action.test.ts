@@ -10,7 +10,7 @@ const productRequest: CartRequest = {
   kind: "product",
   product: {
     productName: "Milk",
-    productRef: "kroger:0001111041700",
+    upc: "0001111041700",
     quantity: 1,
   },
   modality: "PICKUP",
@@ -91,7 +91,7 @@ describe("cart action state transitions", () => {
           items: [
             {
               productName: "Milk",
-              productRef: "kroger:0001111041700",
+              upc: "0001111041700",
               quantity: 1,
             },
           ],

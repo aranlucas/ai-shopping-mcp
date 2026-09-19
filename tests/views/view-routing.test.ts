@@ -40,7 +40,6 @@ describe("MCP App view routing", () => {
       content: [],
       ...appResult("set_preferred_store", {
         store: {
-          provider: "kroger",
           locationId: "70500847",
           locationName: "QFC Broadway",
           address: "500 Broadway E, Seattle, WA 98102",
@@ -78,9 +77,7 @@ describe("MCP App view routing", () => {
     { results: null, totalProducts: 0 },
     { results: {}, totalProducts: 0 },
     {
-      results: [
-        { provider: "kroger", term: "milk", failed: false, products: [{}] },
-      ],
+      results: [{ term: "milk", failed: false, products: [{}] }],
       totalProducts: 1,
     },
     { results: [], totalProducts: "zero" },
@@ -136,7 +133,6 @@ describe("MCP App view routing", () => {
       "set_preferred_store",
       {
         store: {
-          provider: "kroger",
           locationId: "1",
           locationName: "QFC",
           address: "",
@@ -151,11 +147,10 @@ describe("MCP App view routing", () => {
       {
         results: [
           {
-            provider: "kroger",
             term: "milk",
             products: [
               {
-                product: { provider: "kroger", id: "1" },
+                upc: "0000000000001",
                 name: "Milk",
                 available: true,
               },
@@ -170,7 +165,7 @@ describe("MCP App view routing", () => {
       "get_product",
       {
         product: {
-          product: { provider: "kroger", id: "1" },
+          upc: "0000000000001",
           name: "Milk",
           available: true,
         },
@@ -218,4 +213,100 @@ describe("MCP App view routing", () => {
       ).toEqual({ ...payload, view });
     },
   );
+
+  it("normalizes a persisted Kroger product reference to its UPC", () => {
+    expect(
+      parseAppResult({
+        content: [],
+        _meta: { "dev.aranlucas/view": "get_product" },
+        structuredContent: {
+          product: {
+            product: { provider: "kroger", id: "1" },
+            name: "Milk",
+            available: true,
+          },
+        },
+      }),
+    ).toEqual({
+      view: "get_product",
+      product: { upc: "0000000000001", name: "Milk", available: true },
+    });
+  });
+
+  it("rejects a non-Kroger legacy identity even with a conflicting UPC", () => {
+    expect(
+      parseAppResult({
+        content: [],
+        _meta: { "dev.aranlucas/view": "get_product" },
+        structuredContent: {
+          product: {
+            product: { provider: "other_store", id: "milk" },
+            upc: "0000000000001",
+            name: "Milk",
+            available: true,
+          },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("normalizes legacy list and order product references to optional UPCs", () => {
+    const list = parseAppResult({
+      content: [],
+      _meta: { "dev.aranlucas/view": "create_shopping_list" },
+      structuredContent: {
+        listId: "1",
+        name: "Groceries",
+        items: [
+          {
+            productName: "Milk",
+            product: { provider: "kroger", id: "1" },
+            quantity: 1,
+          },
+        ],
+      },
+    });
+    expect(list).toMatchObject({ items: [{ upc: "0000000000001" }] });
+
+    const order = parseAppResult({
+      content: [],
+      _meta: { "dev.aranlucas/view": "record_order" },
+      structuredContent: {
+        orderId: "1",
+        items: [
+          {
+            productName: "Milk",
+            product: { provider: "kroger", id: "1" },
+            quantity: 1,
+          },
+        ],
+        totalItems: 1,
+        placedAt: "2026-09-18",
+      },
+    });
+    expect(order).toMatchObject({ items: [{ upc: "0000000000001" }] });
+
+    const foreignList = parseAppResult({
+      content: [],
+      _meta: { "dev.aranlucas/view": "create_shopping_list" },
+      structuredContent: {
+        listId: "2",
+        name: "Review",
+        items: [
+          {
+            productName: "Milk",
+            product: { provider: "other_store", id: "milk" },
+            upc: "0000000000001",
+            quantity: 1,
+          },
+        ],
+      },
+    });
+    expect(foreignList).toMatchObject({
+      items: [{ productName: "Milk", quantity: 1 }],
+    });
+    expect(foreignList).not.toMatchObject({
+      items: [{ upc: "0000000000001" }],
+    });
+  });
 });

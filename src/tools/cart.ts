@@ -10,7 +10,6 @@ import {
   cartItemsFingerprint,
   claimCartOperation,
 } from "../cart-operations.js";
-import { krogerProductId } from "../domain/product-identity.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { CartSnapshotItem } from "../utils/user-storage.js";
 
@@ -319,8 +318,7 @@ async function handleListIdCart(
   }
 
   const cartable = list.items.flatMap((item) => {
-    const upc = krogerProductId(item.product);
-    return upc ? [{ item, upc }] : [];
+    return item.upc ? [{ item, upc: item.upc }] : [];
   });
   const cartableItems = new Set(cartable.map(({ item }) => item));
   const withoutUpc = list.items.filter((item) => !cartableItems.has(item));
@@ -339,9 +337,9 @@ async function handleListIdCart(
         {
           type: "text" as const,
           text:
-            `Shopping list "${list.name}" has no Kroger product references ready to add to the cart.\n` +
+            `Shopping list "${list.name}" has no matched Kroger UPCs ready to add to the cart.\n` +
             (withoutUpc.length > 0
-              ? `Use search_products with providers=["kroger"] for: ${withoutUpc.map((i) => i.productName).join(", ")}.`
+              ? `Use search_products for: ${withoutUpc.map((i) => i.productName).join(", ")}.`
               : ""),
         },
       ],

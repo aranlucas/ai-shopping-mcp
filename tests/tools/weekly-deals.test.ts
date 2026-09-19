@@ -20,7 +20,6 @@ import {
   type TestToolHandler as ToolHandler,
   wrapV2ToolHandler,
 } from "../v2-tool-handler.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 const weeklyDealsAuthState = vi.hoisted(() => ({
   authContext: {
@@ -628,7 +627,6 @@ function makeKV(initialData: Map<string, string> = new Map()): {
 }
 
 const DEFAULT_PREFERRED_LOCATION: PreferredLocation = {
-  provider: "kroger",
   locationId: "70500034",
   locationName: "QFC Test Store",
   address: "1 Test St",
@@ -668,7 +666,6 @@ function makeWeeklyDealsContext(
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
-    catalogs: stubCatalogRegistry(),
     storage: {
       preferredLocation: {
         get: async () => preferredLocation,

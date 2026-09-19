@@ -16,7 +16,6 @@ const dealSchema = z.object({
   category: z.string(),
 });
 const locationSchema = z.object({
-  provider: z.string().optional(),
   locationId: z.string().optional(),
   name: z.string().optional(),
   chain: z.string().optional(),
@@ -35,8 +34,8 @@ const locationSchema = z.object({
     )
     .optional(),
 });
-const productSchema = z.object({
-  product: productReferenceSchema,
+const productFieldsSchema = z.object({
+  upc: z.string().trim().min(1),
   name: z.string(),
   brand: z.string().optional(),
   category: z.string().optional(),
@@ -59,6 +58,35 @@ const productSchema = z.object({
     })
     .optional(),
 });
+
+/**
+ * Normalize persisted app payloads at the wire boundary. Product results used
+ * to carry `{ product: { provider, id } }`; the app now exposes Kroger UPCs
+ * directly. A legacy non-Kroger identity is terminal so a conflicting `upc`
+ * cannot accidentally make that product cartable as Kroger.
+ */
+const productSchema = z.preprocess((value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (!("product" in record)) return record;
+
+  const legacy = productReferenceSchema.safeParse(record.product);
+  if (!legacy.success || legacy.data.provider !== "kroger") {
+    return { ...record, upc: undefined };
+  }
+
+  const upc = normalizeProductIdentity({
+    product: legacy.data,
+    upc: typeof record.upc === "string" ? record.upc : undefined,
+  });
+  if (!upc) return { ...record, upc: undefined };
+
+  const { product: _product, ...withoutLegacyProduct } = record;
+  return { ...withoutLegacyProduct, upc };
+}, productFieldsSchema);
 const pantryItemSchema = z.object({
   productName: z.string(),
   quantity: z.number(),
@@ -81,8 +109,8 @@ const shoppingListItemSchema = z
     checked: z.boolean().optional(),
   })
   .transform(({ upc, product, ...item }) => {
-    const reference = normalizeProductIdentity({ product, upc });
-    return { ...item, ...(reference ? { product: reference } : {}) };
+    const normalizedUpc = normalizeProductIdentity({ product, upc });
+    return { ...item, ...(normalizedUpc ? { upc: normalizedUpc } : {}) };
   });
 const orderItemSchema = z
   .object({
@@ -93,8 +121,8 @@ const orderItemSchema = z
     price: z.number().optional(),
   })
   .transform(({ upc, product, ...item }) => {
-    const reference = normalizeProductIdentity({ product, upc });
-    return { ...item, ...(reference ? { product: reference } : {}) };
+    const normalizedUpc = normalizeProductIdentity({ product, upc });
+    return { ...item, ...(normalizedUpc ? { upc: normalizedUpc } : {}) };
   });
 const cartResultSchema = z
   .object({
@@ -164,7 +192,6 @@ export const appPayloadSchemas = {
   get_store: z.object({ store: locationSchema }),
   set_preferred_store: z.object({
     store: z.object({
-      provider: z.string(),
       locationId: z.string(),
       locationName: z.string(),
       address: z.string(),
@@ -176,11 +203,10 @@ export const appPayloadSchemas = {
   search_products: z.object({
     results: z.array(
       z.object({
-        provider: z.string(),
         term: z.string(),
         products: z.array(productSchema),
-        count: z.number().optional(),
         failed: z.boolean(),
+        error: z.string().optional(),
       }),
     ),
     totalProducts: z.number(),

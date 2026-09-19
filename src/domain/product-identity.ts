@@ -1,42 +1,57 @@
 import * as z from "zod/v4";
-import {
-  parseProductReference,
-  type ProductReference,
-} from "../services/catalog/types.js";
 
+const providerPattern = /^[a-z][a-z0-9_]{0,63}$/u;
+
+/** Legacy gateway/catalog identity, retained only for wire compatibility. */
 export const productReferenceSchema = z.object({
-  provider: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u),
+  provider: z.string().regex(providerPattern),
   id: z.string().trim().min(1).max(255),
 });
 
-/** Decode the copyable wire reference once, at the tool input boundary. */
+/** The canonical domain UPC form shared by tool and gateway compatibility code. */
+export const upcSchema = z
+  .string()
+  .trim()
+  .refine((value) => /^\d{1,13}$/.test(value), {
+    message:
+      "UPC must be up to 13 digits — copy the upc value from search_products output exactly, including leading zeros.",
+  })
+  .transform((value) => value.padStart(13, "0"));
+
+/** Normalize a Kroger UPC, returning undefined for non-Kroger/invalid ids. */
+function normalizeKrogerUpc(
+  value: string | null | undefined,
+): string | undefined {
+  if (value == null) return undefined;
+  const parsed = upcSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Decode the copyable legacy Kroger reference once, at the tool input
+ * boundary.  The schema output is the same normalized UPC used by the
+ * domain, so handlers never need to parse or prioritize two identities.
+ */
 export const productReferenceInputSchema = z
   .string()
   .trim()
-  .transform((value, ctx) => {
-    const reference = parseProductReference(value);
-    if (reference) return reference;
-    ctx.addIssue({
-      code: "custom",
-      message: "productRef must be <provider>:<provider-scoped-id>.",
-    });
-    return z.NEVER;
-  });
+  .startsWith("kroger:", { message: "productRef must be kroger:<UPC>." })
+  .transform((value) => value.slice("kroger:".length))
+  .pipe(upcSchema);
 
-/** Explicit universal identity wins over any deprecated Kroger compatibility field. */
+/**
+ * Convert gateway compatibility fields into the domain UPC.  An explicit
+ * non-Kroger product is intentionally terminal: a legacy UPC next to it must
+ * not accidentally make a named non-Kroger item cartable.
+ */
 export function normalizeProductIdentity(input: {
-  product?: ProductReference | null;
+  product?: { provider: string; id: string } | null;
   upc?: string | null;
-}): ProductReference | undefined {
-  return (
-    input.product ??
-    (input.upc ? { provider: "kroger", id: input.upc } : undefined)
-  );
-}
-
-/** Kroger adapters consume canonical identity; legacy fields never reach this point. */
-export function krogerProductId(
-  product: ProductReference | undefined,
-): string | undefined {
-  return product?.provider === "kroger" ? product.id : undefined;
+}): string | undefined {
+  if (input.product != null) {
+    return input.product.provider === "kroger"
+      ? normalizeKrogerUpc(input.product.id)
+      : undefined;
+  }
+  return normalizeKrogerUpc(input.upc);
 }

@@ -53,17 +53,14 @@ function ProductCarousel({
 }: {
   app: App | null;
   products: ProductData[];
-  onAddToList: (name: string, productRef: string) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
   canCallTools: boolean;
 }) {
   return (
     <Carousel opts={CAROUSEL_OPTS} aria-label="Products">
       <CarouselContent className="-ms-2">
         {products.map((product) => (
-          <CarouselItem
-            key={`${product.product.provider}:${product.product.id}`}
-            className="basis-68 ps-2"
-          >
+          <CarouselItem key={product.upc} className="basis-68 ps-2">
             <ProductCard
               app={app}
               product={product}
@@ -100,11 +97,11 @@ export function ProductSearchView({
   const { results, totalProducts } = data;
 
   const handleAddToList = useCallback(
-    async (name: string, productRef: string) => {
+    async (name: string, upc: string) => {
       await saveProductToList(app, {
         productName: name,
         quantity: 1,
-        productRef,
+        upc,
       });
     },
     [app],
@@ -146,7 +143,7 @@ export function ProductSearchView({
         if (result.failed) {
           return (
             <div
-              key={`${result.provider}:${result.term}`}
+              key={result.term}
               role="alert"
               className="mb-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
             >
@@ -164,17 +161,21 @@ export function ProductSearchView({
                   d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
                 />
               </svg>
-              Could not search {result.provider} for &ldquo;{result.term}
-              &rdquo;. Ask your assistant to retry.
+              {result.error ?? (
+                <>
+                  Could not search for &ldquo;{result.term}&rdquo;. Ask your
+                  assistant to retry.
+                </>
+              )}
             </div>
           );
         }
         if (result.products.length === 0) {
           return (
-            <div key={`${result.provider}:${result.term}`} className="mb-5">
+            <div key={result.term} className="mb-5">
               <div className="mb-1.5 flex items-center gap-2">
                 <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                  {result.term} · {result.provider}
+                  {result.term}
                 </span>
                 <span className="text-xs text-gray-300">·</span>
                 <span className="text-xs text-gray-400">No results</span>
@@ -183,16 +184,13 @@ export function ProductSearchView({
           );
         }
         return (
-          <section
-            key={`${result.provider}:${result.term}`}
-            className="mb-7 last:mb-0"
-          >
+          <section key={result.term} className="mb-7 last:mb-0">
             <div className="mb-3 flex flex-wrap items-baseline gap-2">
               <h2 className="text-sm font-semibold text-gray-900">
                 {result.term}
               </h2>
               <span className="text-xs text-gray-500">
-                {result.provider} · {result.products.length} items
+                {result.products.length} items
               </span>
             </div>
             <ProductCarousel

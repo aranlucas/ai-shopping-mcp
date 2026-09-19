@@ -85,7 +85,7 @@ describe("gateway shopping storage", () => {
     },
   );
 
-  it("preserves valid quantities and makes explicit identity authoritative on reads", async () => {
+  it("preserves valid quantities and never falls back from an explicit foreign product", async () => {
     mockGateway(() => ({
       body: gatewayList("1.5", {
         product: { provider: "another_store", id: "milk" },
@@ -98,8 +98,19 @@ describe("gateway shopping storage", () => {
       productName: "Milk",
       quantity: 1.5,
       checked: false,
-      product: { provider: "another_store", id: "milk" },
     });
+  });
+
+  it("adapts a legacy Kroger product object to the domain UPC", async () => {
+    mockGateway(() => ({
+      body: gatewayList("1", {
+        product: { provider: "kroger", id: "1" },
+        upc: "0009999999999",
+      }),
+    }));
+
+    const list = await makeStore().shoppingList.get("gateway-list");
+    expect(list?.items[0]?.upc).toBe("0000000000001");
   });
 
   it("adds pantry items with the MCP bearer token and adapts unix timestamps", async () => {
@@ -180,7 +191,7 @@ describe("gateway shopping storage", () => {
       items: [
         {
           productName: "Milk",
-          product: { provider: "kroger", id: "0001111042578" },
+          upc: "0001111042578",
           quantity: 2,
           notes: "organic",
         },
@@ -212,7 +223,7 @@ describe("gateway shopping storage", () => {
         {
           id: "item-1",
           productName: "Milk",
-          product: { provider: "kroger", id: "0001111042578" },
+          upc: "0001111042578",
           quantity: 2,
           notes: "organic",
           checked: false,
@@ -242,7 +253,7 @@ describe("gateway shopping storage", () => {
       orderId: "order-123",
       items: [
         {
-          product: { provider: "kroger", id: "0001111042578" },
+          upc: "0001111042578",
           productName: "Milk",
           quantity: 2,
           price: 3.5,
@@ -279,7 +290,7 @@ describe("gateway shopping storage", () => {
       orderId: "order-123",
       items: [
         {
-          product: { provider: "kroger", id: "0001111042578" },
+          upc: "0001111042578",
           productName: "Milk",
           quantity: 2,
           price: 3.5,
@@ -317,6 +328,23 @@ describe("gateway shopping storage", () => {
 
     await expect(store.preferredLocation.get()).resolves.toBeNull();
     await expect(store.shoppingList.get("missing-list")).resolves.toBeNull();
+  });
+
+  it("rejects a saved preferred store belonging to another provider", async () => {
+    mockGateway(() => ({
+      body: {
+        provider: "another_store",
+        location_id: "70500847",
+        name: "Other Store",
+        address: "x",
+        chain: "Other",
+        set_at: 1_784_332_800,
+      },
+    }));
+
+    await expect(makeStore().preferredLocation.get()).rejects.toThrow(
+      "Gateway returned an invalid response",
+    );
   });
 
   it.each([401, 409, 429, 503])(

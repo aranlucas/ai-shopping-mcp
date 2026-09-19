@@ -34,7 +34,6 @@ import { registerResources } from "./tools/resources.js";
 import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
-import { createKrogerCatalogProvider } from "./services/catalog/kroger-provider.js";
 import { getUserDataKv } from "./utils/kv.js";
 import { createGatewayShoppingStore } from "./utils/gateway-storage.js";
 import { getProps } from "./utils/result.js";
@@ -67,7 +66,7 @@ const SERVER_INFO = {
 } as const;
 const SERVER_OPTIONS = {
   instructions:
-    "Grocery assistant with shared stores, pantry, equipment, orders, and lists. Golden path: shop_for_items for one-shot Kroger shopping, or search_products then create_shopping_list for any provider; pass its listId to add_shopping_list_to_cart only for Kroger productRefs. search_products searches all providers by default and returns productRef=<provider>:<id>; preserve exact refs on lists and orders. Edit lists with get_shopping_list, add_shopping_list_items, and edit_shopping_list_item. Store, cart, and deal tools are Kroger-backed. Use get_shopping_profile before personalized suggestions.",
+    "Kroger grocery assistant with stores, pantry, equipment, orders, and lists. Use shop_for_items for one-shot shopping, or search_products then create_shopping_list and pass its listId to add_shopping_list_to_cart. Copy exact UPCs from search results into lists and orders; storeId selects the Kroger store. Edit lists with get_shopping_list, add_shopping_list_items, and edit_shopping_list_item. Use get_shopping_profile before personalized suggestions.",
 } as const;
 
 function requestBearerToken(
@@ -155,15 +154,11 @@ function buildServer(
     },
   );
   const productService = new ProductService(clients.productClient);
-  const catalogs = {
-    kroger: createKrogerCatalogProvider(clients.productClient),
-  } as const;
 
   const ctx: ToolContext = {
     server,
     clients,
     productService,
-    catalogs,
     storage,
     carts,
     getEnv: () => env,

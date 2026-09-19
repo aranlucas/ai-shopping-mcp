@@ -23,8 +23,6 @@ import {
   wrapV2ToolHandler,
   type TestToolConfig,
 } from "../v2-tool-handler.js";
-import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type CapturedTool = { name: string; handler: ToolHandler };
 
@@ -222,11 +220,6 @@ describe("search_products content size", () => {
       server: server as unknown as ToolContext["server"],
       clients,
       productService: new ProductService(clients.productClient),
-      // Real Kroger provider over the stubbed client, so the structured
-      // payload this test measures is the one production emits.
-      catalogs: stubCatalogRegistry({
-        kroger: createKrogerCatalogProvider(clients.productClient),
-      }),
       storage: {
         preferredLocation: { get: async () => null },
       } as unknown as ToolContext["storage"],
@@ -258,6 +251,7 @@ describe("search_products content size", () => {
       }
     ).structuredContent;
     expect(sc?.results?.[0]?.products?.[0]?.imageUrl).toBeDefined();
+    expect(sc?.results?.[0]).not.toHaveProperty("provider");
     expect(sc?.results?.[0]?.products?.[0]).not.toHaveProperty(
       "nutritionInformation",
     );

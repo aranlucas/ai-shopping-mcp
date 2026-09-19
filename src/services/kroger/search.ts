@@ -1,12 +1,11 @@
 /**
- * Kroger product search, shared by the Kroger catalog provider, the
+ * Kroger product search, shared by the product search tool, the
  * `search_products` MCP App payload, and `shop_for_items`. Those three need the
- * full Kroger records, not the provider-agnostic projection, so this stays
- * Kroger-shaped on purpose.
+ * full Kroger records for product selection and presentation.
  */
 import type { AppError } from "../../errors.js";
-import type { KrogerClients } from "../kroger/client.js";
-import type { components as ProductComponents } from "../kroger/product.js";
+import type { KrogerClients } from "./client.js";
+import type { components as ProductComponents } from "./product.js";
 
 import { fromApiResponse } from "../../utils/result.js";
 

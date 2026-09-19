@@ -23,17 +23,15 @@ vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
 
 const STORE_ID = "70500847";
 const PREFERRED_STORE = {
-  provider: "kroger",
   locationId: STORE_ID,
   locationName: "QFC",
   address: "Seattle, WA",
   chain: "QFC",
   setAt: "2026-09-12T00:00:00Z",
 };
-const OTHER_PROVIDER_STORE = {
+const OTHER_STORE = {
   ...PREFERRED_STORE,
-  provider: "sample_catalog",
-  locationId: "701",
+  locationId: "70500123",
 };
 const CACHE_KEY = buildWeeklyDealsCacheKey({
   locationId: STORE_ID,
@@ -167,31 +165,27 @@ describe("meal planning with weekly deals", () => {
     expect(readCache).toHaveBeenCalledWith(CACHE_KEY);
   });
 
-  it("honors an explicit Kroger store without changing a different provider's preference", async () => {
-    await context.storage.preferredLocation.set(OTHER_PROVIDER_STORE);
+  it("honors an explicit Kroger store without changing the preferred store", async () => {
+    await context.storage.preferredLocation.set(OTHER_STORE);
     await call({ includeWeeklyDeals: true, storeId: ` ${STORE_ID} ` });
     expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
       expect.objectContaining({ locationId: STORE_ID }),
     );
     expect(await context.storage.preferredLocation.get()).toMatchObject({
-      provider: "sample_catalog",
-      locationId: "701",
+      locationId: "70500123",
     });
   });
 
-  it.each([null, OTHER_PROVIDER_STORE])(
-    "preserves pantry context and store recovery guidance for preference %j",
-    async (preferred) => {
-      context.storage.preferredLocation.get = async () => preferred;
-      const result = await call({ includeWeeklyDeals: true });
-      expect(result.isError).toBe(false);
-      expect(result.text).toContain("Weekly Deals Unavailable");
-      expect(result.text).toContain("Rice x2");
-      expect(result.text).toContain("search_stores");
-      expect(result.text).toContain("set_preferred_store");
-      expect(getQfcWeeklyDeals).not.toHaveBeenCalled();
-    },
-  );
+  it("preserves pantry context and store recovery guidance without a preferred store", async () => {
+    context.storage.preferredLocation.get = async () => null;
+    const result = await call({ includeWeeklyDeals: true });
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain("Weekly Deals Unavailable");
+    expect(result.text).toContain("Rice x2");
+    expect(result.text).toContain("search_stores");
+    expect(result.text).toContain("set_preferred_store");
+    expect(getQfcWeeklyDeals).not.toHaveBeenCalled();
+  });
 
   it("supports planning from deals with an empty pantry", async () => {
     await context.storage.pantry.clear();

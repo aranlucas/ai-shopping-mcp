@@ -11,7 +11,7 @@ export type ProductShoppingListInput = {
   listName?: string;
   productName: string;
   quantity: number;
-  productRef: string;
+  upc: string;
 };
 
 export class CartActionError extends Error {
@@ -78,13 +78,13 @@ export function createProductShoppingListCall({
   listName,
   productName,
   quantity,
-  productRef,
+  upc,
 }: ProductShoppingListInput): CreateShoppingListCall {
   return {
     name: "create_shopping_list",
     arguments: {
       name: listName ?? productName,
-      items: [{ productRef, productName, quantity }],
+      items: [{ upc, productName, quantity }],
     },
   };
 }

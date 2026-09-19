@@ -80,7 +80,7 @@ describe("order storage-backed tools", () => {
       structuredContent: {
         items: [
           {
-            product: { provider: "kroger", id: "0000000000001" },
+            upc: "0000000000001",
             productName: "Apples",
             quantity: 2,
             price: 1.5,

@@ -13,8 +13,6 @@ import type {
 } from "../../src/domain/shopping.js";
 
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
-import { registerProductTools } from "../../src/tools/product.js";
-import { stubCatalogProvider, stubCatalogRegistry } from "../catalog-stub.js";
 import {
   getCapturedHandler,
   getCapturedTool,
@@ -154,9 +152,34 @@ describe("shopping list editing tools", () => {
 
     expect(addItems).toHaveBeenCalledWith("list-a", [
       {
-        product: { provider: "kroger", id: "0001111042578" },
+        upc: "0001111042578",
         productName: "Whole Milk",
         quantity: 2,
+      },
+    ]);
+  });
+
+  it("normalizes a legacy Kroger productRef before the handler runs", async () => {
+    const addItems = vi.fn<
+      (
+        listId: string,
+        items: ShoppingListItem[],
+      ) => Promise<StoredShoppingListItem[]>
+    >(async (_listId, items) =>
+      items.map((item) => ({ ...item, checked: false, id: "item-1" })),
+    );
+    registerShoppingListTools(makeContext(makeListStorage({ addItems })));
+
+    await getCapturedHandler("add_shopping_list_items")({
+      listId: "list-a",
+      items: [{ productRef: "kroger:1", productName: "Milk" }],
+    });
+
+    expect(addItems).toHaveBeenCalledWith("list-a", [
+      {
+        upc: "0000000000001",
+        productName: "Milk",
+        quantity: 1,
       },
     ]);
   });
@@ -260,118 +283,5 @@ describe("shopping list editing tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.text).toContain("remove=true");
-  });
-});
-
-describe("search_products across providers", () => {
-  beforeEach(() => {
-    resetToolTestHarness();
-  });
-
-  const chiliCrunch = {
-    ref: { provider: "sample_catalog", id: "076892" },
-    name: "Chili Onion Crunch",
-    price: 3.99,
-    size: "6 Ounce",
-    available: true,
-  };
-
-  it("labels each match with its provider and says which cannot reach a cart", async () => {
-    const ctx = makeContext();
-    ctx.catalogs = stubCatalogRegistry({
-      sample_catalog: stubCatalogProvider({ products: [chiliCrunch] }),
-    });
-    registerProductTools(ctx);
-
-    const result = await getCapturedHandler("search_products")({
-      terms: ["chili crunch"],
-      providers: ["kroger", "sample_catalog"],
-      limitPerTerm: 5,
-      includeLocation: false,
-    });
-
-    const text = result.text;
-    expect(result.isError).toBe(false);
-    expect(text).toContain("productRef=sample_catalog:076892");
-    expect(text).toContain("Chili Onion Crunch");
-    expect(text).toContain("$3.99");
-    expect(text).toContain("Sample Catalog has no cart");
-  });
-
-  it("searches every registered provider when providers are omitted", async () => {
-    const sampleCatalog = stubCatalogProvider({ products: [chiliCrunch] });
-    const search = vi.spyOn(sampleCatalog, "search");
-    const ctx = makeContext();
-    ctx.catalogs = stubCatalogRegistry({ sample_catalog: sampleCatalog });
-    registerProductTools(ctx);
-
-    const result = await getCapturedHandler("search_products")({
-      terms: ["milk"],
-      limitPerTerm: 5,
-      includeLocation: false,
-    });
-
-    expect(search).toHaveBeenCalled();
-    expect(result.text).toContain("sample_catalog");
-  });
-
-  it("still answers when one provider is blocked", async () => {
-    const ctx = makeContext();
-    ctx.catalogs = stubCatalogRegistry({
-      kroger: stubCatalogProvider({
-        id: "kroger",
-        label: "Kroger",
-        capabilities: { cart: true, aisleLocation: true },
-        products: [
-          {
-            ref: { provider: "kroger", id: "0001111042578" },
-            name: "Whole Milk",
-            price: 3.49,
-            available: true,
-            pickup: true,
-          },
-        ],
-      }),
-      sample_catalog: stubCatalogProvider({
-        error: {
-          type: "API_ERROR",
-          message: "Sample Catalog blocked this request (bot protection).",
-        },
-      }),
-    });
-    registerProductTools(ctx);
-
-    const result = await getCapturedHandler("search_products")({
-      terms: ["milk"],
-      providers: ["kroger", "sample_catalog"],
-      limitPerTerm: 5,
-      includeLocation: false,
-    });
-
-    expect(result.isError).toBe(false);
-    expect(result.text).toContain("productRef=kroger:0001111042578");
-    expect(result.text).toContain(
-      "Sample Catalog search failed for this term.",
-    );
-  });
-
-  it("errors only when every provider failed and nothing was found", async () => {
-    const ctx = makeContext();
-    ctx.catalogs = stubCatalogRegistry({
-      sample_catalog: stubCatalogProvider({
-        error: { type: "API_ERROR", message: "blocked" },
-      }),
-    });
-    registerProductTools(ctx);
-
-    const result = await getCapturedHandler("search_products")({
-      terms: ["chili crunch"],
-      providers: ["sample_catalog"],
-      limitPerTerm: 5,
-      includeLocation: false,
-    });
-
-    expect(result.isError).toBe(true);
-    expect(result.text).toContain("blocked");
   });
 });

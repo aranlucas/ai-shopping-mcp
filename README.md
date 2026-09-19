@@ -1,6 +1,6 @@
 # Grocery shopping MCP
 
-Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Product search spans multiple store catalogs; cart, store, and weekly-deal tools are Kroger/QFC-backed. OAuth grants live in the existing `OAUTH_KV` namespace; atomic cart operations live in the `CART_OPERATIONS` Durable Object; legacy cart receipts, the assistant cart mirror, and product/location caches live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
+Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Product search, carts, stores, and weekly deals are Kroger/QFC-only. OAuth grants live in the existing `OAUTH_KV` namespace; atomic cart operations live in the `CART_OPERATIONS` Durable Object; legacy cart receipts, the assistant cart mirror, and product/location caches live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
 
 ## Local development
 
@@ -48,7 +48,7 @@ The server exposes 18 tools:
 - Profile and meal context: `add_to_inventory`, `remove_from_inventory`, `get_shopping_profile`, `get_meal_planning_context`
 - Lists, cart, and orders: `create_shopping_list`, `get_shopping_list`, `add_shopping_list_items`, `edit_shopping_list_item`, `add_shopping_list_to_cart`, `view_cart`, `record_order`
 
-### Catalog providers
+### Kroger product search
 
 `shop_for_items` uses TypeSafe Jev (`typesafe/jev-1.13`) by default through the existing
 Cloudflare `AI` binding and the `default` AI Gateway, using OpenRouter BYOK. It sends the entire list
@@ -73,27 +73,23 @@ See the [Jev research and implementation note](docs/jev-model-research.md),
 for the 30-case live evaluation, or append an output path and `--holdout` for
 12 additional fixed cases. These use synthetic catalogs and never write a list or cart.
 
-`search_products` is provider-agnostic. It takes a `providers` array and
-searches each named catalog concurrently, returning one block per provider under
-each search term. A provider is anything implementing `CatalogProvider`
-(`src/services/catalog/types.ts`); adding one needs no tool changes.
+`search_products` searches Kroger directly using one optional `storeId`, defaulting
+to the preferred Kroger store. Terms run concurrently; a failed term retains its
+error type and recovery guidance while successful terms remain usable.
 
-Kroger is the only registered provider. It supports cart writes and uses UPCs
-as product identifiers.
-
-Products use provider-scoped `productRef=<provider>:<id>` tokens. Preserve these
-references on lists and orders. `capabilities.cart` indicates whether the provider
-supports cart writes; only Kroger product identifiers may reach Kroger's cart.
-Omitting `providers` searches every registered provider. Search failures retain their
-error type and recovery guidance while successful providers remain usable.
+Products use UPCs throughout the tools, domain model, and app. Copy `upc` from
+search results into lists and orders. Existing `kroger:<UPC>` inputs and saved
+Kroger product references are normalized at compatibility boundaries. There is no
+provider registry or capability dispatch. Name-only list items still need a Kroger
+match before they can be added to the cart.
 
 ### Editing a list by hand
 
 Lists live in agents-gateway/D1 and are edited through `get_shopping_list` (with
 no `listId` it returns every list and its id; with one it returns that list's
 items and their `itemId`s), then `add_shopping_list_items` and
-`edit_shopping_list_item`. List items accept provider-scoped `productRef` values, legacy Kroger `upc` values,
-or plain `productName` entries for unmatched ingredients.
+`edit_shopping_list_item`. List items accept `upc` values or plain `productName` entries for unmatched ingredients.
+Legacy Kroger `productRef` inputs remain readable for existing clients.
 
 It exposes four workflow prompts:
 

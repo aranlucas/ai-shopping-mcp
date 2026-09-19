@@ -369,20 +369,18 @@ export function CartActionControl({
 
 export function ProductActions({
   app,
-  productRef,
-  cartEnabled,
+  upc,
   name,
   disabled,
   cartDisabled,
   onAddToList,
 }: {
   app: App | null;
-  productRef: string;
-  cartEnabled: boolean;
+  upc: string;
   name: string;
   disabled?: boolean;
   cartDisabled?: boolean;
-  onAddToList: (name: string, productRef: string) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
   const cart = useCartAction(
     app,
@@ -391,7 +389,7 @@ export function ProductActions({
       product: {
         listName: `Cart: ${name}`,
         productName: name,
-        productRef,
+        upc,
         quantity: 1,
       },
       modality: "PICKUP",
@@ -407,7 +405,7 @@ export function ProductActions({
     setListState("loading");
     setErrorMsg(null);
     try {
-      await onAddToList(name, productRef);
+      await onAddToList(name, upc);
       setListState("done");
       setTimeout(() => setListState("idle"), 2000);
     } catch (e) {
@@ -415,24 +413,22 @@ export function ProductActions({
       setListState("error");
       setErrorMsg(msg);
     }
-  }, [name, onAddToList, productRef]);
+  }, [name, onAddToList, upc]);
 
   return (
     <div>
       <div className="flex flex-wrap gap-2">
-        {cartEnabled && (
-          <CartActionControl
-            app={app}
-            state={cart.state}
-            onSubmit={cart.submit}
-            disabled={disabled || cartDisabled}
-            idleLabel="Add to Cart"
-            loadingLabel="Adding..."
-            doneLabel="Added!"
-            failLabel="Retry cart"
-            labelContext={name}
-          />
-        )}
+        <CartActionControl
+          app={app}
+          state={cart.state}
+          onSubmit={cart.submit}
+          disabled={disabled || cartDisabled}
+          idleLabel="Add to Cart"
+          loadingLabel="Adding..."
+          doneLabel="Added!"
+          failLabel="Retry cart"
+          labelContext={name}
+        />
         <ActionButton
           state={listState}
           onClick={handleList}
@@ -505,11 +501,11 @@ export function ProductCard({
   app: App | null;
   product: ProductData;
   canCallTools: boolean;
-  onAddToList: (name: string, productRef: string) => Promise<void>;
+  onAddToList: (name: string, upc: string) => Promise<void>;
 }) {
   const name = product.name;
   const brand = product.brand;
-  const productRef = `${product.product.provider}:${product.product.id}`;
+  const upc = product.upc;
   const size = product.size;
   const aisle =
     product.aisle?.description ||
@@ -565,8 +561,7 @@ export function ProductCard({
       <CardFooter className="pt-2">
         <ProductActions
           app={app}
-          productRef={productRef}
-          cartEnabled={product.product.provider === "kroger"}
+          upc={upc}
           cartDisabled={!product.available}
           name={name}
           disabled={!canCallTools}

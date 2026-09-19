@@ -5,10 +5,7 @@ import type { OrderRecord } from "../domain/shopping.js";
 import type { ToolContext } from "./types.js";
 
 import { appResult } from "../app-results.js";
-import {
-  normalizeProductIdentity,
-  productReferenceInputSchema,
-} from "../domain/product-identity.js";
+import { productReferenceInputSchema } from "../domain/product-identity.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
@@ -18,17 +15,19 @@ const orderItemSchema = z
   .object({
     productRef: productReferenceInputSchema
       .optional()
-      .describe("productRef from search_products"),
-    upc: upcSchema
-      .optional()
-      .describe("Deprecated Kroger UPC compatibility input"),
+      .describe("Legacy Kroger productRef from search_products"),
+    upc: upcSchema.optional().describe("13-digit UPC from search_products"),
     productName: z.string().max(200),
     quantity: z.coerce.number().int().min(1).max(999),
     price: z.coerce.number().min(0).optional(),
   })
   .refine((item) => Boolean(item.productRef ?? item.upc), {
-    message: "Each ordered item needs a productRef.",
-  });
+    message: "Each ordered item needs a UPC.",
+  })
+  .transform(({ productRef, upc, ...item }) => ({
+    ...item,
+    upc: upc ?? productRef,
+  }));
 
 export const recordOrderInputSchema = z.object({
   items: z
@@ -67,17 +66,9 @@ export function registerOrderTools(ctx: ToolContext) {
         0,
       );
 
-      const orderItems = items.map(({ productRef, upc, ...item }) => {
-        const product = normalizeProductIdentity({ product: productRef, upc });
-        return {
-          ...item,
-          product,
-        };
-      });
-
       const order: OrderRecord = {
         orderId,
-        items: orderItems,
+        items,
         totalItems,
         estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
         placedAt: new Date().toISOString(),

@@ -1,6 +1,6 @@
 import { err, ok } from "neverthrow";
 import { type AppError, errorRecovery, validationError } from "../errors.js";
-import type { ProductSearchResult } from "./catalog/kroger-search.js";
+import type { ProductSearchResult } from "./kroger/search.js";
 import type { ProductSelection } from "./product-selector.js";
 
 export type RequestedItem = {

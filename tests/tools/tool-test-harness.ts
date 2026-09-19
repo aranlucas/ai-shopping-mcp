@@ -20,7 +20,6 @@ import {
   wrapV2ToolHandler,
   type TestToolConfig,
 } from "../v2-tool-handler.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type ShoppingListRecord = {
   id: string;
@@ -273,7 +272,6 @@ export function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService,
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,
@@ -309,7 +307,6 @@ export function makeCartContext(
       },
     } as unknown as ToolContext["clients"],
     productService,
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: storage,
     getEnv: () => ({}) as Env,

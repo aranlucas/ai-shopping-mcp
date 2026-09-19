@@ -1,37 +1,41 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeProductIdentity,
+  productReferenceSchema,
   productReferenceInputSchema,
-  krogerProductId,
 } from "../src/domain/product-identity.js";
 import { parseAppResult } from "../src/app-results.js";
 
-describe("canonical product identity", () => {
-  it("uses an explicit reference even when a conflicting legacy UPC is present", () => {
+describe("Kroger product identity compatibility", () => {
+  it("does not fall back to a legacy UPC when an explicit foreign product is present", () => {
     const product = { provider: "another_store", id: "milk" };
     const normalized = normalizeProductIdentity({
       product,
       upc: "0001111042578",
     });
-    expect(normalized).toEqual(product);
-    expect(krogerProductId(normalized)).toBeUndefined();
+    expect(normalized).toBeUndefined();
   });
 
   it("converts legacy-only records at the boundary", () => {
-    expect(normalizeProductIdentity({ upc: "0001111042578" })).toEqual({
-      provider: "kroger",
-      id: "0001111042578",
-    });
+    expect(normalizeProductIdentity({ upc: "1" })).toBe("0000000000001");
     expect(normalizeProductIdentity({})).toBeUndefined();
   });
 
-  it("decodes serialized references while retaining provider-scoped colons", () => {
-    expect(productReferenceInputSchema.parse(" store:item:variant ")).toEqual({
+  it("keeps generic wire references local while accepting only legacy Kroger UPC refs", () => {
+    expect(
+      productReferenceSchema.parse({
+        provider: "store",
+        id: "item:variant",
+      }),
+    ).toEqual({
       provider: "store",
       id: "item:variant",
     });
+    expect(productReferenceInputSchema.parse(" kroger:1 ")).toBe(
+      "0000000000001",
+    );
     expect(
-      productReferenceInputSchema.safeParse("missing-provider").success,
+      productReferenceInputSchema.safeParse("store:item:variant").success,
     ).toBe(false);
   });
 
@@ -52,11 +56,9 @@ describe("canonical product identity", () => {
         ],
       },
     });
-    expect(parsed).toMatchObject({
-      items: [{ product: { provider: "another_store", id: "milk" } }],
-    });
     if (parsed?.view !== "create_shopping_list")
       throw new Error("Expected list view");
+    expect(parsed.items[0]).not.toHaveProperty("product");
     expect(parsed.items[0]).not.toHaveProperty("upc");
   });
 });

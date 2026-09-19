@@ -23,14 +23,14 @@ export function ProductDetailView({
   const { product } = data;
   const name = product.name;
   const brand = product.brand;
-  const productRef = `${product.product.provider}:${product.product.id}`;
+  const upc = product.upc;
 
   const handleAddToList = useCallback(
-    async (productName: string, selectedProductRef: string) => {
+    async (productName: string, selectedUpc: string) => {
       await saveProductToList(app, {
         productName,
         quantity: 1,
-        productRef: selectedProductRef,
+        upc: selectedUpc,
       });
     },
     [app],
@@ -55,8 +55,8 @@ export function ProductDetailView({
         <div className="flex gap-1.5 border-b border-border px-4 py-3">
           <ProductActions
             app={app}
-            productRef={productRef}
-            cartEnabled={product.product.provider === "kroger"}
+            upc={upc}
+            cartDisabled={!product.available}
             name={name}
             disabled={!canCallTools}
             onAddToList={handleAddToList}
@@ -105,9 +105,9 @@ export function ProductDetailView({
 
           <div>
             <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
-              Product reference
+              UPC
             </p>
-            <p className="font-mono text-xs text-gray-400">{productRef}</p>
+            <p className="font-mono text-xs text-gray-400">{upc}</p>
           </div>
         </div>
       </div>

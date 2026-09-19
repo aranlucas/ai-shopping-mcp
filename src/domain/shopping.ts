@@ -1,5 +1,3 @@
-import type { ProductReference } from "../services/catalog/types.js";
-
 export interface PantryItem {
   productName: string;
   quantity: number;
@@ -10,7 +8,7 @@ export interface PantryItem {
 export interface OrderRecord {
   orderId: string;
   items: Array<{
-    product?: ProductReference;
+    upc?: string;
     productName: string;
     quantity: number;
     price?: number;
@@ -23,7 +21,6 @@ export interface OrderRecord {
 }
 
 export interface PreferredLocation {
-  provider: string;
   locationId: string;
   locationName: string;
   address: string;
@@ -39,7 +36,7 @@ export interface EquipmentItem {
 
 export interface ShoppingListItem {
   productName: string;
-  product?: ProductReference;
+  upc?: string;
   quantity: number;
   notes?: string;
 }

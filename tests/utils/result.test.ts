@@ -333,7 +333,6 @@ describe("safeResolveLocationId", () => {
 
   it("falls back to preferred location from storage when no locationId provided", async () => {
     const storage = mockStorage({
-      provider: "kroger",
       locationId: "70500847",
       locationName: "QFC #815",
     });

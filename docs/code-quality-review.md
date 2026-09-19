@@ -121,7 +121,7 @@ The fixes use three Luna subagents with maximum reasoning effort, followed by in
 | 3 — Cart authority          | The journal claims each operation before reconciling legacy receipts. Existing journal state wins; legacy-only receipts retain duplicate protection.                                         |
 | 4 — Weekly-deals boundary   | Shared schemas validate consumed source fields and normalized live/cache data. Warning codes replace prose matching. Cache and fallback policy lives in the service layer.                   |
 | 5 — Shopping-store contract | The gateway owns list IDs. Draft and stored items have separate types; stored records require IDs and checked state. Invalid numeric quantity strings fail validation.                       |
-| 6 — Product identity        | One compatibility adapter normalizes legacy UPCs. Explicit provider references win on conflict; domain consumers use the canonical product reference.                                        |
+| 6 — Product identity        | Boundary adapters normalize saved Kroger references into UPCs. The domain and views use UPCs only; foreign references never fall back to a conflicting Kroger UPC.                           |
 | 7 — Search outcomes         | Search producers return success/failure unions with request identity. Selection receives successful searches and results are joined by request identity.                                     |
 | 8 — Test contract           | The normal test caller applies the exact registered schema, including defaults, coercions, transforms, and refinements. Raw callback tests use an explicit separate helper.                  |
 
@@ -145,3 +145,22 @@ The test result applies to the isolated compatible dependency environment, not t
 The PR branch was integrated with main at `368ed13` (the shared UI variants and shadcn lint rules). All three overlapping component conflicts preserve the new design-system variants and the outcome/expiry behavior from this review.
 
 A fresh checkout installed the committed dependencies with `pnpm install --frozen-lockfile`. On that checkout, `pnpm test` passed **834 tests with 3 skipped**, and `pnpm build`, `pnpm fmt:check`, and `git diff --check` passed. The PR does not change `package.json` or `pnpm-lock.yaml`; it retains main's Vitest 4.1.11 dependency range. This validates the PR's own dependency set independently of the concurrent dependency updates described above.
+
+### Kroger-only simplification
+
+The server now supports Kroger/QFC directly. Product search uses one `storeId` and
+returns UPCs; the provider registry, capabilities, per-provider search orchestration,
+and provider-aware UI controls have been removed. The raw Kroger search service keeps
+request identity and explicit failure outcomes. Existing `kroger:<UPC>` tool inputs
+and gateway/app product references remain accepted only at compatibility boundaries.
+Named items without a Kroger UPC remain readable but need matching before a cart add.
+
+The gateway contract is shared with another service, so its existing product-reference
+wire format is preserved by the gateway adapter. That format no longer determines the
+internal model or requires a multi-provider tool surface.
+
+Final Kroger-only validation on the PR checkout: **837 passed, 3 skipped** across
+54 test files. `pnpm build` (lint, type-aware lint, production views, and both
+TypeScript projects), `pnpm fmt:check`, and `git diff --check` passed. The
+simplification removes 434 net lines from production source and views while
+preserving the earlier audit fixes. Dependency manifests remain unchanged.

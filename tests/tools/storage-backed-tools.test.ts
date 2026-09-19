@@ -673,11 +673,7 @@ describe("storage-backed tools", () => {
   });
 
   it("bails when the shopping list has no items with UPCs", async () => {
-    // create_shopping_list always resolves a upc from the input now, so a
-    // upc-less item can only reach the cart tool via a pre-existing stored
-    // list (e.g. a matched product missing its own upc from Kroger's API —
-    // see shop_for_items's LineItem filtering). Seed storage directly to
-    // exercise that path.
+    // Name-only list items need matching before they can enter the cart.
     const storage = makeStorage();
     storage.preferredLocation = {
       get: async () => null,
@@ -704,7 +700,7 @@ describe("storage-backed tools", () => {
         (i) => i.productName,
       ),
     ).toEqual(["Strawberries"]);
-    expect(result.text).toContain("no Kroger product references");
+    expect(result.text).toContain("no matched Kroger UPCs");
   });
 
   it("reports no shopping list found for an unknown or forged listId", async () => {

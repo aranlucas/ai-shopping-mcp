@@ -7,19 +7,7 @@
  */
 import * as z from "zod/v4";
 
-/**
- * A UPC field that trims whitespace, accepts 1-13 digits, and left-pads to 13
- * digits. Rejects anything that isn't digits with a message that tells the
- * model exactly what to do next.
- */
-export const upcSchema = z
-  .string()
-  .trim()
-  .refine((value) => /^\d{1,13}$/.test(value), {
-    message:
-      "UPC must be up to 13 digits — copy the upc value from search_products output exactly, including leading zeros.",
-  })
-  .transform((value) => value.padStart(13, "0"));
+export { upcSchema } from "../domain/product-identity.js";
 
 /**
  * A store ID field that trims whitespace and requires exactly 8 characters,

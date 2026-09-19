@@ -11,7 +11,6 @@ import {
   computeRestockSuggestions,
   registerRecipeTools,
 } from "../../src/tools/recipes.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type AuthContext = {
   props?: {
@@ -111,7 +110,6 @@ function makeContext(storage = makeStorage()): ToolContext {
       },
       enrichProductName: async () => null,
     } as unknown as ToolContext["productService"],
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,

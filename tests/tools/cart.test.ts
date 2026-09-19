@@ -20,7 +20,6 @@ import {
   wrapV2ToolHandler,
   type TestToolConfig,
 } from "../v2-tool-handler.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 import { AppErrorException, authError } from "../../src/errors.js";
 
 function stubProductService(): ToolContext["productService"] {
@@ -104,7 +103,7 @@ function listFixture(overrides: Partial<ShoppingList> = {}): ShoppingList {
         id: "item-milk",
         checked: false,
         productName: "Organic Whole Milk",
-        product: { provider: "kroger", id: "0001111042578" },
+        upc: "0001111042578",
         quantity: 2,
       },
       {
@@ -244,7 +243,6 @@ function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
-    catalogs: stubCatalogRegistry(),
     storage: actualStorage,
     carts: actualStorage,
     getEnv: () => ({}) as Env,
@@ -508,7 +506,6 @@ describe("add_shopping_list_to_cart tool", () => {
       const storage = makeStorage(
         listFixture(),
         {
-          provider: "kroger",
           locationId: LOCATION_ID,
           locationName: "QFC Broadway",
           address: "500 Broadway E",
@@ -645,7 +642,6 @@ describe("add_shopping_list_to_cart tool", () => {
   describe("inline items path", () => {
     it("adds inline upc/quantity items directly without a listId", async () => {
       const storage = makeStorage(null, {
-        provider: "kroger",
         locationId: LOCATION_ID,
         locationName: "QFC Broadway",
         address: "500 Broadway E",
@@ -724,7 +720,6 @@ describe("add_shopping_list_to_cart tool", () => {
       const storage = makeStorage(
         null,
         {
-          provider: "kroger",
           locationId: LOCATION_ID,
           locationName: "QFC Broadway",
           address: "500 Broadway E",

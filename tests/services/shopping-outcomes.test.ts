@@ -4,7 +4,7 @@ import {
   classifyShoppingItem,
   summarizeShoppingOutcomes,
 } from "../../src/services/shopping-outcomes.js";
-import type { ProductSearchResult } from "../../src/services/catalog/kroger-search.js";
+import type { ProductSearchResult } from "../../src/services/kroger/search.js";
 import type { ProductSelection } from "../../src/services/product-selector.js";
 
 const request = { requestId: "item_0", name: "Milk", quantity: 2 };

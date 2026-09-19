@@ -1,4 +1,3 @@
-import { krogerProductId } from "../domain/product-identity.js";
 import { ResourceTemplate } from "@modelcontextprotocol/server";
 import { getProps, safeStorage } from "../utils/result.js";
 import { toonResource } from "../utils/toon.js";
@@ -146,7 +145,7 @@ export function registerResources(ctx: ToolContext) {
           ordersResult.map((orders) => {
             for (const order of orders) {
               for (const item of order.items) {
-                const upc = krogerProductId(item.product);
+                const upc = item.upc;
                 if (upc && /^\d{13}$/.test(upc)) {
                   upcs.add(upc);
                 }

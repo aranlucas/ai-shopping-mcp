@@ -6,7 +6,6 @@ import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
@@ -121,7 +120,6 @@ function makeContext(
     productService: new ProductService(
       productClient as KrogerClients["productClient"],
     ),
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: {} as ToolContext["carts"],
     getEnv: () => ({}) as Env,
@@ -449,17 +447,16 @@ describe("registerResources", () => {
                 orderId: "o1",
                 items: [
                   {
-                    product: { provider: "kroger", id: "2222222222222" },
+                    upc: "2222222222222",
                     productName: "Eggs",
                     quantity: 1,
                   },
                   {
-                    product: { provider: "kroger", id: "short" },
+                    upc: "short",
                     productName: "Bad",
                     quantity: 1,
                   },
                   {
-                    product: { provider: "another_store", id: "1111111111111" },
                     productName: "Other store",
                     quantity: 1,
                   },
@@ -491,7 +488,7 @@ describe("registerResources", () => {
                 orderId: "o1",
                 items: [
                   {
-                    product: { provider: "kroger", id: "3333333333333" },
+                    upc: "3333333333333",
                     productName: "Milk",
                     quantity: 1,
                   },
@@ -503,7 +500,7 @@ describe("registerResources", () => {
                 orderId: "o2",
                 items: [
                   {
-                    product: { provider: "kroger", id: "3333333333333" },
+                    upc: "3333333333333",
                     productName: "Milk",
                     quantity: 1,
                   },

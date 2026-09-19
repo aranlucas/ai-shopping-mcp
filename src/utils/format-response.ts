@@ -10,12 +10,9 @@ import { formatKrogerPrice } from "../services/kroger/price.js";
 
 import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
-import type {
-  CatalogProduct,
-  CatalogProvider,
-  CatalogSearchResult,
-} from "../services/catalog/types.js";
-import { formatProductReference } from "../services/catalog/types.js";
+import type { ProductData } from "../app-results.js";
+import type { ProductSearchResult } from "../services/kroger/search.js";
+import { toProductData } from "../services/kroger/product-data.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -141,15 +138,15 @@ export function formatPreferredLocationCompact(
 
 /**
  * COMPACT: Token-efficient shopping list item formatting
- * Format: Name x qty | productRef | Notes
+ * Format: Name x qty | UPC | Notes
  */
 export function formatShoppingListItemCompact(item: ShoppingListItem): string {
   const parts: string[] = [];
 
   parts.push(`${item.productName} x${item.quantity}`);
 
-  if (item.product) {
-    parts.push(`productRef=${formatProductReference(item.product)}`);
+  if (item.upc) {
+    parts.push(`upc=${item.upc}`);
   }
 
   if (item.notes) {
@@ -183,21 +180,12 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 // the React views because some hosts also expose it to the model.
 // ---------------------------------------------------------------------------
 
-/**
- * One catalog line, in the shared vocabulary.
- *
- * The identifier is one namespaced `productRef=` token. Provider adapters own
- * native UPC/SKU details; generic tools only copy the universal reference.
- */
-export function formatCatalogProductLine(
-  product: CatalogProduct,
-  provider: CatalogProvider,
+/** A compact Kroger product line with a copyable UPC. */
+export function formatProductLine(
+  product: ProductData,
   options: { includeLocation?: boolean } = {},
 ): string {
-  const parts: string[] = [
-    `productRef=${formatProductReference(product.ref)}`,
-    product.name,
-  ];
+  const parts: string[] = [`upc=${product.upc}`, product.name];
 
   if (product.brand) parts.push(product.brand);
   if (product.size) parts.push(product.size);
@@ -210,8 +198,7 @@ export function formatCatalogProductLine(
     );
   }
 
-  if (provider.capabilities.cart)
-    parts.push(`pickup: ${product.pickup ? "yes" : "no"}`);
+  parts.push(`pickup: ${product.pickup ? "yes" : "no"}`);
   if (!product.available) parts.push("out of stock");
 
   const aisle = product.aisle;
@@ -235,66 +222,39 @@ export function formatCatalogProductLine(
   return `- ${parts.join(" | ")}`;
 }
 
-/** Exact product details in the same provider-neutral vocabulary as search. */
-export function formatCatalogProductDetailMarkdown(
-  product: CatalogProduct,
-  provider: CatalogProvider,
-): string {
-  return formatCatalogProductLine(product, provider, {
-    includeLocation: true,
-  }).slice(2);
+export function formatProductDetails(product: ProductData): string {
+  return formatProductLine(product, { includeLocation: true }).slice(2);
 }
 
-/**
- * Markdown for search_products: one heading per search term, then one block per
- * provider that was searched.
- *
- * The closing lines name which providers can reach a cart and which cannot,
- * because that is the one difference between them a model must act on.
- */
-export function formatCatalogSearchMarkdown(
-  results: CatalogSearchResult[],
-  providers: CatalogProvider[],
+/** One result per requested term; preserve failures separately from empty searches. */
+export function formatProductSearchMarkdown(
+  results: ProductSearchResult[],
   options: { includeLocation?: boolean } = {},
 ): string {
-  const terms = [...new Set(results.map((result) => result.term))];
   const lines: string[] = [];
-
-  for (const term of terms) {
-    lines.push(`## ${term}`);
-    for (const provider of providers) {
-      const result = results.find(
-        (candidate) =>
-          candidate.term === term && candidate.provider === provider.id,
+  for (const result of results) {
+    lines.push(`## ${result.term}`);
+    if (result.status === "failed") {
+      lines.push(
+        `- Kroger search failed for this term. ${result.error.message} recovery=${errorRecovery(result.error)}`,
       );
-      if (!result) continue;
-      if (result.status === "failed") {
-        lines.push(
-          `- ${provider.label} search failed for this term. ${result.error.message} recovery=${errorRecovery(result.error)}`,
-        );
-      } else if (result.products.length === 0) {
-        lines.push(`- No ${provider.label} results.`);
-      } else {
-        for (const product of result.products) {
-          lines.push(formatCatalogProductLine(product, provider, options));
-        }
-      }
+    } else if (result.products.length === 0) {
+      lines.push("- No Kroger results.");
+    } else {
+      lines.push(
+        ...result.products.map((product) =>
+          formatProductLine(
+            toProductData(product, options.includeLocation),
+            options,
+          ),
+        ),
+      );
     }
   }
-
-  const cartable = providers.filter((provider) => provider.capabilities.cart);
-  const listOnly = providers.filter((provider) => !provider.capabilities.cart);
-  lines.push("");
-  if (cartable.length > 0) {
-    lines.push(
-      "To save exact matches, pass the productRef values above to create_shopping_list.",
-    );
-  }
-  for (const provider of listOnly) {
-    lines.push(
-      `${provider.label} has no cart: its productRef can be saved to a list but cannot be sent to a cart tool.`,
-    );
-  }
+  lines.push(
+    "",
+    "To save exact matches, pass the UPCs above to create_shopping_list.",
+  );
   return lines.join("\n");
 }
 

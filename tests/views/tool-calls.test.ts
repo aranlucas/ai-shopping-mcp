@@ -77,7 +77,7 @@ describe("view tool call helpers", () => {
       createProductShoppingListCall({
         productName: "Whole Milk",
         quantity: 2,
-        productRef: "kroger:0001111041700",
+        upc: "0001111041700",
       }),
     ).toEqual({
       name: "create_shopping_list",
@@ -86,7 +86,7 @@ describe("view tool call helpers", () => {
         items: [
           {
             productName: "Whole Milk",
-            productRef: "kroger:0001111041700",
+            upc: "0001111041700",
             quantity: 2,
           },
         ],
@@ -165,7 +165,7 @@ describe("view tool call helpers", () => {
     await saveProductToList(app, {
       productName: "Sourdough Bread",
       quantity: 1,
-      productRef: "kroger:0001111041717",
+      upc: "0001111041717",
     });
 
     expect(calls).toEqual([
@@ -176,7 +176,7 @@ describe("view tool call helpers", () => {
           items: [
             {
               productName: "Sourdough Bread",
-              productRef: "kroger:0001111041717",
+              upc: "0001111041717",
               quantity: 1,
             },
           ],
@@ -192,7 +192,7 @@ describe("view tool call helpers", () => {
       saveProductToList(app, {
         productName: "Sourdough Bread",
         quantity: 1,
-        productRef: "kroger:0001111041717",
+        upc: "0001111041717",
       }),
     ).rejects.toThrow("Shopping list id missing");
   });

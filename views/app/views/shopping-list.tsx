@@ -1,6 +1,5 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useCallback, useMemo } from "react";
-import { krogerProductId } from "../../../src/domain/product-identity.js";
 import { Badge } from "../../shared/ui/badge";
 import {
   ActionButton,
@@ -34,7 +33,7 @@ const EMPTY_LIST_ICON = (
 );
 
 function ShoppingItem({ item }: { item: ShoppingListItemData }) {
-  const ready = Boolean(krogerProductId(item.product));
+  const ready = Boolean(item.upc);
   return (
     <li className="flex items-start gap-4 py-4">
       <div className="min-w-0 flex-1">
@@ -42,11 +41,6 @@ function ShoppingItem({ item }: { item: ShoppingListItemData }) {
           {item.productName}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          {item.product && (
-            <span className="text-xs text-gray-500">
-              {item.product.provider}
-            </span>
-          )}
           {!ready && (
             <Badge variant="outline" tone="warning">
               Needs Kroger match
@@ -89,7 +83,7 @@ export function ShoppingListView({
     (): string | null => null,
   );
   const readyItems = useMemo(
-    () => items.filter((item) => Boolean(krogerProductId(item.product))),
+    () => items.filter((item) => Boolean(item.upc)),
     [items],
   );
   const unmatchedItems = useMemo(

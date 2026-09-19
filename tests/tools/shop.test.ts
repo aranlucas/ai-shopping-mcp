@@ -20,7 +20,6 @@ import {
   wrapV2ToolHandler,
   type TestToolConfig,
 } from "../v2-tool-handler.js";
-import { stubCatalogRegistry } from "../catalog-stub.js";
 import { stubJevAi, type JevRun } from "../jev-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -203,7 +202,6 @@ function makeContext(
       },
     } as unknown as ToolContext["clients"],
     productService: stubProductService(),
-    catalogs: stubCatalogRegistry(),
     storage,
     carts: storage,
     getEnv: () =>
@@ -226,7 +224,6 @@ function getCapturedHandler(name: string): ToolHandler {
 }
 
 const PREFERRED_LOCATION: PreferredLocation = {
-  provider: "kroger",
   locationId: "70500034",
   locationName: "QFC Broadway",
   address: "417 Broadway E",
@@ -280,13 +277,10 @@ describe("shop_for_items", () => {
       _meta: { "dev.aranlucas/view": "create_shopping_list" },
     });
     expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
-    expect(
-      (
-        sc["items"] as Array<{
-          product?: { provider: string; id: string };
-        }>
-      ).map((i) => i.product?.id),
-    ).toEqual(["0001111041700", "0002000000029"]);
+    expect((sc["items"] as Array<{ upc?: string }>).map((i) => i.upc)).toEqual([
+      "0001111041700",
+      "0002000000029",
+    ]);
 
     const text = textFromResult(result);
     expect(text).toContain("whole milk → Kroger 2% Reduced Fat Milk");
@@ -322,9 +316,9 @@ describe("shop_for_items", () => {
     });
 
     const sc = structuredContentOf(result);
-    expect(
-      (sc["items"] as Array<{ product?: { id: string } }>)[0]?.product?.id,
-    ).toBe("2222222222222");
+    expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(
+      "2222222222222",
+    );
   });
 
   it("tracks names with zero results and still creates a list for the rest", async () => {
@@ -566,11 +560,11 @@ describe("shop_for_items", () => {
       expect(run).toHaveBeenCalledTimes(1);
       expect(structuredContentOf(result)["items"]).toEqual([
         expect.objectContaining({
-          product: { provider: "kroger", id: milk.upc },
+          upc: milk.upc,
           quantity: 2,
         }),
         expect.objectContaining({
-          product: { provider: "kroger", id: eggs.upc },
+          upc: eggs.upc,
           quantity: 3,
         }),
       ]);
@@ -596,7 +590,7 @@ describe("shop_for_items", () => {
       expect(structuredContentOf(result)["items"]).toEqual([
         expect.objectContaining({
           productName: "Milk 20",
-          product: { provider: "kroger", id: "0000000000020" },
+          upc: "0000000000020",
         }),
       ]);
     });
@@ -708,9 +702,9 @@ describe("shop_for_items", () => {
       });
 
       const sc = structuredContentOf(result);
-      expect(
-        (sc["items"] as Array<{ product?: { id: string } }>)[0]?.product?.id,
-      ).toBe("2222222222222");
+      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(
+        "2222222222222",
+      );
     });
   });
 

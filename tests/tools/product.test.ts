@@ -17,8 +17,6 @@ import {
   wrapV2ToolHandler,
   type TestToolConfig,
 } from "../v2-tool-handler.js";
-import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
-import { stubCatalogProvider } from "../catalog-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -129,9 +127,6 @@ function makeContext(
     server: server as unknown as ToolContext["server"],
     clients,
     productService: new ProductService(clients.productClient),
-    // The Kroger provider wraps the stubbed productClient so these tests still
-    // exercise the real Kroger query shape through the provider-agnostic tool.
-    catalogs: { kroger: createKrogerCatalogProvider(clients.productClient) },
     storage: storage ?? makeStorage(),
     carts: {} as ToolContext["carts"],
     getEnv: () =>
@@ -285,6 +280,33 @@ describe("search_products", () => {
     expect(config.description).toContain("do not call once per item");
   });
 
+  it("accepts only the Kroger search fields", () => {
+    registerProductTools(makeContext(async () => makeSearchResponse([])));
+
+    const tool = getCapturedTool("search_products");
+    const config = tool.config as {
+      inputSchema: {
+        shape: Record<string, unknown>;
+        safeParse: (value: unknown) => { success: boolean };
+      };
+    };
+
+    expect(config.inputSchema.shape.providers).toBeUndefined();
+    expect(config.inputSchema.shape.stores).toBeUndefined();
+    expect(
+      config.inputSchema.safeParse({
+        terms: ["milk"],
+        providers: ["kroger"],
+      }).success,
+    ).toBe(false);
+    expect(
+      config.inputSchema.safeParse({
+        terms: ["milk"],
+        stores: { kroger: "70500847" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("describes shelf location output as opt-in for in-store grocery routes", () => {
     registerProductTools(makeContext(async () => makeSearchResponse([])));
 
@@ -302,8 +324,8 @@ describe("search_products", () => {
     const includeLocation = config.inputSchema.shape.includeLocation;
 
     expect(includeLocation.parse(undefined)).toBe(false);
-    expect(includeLocation.description).toContain("finding items on the shelf");
-    expect(includeLocation.description).toContain("in-store grocery route");
+    expect(includeLocation.description).toContain("aisle");
+    expect(includeLocation.description).toContain("shelf");
   });
 
   it("routes through result metadata and returns the compact search payload", async () => {
@@ -318,10 +340,8 @@ describe("search_products", () => {
 
     const sc = structuredContentOf(result) as {
       results: Array<{
-        provider: string;
         term: string;
         products: ProductData[];
-        count: number;
         failed: boolean;
       }>;
       totalProducts: number;
@@ -332,12 +352,8 @@ describe("search_products", () => {
     });
     expect(sc.totalProducts).toBe(1);
     expect(sc.results).toHaveLength(1);
-    expect(sc.results[0].provider).toBe("kroger");
     expect(sc.results[0].term).toBe("milk");
-    expect(sc.results[0].products[0].product).toEqual({
-      provider: "kroger",
-      id: "0001111041700",
-    });
+    expect(sc.results[0].products[0].upc).toBe("0001111041700");
     expect(sc.results[0].failed).toBe(false);
   });
 
@@ -371,9 +387,7 @@ describe("search_products", () => {
     expect(textFromResult(result)).toContain("No Kroger results.");
     expect(result).toMatchObject({
       structuredContent: {
-        results: [
-          { term: "unknownitem", products: [], count: 0, failed: false },
-        ],
+        results: [{ term: "unknownitem", products: [], failed: false }],
         totalProducts: 0,
       },
     });
@@ -410,11 +424,10 @@ describe("search_products", () => {
 
     const sc = structuredContentOf(result) as {
       results: Array<{
-        provider: string;
         term: string;
         failed: boolean;
         products: ProductData[];
-        count: number;
+        error?: string;
       }>;
       totalProducts: number;
     };
@@ -422,17 +435,15 @@ describe("search_products", () => {
     expect(sc.totalProducts).toBe(1);
     expect(sc.results).toHaveLength(2);
 
-    const milkResult = sc.results.find(
-      (r) => r.provider === "kroger" && r.term === "milk",
-    );
+    const milkResult = sc.results.find((r) => r.term === "milk");
     expect(milkResult?.failed).toBe(false);
     expect(milkResult?.products).toHaveLength(1);
 
-    const breadResult = sc.results.find(
-      (r) => r.provider === "kroger" && r.term === "bread",
-    );
+    const breadResult = sc.results.find((r) => r.term === "bread");
     expect(breadResult?.failed).toBe(true);
-    expect(breadResult?.count).toBe(0);
+    expect(breadResult?.error).toContain(
+      'Failed to search products for "bread"',
+    );
   });
 
   it("passes provided storeId as 'filter.locationId' in the API query params", async () => {
@@ -535,7 +546,6 @@ describe("search_products", () => {
   it("resolves preferred location from storage and uses it as 'filter.locationId' when no storeId arg is given", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     const storage = makeStorage({
-      provider: "kroger",
       locationId: "99887766",
       locationName: "QFC Store",
       address: "123 Main St",
@@ -586,16 +596,11 @@ describe("search_products", () => {
     expect(firstParams.total).toBe(2);
   });
 
-  it("accepts progress token zero and counts progress across providers", async () => {
+  it("accepts progress token zero and counts progress across terms", async () => {
     const notifications: unknown[] = [];
     const context = makeContext(async () =>
       makeSearchResponse([makeProduct()]),
     );
-    const kroger = context.catalogs.kroger;
-    context.catalogs = {
-      kroger,
-      second: { ...kroger, id: "second", label: "Second" },
-    };
     registerProductTools(context);
     await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
       mcpReq: {
@@ -606,9 +611,9 @@ describe("search_products", () => {
       },
     } as unknown as ServerContext);
     expect(notifications).toEqual(
-      [1, 2, 3, 4].map((progress) => ({
+      [1, 2].map((progress) => ({
         method: "notifications/progress",
-        params: { progressToken: 0, progress, total: 4 },
+        params: { progressToken: 0, progress, total: 2 },
       })),
     );
   });
@@ -652,8 +657,8 @@ describe("search_products", () => {
       results: Array<{ products: ProductData[] }>;
     };
     const products = sc.results[0].products;
-    expect(products[0].product.id).toBe("2222222222222"); // pickup product sorted first
-    expect(products[1].product.id).toBe("1111111111111"); // no-pickup product sorted after
+    expect(products[0].upc).toBe("2222222222222"); // pickup product sorted first
+    expect(products[1].upc).toBe("1111111111111"); // no-pickup product sorted after
   });
 
   it("projects structuredContent to view fields and omits catalog-only metadata", async () => {
@@ -673,7 +678,7 @@ describe("search_products", () => {
     };
     const projected = sc.results[0].products[0];
     expect(projected).toMatchObject({
-      product: { provider: "kroger", id: "0001111041700" },
+      upc: "0001111041700",
       name: "Test Milk",
       category: "Dairy",
       imageUrl: "https://example.com/milk.jpg",
@@ -692,7 +697,7 @@ describe("search_products", () => {
     const text = textFromResult(result);
     expect(text).not.toContain("itemId");
     expect(text).not.toContain("images");
-    expect(text).toContain("productRef=kroger:0001111041700");
+    expect(text).toContain("upc=0001111041700");
     expect(text).toContain("pickup: yes");
     expect(text).not.toContain("location:");
     expect(text).not.toContain("shelf:");
@@ -744,7 +749,7 @@ describe("search_products", () => {
     expect(text).toContain("shelf position: 2");
   });
 
-  it("markdown content reminds callers to preserve productRef for create_shopping_list", async () => {
+  it("markdown content reminds callers to preserve UPCs for create_shopping_list", async () => {
     const product = makeProduct();
     registerProductTools(
       makeContext(async () => makeSearchResponse([product])),
@@ -755,7 +760,7 @@ describe("search_products", () => {
     });
 
     expect(textFromResult(result)).toContain(
-      "pass the productRef values above to create_shopping_list",
+      "pass the UPCs above to create_shopping_list",
     );
   });
 });
@@ -784,10 +789,7 @@ describe("get_product", () => {
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "get_product" },
     });
-    expect(sc.product.product).toEqual({
-      provider: "kroger",
-      id: "0001111041700",
-    });
+    expect(sc.product.upc).toBe("0001111041700");
     expect(sc.product.name).toBe("Test Milk");
     expect(sc.product).toMatchObject({
       size: "1 gal",
@@ -799,36 +801,30 @@ describe("get_product", () => {
     expect(sc.product).not.toHaveProperty("allergensDescription");
   });
 
-  it("dispatches a Sample Catalog productRef through its catalog provider", async () => {
-    const ctx = makeContext(async () => makeDetailResponse(undefined));
-    ctx.catalogs = {
-      ...ctx.catalogs,
-      sample_catalog: stubCatalogProvider({
-        products: [
-          {
-            ref: { provider: "sample_catalog", id: "076892" },
-            name: "Chili Onion Crunch",
-            price: 3.99,
-            available: true,
-          },
-        ],
-      }),
-    };
-    registerProductTools(ctx);
+  it("accepts a legacy Kroger productRef and routes it to the UPC endpoint", async () => {
+    const product = makeProduct();
+    const productGet = vi.fn<ProductGetFn>(async () =>
+      makeDetailResponse(product),
+    );
+    registerProductTools(makeContext(productGet));
 
     const result = await getCapturedHandler("get_product")({
-      productRef: "sample_catalog:076892",
+      productRef: "kroger:0001111041700",
     });
 
     const sc = structuredContentOf(result) as { product: ProductData };
     expect(isErrorResult(result)).toBe(false);
     expect(sc.product).toMatchObject({
-      product: { provider: "sample_catalog", id: "076892" },
-      name: "Chili Onion Crunch",
-      price: 3.99,
+      upc: "0001111041700",
+      name: "Test Milk",
     });
-    expect(textFromResult(result)).toContain(
-      "productRef=sample_catalog:076892",
+    expect(productGet).toHaveBeenCalledWith(
+      "/v1/products/{id}",
+      expect.objectContaining({
+        params: expect.objectContaining({
+          path: { id: "0001111041700" },
+        }),
+      }),
     );
   });
 
@@ -889,7 +885,7 @@ describe("get_product", () => {
     // markdown (model context) strips the images field
     const text = textFromResult(result);
     expect(text).not.toContain("images");
-    expect(text).toContain("productRef=kroger:0001111041700");
+    expect(text).toContain("upc=0001111041700");
   });
 
   it("accepts a 10-digit upc and pads it to 13 digits via the schema", () => {
@@ -905,18 +901,31 @@ describe("get_product", () => {
     );
   });
 
-  it("accepts a universal productRef", () => {
+  it("accepts a legacy Kroger productRef", () => {
     registerProductTools(
       makeContext(async () => makeDetailResponse(undefined)),
     );
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
-      inputSchema: { parse: (value: unknown) => { productRef: string } };
+      inputSchema: { parse: (value: unknown) => { upc: string } };
     };
     expect(
-      config.inputSchema.parse({ productRef: "sample_catalog:076892" })
-        .productRef,
-    ).toBe("sample_catalog:076892");
+      config.inputSchema.parse({ productRef: "kroger:0001111041700" }).upc,
+    ).toBe("0001111041700");
+  });
+
+  it("rejects a foreign provider productRef in the input schema", () => {
+    registerProductTools(
+      makeContext(async () => makeDetailResponse(undefined)),
+    );
+    const tool = getCapturedTool("get_product");
+    const config = tool.config as {
+      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
+    };
+    expect(
+      config.inputSchema.safeParse({ productRef: "sample_catalog:076892" })
+        .success,
+    ).toBe(false);
   });
 
   it("rejects a upc containing letters", () => {

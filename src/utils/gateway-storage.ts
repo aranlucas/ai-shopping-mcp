@@ -49,7 +49,7 @@ const equipmentItemSchema = z.object({
 });
 
 const orderItemSchema = z.object({
-  upc: z.string().optional(),
+  upc: nullableStringSchema,
   product: productReferenceSchema.nullable().optional(),
   name: z.string(),
   quantity: z.number().int(),
@@ -69,7 +69,7 @@ const orderSchema = z.object({
 const preferredStoreSchema = z.object({
   // Gateways deployed before v1.1 do not return this field. They only ever
   // stored Kroger locations, so the compatibility default is unambiguous.
-  provider: z.string().default("kroger"),
+  provider: z.literal("kroger").default("kroger"),
   location_id: z.string(),
   name: z.string(),
   address: z.string(),
@@ -223,15 +223,20 @@ function adaptEquipmentItem(
   };
 }
 
+function adaptOrderItem(item: z.output<typeof orderItemSchema>) {
+  const upc = normalizeProductIdentity(item);
+  return {
+    ...(upc === undefined ? {} : { upc }),
+    productName: item.name,
+    quantity: item.quantity,
+    ...(item.price == null ? {} : { price: item.price }),
+  };
+}
+
 function adaptOrder(order: z.output<typeof orderSchema>): OrderRecord {
   return {
     orderId: order.id,
-    items: order.items.map((item) => ({
-      product: normalizeProductIdentity(item),
-      productName: item.name,
-      quantity: item.quantity,
-      ...(item.price == null ? {} : { price: item.price }),
-    })),
+    items: order.items.map(adaptOrderItem),
     totalItems: order.total_items,
     ...(order.estimated_total == null
       ? {}
@@ -246,7 +251,6 @@ function adaptPreferredStore(
   store: z.output<typeof preferredStoreSchema>,
 ): PreferredLocation {
   return {
-    provider: store.provider,
     locationId: store.location_id,
     locationName: store.name,
     address: store.address,
@@ -258,10 +262,11 @@ function adaptPreferredStore(
 function adaptShoppingListItem(
   item: z.output<typeof listItemSchema>,
 ): StoredShoppingListItem {
+  const upc = normalizeProductIdentity(item);
   return {
     id: item.id,
     productName: item.name,
-    product: normalizeProductIdentity(item),
+    ...(upc === undefined ? {} : { upc }),
     quantity: item.quantity,
     ...(item.note == null ? {} : { notes: item.note }),
     checked: item.checked_at != null,
@@ -294,7 +299,9 @@ function toGatewayNewItem(item: ShoppingListItem) {
     name: item.productName,
     quantity: String(item.quantity),
     note: item.notes ?? null,
-    ...(item.product === undefined ? {} : { product: item.product }),
+    ...(item.upc === undefined
+      ? {}
+      : { product: { provider: "kroger" as const, id: item.upc } }),
   };
 }
 
@@ -372,7 +379,7 @@ export function createGatewayShoppingStore(
         await readGateway(
           client.PUT("/api/grocery/preferred-store", {
             body: {
-              provider: location.provider,
+              provider: "kroger" as const,
               location_id: location.locationId,
               name: location.locationName,
               address: location.address,
@@ -556,9 +563,14 @@ export function createGatewayShoppingStore(
             body: {
               id: order.orderId,
               items: order.items.map((item) => ({
-                ...(item.product === undefined
+                ...(item.upc === undefined
                   ? {}
-                  : { product: item.product }),
+                  : {
+                      product: {
+                        provider: "kroger" as const,
+                        id: item.upc,
+                      },
+                    }),
                 name: item.productName,
                 quantity: item.quantity,
                 ...(item.price === undefined ? {} : { price: item.price }),

@@ -68,6 +68,14 @@ describe("input forgiveness", () => {
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
+    it("accepts a legacy Kroger productRef", async () => {
+      const result = await call("get_product", {
+        productRef: "kroger:0001111041700",
+      });
+      expect(result.isError, `${contentText(result)}`).toBeFalsy();
+      expect(contentText(result)).toContain("0001111041700");
+    });
+
     it("accepts record_order items keyed by upc", async () => {
       const result = await call("record_order", {
         items: [{ upc: "0001111041700", productName: "Milk", quantity: 1 }],
@@ -113,17 +121,17 @@ describe("input forgiveness", () => {
       });
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
+  });
 
-    it("ignores unknown extra keys instead of rejecting the call", async () => {
+  describe("rejected (error must name the fix)", () => {
+    it("rejects unknown extra keys instead of silently accepting them", async () => {
       const result = await call("search_products", {
         terms: ["milk"],
         reasoning: "the user asked for milk",
       });
-      expect(result.isError, `${contentText(result)}`).toBeFalsy();
+      expect(result.isError, `${contentText(result)}`).toBeTruthy();
     });
-  });
 
-  describe("rejected (error must name the fix)", () => {
     it("rejects a non-numeric UPC with instructions to copy it from search_products", async () => {
       const result = await call("get_product", { upc: "not-a-upc" });
       expect(result.isError).toBe(true);
@@ -132,6 +140,13 @@ describe("input forgiveness", () => {
 
     it("rejects get_product with productId instead of upc", async () => {
       const result = await call("get_product", { productId: "1111041700" });
+      expect(result.isError).toBe(true);
+    });
+
+    it("rejects a foreign provider productRef", async () => {
+      const result = await call("get_product", {
+        productRef: "sample_catalog:076892",
+      });
       expect(result.isError).toBe(true);
     });
 

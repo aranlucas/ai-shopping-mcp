@@ -22,8 +22,8 @@ import {
   createEvalMcpClient,
   estimateTokens,
   extractListIds,
-  extractProductRefs,
   extractStoreIds,
+  extractUpcs,
   installKrogerFetchStub,
 } from "./harness.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
@@ -164,12 +164,12 @@ describe("meal planning weekly deals (wire eval)", () => {
     expect(context.structuredContent).toBeUndefined();
 
     const search = await call("search_products", { terms: ["milk"], storeId });
-    const [productRef] = extractProductRefs(contentText(search));
-    expect(productRef).toBeDefined();
+    const [upc] = extractUpcs(contentText(search));
+    expect(upc).toBeDefined();
 
     const list = await call("create_shopping_list", {
       name: "Milk dinner plan",
-      items: [{ productRef, quantity: 1 }],
+      items: [{ upc, quantity: 1 }],
     });
     expect(extractListIds(contentText(list))).toHaveLength(1);
     expect(toolCalls).toBeLessThanOrEqual(3);
