@@ -28,7 +28,16 @@ export function AddToCartView({
 }: {
   data: AddShoppingListToCartContent;
 }) {
-  const { listId, name, items, needsUpc, actionDetail } = data;
+  const {
+    listId,
+    name,
+    items,
+    needsUpc,
+    actionDetail,
+    outcome,
+    addedCount,
+    requestedCount,
+  } = data;
   const title = `Cart · ${name}`;
 
   const headerBadge = useMemo(
@@ -41,14 +50,17 @@ export function AddToCartView({
     [listId],
   );
 
-  if (items.length === 0 && needsUpc.length === 0) {
+  if (outcome === "needs_match" && items.length === 0) {
     return (
       <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
         <SectionHeader title={title} badge={headerBadge} />
         <EmptyState
           icon={EMPTY_CART_ICON}
-          message="No items in the cart"
-          description="Add items with UPCs to your shopping list, then call add_shopping_list_to_cart."
+          message="Items need a Kroger match"
+          description={
+            actionDetail ??
+            "Search Kroger for matches, then try add_shopping_list_to_cart again."
+          }
         />
       </div>
     );
@@ -66,7 +78,8 @@ export function AddToCartView({
         <>
           <div className="mb-3 flex flex-wrap gap-1.5">
             <Badge variant="secondary" tone="success">
-              {items.length} added
+              {addedCount}{" "}
+              {outcome === "already_added" ? "already added" : "added"}
             </Badge>
             {needsUpc.length > 0 && (
               <Badge variant="outline" tone="warning">
@@ -74,6 +87,12 @@ export function AddToCartView({
               </Badge>
             )}
           </div>
+
+          {requestedCount > addedCount && (
+            <p className="mb-3 text-sm text-amber-700">
+              {requestedCount - addedCount} item(s) still need a Kroger match.
+            </p>
+          )}
 
           <div className="divide-y divide-border">
             {items.map((item) => (

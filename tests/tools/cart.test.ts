@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type {
-  CartStore,
-  CartSnapshotItem,
   PreferredLocation,
   ShoppingList,
+} from "../../src/domain/shopping.js";
+import type {
+  CartStore,
+  CartSnapshotItem,
 } from "../../src/utils/user-storage.js";
 
 import {
@@ -16,6 +18,7 @@ import {
 import {
   type TestToolHandler as ToolHandler,
   wrapV2ToolHandler,
+  type TestToolConfig,
 } from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 import { AppErrorException, authError } from "../../src/errors.js";
@@ -98,11 +101,15 @@ function listFixture(overrides: Partial<ShoppingList> = {}): ShoppingList {
     createdAt: new Date().toISOString(),
     items: [
       {
+        id: "item-milk",
+        checked: false,
         productName: "Organic Whole Milk",
-        upc: "0001111042578",
+        product: { provider: "kroger", id: "0001111042578" },
         quantity: 2,
       },
       {
+        id: "item-bread",
+        checked: false,
         productName: "Sourdough Bread",
         quantity: 1,
       },
@@ -196,11 +203,15 @@ function makeContext(
     storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
 
   const server = {
-    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+    registerTool: (
+      name: string,
+      config: TestToolConfig,
+      handler: ToolHandler,
+    ) => {
       testState.capturedTools.push({
         name,
         config,
-        handler: wrapV2ToolHandler(handler, server),
+        handler: wrapV2ToolHandler(handler, config),
       });
     },
   };
@@ -285,6 +296,9 @@ describe("add_shopping_list_to_cart tool", () => {
       });
       expect(sc["listId"]).toBe(SHORT_LIST_ID);
       expect(sc["name"]).toBe("Tuesday Dinner");
+      expect(sc["outcome"]).toBe("added");
+      expect(sc["addedCount"]).toBe(1);
+      expect(sc["requestedCount"]).toBe(2);
       expect(sc["actionDetail"]).toContain("Tuesday Dinner");
       expect(snapshotSetCalls).toHaveLength(1);
       expect(snapshotSetCalls[0]?.[0]).toBe(SHORT_LIST_ID);
@@ -328,7 +342,36 @@ describe("add_shopping_list_to_cart tool", () => {
         storeId: LOCATION_ID,
       });
       expect(textFromResult(retry)).toContain("already added");
+      expect(structuredContent(retry)["outcome"]).toBe("already_added");
       expect(putCalls).toHaveLength(1);
+    });
+
+    it("uses the completed journal when the legacy receipt later becomes corrupt", async () => {
+      const storage = makeStorage(listFixture());
+      let reads = 0;
+      storage.cartSnapshot.get = async () => {
+        reads += 1;
+        if (reads === 1) return null;
+        throw new Error("corrupt legacy receipt");
+      };
+      const { context, putCalls } = makeContext(storage);
+      registerCartTools(context);
+      const handler = getCapturedHandler("add_shopping_list_to_cart");
+
+      expect(
+        isErrorResult(
+          await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }),
+        ),
+      ).toBe(false);
+      const retry = await handler({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
+
+      expect(isErrorResult(retry)).toBe(false);
+      expect(structuredContent(retry)["outcome"]).toBe("already_added");
+      expect(putCalls).toHaveLength(1);
+      expect(reads).toBe(1);
     });
 
     it("submits only once for concurrent calls with the same list", async () => {
@@ -342,6 +385,35 @@ describe("add_shopping_list_to_cart tool", () => {
       );
       expect(putCalls).toHaveLength(1);
       expect(results.some((result) => !isErrorResult(result))).toBe(true);
+    });
+
+    it("returns needs_match when a list has no Kroger products", async () => {
+      const storedList = listFixture({
+        items: [
+          {
+            id: "item-strawberries",
+            checked: false,
+            productName: "Strawberries",
+            quantity: 2,
+          },
+        ],
+      });
+      const { context, putCalls } = makeContext(makeStorage(storedList));
+      registerCartTools(context);
+
+      const result = await getCapturedHandler("add_shopping_list_to_cart")({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
+
+      expect(isErrorResult(result)).toBe(false);
+      expect(putCalls).toHaveLength(0);
+      expect(structuredContent(result)).toMatchObject({
+        outcome: "needs_match",
+        addedCount: 0,
+        requestedCount: 1,
+        needsUpc: [{ productName: "Strawberries", quantity: 2 }],
+      });
     });
 
     it("deduplicates inline operation ids and rejects changed payloads", async () => {
@@ -413,6 +485,8 @@ describe("add_shopping_list_to_cart tool", () => {
       const journal = context.carts.operations;
       context.carts.operations = {
         begin: (key, fingerprint) => journal.begin(key, fingerprint),
+        reconcileLegacy: (key, attempt, fingerprint, legacyFingerprint) =>
+          journal.reconcileLegacy(key, attempt, fingerprint, legacyFingerprint),
         reject: (key, attempt) => journal.reject(key, attempt),
         complete: async () => {
           throw new Error("journal unavailable");
@@ -562,7 +636,7 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(isErrorResult(result)).toBe(false);
       expect(putCalls).toHaveLength(0);
       expect(textFromResult(result)).toContain(
-        "already added to your cart from this list",
+        "already added to your Kroger cart from list",
       );
       expect(structuredContent(result)["items"]).toEqual(existingSnapshot);
     });

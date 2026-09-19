@@ -2,7 +2,7 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
-import type { EquipmentItem, PantryItem } from "../utils/user-storage.js";
+import type { EquipmentItem, PantryItem } from "../domain/shopping.js";
 import type { ToolContext } from "./types.js";
 
 import { validationError } from "../errors.js";
@@ -14,6 +14,7 @@ import {
 } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import { classifyExpiry } from "../services/expiry.js";
 import {
   computeFrequentlyPurchasedItems,
   computeRestockSuggestions,
@@ -300,15 +301,13 @@ export function registerInventoryTools(ctx: ToolContext) {
       } else {
         const now = Date.now();
         for (const item of pantry) {
-          let expiringNote = "";
-          if (item.expiresAt) {
-            const daysUntil = Math.floor(
-              (new Date(item.expiresAt).getTime() - now) /
-                (1000 * 60 * 60 * 24),
-            );
-            if (!Number.isNaN(daysUntil) && daysUntil <= 3)
-              expiringNote = " (expiring soon)";
-          }
+          const expiry = classifyExpiry(item.expiresAt, now);
+          const expiringNote =
+            expiry.status === "expired"
+              ? " (expired)"
+              : expiry.status === "today" || expiry.status === "soon"
+                ? " (expiring soon)"
+                : "";
           parts.push(`- ${item.productName} x${item.quantity}${expiringNote}`);
         }
       }

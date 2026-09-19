@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as z from "zod/v4";
 
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
+import type { WeeklyDealWarning } from "../../src/services/weekly-deals/schema.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
 
 // Install the auth mock before loading tool modules.
@@ -53,6 +54,10 @@ function dealsResponse(
     ],
     ...overrides,
   };
+}
+
+function legacyWarning(message: string): WeeklyDealWarning {
+  return { code: "legacy", details: { message } };
 }
 
 function call(args: Record<string, unknown> = {}) {
@@ -213,7 +218,7 @@ describe("meal planning with weekly deals", () => {
     seedCache({
       freshUntil: Date.now() - 60_000,
       data: dealsResponse({
-        warnings: ["Member prices require a loyalty card."],
+        warnings: [legacyWarning("Member prices require a loyalty card.")],
       }),
     });
     vi.mocked(getQfcWeeklyDeals).mockRejectedValue(

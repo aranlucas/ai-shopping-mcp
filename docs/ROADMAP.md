@@ -47,10 +47,14 @@ explicit recovery pass. Add a failing fixture to demonstrate the integration bef
 
 ### 3. Validate structured tool outputs
 
-[App results](../src/app-results.ts) have TypeScript types, but the UI parser only checks the
-view name before casting the payload. Tools also do not advertise `outputSchema`.
-Define shared runtime schemas for structured results, validate incoming view data, and expose
-the corresponding [MCP output contracts](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+[App results](../src/app-results.ts) now have shared runtime schemas for all eleven views.
+TypeScript payload types are inferred from those schemas, and the UI validates incoming
+payloads before rendering, including nested products and list items. Malformed results
+show the existing error view. Regression tests cover every view and invalid nested data.
+
+Remaining: tools do not advertise `outputSchema`. Expose the corresponding
+[MCP output contracts](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
+while accounting for success, error, and text-only branches.
 
 **Done when:** valid success payloads match their advertised schemas, malformed payloads fail
 gracefully in the app, and error/text-only branches remain valid. Measure schema and response

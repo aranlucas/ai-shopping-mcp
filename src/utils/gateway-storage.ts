@@ -1,5 +1,9 @@
 import * as z from "zod/v4";
 import {
+  normalizeProductIdentity,
+  productReferenceSchema,
+} from "../domain/product-identity.js";
+import {
   AppErrorException,
   apiError,
   authError,
@@ -17,16 +21,19 @@ import type {
   ShoppingListItem,
   ShoppingListItemPatch,
   ShoppingListSummary,
-} from "./user-storage.js";
+  StoredShoppingListItem,
+} from "../domain/shopping.js";
 
 const unixSecondsSchema = z.number().int();
 const unixMillisecondsSchema = z.number().int();
 const nullableStringSchema = z.string().nullable().optional();
 const nullableNumberSchema = z.number().nullable().optional();
-const productReferenceSchema = z.object({
-  provider: z.string(),
-  id: z.string(),
-});
+const shoppingQuantitySchema = z
+  .string()
+  .trim()
+  .regex(/^\d+(?:\.\d+)?$/u)
+  .transform(Number)
+  .pipe(z.number().min(1).max(999));
 
 const pantryItemSchema = z.object({
   name: z.string(),
@@ -74,7 +81,7 @@ const listItemSchema = z.object({
   id: z.string(),
   list_id: z.string(),
   name: z.string(),
-  quantity: z.string(),
+  quantity: shoppingQuantitySchema,
   note: z.string().nullable(),
   upc: nullableStringSchema,
   product: productReferenceSchema.nullable().optional(),
@@ -220,8 +227,7 @@ function adaptOrder(order: z.output<typeof orderSchema>): OrderRecord {
   return {
     orderId: order.id,
     items: order.items.map((item) => ({
-      ...(item.product == null ? {} : { product: item.product }),
-      ...(item.upc == null ? {} : { upc: item.upc }),
+      product: normalizeProductIdentity(item),
       productName: item.name,
       quantity: item.quantity,
       ...(item.price == null ? {} : { price: item.price }),
@@ -251,13 +257,12 @@ function adaptPreferredStore(
 
 function adaptShoppingListItem(
   item: z.output<typeof listItemSchema>,
-): ShoppingListItem {
+): StoredShoppingListItem {
   return {
     id: item.id,
     productName: item.name,
-    ...(item.product == null ? {} : { product: item.product }),
-    ...(item.upc == null ? {} : { upc: item.upc }),
-    quantity: Number.parseFloat(item.quantity) || 1,
+    product: normalizeProductIdentity(item),
+    quantity: item.quantity,
     ...(item.note == null ? {} : { notes: item.note }),
     checked: item.checked_at != null,
   };
@@ -290,7 +295,6 @@ function toGatewayNewItem(item: ShoppingListItem) {
     quantity: String(item.quantity),
     note: item.notes ?? null,
     ...(item.product === undefined ? {} : { product: item.product }),
-    ...(item.upc === undefined ? {} : { upc: item.upc }),
   };
 }
 
@@ -317,22 +321,21 @@ export interface ShoppingStore {
     clear(): Promise<void>;
   };
   shoppingList: {
-    create(
-      listId: string,
-      name: string,
-      items: ShoppingListItem[],
-    ): Promise<ShoppingList>;
+    create(input: {
+      name: string;
+      items: ShoppingListItem[];
+    }): Promise<ShoppingList>;
     get(listId: string): Promise<ShoppingList | null>;
     list(): Promise<ShoppingListSummary[]>;
     addItems(
       listId: string,
       items: ShoppingListItem[],
-    ): Promise<ShoppingListItem[]>;
+    ): Promise<StoredShoppingListItem[]>;
     updateItem(
       listId: string,
       itemId: string,
       patch: ShoppingListItemPatch,
-    ): Promise<ShoppingListItem>;
+    ): Promise<StoredShoppingListItem>;
     removeItem(listId: string, itemId: string): Promise<void>;
   };
   orderHistory: {
@@ -481,7 +484,7 @@ export function createGatewayShoppingStore(
       },
     },
     shoppingList: {
-      create: async (_listId, name, items) => {
+      create: async ({ name, items }) => {
         const data = await readGateway(
           client.POST("/api/grocery/lists", {
             body: { title: name, items: items.map(toGatewayNewItem) },
@@ -556,7 +559,6 @@ export function createGatewayShoppingStore(
                 ...(item.product === undefined
                   ? {}
                   : { product: item.product }),
-                ...(item.upc === undefined ? {} : { upc: item.upc }),
                 name: item.productName,
                 quantity: item.quantity,
                 ...(item.price === undefined ? {} : { price: item.price }),

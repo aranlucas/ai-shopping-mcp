@@ -4,6 +4,7 @@ import * as z from "zod/v4";
 
 import type {
   CatalogProduct,
+  CatalogSearchRequest,
   CatalogSearchOptions,
 } from "../services/catalog/types.js";
 import type { ProductData } from "../app-results.js";
@@ -134,6 +135,10 @@ export function registerProductTools(ctx: ToolContext) {
         ...new Set(providers ?? availableProviderIds),
       ];
       terms = [...new Set(terms)];
+      const requests: CatalogSearchRequest[] = terms.map((term, index) => ({
+        requestId: `term_${index}`,
+        term,
+      }));
       const unknownProviders = selectedProviderIds.filter(
         (id) => ctx.catalogs[id] === undefined,
       );
@@ -168,7 +173,7 @@ export function registerProductTools(ctx: ToolContext) {
 
       const progressToken = requestContext.mcpReq._meta?.progressToken;
       let completedTotal = 0;
-      const totalSearches = terms.length * selected.length;
+      const totalSearches = requests.length * selected.length;
 
       // Providers are searched concurrently: they share nothing, so one being
       // slow or down must not serialize behind or sink the others.
@@ -213,7 +218,7 @@ export function registerProductTools(ctx: ToolContext) {
                 }
               : {}),
           };
-          const result = await provider.search(terms, options);
+          const result = await provider.search(requests, options);
           return result
             .orTee((error) =>
               console.warn(`${provider.label} search failed:`, error.message),
@@ -221,11 +226,11 @@ export function registerProductTools(ctx: ToolContext) {
             .match(
               (value) => value,
               (error) =>
-                terms.map((term) => ({
+                requests.map((request) => ({
                   provider: provider.id,
-                  term,
-                  products: [],
-                  failed: true,
+                  requestId: request.requestId,
+                  term: request.term,
+                  status: "failed" as const,
                   error,
                 })),
             );
@@ -234,17 +239,18 @@ export function registerProductTools(ctx: ToolContext) {
       const results = perProvider.flat();
 
       const totalProducts = results.reduce(
-        (sum, result) => sum + result.products.length,
+        (sum, result) =>
+          sum + (result.status === "success" ? result.products.length : 0),
         0,
       );
-      const failed = results.filter((result) => result.failed);
+      const failed = results.filter((result) => result.status === "failed");
 
       // Only a search that found nothing anywhere and failed somewhere is an
       // error; successful results remain useful when another search fails.
       if (totalProducts === 0 && failed.length > 0) {
         const actionable =
-          failed.find((result) => result.error?.type === "AUTH_ERROR")?.error ??
-          failed.find((result) => result.error)?.error;
+          failed.find((result) => result.error.type === "AUTH_ERROR")?.error ??
+          failed[0]?.error;
         if (actionable) return toMcpError(actionable);
         const failedTerms = [...new Set(failed.map((result) => result.term))];
         return errorResult(
@@ -262,15 +268,25 @@ export function registerProductTools(ctx: ToolContext) {
           },
         ],
         ...appResult("search_products", {
-          results: results.map((result) => ({
-            provider: result.provider,
-            term: result.term,
-            products: result.products.map((product) =>
-              compactCatalogProduct(product, includeLocation),
-            ),
-            count: result.products.length,
-            failed: result.failed,
-          })),
+          results: results.map((result) =>
+            result.status === "failed"
+              ? {
+                  provider: result.provider,
+                  term: result.term,
+                  products: [],
+                  count: 0,
+                  failed: true,
+                }
+              : {
+                  provider: result.provider,
+                  term: result.term,
+                  products: result.products.map((product) =>
+                    compactCatalogProduct(product, includeLocation),
+                  ),
+                  count: result.products.length,
+                  failed: false,
+                },
+          ),
           totalProducts,
         }),
       };

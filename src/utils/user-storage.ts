@@ -1,90 +1,10 @@
 import type { CartOperationStore } from "../cart-operations.js";
-/** Tool-facing shopping domain types plus cart-only Cloudflare KV persistence. */
+/** Cart-only Cloudflare KV persistence. Shopping domain records live in domain/shopping. */
 import * as z from "zod/v4";
 
 import type { PersistenceKv } from "./kv.js";
-import type { ProductReference } from "../services/catalog/types.js";
 
 import { safeJsonParseWithSchema } from "./json.js";
-
-export interface PantryItem {
-  productName: string;
-  quantity: number;
-  addedAt: string;
-  expiresAt?: string;
-}
-
-export interface OrderRecord {
-  orderId: string;
-  items: Array<{
-    product?: ProductReference;
-    /** @deprecated Kroger compatibility field. */
-    upc?: string;
-    productName: string;
-    quantity: number;
-    price?: number;
-  }>;
-  totalItems: number;
-  estimatedTotal?: number;
-  placedAt: string;
-  locationId?: string;
-  notes?: string;
-}
-
-export interface PreferredLocation {
-  provider: string;
-  locationId: string;
-  locationName: string;
-  address: string;
-  chain: string;
-  setAt: string;
-}
-
-export interface EquipmentItem {
-  equipmentName: string;
-  category?: string;
-  addedAt: string;
-}
-
-export interface ShoppingListItem {
-  productName: string;
-  product?: ProductReference;
-  /** @deprecated Kroger compatibility field. */
-  upc?: string;
-  quantity: number;
-  notes?: string;
-  /**
-   * Durable item id from the gateway. Present on items read back from storage
-   * and absent on items being written, since the store assigns it. Editing
-   * tools address an item by this id.
-   */
-  id?: string;
-  /** Whether a shopper has checked the item off. */
-  checked?: boolean;
-}
-
-/** A list without its items, for pickers that only need to name the list. */
-export interface ShoppingListSummary {
-  id: string;
-  name: string;
-  itemCount: number;
-  updatedAt: string;
-}
-
-/** Fields an edit may change. Omitted fields are left as they are. */
-export interface ShoppingListItemPatch {
-  productName?: string;
-  quantity?: number;
-  notes?: string;
-  checked?: boolean;
-}
-
-export interface ShoppingList {
-  id: string;
-  name: string;
-  items: ShoppingListItem[];
-  createdAt: string;
-}
 
 export type CartSnapshotItem = {
   upc: string;

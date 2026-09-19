@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
 import type { ToolContext } from "../../src/tools/types.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
-import type { PantryItem } from "../../src/utils/user-storage.js";
+import type { PantryItem } from "../../src/domain/shopping.js";
 
 import {
   dealFlagLabel,

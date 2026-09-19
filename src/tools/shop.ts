@@ -2,11 +2,16 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
+import type { ShoppingList, ShoppingListItem } from "../domain/shopping.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
-import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 
 import { appResult } from "../app-results.js";
-import { apiError, notFoundError, validationError } from "../errors.js";
+import { apiError, notFoundError } from "../errors.js";
+import { formatKrogerPrice } from "../services/kroger/price.js";
+import {
+  classifyShoppingItem,
+  summarizeShoppingOutcomes,
+} from "../services/shopping-outcomes.js";
 import { selectProductMatches } from "../services/product-selector.js";
 import {
   getProps,
@@ -68,14 +73,8 @@ function formatMatchLineMarkdown(
   if (product.brand) parts.push(product.brand);
   if (item?.size) parts.push(item.size);
 
-  if (item?.price) {
-    const { regular, promo } = item.price;
-    if (promo != null && promo !== regular) {
-      parts.push(`$${promo} (was $${regular})`);
-    } else if (regular != null) {
-      parts.push(`$${regular}`);
-    }
-  }
+  const price = formatKrogerPrice(item?.price);
+  if (price) parts.push(price);
 
   parts.push(`upc=${product.upc ?? "unknown"}`);
   parts.push(...flags);
@@ -181,20 +180,28 @@ export function registerShopTools(ctx: ToolContext) {
       }
       const { locationId } = resolvedLocation.value;
 
-      const terms = items.map((item) => item.name);
-      const searchResults = await searchProductsForTerms(productClient, terms, {
-        locationId,
-        limitPerTerm: 20,
-      });
+      const requests = items.map((item, index) => ({
+        requestId: `item_${index}`,
+        name: item.name,
+        quantity: item.quantity,
+      }));
+      const searchResults = await searchProductsForTerms(
+        productClient,
+        requests.map(({ requestId, name }) => ({ requestId, term: name })),
+        { locationId, limitPerTerm: 20 },
+      );
 
       const ai = ctx.getEnv().AI;
       const selectionResult = await ResultAsync.fromPromise(
         selectProductMatches({
           ai,
-          items: searchResults.map((result) => ({
-            query: result.term,
-            products: result.failed ? [] : result.products,
-          })),
+          items: searchResults
+            .filter((result) => result.status === "success")
+            .map((result) => ({
+              requestId: result.requestId,
+              query: result.term,
+              products: result.products,
+            })),
           forPickup: addToCart,
         }),
         () =>
@@ -203,61 +210,47 @@ export function registerShopTools(ctx: ToolContext) {
           ),
       );
       if (selectionResult.isErr()) return toMcpError(selectionResult.error);
-      const selections = selectionResult.value;
+      const selectionsByRequestId = new Map(
+        selectionResult.value.map((selection) => [
+          selection.requestId,
+          selection,
+        ]),
+      );
+      const searchesByRequestId = new Map(
+        searchResults.map((search) => [search.requestId, search]),
+      );
 
       const [pantry, deals] = await Promise.all([
         getPantryForFlags(ctx),
         getDealsForFlags(ctx, locationId),
       ]);
 
-      const matched: Array<{
-        name: string;
-        quantity: number;
-        product: Product;
-        flags: string[];
-      }> = [];
-      const notFound: string[] = [];
-      const unresolved: string[] = [];
-
-      items.forEach((item, index) => {
-        const selection = selections[index];
-        const best =
-          selection?.status === "selected" ? selection.product : undefined;
-        if (best) {
-          matched.push({
-            name: item.name,
-            quantity: item.quantity,
-            product: best,
-            flags: itemFlagLabels(item.name, pantry, deals),
-          });
-        } else if (
-          !searchResults[index].failed &&
-          searchResults[index].products.length > 0
-        ) {
-          unresolved.push(item.name);
-        } else {
-          notFound.push(item.name);
-        }
-      });
-
-      if (matched.length === 0) {
-        const failure = searchResults.find((result) => result.error)?.error;
-        if (failure) return toMcpError(failure);
-        return toMcpError(
-          validationError(
-            unresolved.length > 0
-              ? `No suitable match for: ${[...notFound, ...unresolved].join(", ")}. Review alternatives with search_products.`
-              : `No products found for: ${notFound.join(", ")}. Try different search terms with search_products.`,
-          ),
+      const outcomes = requests.map((request) => {
+        const search = searchesByRequestId.get(request.requestId);
+        if (!search)
+          throw new Error(
+            `Missing search result for request ${request.requestId}`,
+          );
+        return classifyShoppingItem(
+          request,
+          search,
+          selectionsByRequestId.get(request.requestId),
         );
-      }
+      });
+      const summaryResult = summarizeShoppingOutcomes(outcomes);
+      if (summaryResult.isErr()) return toMcpError(summaryResult.error);
+      const summary = summaryResult.value;
+      const matched = summary.matched.map(({ request, product }) => ({
+        ...request,
+        product,
+        flags: itemFlagLabels(request.name, pantry, deals),
+      }));
 
       const listItems: ShoppingListItem[] = matched.map((match) => ({
         productName: match.product.description || match.name,
         ...(match.product.upc
           ? { product: { provider: "kroger", id: match.product.upc } }
           : {}),
-        upc: match.product.upc,
         quantity: match.quantity,
       }));
 
@@ -284,15 +277,7 @@ export function registerShopTools(ctx: ToolContext) {
         ),
       ];
 
-      if (notFound.length > 0) {
-        parts.push("", `No results for: ${notFound.join(", ")}.`);
-      }
-      if (unresolved.length > 0) {
-        parts.push(
-          "",
-          `No suitable match for: ${unresolved.join(", ")}. Review alternatives with search_products.`,
-        );
-      }
+      parts.push(...summary.warnings);
 
       if (!addToCart) {
         parts.push(

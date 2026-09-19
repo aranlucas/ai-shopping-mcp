@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
-import type { PreferredLocation } from "../../src/utils/user-storage.js";
+import type { PreferredLocation } from "../../src/domain/shopping.js";
 
 import {
   getCapturedHandler,

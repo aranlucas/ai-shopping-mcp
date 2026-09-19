@@ -8,12 +8,14 @@ import type {
   CatalogGetOptions,
   CatalogProduct,
   CatalogProvider,
+  CatalogSearchRequest,
   CatalogSearchOptions,
   CatalogSearchResult,
 } from "./types.js";
 
 import { searchProductsForTerms } from "./kroger-search.js";
 import { ProductService } from "../kroger/product-service.js";
+import { normalizeKrogerPrice } from "../kroger/price.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -50,19 +52,12 @@ function toImageUrl(product: Product): string | undefined {
 
 export function toCatalogProduct(product: Product): CatalogProduct {
   const item = product.items?.[0];
-  const regular = item?.price?.regular;
-  const promo = item?.price?.promo;
-  // Kroger reports promo as 0 when none is running, so a promo only counts when
-  // it is positive and actually differs from the shelf price.
-  const hasPromo = promo != null && promo > 0 && promo !== regular;
-  const price = hasPromo ? promo : (regular ?? undefined);
 
   return {
     ref: { provider: "kroger", id: product.upc ?? "" },
     name: product.description ?? "Unknown product",
     brand: product.brand,
-    price,
-    regularPrice: hasPromo ? regular : undefined,
+    ...normalizeKrogerPrice(item?.price),
     size: item?.size,
     category: product.categories?.[0],
     imageUrl: toImageUrl(product),
@@ -89,11 +84,11 @@ export function createKrogerCatalogProvider(
     id: "kroger",
     label: "Kroger",
     capabilities: { cart: true, aisleLocation: true },
-    search(terms: string[], options: CatalogSearchOptions) {
+    search(requests: CatalogSearchRequest[], options: CatalogSearchOptions) {
       return ResultAsync.fromPromise(
         searchProductsForTerms(
           productClient,
-          terms,
+          requests,
           {
             limitPerTerm: options.limitPerTerm,
             locationId: options.storeId,
@@ -102,13 +97,23 @@ export function createKrogerCatalogProvider(
         ),
         (cause) => networkError("Kroger search could not be completed.", cause),
       ).map((results): CatalogSearchResult[] =>
-        results.map((result) => ({
-          provider: "kroger" as const,
-          term: result.term,
-          products: result.products.map(toCatalogProduct),
-          failed: result.failed,
-          error: result.error,
-        })),
+        results.map((result) =>
+          result.status === "failed"
+            ? {
+                provider: "kroger" as const,
+                requestId: result.requestId,
+                term: result.term,
+                status: "failed" as const,
+                error: result.error,
+              }
+            : {
+                provider: "kroger" as const,
+                requestId: result.requestId,
+                term: result.term,
+                status: "success" as const,
+                products: result.products.map(toCatalogProduct),
+              },
+        ),
       );
     },
     get(reference, options: CatalogGetOptions) {

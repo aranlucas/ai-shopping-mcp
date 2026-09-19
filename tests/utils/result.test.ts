@@ -239,6 +239,15 @@ describe("fromApiResponse", () => {
 // --- getProps ---
 
 describe("getProps", () => {
+  it.each(["unknown", "", "  ", " unknown "])(
+    "rejects the legacy or invalid identity %j",
+    (id) => {
+      authMock.context = {
+        props: { id, accessToken: "token", tokenExpiresAt: Date.now() + 1000 },
+      };
+      expect(() => getProps()).toThrow("outside an authenticated MCP request");
+    },
+  );
   it("returns the props when the request is authenticated", () => {
     const props: Props = {
       id: "user-123",

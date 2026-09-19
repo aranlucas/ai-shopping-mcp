@@ -4,6 +4,7 @@
  */
 import { getMcpAuthContext } from "agents/mcp";
 import { ResultAsync, err, ok, okAsync } from "neverthrow";
+import { isVerifiedShopperId } from "./shopper-identity.js";
 
 import type { Props, UserStorage } from "../tools/types.js";
 
@@ -120,7 +121,7 @@ export function getProps(): Props {
   const props = getMcpAuthContext()?.props;
   if (
     !props ||
-    typeof props.id !== "string" ||
+    !isVerifiedShopperId(props.id) ||
     typeof props.accessToken !== "string" ||
     typeof props.tokenExpiresAt !== "number"
   ) {

@@ -11,6 +11,7 @@ import { env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
+import type { WeeklyDealWarning } from "../../src/services/weekly-deals/schema.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
 
 import {
@@ -38,7 +39,7 @@ const DEAL_END = "2026-09-15";
 
 function dealsData(
   deals = conciseDeals(10),
-  warnings: string[] = [],
+  warnings: WeeklyDealWarning[] = [],
 ): QfcDealsApiResponse {
   return {
     sourceMode: "print_fallback",
@@ -47,6 +48,10 @@ function dealsData(
     warnings,
     deals,
   };
+}
+
+function legacyWarning(message: string): WeeklyDealWarning {
+  return { code: "legacy", details: { message } };
 }
 
 function conciseDeals(count: number) {
@@ -219,7 +224,9 @@ describe("meal planning weekly deals (wire eval)", () => {
         freshUntil: Date.now() - 60_000,
         staleUntil: Date.now() + 60 * 60 * 1000,
       },
-      dealsData(conciseDeals(2), ["Member prices require a loyalty card."]),
+      dealsData(conciseDeals(2), [
+        legacyWarning("Member prices require a loyalty card."),
+      ]),
     );
     failKrogerFetches();
 
@@ -232,7 +239,7 @@ describe("meal planning weekly deals (wire eval)", () => {
     // shared loader preserves the usable stale entry and exposes the refresh
     // failure as a warning.
     expect(text).toContain("cache=stale");
-    expect(text).toContain("Unable to fetch weekly circulars");
+    expect(text).toContain("Live refresh failed; served stale KV cache.");
     expect(text).toContain("Kroger 2% Reduced Fat Milk");
     expect(text).toContain("Member prices require a loyalty card.");
   });

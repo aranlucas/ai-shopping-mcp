@@ -150,12 +150,12 @@ describe("storage-backed tools", () => {
   it("validates add_to_inventory arguments", async () => {
     registerInventoryTools(makeContext());
 
-    const addResult = await getCapturedHandler("add_to_inventory")({
-      inventory: "pantry",
-      items: [],
-    });
-
-    expect(addResult.isError).toBe(true);
+    await expect(
+      getCapturedHandler("add_to_inventory")({
+        inventory: "pantry",
+        items: [],
+      }),
+    ).rejects.toThrow("At least one item is required");
   });
 
   describe("get_shopping_profile", () => {
@@ -252,6 +252,14 @@ describe("storage-backed tools", () => {
               quantity: 2,
               addedAt: new Date().toISOString(),
             },
+            {
+              productName: "Yogurt",
+              quantity: 1,
+              addedAt: new Date().toISOString(),
+              expiresAt: new Date(
+                Date.now() - 24 * 60 * 60 * 1000,
+              ).toISOString(),
+            },
           ],
         } as unknown as UserStorage["pantry"],
         equipment: {
@@ -280,6 +288,7 @@ describe("storage-backed tools", () => {
       expect(text).toContain("QFC Broadway");
       expect(text).toContain("Milk x1 (expiring soon)");
       expect(text).toContain("Rice x2");
+      expect(text).toContain("Yogurt x1 (expired)");
       expect(text).toContain("Dutch oven (Cooking)");
       expect(text).toContain("milk (ordered 1x)");
     });
@@ -298,10 +307,11 @@ describe("storage-backed tools", () => {
     });
   });
 
-  it("creates a shopping list and returns a short listId", async () => {
+  it("creates a shopping list and returns the storage-owned listId", async () => {
+    const storage = makeStorage();
     registerShoppingListTools(
       makeContext(
-        undefined,
+        storage,
         makeProductService({
           "0001111042578": "Milk",
           "0009999999999": "Bread",
@@ -324,7 +334,9 @@ describe("storage-backed tools", () => {
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "create_shopping_list" },
     });
-    expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
+    expect(
+      await storage.shoppingList.get(sc["listId"] as string),
+    ).toMatchObject({ name: "Tuesday Dinner" });
     expect(sc["name"]).toBe("Tuesday Dinner");
     expect(
       (sc["items"] as Array<{ productName: string }>).map((i) => i.productName),
@@ -336,10 +348,10 @@ describe("storage-backed tools", () => {
     registerShoppingListTools(makeContext(storage));
     const handler = getCapturedHandler("create_shopping_list");
 
-    const result = await handler({ name: "Empty", items: [] });
-
-    expect(result.isError).toBe(true);
-    expect(result.text).toContain("at least one item");
+    await expect(handler({ name: "Empty", items: [] })).rejects.toThrow(
+      "at least one item",
+    );
+    expect(await storage.shoppingList.list()).toEqual([]);
   });
 
   it("returns a fresh listId on each call so lists don't collide", async () => {
@@ -594,7 +606,7 @@ describe("storage-backed tools", () => {
     const second = await addHandler({ listId });
     expect(second.isError).toBe(false);
     expect(putCalls).toHaveLength(1); // no second PUT call
-    expect(second.text).toContain("already added to your cart from this list");
+    expect(second.text).toContain("already added to your Kroger cart");
   });
 
   it("emits and subsequently looks up the gateway-created list id", async () => {
@@ -605,11 +617,15 @@ describe("storage-backed tools", () => {
       ReturnType<typeof storage.shoppingList.create>
     > | null = null;
     storage.shoppingList = {
-      create: async (_clientId, name, items) => {
+      create: async ({ name, items }) => {
         savedList = {
           id: gatewayListId,
           name,
-          items,
+          items: items.map((item) => ({
+            ...item,
+            id: crypto.randomUUID(),
+            checked: false,
+          })),
           createdAt: "2026-07-18T00:00:00.000Z",
         };
         return savedList;
@@ -671,10 +687,10 @@ describe("storage-backed tools", () => {
     const ctx = makeCartContext(storage);
     registerCartTools(ctx);
 
-    const listId = "list_deadbeef";
-    await storage.shoppingList.create(listId, "No UPCs", [
-      { productName: "Strawberries", quantity: 2 },
-    ]);
+    const { id: listId } = await storage.shoppingList.create({
+      name: "No UPCs",
+      items: [{ productName: "Strawberries", quantity: 2 }],
+    });
 
     const handler = getCapturedHandler("add_shopping_list_to_cart");
     const result = await handler({ listId, storeId: "70500847" });

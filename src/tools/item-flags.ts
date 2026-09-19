@@ -7,12 +7,12 @@
  * docs/small-model-efficiency-plan.md Phase 3 item 6.
  */
 import type { Deal } from "../utils/deal-match.js";
-import type { PantryItem } from "../utils/user-storage.js";
+import type { PantryItem } from "../domain/shopping.js";
 
+import { getCachedWeeklyDealsForFlags } from "../services/weekly-deals/service.js";
 import { findDealForItem } from "../utils/deal-match.js";
 import { getUserDataKv } from "../utils/kv.js";
 import { type ToolContext } from "./types.js";
-import { buildWeeklyDealsCacheKey, parseCacheEntry } from "./weekly-deals.js";
 
 /** Best-effort pantry fetch: any storage error yields an empty list, never a throw. */
 export async function getPantryForFlags(
@@ -40,16 +40,12 @@ export async function getDealsForFlags(
     const kv = getUserDataKv(ctx.getEnv());
     if (!kv) return [];
 
-    const cacheKey = buildWeeklyDealsCacheKey({
+    const cached = await getCachedWeeklyDealsForFlags(kv, {
       locationId,
       limit: 50,
       pageLimit: 2,
     });
-    const raw = await kv.get(cacheKey);
-    const entry = parseCacheEntry(raw);
-    if (!entry || Date.now() > entry.staleUntil) return [];
-
-    return entry.data.deals;
+    return cached?.deals ?? [];
   } catch {
     return [];
   }

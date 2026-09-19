@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { UserStorage } from "../../src/tools/types.js";
-import type { OrderRecord } from "../../src/utils/user-storage.js";
+import type { OrderRecord } from "../../src/domain/shopping.js";
 
 import {
   getCapturedHandler,
@@ -80,7 +80,7 @@ describe("order storage-backed tools", () => {
       structuredContent: {
         items: [
           {
-            upc: "0000000000001",
+            product: { provider: "kroger", id: "0000000000001" },
             productName: "Apples",
             quantity: 2,
             price: 1.5,

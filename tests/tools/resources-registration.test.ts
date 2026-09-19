@@ -448,8 +448,21 @@ describe("registerResources", () => {
               {
                 orderId: "o1",
                 items: [
-                  { upc: "2222222222222", productName: "Eggs", quantity: 1 },
-                  { upc: "short", productName: "Bad", quantity: 1 },
+                  {
+                    product: { provider: "kroger", id: "2222222222222" },
+                    productName: "Eggs",
+                    quantity: 1,
+                  },
+                  {
+                    product: { provider: "kroger", id: "short" },
+                    productName: "Bad",
+                    quantity: 1,
+                  },
+                  {
+                    product: { provider: "another_store", id: "1111111111111" },
+                    productName: "Other store",
+                    quantity: 1,
+                  },
                 ],
                 totalItems: 2,
                 placedAt: "x",
@@ -463,6 +476,7 @@ describe("registerResources", () => {
       const all = await complete("");
       expect(all).toContain("2222222222222");
       expect(all).not.toContain("short");
+      expect(all).not.toContain("1111111111111");
 
       const prefixed = await complete("2222");
       expect(prefixed).toEqual(["2222222222222"]);
@@ -476,7 +490,11 @@ describe("registerResources", () => {
               {
                 orderId: "o1",
                 items: [
-                  { upc: "3333333333333", productName: "Milk", quantity: 1 },
+                  {
+                    product: { provider: "kroger", id: "3333333333333" },
+                    productName: "Milk",
+                    quantity: 1,
+                  },
                 ],
                 totalItems: 1,
                 placedAt: "x",
@@ -484,7 +502,11 @@ describe("registerResources", () => {
               {
                 orderId: "o2",
                 items: [
-                  { upc: "3333333333333", productName: "Milk", quantity: 1 },
+                  {
+                    product: { provider: "kroger", id: "3333333333333" },
+                    productName: "Milk",
+                    quantity: 1,
+                  },
                 ],
                 totalItems: 1,
                 placedAt: "x",

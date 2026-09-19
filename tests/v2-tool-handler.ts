@@ -27,6 +27,10 @@ type RawToolHandler = (
   requestContext?: ServerContext,
 ) => Promise<unknown>;
 
+export type TestToolConfig = {
+  inputSchema: z.ZodType<Record<string, unknown>>;
+};
+
 function makeRequestContext(): ServerContext {
   return {
     mcpReq: {
@@ -47,16 +51,23 @@ function makeRequestContext(): ServerContext {
 }
 
 /**
- * Supplies the minimal v2 request context expected by tool handlers.
+ * Applies the registered input contract before invoking the callback, as MCP does.
  */
 export function wrapV2ToolHandler(
   handler: RawToolHandler,
-  _server: unknown,
+  config: TestToolConfig,
 ): TestToolHandler {
+  const invoke = wrapRawV2ToolHandler(handler);
   return async (args, requestContext) => {
-    const result = requestContext
-      ? await handler(args, requestContext)
-      : await handler(args, makeRequestContext());
+    const parsed = await config.inputSchema.parseAsync(args);
+    return invoke(parsed, requestContext);
+  };
+}
+
+/** Explicit escape hatch for tests of a callback outside the MCP input boundary. */
+export function wrapRawV2ToolHandler(handler: RawToolHandler): TestToolHandler {
+  return async (args, requestContext) => {
+    const result = await handler(args, requestContext ?? makeRequestContext());
     return toolResultSchema.parse(result);
   };
 }

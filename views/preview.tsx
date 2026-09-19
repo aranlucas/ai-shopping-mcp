@@ -154,6 +154,12 @@ function Preview() {
   const [view, setView] = useState("deals");
   const [theme, setTheme] = useState("light");
   const [fail, setFail] = useState(false);
+  const [unknownCart, setUnknownCart] = useState(false);
+  const handleUnknownCart = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) =>
+      setUnknownCart(event.target.checked),
+    [],
+  );
   const [lastAction, setLastAction] = useState("No actions yet.");
   const handleView = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => setView(event.target.value),
@@ -178,6 +184,22 @@ function Preview() {
         callServerTool: async (call: ToolCall) => {
           setLastAction(`Calling ${call.name}…`);
           await new Promise((resolve) => setTimeout(resolve, 600));
+          if (unknownCart && call.name === "add_shopping_list_to_cart")
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Preview: cart confirmation was lost. Check your Kroger cart before adding again.",
+                },
+              ],
+              isError: true,
+              structuredContent: {
+                error: {
+                  code: "MUTATION_OUTCOME_UNKNOWN",
+                  recovery: "check_cart",
+                },
+              },
+            };
           if (fail)
             return {
               content: [
@@ -196,6 +218,26 @@ function Preview() {
               content: [],
               structuredContent: { listId: "preview-created-list" },
             };
+          if (call.name === "add_shopping_list_to_cart")
+            return {
+              content: [],
+              ...appResult("add_shopping_list_to_cart", {
+                outcome: "added",
+                addedCount: 1,
+                requestedCount: 1,
+                listId: "preview-list",
+                name: "Preview cart",
+                items: [
+                  {
+                    upc: "0001111042578",
+                    quantity: 1,
+                    modality: "PICKUP",
+                  },
+                ],
+                needsUpc: [],
+                actionDetail: "Added 1 item(s) to cart",
+              }),
+            };
           return { content: [] };
         },
         sendMessage: async () => {
@@ -207,7 +249,7 @@ function Preview() {
         },
         updateModelContext: async () => ({}),
       }) as unknown as App,
-    [fail],
+    [fail, unknownCart],
   );
   const staleDeals = useMemo(
     () => ({
@@ -274,6 +316,14 @@ function Preview() {
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={fail} onChange={handleFail} />
             Fail actions
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={unknownCart}
+              onChange={handleUnknownCart}
+            />
+            Unknown cart outcome
           </label>
         </div>
         <output className="mx-auto mt-2 block max-w-4xl text-xs text-gray-500">

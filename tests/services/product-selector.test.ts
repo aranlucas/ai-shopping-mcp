@@ -26,7 +26,13 @@ async function selectProductMatch(params: {
 }) {
   const [selection] = await selectProductMatches({
     ai: params.ai,
-    items: [{ query: params.query, products: params.products }],
+    items: [
+      {
+        requestId: "item_0",
+        query: params.query,
+        products: params.products,
+      },
+    ],
     forPickup: params.forPickup,
   });
   return selection;
@@ -53,7 +59,11 @@ describe("Jev product selection", () => {
     const run = vi.fn<JevRun>(stubJevAi("Milk 19").gateway("default").run);
     const selections = await selectProductMatches({
       ai: { gateway: () => ({ run }) },
-      items: Array.from({ length: 10 }, () => ({ query: "milk", products })),
+      items: Array.from({ length: 10 }, (_, index) => ({
+        requestId: `item_${index}`,
+        query: "milk",
+        products,
+      })),
       forPickup: true,
     });
     expect(run).toHaveBeenCalledTimes(1);
@@ -61,7 +71,8 @@ describe("Jev product selection", () => {
       Object.keys(run.mock.calls[0]?.[0].query.questions ?? {}),
     ).toHaveLength(10);
     expect(selections).toEqual(
-      Array.from({ length: 10 }, () => ({
+      Array.from({ length: 10 }, (_, index) => ({
+        requestId: `item_${index}`,
         status: "selected",
         product: products[19],
       })),
@@ -89,16 +100,16 @@ describe("Jev product selection", () => {
     const selections = await selectProductMatches({
       ai: { gateway: () => ({ run }) },
       items: [
-        { query: "milk", products: [] },
-        { query: "milk", products: [milk] },
-        { query: "milk", products: [candy] },
+        { requestId: "item_0", query: "milk", products: [] },
+        { requestId: "item_1", query: "milk", products: [milk] },
+        { requestId: "item_2", query: "milk", products: [candy] },
       ],
       forPickup: true,
     });
     expect(selections).toEqual([
-      { status: "unresolved" },
-      { status: "selected", product: milk },
-      { status: "unresolved" },
+      { requestId: "item_0", status: "unresolved" },
+      { requestId: "item_1", status: "selected", product: milk },
+      { requestId: "item_2", status: "unresolved" },
     ]);
     expect(Object.keys(run.mock.calls[0]?.[0].query.questions ?? {})).toEqual([
       "item_1",
@@ -128,8 +139,8 @@ describe("Jev product selection", () => {
         selectProductMatches({
           ai: { gateway: () => ({ run }) },
           items: [
-            { query: "milk", products: [milk] },
-            { query: "candy", products: [candy] },
+            { requestId: "item_0", query: "milk", products: [milk] },
+            { requestId: "item_1", query: "candy", products: [candy] },
           ],
           forPickup: true,
         }),
@@ -148,7 +159,11 @@ describe("Jev product selection", () => {
       products: [candy, milk],
       forPickup: true,
     });
-    expect(result).toEqual({ status: "selected", product: milk });
+    expect(result).toEqual({
+      requestId: "item_0",
+      status: "selected",
+      product: milk,
+    });
     expect(gateway).toHaveBeenCalledExactlyOnceWith("default");
     expect(run).toHaveBeenCalledExactlyOnceWith(
       {
@@ -186,7 +201,7 @@ describe("Jev product selection", () => {
           products: [candy],
           forPickup: true,
         }),
-      ).toEqual({ status: "unresolved" });
+      ).toEqual({ requestId: "item_0", status: "unresolved" });
       expect(run).toHaveBeenCalledTimes(1);
     },
   );
@@ -214,7 +229,11 @@ describe("Jev product selection", () => {
         products,
         forPickup: true,
       }),
-    ).toEqual({ status: "selected", product: milk });
+    ).toEqual({
+      requestId: "item_0",
+      status: "selected",
+      product: milk,
+    });
     const input = run.mock.calls[0]?.[0].query;
     expect(JSON.stringify(input)).not.toContain("candidate_1");
   });
@@ -228,7 +247,7 @@ describe("Jev product selection", () => {
         products: [],
         forPickup: true,
       }),
-    ).toEqual({ status: "unresolved" });
+    ).toEqual({ requestId: "item_0", status: "unresolved" });
     expect(run).not.toHaveBeenCalled();
   });
 

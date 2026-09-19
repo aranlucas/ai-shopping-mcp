@@ -146,6 +146,18 @@ new intentional cart add. The one-shot `shop_for_items` workflow creates a new l
 on every call; retry its cart step using the returned `listId`, not by repeating
 the whole workflow.
 
+Product buttons in the app retain the original list for a cart retry and coalesce
+concurrent clicks. Both product and saved-list views replace retry controls with
+**Check Kroger cart** after an unknown outcome or lost cart response.
+
+Cart UI behavior belongs to `views/app/cart-action.ts`, with React integration in
+`use-cart-action.ts`. Its states are `idle`, `submitting`, `added`, `already_added`, `needs_match`,
+`retryable`, and `check_cart`; views derive controls from that state instead of maintaining separate
+loading, error, and recovery flags. Add new cart transitions there so product and
+saved-list actions keep the same retry rules. Shopping search results follow the
+same pattern in `src/services/shopping-outcomes.ts`: classify each requested item
+once as matched, not found, needing review, or failed, then consume that outcome.
+
 The `v3` migration adds the SQLite-backed `CartOperations` class. Deploy the code,
 binding, and migration together. Retain the old `v1`/`v2` migration history.
 
@@ -185,7 +197,8 @@ For a client that still needs a local proxy:
 Run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html` to review the app with
 sample data and a simulated host. Switch between shopping lists, products, weekly deals,
 stale results, loading, empty, and error states. The **Fail actions** control exercises
-retry feedback; the theme selector checks light and dark rendering. Preview actions do not
+retry feedback; **Unknown cart outcome** simulates a lost cart confirmation to verify
+the check-cart action. The theme selector checks light and dark rendering. Preview actions do not
 contact a shopping account. The preview entry is excluded from the production app bundle.
 
 Weekly deals can be filtered by category, and **Find product** opens matching products inside

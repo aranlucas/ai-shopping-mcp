@@ -29,17 +29,18 @@ export function stubCatalogProvider(
     capabilities: rest.capabilities ?? { cart: false, aisleLocation: false },
     search:
       rest.search ??
-      ((terms) =>
+      ((requests) =>
         error
           ? ResultAsync.fromSafePromise(Promise.resolve()).andThen(() =>
               ResultAsync.fromPromise(Promise.reject(error), () => error),
             )
           : okAsync(
-              terms.map((term): CatalogSearchResult => ({
+              requests.map((request): CatalogSearchResult => ({
                 provider: id,
-                term,
+                requestId: request.requestId,
+                term: request.term,
+                status: "success",
                 products,
-                failed: false,
               })),
             )),
     get:

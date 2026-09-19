@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   APP_VIEW_NAMES,
+  appPayloadSchemas,
   appResult,
   parseAppResult,
 } from "../../src/app-results.js";
@@ -60,4 +61,161 @@ describe("MCP App view routing", () => {
     const names = Object.keys(APP_VIEW_NAMES);
     expect(new Set(names).size).toBe(names.length);
   });
+  it.each(Object.keys(appPayloadSchemas))(
+    "rejects a missing payload for %s",
+    (view) => {
+      expect(
+        parseAppResult({
+          content: [],
+          _meta: { "dev.aranlucas/view": view },
+          structuredContent: {},
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it.each([
+    { results: null, totalProducts: 0 },
+    { results: {}, totalProducts: 0 },
+    {
+      results: [
+        { provider: "kroger", term: "milk", failed: false, products: [{}] },
+      ],
+      totalProducts: 1,
+    },
+    { results: [], totalProducts: "zero" },
+  ])("rejects malformed nested product results %j", (payload) => {
+    expect(
+      parseAppResult({
+        content: [],
+        _meta: { "dev.aranlucas/view": "search_products" },
+        structuredContent: payload,
+      }),
+    ).toBeNull();
+  });
+
+  it("validates nested list items and preserves editing identifiers", () => {
+    const result = {
+      content: [],
+      ...appResult("create_shopping_list", {
+        listId: "list-1",
+        name: "Groceries",
+        items: [
+          { id: "item-1", checked: true, productName: "Milk", quantity: 2 },
+        ],
+      }),
+    };
+    expect(parseAppResult(result)).toMatchObject({
+      items: [{ id: "item-1", checked: true }],
+    });
+    expect(
+      parseAppResult({
+        ...result,
+        structuredContent: {
+          ...result.structuredContent,
+          items: [{ productName: "Milk", quantity: "two" }],
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("uses trusted routing metadata even if the payload includes a view", () => {
+    expect(
+      parseAppResult({
+        content: [],
+        _meta: { "dev.aranlucas/view": "search_products" },
+        structuredContent: { view: "pantry", results: [], totalProducts: 0 },
+      }),
+    ).toEqual({ view: "search_products", results: [], totalProducts: 0 });
+  });
+  it.each([
+    ["get_weekly_deals", { deals: [{ title: "Milk", category: "Dairy" }] }],
+    ["search_stores", { stores: [{}] }],
+    ["get_store", { store: {} }],
+    [
+      "set_preferred_store",
+      {
+        store: {
+          provider: "kroger",
+          locationId: "1",
+          locationName: "QFC",
+          address: "",
+          chain: "QFC",
+          setAt: "2026-09-18",
+        },
+        actionDetail: "Saved",
+      },
+    ],
+    [
+      "search_products",
+      {
+        results: [
+          {
+            provider: "kroger",
+            term: "milk",
+            products: [
+              {
+                product: { provider: "kroger", id: "1" },
+                name: "Milk",
+                available: true,
+              },
+            ],
+            failed: false,
+          },
+        ],
+        totalProducts: 1,
+      },
+    ],
+    [
+      "get_product",
+      {
+        product: {
+          product: { provider: "kroger", id: "1" },
+          name: "Milk",
+          available: true,
+        },
+      },
+    ],
+    ["pantry", { items: [{ productName: "Milk", quantity: 1 }] }],
+    ["kitchen_equipment", { items: [{ equipmentName: "Oven" }] }],
+    [
+      "create_shopping_list",
+      {
+        listId: "1",
+        name: "Groceries",
+        items: [{ productName: "Milk", quantity: 1 }],
+      },
+    ],
+    [
+      "add_shopping_list_to_cart",
+      {
+        outcome: "added",
+        addedCount: 1,
+        requestedCount: 1,
+        name: "Groceries",
+        items: [{ upc: "1", quantity: 1, modality: "PICKUP" }],
+        needsUpc: [],
+      },
+    ],
+    [
+      "record_order",
+      {
+        orderId: "1",
+        items: [{ productName: "Milk", quantity: 1 }],
+        totalItems: 1,
+        placedAt: "2026-09-18",
+      },
+    ],
+  ])(
+    "accepts valid %s payloads including optional-field omissions",
+    (view, payload) => {
+      expect(
+        parseAppResult({
+          content: [],
+          _meta: { "dev.aranlucas/view": view },
+          structuredContent: payload,
+        }),
+      ).toEqual({ ...payload, view });
+    },
+  );
 });

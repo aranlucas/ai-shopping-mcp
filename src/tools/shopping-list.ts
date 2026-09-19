@@ -3,11 +3,14 @@ import type { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
-import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
+import type { ShoppingList, ShoppingListItem } from "../domain/shopping.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
-import { parseProductReference } from "../services/catalog/types.js";
+import {
+  normalizeProductIdentity,
+  productReferenceInputSchema,
+} from "../domain/product-identity.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
 import {
   getProps,
@@ -29,16 +32,9 @@ import { type ToolContext, type UserStorage, textResult } from "./types.js";
  * `productRef=<provider>:<id>` returned by search_products. Free-form ingredients
  * can use productName alone. `upc` remains a deprecated Kroger compatibility input.
  */
-const productRefSchema = z
-  .string()
-  .trim()
-  .refine((value) => parseProductReference(value) !== null, {
-    message: "productRef must be <provider>:<provider-scoped-id>.",
-  });
-
 export const shoppingListItemInputSchema = z
   .object({
-    productRef: productRefSchema
+    productRef: productReferenceInputSchema
       .optional()
       .describe("productRef from search_products"),
     upc: upcSchema
@@ -100,11 +96,10 @@ async function toStoredItems(
 ): Promise<ShoppingListItem[]> {
   return Promise.all(
     items.map(async (item) => {
-      const product = item.productRef
-        ? parseProductReference(item.productRef)
-        : item.upc
-          ? { provider: "kroger", id: item.upc }
-          : null;
+      const product = normalizeProductIdentity({
+        product: item.productRef,
+        upc: item.upc,
+      });
       const productName =
         item.productName ??
         (product?.provider === "kroger"
@@ -113,20 +108,12 @@ async function toStoredItems(
           : (product?.id ?? ""));
       return {
         productName,
-        ...(product === null ? {} : { product }),
-        ...(product?.provider === "kroger" ? { upc: product.id } : {}),
-        // ShoppingListItem.quantity is required, so it is defaulted here as
-        // well as in the schema rather than relying on parsing having run.
-        quantity: item.quantity ?? 1,
+        product,
+        quantity: item.quantity,
         ...(item.notes === undefined ? {} : { notes: item.notes }),
       } satisfies ShoppingListItem;
     }),
   );
-}
-
-/** Client-id hint for ShoppingStore implementations that accept caller-generated ids. */
-function generateRequestedListId(): string {
-  return `list_${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 
 export type CreateShoppingListResult = { listId: string; list: ShoppingList };
@@ -140,9 +127,8 @@ export function createShoppingListRecord(
   name: string,
   items: ShoppingListItem[],
 ): ResultAsync<CreateShoppingListResult, AppError> {
-  const requestedId = generateRequestedListId();
   return safeStorage(
-    () => storage.shoppingList.create(requestedId, name, items),
+    () => storage.shoppingList.create({ name, items }),
     "create shopping list",
   ).map((list) => ({ listId: list.id, list }));
 }
@@ -166,12 +152,6 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
     async ({ name: listName, items }) => {
       getProps();
-
-      if (items.length === 0) {
-        return toMcpError(
-          validationError("Shopping list must include at least one item."),
-        );
-      }
 
       const enrichedItems = await toStoredItems(ctx, items);
 
@@ -280,7 +260,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const lines = list.items
         .map(
           (item, index) =>
-            `${index + 1}. itemId=${item.id ?? "unknown"} ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
+            `${index + 1}. itemId=${item.id} ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
         )
         .join("\n");
       return textResult(
@@ -315,7 +295,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const lines = added
         .map(
           (item, index) =>
-            `${index + 1}. itemId=${item.id ?? "unknown"} ${formatShoppingListItemCompact(item)}`,
+            `${index + 1}. itemId=${item.id} ${formatShoppingListItemCompact(item)}`,
         )
         .join("\n");
       return textResult(

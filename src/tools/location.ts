@@ -2,7 +2,7 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
-import type { PreferredLocation } from "../utils/user-storage.js";
+import type { PreferredLocation } from "../domain/shopping.js";
 import type { ToolContext } from "./types.js";
 import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { LocationData } from "../app-results.js";

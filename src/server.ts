@@ -38,6 +38,7 @@ import { createKrogerCatalogProvider } from "./services/catalog/kroger-provider.
 import { getUserDataKv } from "./utils/kv.js";
 import { createGatewayShoppingStore } from "./utils/gateway-storage.js";
 import { getProps } from "./utils/result.js";
+import { isVerifiedShopperId } from "./utils/shopper-identity.js";
 import { createCartPersistence } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
@@ -140,6 +141,13 @@ function buildServer(
     {
       begin: (key, fingerprint) =>
         journal.begin(JSON.stringify([clientId, key]), fingerprint),
+      reconcileLegacy: (key, attempt, fingerprint, legacyFingerprint) =>
+        journal.reconcileLegacy(
+          JSON.stringify([clientId, key]),
+          attempt,
+          fingerprint,
+          legacyFingerprint,
+        ),
       complete: (key, attempt) =>
         journal.complete(JSON.stringify([clientId, key]), attempt),
       reject: (key, attempt) =>
@@ -196,6 +204,8 @@ const mcpApiHandler = {
 
 class UserInfoHandler extends WorkerEntrypoint<AppEnv, Props> {
   fetch() {
+    if (!isVerifiedShopperId(this.ctx.props.id))
+      return Response.json({ error: "invalid_token" }, { status: 401 });
     return Response.json({
       sub: this.ctx.props.id,
       id: this.ctx.props.id,
@@ -221,6 +231,12 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
   // - newProps: full grant including Kroger refresh token + credentials (stays server-side)
   // CRITICAL: Kroger single-use refresh tokens — only refreshed here to persist to grant.
   tokenExchangeCallback: async ({ grantType, props }) => {
+    if (!isVerifiedShopperId(props.id)) {
+      throw new OAuthError("invalid_grant", {
+        description:
+          "Kroger identity could not be verified. Reconnect the MCP server.",
+      });
+    }
     // Destructure grant-only fields; rest is exactly the access token props (Props type)
     const {
       refreshToken,

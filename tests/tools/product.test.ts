@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ProductData } from "../../src/app-results.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
-import type { PreferredLocation } from "../../src/utils/user-storage.js";
+import type { PreferredLocation } from "../../src/domain/shopping.js";
 
 import { AppErrorException, apiError, authError } from "../../src/errors.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
@@ -15,6 +15,7 @@ import {
 import {
   type TestToolHandler as ToolHandler,
   wrapV2ToolHandler,
+  type TestToolConfig,
 } from "../v2-tool-handler.js";
 import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
 import { stubCatalogProvider } from "../catalog-stub.js";
@@ -112,11 +113,15 @@ function makeContext(
     productClient: { GET: productGet },
   } as unknown as ToolContext["clients"];
   const server = {
-    registerTool: (name: string, config: unknown, handler: ToolHandler) => {
+    registerTool: (
+      name: string,
+      config: TestToolConfig,
+      handler: ToolHandler,
+    ) => {
       testState.capturedTools.push({
         name,
         config,
-        handler: wrapV2ToolHandler(handler, server),
+        handler: wrapV2ToolHandler(handler, config),
       });
     },
   };

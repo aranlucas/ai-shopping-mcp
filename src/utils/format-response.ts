@@ -1,4 +1,6 @@
 import { errorRecovery } from "../errors.js";
+import { classifyExpiry } from "../services/expiry.js";
+import { formatKrogerPrice } from "../services/kroger/price.js";
 /**
  * Response formatting utilities for MCP tool responses: compact, non-markdown
  * summaries for storage-backed lists (pantry, equipment, orders, shopping
@@ -20,7 +22,7 @@ import type {
   PantryItem,
   PreferredLocation,
   ShoppingListItem,
-} from "./user-storage.js";
+} from "../domain/shopping.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 type Location = LocationComponents["schemas"]["locations.location"];
@@ -37,19 +39,15 @@ export function formatPantryItemCompact(item: PantryItem): string {
 
   // Expiry with urgency indicator
   if (item.expiresAt) {
-    const expiryDate = new Date(item.expiresAt);
-    const daysUntil = Math.floor(
-      (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (daysUntil < 0) {
+    const expiry = classifyExpiry(item.expiresAt);
+    if (expiry.status === "expired") {
       parts.push("❌EXPIRED");
-    } else if (daysUntil === 0) {
+    } else if (expiry.status === "today") {
       parts.push("⚠️TODAY");
-    } else if (daysUntil <= 3) {
-      parts.push(`⚠️${daysUntil}d`);
-    } else {
-      parts.push(`${expiryDate.toLocaleDateString()}`);
+    } else if (expiry.status === "soon") {
+      parts.push(`⚠️${expiry.daysUntil}d`);
+    } else if (expiry.status === "ok") {
+      parts.push(`${new Date(item.expiresAt).toLocaleDateString()}`);
     }
   }
 
@@ -152,8 +150,6 @@ export function formatShoppingListItemCompact(item: ShoppingListItem): string {
 
   if (item.product) {
     parts.push(`productRef=${formatProductReference(item.product)}`);
-  } else if (item.upc) {
-    parts.push(`productRef=kroger:${item.upc}`);
   }
 
   if (item.notes) {
@@ -272,9 +268,9 @@ export function formatCatalogSearchMarkdown(
           candidate.term === term && candidate.provider === provider.id,
       );
       if (!result) continue;
-      if (result.failed) {
+      if (result.status === "failed") {
         lines.push(
-          `- ${provider.label} search failed for this term.${result.error ? ` ${result.error.message} recovery=${errorRecovery(result.error)}` : ""}`,
+          `- ${provider.label} search failed for this term. ${result.error.message} recovery=${errorRecovery(result.error)}`,
         );
       } else if (result.products.length === 0) {
         lines.push(`- No ${provider.label} results.`);
@@ -317,14 +313,8 @@ export function formatProductDetailMarkdown(product: Product): string {
       const parts: string[] = [];
       if (item.size) parts.push(item.size);
 
-      if (item.price) {
-        const { regular, promo } = item.price;
-        parts.push(
-          promo != null && promo !== regular
-            ? `$${promo} (was $${regular})`
-            : `$${regular ?? "?"}`,
-        );
-      }
+      const price = formatKrogerPrice(item.price);
+      if (price) parts.push(price);
 
       const pickup = Boolean(
         item.fulfillment?.curbside || item.fulfillment?.instore,

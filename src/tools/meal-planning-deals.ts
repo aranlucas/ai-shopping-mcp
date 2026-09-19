@@ -1,7 +1,9 @@
 import type { ToolContext } from "./types.js";
 
+import { formatWeeklyDealWarnings } from "../services/weekly-deals/format.js";
+import { loadWeeklyDeals } from "../services/weekly-deals/service.js";
+import { createWeeklyDealsDependencies } from "../services/weekly-deals/runtime.js";
 import { REQUEST_TIMEOUT_MS } from "../utils/request-timeout.js";
-import { loadWeeklyDeals } from "./weekly-deals.js";
 
 const MEAL_PLANNING_DEAL_LIMIT = 10;
 
@@ -11,7 +13,7 @@ export async function getMealPlanningDeals(
   storeId?: string,
 ): Promise<string> {
   // Share the default get_weekly_deals cache and fetch limits; only the summary is smaller.
-  const result = await loadWeeklyDeals(ctx, {
+  const result = await loadWeeklyDeals(createWeeklyDealsDependencies(ctx), {
     storeId,
     limit: 50,
     pageLimit: 2,
@@ -32,7 +34,9 @@ export async function getMealPlanningDeals(
       "This cached ad is stale; offers may have ended. Confirm current prices with search_products.",
     );
   }
-  for (const warning of data.warnings) parts.push(`Warning: ${warning}`);
+  for (const warning of formatWeeklyDealWarnings(data.warnings)) {
+    parts.push(`Warning: ${warning}`);
+  }
   if (deals.length === 0)
     parts.push(
       "No weekly offers found. Plan from pantry and regular-price ingredients.",

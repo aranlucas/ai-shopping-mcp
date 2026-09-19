@@ -24,7 +24,7 @@ import {
   type ProductData,
   type ProductSearchResultsContent,
 } from "../../shared/types.js";
-import { addProductToCart, saveProductToList } from "../tool-calls.js";
+import { saveProductToList } from "../tool-calls.js";
 
 const CAROUSEL_OPTS = { align: "start" } as const;
 
@@ -46,13 +46,13 @@ const EMPTY_SEARCH_ICON = (
 );
 
 function ProductCarousel({
+  app,
   products,
-  onAddToCart,
   onAddToList,
   canCallTools,
 }: {
+  app: App | null;
   products: ProductData[];
-  onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
   onAddToList: (name: string, productRef: string) => Promise<void>;
   canCallTools: boolean;
 }) {
@@ -65,8 +65,8 @@ function ProductCarousel({
             className="basis-68 ps-2"
           >
             <ProductCard
+              app={app}
               product={product}
-              onAddToCart={onAddToCart}
               onAddToList={onAddToList}
               canCallTools={canCallTools}
             />
@@ -98,18 +98,6 @@ export function ProductSearchView({
   hostContext?: McpUiHostContext;
 }) {
   const { results, totalProducts } = data;
-
-  const handleAddToCart = useCallback(
-    async (name: string, productRef: string, qty: number) => {
-      await addProductToCart(app, {
-        listName: `Cart: ${name}`,
-        productName: name,
-        quantity: qty,
-        productRef,
-      });
-    },
-    [app],
-  );
 
   const handleAddToList = useCallback(
     async (name: string, productRef: string) => {
@@ -208,8 +196,8 @@ export function ProductSearchView({
               </span>
             </div>
             <ProductCarousel
+              app={app}
               products={result.products}
-              onAddToCart={handleAddToCart}
               onAddToList={handleAddToList}
               canCallTools={canCallTools}
             />

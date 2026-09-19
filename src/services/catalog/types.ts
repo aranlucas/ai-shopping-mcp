@@ -70,15 +70,28 @@ export type CatalogProduct = {
   aisle?: CatalogAisle;
 };
 
-/** Matches from one provider for one search term. */
-export type CatalogSearchResult = {
-  provider: CatalogProviderId;
+/** One caller-owned request, carried through provider search and selection. */
+export type CatalogSearchRequest = {
+  requestId: string;
   term: string;
-  products: CatalogProduct[];
-  /** The provider could not answer for this term. Other providers may still have. */
-  failed: boolean;
-  error?: AppError;
 };
+
+/** A successful provider search, including a legitimate empty result. */
+export type CatalogSearchSuccess = CatalogSearchRequest & {
+  provider: CatalogProviderId;
+  products: CatalogProduct[];
+  status: "success";
+};
+
+/** A provider failure for one request. The error is mandatory by construction. */
+export type CatalogSearchFailure = CatalogSearchRequest & {
+  provider: CatalogProviderId;
+  status: "failed";
+  error: AppError;
+};
+
+/** Matches from one provider for one search request. */
+export type CatalogSearchResult = CatalogSearchSuccess | CatalogSearchFailure;
 
 export type CatalogSearchOptions = {
   limitPerTerm: number;
@@ -109,7 +122,7 @@ export interface CatalogProvider {
   readonly label: string;
   readonly capabilities: CatalogCapabilities;
   search(
-    terms: string[],
+    requests: CatalogSearchRequest[],
     options: CatalogSearchOptions,
   ): ResultAsync<CatalogSearchResult[], AppError>;
   /** Load one exact provider-scoped product reference. */

@@ -90,7 +90,7 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
       <div className="divide-y divide-border">
         {items.map((item, idx) => (
           <div
-            key={`${item.product?.provider ?? "legacy"}:${item.product?.id ?? item.upc ?? idx}`}
+            key={`${item.product?.provider ?? "legacy"}:${item.product?.id ?? idx}`}
             className="flex items-center gap-2.5 py-2.5"
           >
             <div className="flex size-6 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-400">

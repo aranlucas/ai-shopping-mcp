@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { AppError } from "../../src/errors.js";
 import type {
   CatalogProduct,
   CatalogProvider,
@@ -13,7 +14,7 @@ import type {
   PantryItem,
   PreferredLocation,
   ShoppingListItem,
-} from "../../src/utils/user-storage.js";
+} from "../../src/domain/shopping.js";
 
 import {
   formatEquipmentItemCompact,
@@ -314,11 +315,11 @@ describe("formatShoppingListItemCompact", () => {
     expect(formatShoppingListItemCompact(item)).toBe("Butter x1");
   });
 
-  it("formats a legacy UPC as a namespaced Kroger product reference", () => {
+  it("formats a canonical Kroger product reference", () => {
     const item: ShoppingListItem = {
       productName: "Eggs",
       quantity: 12,
-      upc: "0001111042010",
+      product: { provider: "kroger", id: "0001111042010" },
       notes: "large",
     };
     expect(formatShoppingListItemCompact(item)).toBe(
@@ -468,9 +469,10 @@ describe("formatCatalogSearchMarkdown", () => {
       [
         {
           provider: "kroger",
+          requestId: "term_0",
           term: "milk",
           products: [krogerProduct()],
-          failed: false,
+          status: "success",
         },
       ],
       [krogerProvider],
@@ -485,12 +487,14 @@ describe("formatCatalogSearchMarkdown", () => {
       [
         {
           provider: "kroger",
+          requestId: "term_0",
           term: "crunch",
           products: [krogerProduct()],
-          failed: false,
+          status: "success",
         },
         {
           provider: "sample_catalog",
+          requestId: "term_0",
           term: "crunch",
           products: [
             {
@@ -499,7 +503,7 @@ describe("formatCatalogSearchMarkdown", () => {
               available: true,
             },
           ],
-          failed: false,
+          status: "success",
         },
       ],
       [krogerProvider, sampleCatalogProvider],
@@ -514,11 +518,12 @@ describe("formatCatalogSearchMarkdown", () => {
       [
         {
           provider: "kroger",
+          requestId: "term_0",
           term: "milk",
           products: [
             krogerProduct({ aisle: { description: "Dairy", number: "21" } }),
           ],
-          failed: false,
+          status: "success",
         },
       ],
       [krogerProvider],
@@ -532,9 +537,10 @@ describe("formatCatalogSearchMarkdown", () => {
       [
         {
           provider: "kroger",
+          requestId: "term_0",
           term: "unobtainium",
           products: [],
-          failed: false,
+          status: "success",
         },
       ],
       [krogerProvider],
@@ -545,7 +551,18 @@ describe("formatCatalogSearchMarkdown", () => {
 
   it("names the provider when a term failed", () => {
     const text = formatCatalogSearchMarkdown(
-      [{ provider: "kroger", term: "eggs", products: [], failed: true }],
+      [
+        {
+          provider: "kroger",
+          requestId: "term_0",
+          term: "eggs",
+          status: "failed",
+          error: {
+            type: "API_ERROR",
+            message: "Unavailable",
+          } as AppError,
+        },
+      ],
       [krogerProvider],
     );
     expect(text).toContain("Kroger search failed for this term.");
@@ -556,9 +573,10 @@ describe("formatCatalogSearchMarkdown", () => {
       [
         {
           provider: "kroger",
+          requestId: "term_0",
           term: "milk",
           products: [krogerProduct()],
-          failed: false,
+          status: "success",
         },
       ],
       [krogerProvider],
@@ -571,9 +589,10 @@ describe("formatCatalogSearchMarkdown", () => {
       [
         {
           provider: "sample_catalog",
+          requestId: "term_0",
           term: "milk",
           products: [],
-          failed: false,
+          status: "success",
         },
       ],
       [sampleCatalogProvider],
@@ -586,6 +605,23 @@ describe("formatCatalogSearchMarkdown", () => {
 });
 
 describe("formatProductDetailMarkdown", () => {
+  it("does not present zero promo as free or invent a missing regular price", () => {
+    expect(
+      formatProductDetailMarkdown(
+        makeProduct({ items: [{ price: { regular: 4, promo: 0 } }] }),
+      ),
+    ).toContain("$4");
+    expect(
+      formatProductDetailMarkdown(
+        makeProduct({ items: [{ price: { regular: 4, promo: 0 } }] }),
+      ),
+    ).not.toContain("$0");
+    const text = formatProductDetailMarkdown(
+      makeProduct({ items: [{ price: { promo: 3 } }] }),
+    );
+    expect(text).toContain("$3");
+    expect(text).not.toContain("undefined");
+  });
   it("includes upc, description, brand, variant lines, and aisle", () => {
     const text = formatProductDetailMarkdown(makeProduct());
     expect(text).toContain("upc: 0001111041700");

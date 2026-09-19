@@ -8,8 +8,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "../../src/tools/types.js";
 import type {
   ShoppingListItem,
+  StoredShoppingListItem,
   ShoppingListItemPatch,
-} from "../../src/utils/user-storage.js";
+} from "../../src/domain/shopping.js";
 
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerProductTools } from "../../src/tools/product.js";
@@ -31,9 +32,15 @@ function makeListStorage(overrides: Partial<ListStore>) {
 }
 
 function storedItem(
-  overrides: Partial<ShoppingListItem> = {},
-): ShoppingListItem {
-  return { id: "item-1", productName: "Milk", quantity: 1, ...overrides };
+  overrides: Partial<StoredShoppingListItem> = {},
+): StoredShoppingListItem {
+  return {
+    id: "item-1",
+    checked: false,
+    productName: "Milk",
+    quantity: 1,
+    ...overrides,
+  };
 }
 
 describe("shopping list editing tools", () => {
@@ -96,9 +103,16 @@ describe("shopping list editing tools", () => {
 
   it("appends an item that has a name but no UPC", async () => {
     const addItems = vi.fn<
-      (listId: string, items: ShoppingListItem[]) => Promise<ShoppingListItem[]>
+      (
+        listId: string,
+        items: ShoppingListItem[],
+      ) => Promise<StoredShoppingListItem[]>
     >(async (_listId, items) =>
-      items.map((item, index) => ({ ...item, id: `item-${index + 1}` })),
+      items.map((item, index) => ({
+        ...item,
+        checked: false,
+        id: `item-${index + 1}`,
+      })),
     );
     registerShoppingListTools(makeContext(makeListStorage({ addItems })));
 
@@ -120,9 +134,12 @@ describe("shopping list editing tools", () => {
 
   it("looks a name up from the UPC when only a UPC is given", async () => {
     const addItems = vi.fn<
-      (listId: string, items: ShoppingListItem[]) => Promise<ShoppingListItem[]>
+      (
+        listId: string,
+        items: ShoppingListItem[],
+      ) => Promise<StoredShoppingListItem[]>
     >(async (_listId, items) =>
-      items.map((item) => ({ ...item, id: "item-1" })),
+      items.map((item) => ({ ...item, checked: false, id: "item-1" })),
     );
     const ctx = makeContext(makeListStorage({ addItems }));
     ctx.productService = {
@@ -139,7 +156,6 @@ describe("shopping list editing tools", () => {
       {
         product: { provider: "kroger", id: "0001111042578" },
         productName: "Whole Milk",
-        upc: "0001111042578",
         quantity: 2,
       },
     ]);
@@ -164,7 +180,7 @@ describe("shopping list editing tools", () => {
         listId: string,
         itemId: string,
         patch: ShoppingListItemPatch,
-      ) => Promise<ShoppingListItem>
+      ) => Promise<StoredShoppingListItem>
     >(async () => storedItem({ quantity: 3 }));
     registerShoppingListTools(makeContext(makeListStorage({ updateItem })));
 
@@ -186,7 +202,7 @@ describe("shopping list editing tools", () => {
         listId: string,
         itemId: string,
         patch: ShoppingListItemPatch,
-      ) => Promise<ShoppingListItem>
+      ) => Promise<StoredShoppingListItem>
     >(async () => storedItem({ checked: true }));
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},
@@ -214,7 +230,7 @@ describe("shopping list editing tools", () => {
         listId: string,
         itemId: string,
         patch: ShoppingListItemPatch,
-      ) => Promise<ShoppingListItem>
+      ) => Promise<StoredShoppingListItem>
     >(async () => storedItem());
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},

@@ -1,19 +1,20 @@
 import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useCallback, useMemo } from "react";
+import { krogerProductId } from "../../../src/domain/product-identity.js";
 import { Badge } from "../../shared/ui/badge";
-import { ActionButton, SectionHeader } from "../../shared/components.js";
+import {
+  ActionButton,
+  CartActionControl,
+  SectionHeader,
+} from "../../shared/components.js";
 import { useResettableState } from "../../shared/hooks.js";
 import { EmptyState } from "../../shared/status.js";
 import {
   type ShoppingListContent,
   type ShoppingListItemData,
-  callTool,
   sendUserMessage,
 } from "../../shared/types.js";
-import {
-  addShoppingListToCartCall,
-  toolResultErrorMessage,
-} from "../tool-calls.js";
+import { useCartAction } from "../use-cart-action.js";
 
 const EMPTY_LIST_ICON = (
   <svg
@@ -33,8 +34,7 @@ const EMPTY_LIST_ICON = (
 );
 
 function ShoppingItem({ item }: { item: ShoppingListItemData }) {
-  const ready =
-    item.product?.provider === "kroger" || (!item.product && !!item.upc);
+  const ready = Boolean(krogerProductId(item.product));
   return (
     <li className="flex items-start gap-4 py-4">
       <div className="min-w-0 flex-1">
@@ -79,14 +79,7 @@ export function ShoppingListView({
   canCallTools: boolean;
 }) {
   const { name, items, listId } = data;
-  const [cartState, setCartState] = useResettableState(
-    data,
-    (): "idle" | "loading" | "done" | "error" => "idle",
-  );
-  const [cartError, setCartError] = useResettableState(
-    data,
-    (): string | null => null,
-  );
+  const cart = useCartAction(app, { kind: "list", listId, modality: "PICKUP" });
   const [matchState, setMatchState] = useResettableState(
     data,
     (): "idle" | "loading" | "done" | "error" => "idle",
@@ -96,40 +89,13 @@ export function ShoppingListView({
     (): string | null => null,
   );
   const readyItems = useMemo(
-    () =>
-      items.filter(
-        (item) =>
-          item.product?.provider === "kroger" || (!item.product && item.upc),
-      ),
+    () => items.filter((item) => Boolean(krogerProductId(item.product))),
     [items],
   );
   const unmatchedItems = useMemo(
     () => items.filter((item) => !readyItems.includes(item)),
     [items, readyItems],
   );
-
-  const handleAddToCart = useCallback(async () => {
-    setCartState("loading");
-    setCartError(null);
-    try {
-      const result = await callTool(
-        app,
-        addShoppingListToCartCall(listId, "PICKUP"),
-      );
-      if (result?.isError)
-        throw new Error(
-          toolResultErrorMessage(result, "Failed to add shopping list to cart"),
-        );
-      setCartState("done");
-    } catch (error) {
-      setCartState("error");
-      setCartError(
-        error instanceof Error
-          ? error.message
-          : "Failed to add shopping list to cart",
-      );
-    }
-  }, [app, listId, setCartState, setCartError]);
 
   const handleFindMatches = useCallback(async () => {
     setMatchState("loading");
@@ -176,10 +142,11 @@ export function ShoppingListView({
             </p>
             <div className="flex flex-wrap gap-2">
               {readyItems.length > 0 && (
-                <ActionButton
-                  state={cartState}
-                  onClick={handleAddToCart}
-                  disabled={!canCallTools || cartState === "done"}
+                <CartActionControl
+                  app={app}
+                  state={cart.state}
+                  onSubmit={cart.submit}
+                  disabled={!canCallTools}
                   idleLabel={`Add ${readyItems.length} ${readyItems.length === 1 ? "item" : "items"} to cart`}
                   loadingLabel="Adding to cart…"
                   doneLabel="Added to cart"
@@ -199,16 +166,11 @@ export function ShoppingListView({
                 />
               )}
             </div>
-            {cartState === "done" && (
+            {cart.state.status === "added" && (
               <output className="mt-3 block text-sm text-emerald-700">
                 Added to your pickup cart. Review your cart in Kroger to
                 complete your purchase.
               </output>
-            )}
-            {cartError && (
-              <p role="alert" className="mt-3 text-sm text-red-600">
-                {cartError}
-              </p>
             )}
             {matchError && (
               <p role="alert" className="mt-3 text-sm text-red-600">
