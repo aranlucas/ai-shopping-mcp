@@ -1,6 +1,9 @@
 import { err, ok, ResultAsync } from "neverthrow";
 
-import type { TraderJoesClient, TraderJoesProduct } from "../traderjoes/client.js";
+import type {
+  TraderJoesClient,
+  TraderJoesProduct,
+} from "../traderjoes/client.js";
 import type {
   CatalogProduct,
   CatalogGetOptions,
@@ -36,7 +39,9 @@ function toCatalogProduct(product: TraderJoesProduct): CatalogProduct {
  * checkout API — not because it is unimplemented here. Callers use that flag to
  * keep these products off cart paths.
  */
-export function createTraderJoesCatalogProvider(client: TraderJoesClient): CatalogProvider {
+export function createTraderJoesCatalogProvider(
+  client: TraderJoesClient,
+): CatalogProvider {
   return {
     id: "trader_joes",
     label: "Trader Joe's",
@@ -51,7 +56,9 @@ export function createTraderJoesCatalogProvider(client: TraderJoesClient): Catal
           terms.map(async (term): Promise<CatalogSearchResult> => {
             const result = await client.searchProducts(term, {
               limit: options.limitPerTerm,
-              ...(options.storeId === undefined ? {} : { storeCode: options.storeId }),
+              ...(options.storeId === undefined
+                ? {}
+                : { storeCode: options.storeId }),
             });
             completed++;
             if (options.onTermComplete) {
@@ -69,7 +76,10 @@ export function createTraderJoesCatalogProvider(client: TraderJoesClient): Catal
                 failed: false,
               }))
               .orTee((error) =>
-                console.warn(`Trader Joe's search failed for "${term}":`, error.message),
+                console.warn(
+                  `Trader Joe's search failed for "${term}":`,
+                  error.message,
+                ),
               )
               .match(
                 (value) => value,
@@ -83,17 +93,22 @@ export function createTraderJoesCatalogProvider(client: TraderJoesClient): Catal
               );
           }),
         ),
-        (cause) => networkError("Trader Joe's search could not be completed.", cause),
+        (cause) =>
+          networkError("Trader Joe's search could not be completed.", cause),
       );
     },
     get(reference, options: CatalogGetOptions) {
       return client
         .searchProducts(reference.id, {
           limit: 10,
-          ...(options.storeId === undefined ? {} : { storeCode: options.storeId }),
+          ...(options.storeId === undefined
+            ? {}
+            : { storeCode: options.storeId }),
         })
         .andThen((result) => {
-          const product = result.products.find((candidate) => candidate.sku === reference.id);
+          const product = result.products.find(
+            (candidate) => candidate.sku === reference.id,
+          );
           return product
             ? ok(toCatalogProduct(product))
             : err(

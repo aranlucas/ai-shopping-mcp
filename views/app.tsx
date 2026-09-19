@@ -31,8 +31,13 @@ import { parseToolResult } from "./shared/types.js";
 
 function ShoppingApp() {
   const [toolResult, setToolResult] = useState<CallToolResult | null>(null);
-  const [partialArgs, setPartialArgs] = useState<Record<string, unknown> | null>(null);
-  const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
+  const [partialArgs, setPartialArgs] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [hostContext, setHostContext] = useState<
+    McpUiHostContext | undefined
+  >();
 
   const { app, error } = useApp({
     appInfo: { name: "shopping-app", version: "1.0.0" },
@@ -58,7 +63,10 @@ function ShoppingApp() {
         setToolResult({
           isError: true,
           content: [
-            { type: "text", text: "The request was cancelled. Ask your assistant to try again." },
+            {
+              type: "text",
+              text: "The request was cancelled. Ask your assistant to try again.",
+            },
           ],
         });
       };
@@ -98,7 +106,10 @@ interface ShoppingAppInnerProps {
   hostContext?: McpUiHostContext;
 }
 
-function getPartialLoadingMessage(viewKey: string | null, args: Record<string, unknown>): string {
+function getPartialLoadingMessage(
+  viewKey: string | null,
+  args: Record<string, unknown>,
+): string {
   switch (viewKey) {
     case "search_products": {
       const terms = args.terms as string[] | undefined;
@@ -130,7 +141,12 @@ function getPartialLoadingMessage(viewKey: string | null, args: Record<string, u
   }
 }
 
-function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: ShoppingAppInnerProps) {
+function ShoppingAppInner({
+  app,
+  toolResult,
+  partialArgs,
+  hostContext,
+}: ShoppingAppInnerProps) {
   const toolName = hostContext?.toolInfo?.tool?.name ?? null;
   // `data` is seeded from `toolResult` but child views edit it locally (optimistic
   // updates via `setData`), so it isn't purely derived — we can't compute it inline.
@@ -187,7 +203,9 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
         />
       );
     case "get_product":
-      return <ProductDetailView data={data} app={app} canCallTools={canCallTools} />;
+      return (
+        <ProductDetailView data={data} app={app} canCallTools={canCallTools} />
+      );
     case "search_stores":
       return (
         <LocationResultsView
@@ -199,18 +217,34 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
         />
       );
     case "get_store":
-      return <LocationDetailView data={data} app={app} canCallTools={canCallTools} />;
+      return (
+        <LocationDetailView data={data} app={app} canCallTools={canCallTools} />
+      );
     case "set_preferred_store":
       return <PreferredStoreView data={data} />;
     case "create_shopping_list":
-      return <ShoppingListView data={data} app={app} canCallTools={canCallTools} />;
+      return (
+        <ShoppingListView data={data} app={app} canCallTools={canCallTools} />
+      );
     case "add_shopping_list_to_cart":
       return <AddToCartView data={data} />;
     case "pantry":
-      return <PantryView data={data} setData={setData} app={app} canCallTools={canCallTools} />;
+      return (
+        <PantryView
+          data={data}
+          setData={setData}
+          app={app}
+          canCallTools={canCallTools}
+        />
+      );
     case "kitchen_equipment":
       return (
-        <KitchenEquipmentView data={data} setData={setData} app={app} canCallTools={canCallTools} />
+        <KitchenEquipmentView
+          data={data}
+          setData={setData}
+          app={app}
+          canCallTools={canCallTools}
+        />
       );
     case "get_weekly_deals":
       return (
@@ -230,4 +264,6 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
   }
 }
 
-createRoot(document.getElementById("root") as HTMLElement).render(<ShoppingApp />);
+createRoot(document.getElementById("root") as HTMLElement).render(
+  <ShoppingApp />,
+);

@@ -12,15 +12,23 @@ describe("request deadlines", () => {
         signals.push(request.signal);
         if (signals.length > 1) return Response.json({ items: [] });
         return new Promise<Response>((_resolve, reject) => {
-          request.signal.addEventListener("abort", () => reject(request.signal.reason), {
-            once: true,
-          });
+          request.signal.addEventListener(
+            "abort",
+            () => reject(request.signal.reason),
+            {
+              once: true,
+            },
+          );
         });
       },
     });
     client.use(requestTimeoutMiddleware(undefined, 10));
-    await expect(client.GET("/api/grocery/pantry")).rejects.toMatchObject({ name: "TimeoutError" });
-    await expect(client.GET("/api/grocery/pantry")).resolves.toMatchObject({ data: { items: [] } });
+    await expect(client.GET("/api/grocery/pantry")).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    await expect(client.GET("/api/grocery/pantry")).resolves.toMatchObject({
+      data: { items: [] },
+    });
     expect(signals[0]?.aborted).toBe(true);
     expect(signals[1]?.aborted).toBe(false);
   });
@@ -37,6 +45,8 @@ describe("request deadlines", () => {
       },
     });
     client.use(requestTimeoutMiddleware(controller.signal));
-    await expect(client.GET("/api/grocery/pantry")).rejects.toThrow("caller cancelled");
+    await expect(client.GET("/api/grocery/pantry")).rejects.toThrow(
+      "caller cancelled",
+    );
   });
 });

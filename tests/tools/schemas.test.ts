@@ -1,6 +1,11 @@
 import { assert, describe, expect, it } from "vitest";
 
-import { modalityEnum, quantitySchema, storeIdSchema, upcSchema } from "../../src/tools/schemas.js";
+import {
+  modalityEnum,
+  quantitySchema,
+  storeIdSchema,
+  upcSchema,
+} from "../../src/tools/schemas.js";
 
 describe("upcSchema", () => {
   it("accepts a 13-digit UPC unchanged", () => {
@@ -23,7 +28,9 @@ describe("upcSchema", () => {
     const result = upcSchema.safeParse("abc1111041700");
     expect(result.success).toBe(false);
     assert(!result.success);
-    expect(result.error.issues[0]?.message).toContain("UPC must be up to 13 digits");
+    expect(result.error.issues[0]?.message).toContain(
+      "UPC must be up to 13 digits",
+    );
     expect(result.error.issues[0]?.message).toContain("search_products");
   });
 

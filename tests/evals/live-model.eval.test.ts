@@ -90,13 +90,15 @@ function parseToolArguments(value: unknown): Record<string, unknown> {
   if (typeof value === "string") {
     try {
       const parsed: unknown = JSON.parse(value);
-      if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+      if (parsed && typeof parsed === "object")
+        return parsed as Record<string, unknown>;
     } catch {
       return {};
     }
     return {};
   }
-  if (value && typeof value === "object") return value as Record<string, unknown>;
+  if (value && typeof value === "object")
+    return value as Record<string, unknown>;
   return {};
 }
 
@@ -119,7 +121,8 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
   /** Minimal manual agentic loop: Workers AI model ↔ real MCP tools. */
   async function runAgent(userTask: string): Promise<RunStats> {
     const ai = (env as { AI?: unknown }).AI as ChatCapableAi | undefined;
-    if (!ai) throw new Error("AI binding is not available in the test environment");
+    if (!ai)
+      throw new Error("AI binding is not available in the test environment");
 
     const { tools: mcpTools } = await client.listTools();
     const tools: WorkersAiTool[] = mcpTools.map((tool) => ({
@@ -140,7 +143,11 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
 
       if (!result.tool_calls || result.tool_calls.length === 0) break;
 
-      messages.push({ role: "assistant", content: "", tool_calls: result.tool_calls });
+      messages.push({
+        role: "assistant",
+        content: "",
+        tool_calls: result.tool_calls,
+      });
 
       for (const toolCall of result.tool_calls) {
         stats.toolCalls++;
@@ -156,13 +163,20 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
           toolResult = {
             isError: true,
             content: [
-              { type: "text", text: error instanceof Error ? error.message : String(error) },
+              {
+                type: "text",
+                text: error instanceof Error ? error.message : String(error),
+              },
             ],
           };
         }
         if (toolResult.isError) stats.schemaRejections++;
 
-        messages.push({ role: "tool", name: toolCall.name, content: contentText(toolResult) });
+        messages.push({
+          role: "tool",
+          name: toolCall.name,
+          content: contentText(toolResult),
+        });
       }
     }
 
@@ -177,7 +191,9 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
           arguments: { storeId: scenario.seedPreferredStoreId },
         })) as ToolCallResult;
         if (seeded.isError) {
-          throw new Error(`seed step for "${scenario.name}" failed: ${contentText(seeded)}`);
+          throw new Error(
+            `seed step for "${scenario.name}" failed: ${contentText(seeded)}`,
+          );
         }
         stub.cartPuts.length = 0;
       }
@@ -191,7 +207,8 @@ describe.skipIf(!liveEnabled)(`live small-model eval (${model})`, () => {
       );
 
       const missingCartItems = scenario.expectCart.filter(
-        (expected) => !cartUpcs.some((upc) => upc && expected.anyOf.includes(upc)),
+        (expected) =>
+          !cartUpcs.some((upc) => upc && expected.anyOf.includes(upc)),
       );
       expect(
         missingCartItems.map((expected) => expected.label),

@@ -1,7 +1,13 @@
 /// <reference types="vite/client" />
 /** Local fixture preview. Excluded from the production HTML entry in vite.config.ts. */
 import type { App } from "@modelcontextprotocol/ext-apps/react";
-import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
   appResult,
@@ -134,12 +140,14 @@ const LIST: ShoppingListContent = {
       productName: "Trader Joe’s brown jasmine rice",
       product: { provider: "traderjoes", id: "preview-rice" },
       quantity: 1,
-      notes: "Keep this item on the list until a Kroger alternative is selected.",
+      notes:
+        "Keep this item on the list until a Kroger alternative is selected.",
     },
     {
       productName: "A large bunch of fresh herbs for the weekend meal",
       quantity: 1,
-      notes: "Parsley or cilantro. Avoid the small plastic packets if a fresh bunch is available.",
+      notes:
+        "Parsley or cilantro. Avoid the small plastic packets if a fresh bunch is available.",
     },
   ],
 };
@@ -186,7 +194,10 @@ function Preview() {
           if (call.name === "search_products")
             return { content: [], ...appResult("search_products", PRODUCTS) };
           if (call.name === "create_shopping_list")
-            return { content: [], structuredContent: { listId: "preview-created-list" } };
+            return {
+              content: [],
+              structuredContent: { listId: "preview-created-list" },
+            };
           return { content: [] };
         },
         sendMessage: async () => {
@@ -215,7 +226,14 @@ function Preview() {
     () => ({
       ...PRODUCTS,
       totalProducts: 0,
-      results: [{ provider: "kroger", term: "Strawberries", failed: true, products: [] }],
+      results: [
+        {
+          provider: "kroger",
+          term: "Strawberries",
+          failed: true,
+          products: [],
+        },
+      ],
     }),
     [],
   );
@@ -265,12 +283,24 @@ function Preview() {
         </output>
       </div>
       <main key={view}>
-        {view === "deals" && <WeeklyDealsView data={DEALS} app={app} canCallTools />}
-        {view === "stale" && <WeeklyDealsView data={staleDeals} app={app} canCallTools />}
-        {view === "empty" && <WeeklyDealsView data={emptyDeals} app={app} canCallTools />}
-        {view === "products" && <ProductSearchView data={PRODUCTS} app={app} canCallTools />}
-        {view === "failed" && <ProductSearchView data={failedProducts} app={app} canCallTools />}
-        {view === "list" && <ShoppingListView data={LIST} app={app} canCallTools />}
+        {view === "deals" && (
+          <WeeklyDealsView data={DEALS} app={app} canCallTools />
+        )}
+        {view === "stale" && (
+          <WeeklyDealsView data={staleDeals} app={app} canCallTools />
+        )}
+        {view === "empty" && (
+          <WeeklyDealsView data={emptyDeals} app={app} canCallTools />
+        )}
+        {view === "products" && (
+          <ProductSearchView data={PRODUCTS} app={app} canCallTools />
+        )}
+        {view === "failed" && (
+          <ProductSearchView data={failedProducts} app={app} canCallTools />
+        )}
+        {view === "list" && (
+          <ShoppingListView data={LIST} app={app} canCallTools />
+        )}
         {view === "loading" && <ProductSearchSkeleton />}
         {view === "error" && (
           <ErrorDisplay message="Your session expired. Reconnect your account and ask your assistant to try again." />

@@ -12,7 +12,15 @@ const RECORDED_BADGE = (
 );
 
 export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
-  const { orderId, items, totalItems, estimatedTotal, placedAt, locationId, notes } = data;
+  const {
+    orderId,
+    items,
+    totalItems,
+    estimatedTotal,
+    placedAt,
+    locationId,
+    notes,
+  } = data;
 
   const placedDate = new Date(placedAt).toLocaleString(undefined, {
     month: "short",
@@ -23,7 +31,11 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader title="Order Placed" badge={RECORDED_BADGE} subtitle={placedDate} />
+      <SectionHeader
+        title="Order Placed"
+        badge={RECORDED_BADGE}
+        subtitle={placedDate}
+      />
 
       <Card size="sm" className="mb-3">
         <CardContent className="flex flex-col gap-1 pt-3">
@@ -66,7 +78,9 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
             )}
           </div>
 
-          {notes && <p className="pt-1 text-xs text-gray-400 italic">{notes}</p>}
+          {notes && (
+            <p className="pt-1 text-xs text-gray-400 italic">{notes}</p>
+          )}
         </CardContent>
       </Card>
 
@@ -96,8 +110,12 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
               </svg>
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-gray-900">{item.productName}</div>
-              <div className="font-mono text-xs text-gray-400">×{item.quantity}</div>
+              <div className="truncate text-sm font-medium text-gray-900">
+                {item.productName}
+              </div>
+              <div className="font-mono text-xs text-gray-400">
+                ×{item.quantity}
+              </div>
             </div>
             {item.price != null && (
               <span className="shrink-0 font-mono text-sm font-medium text-emerald-600">

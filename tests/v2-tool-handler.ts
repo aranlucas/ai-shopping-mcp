@@ -35,7 +35,10 @@ function makeRequestContext(): ServerContext {
       requestState: () => undefined,
       notify: async () => {},
       log: async () => {},
-      elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
+      elicitInput: async () => ({
+        action: "accept",
+        content: { confirm: true },
+      }),
       requestSampling: async () => {
         throw new Error("Sampling is not configured in this test");
       },
@@ -46,7 +49,10 @@ function makeRequestContext(): ServerContext {
 /**
  * Supplies the minimal v2 request context expected by tool handlers.
  */
-export function wrapV2ToolHandler(handler: RawToolHandler, _server: unknown): TestToolHandler {
+export function wrapV2ToolHandler(
+  handler: RawToolHandler,
+  _server: unknown,
+): TestToolHandler {
   return async (args, requestContext) => {
     const result = requestContext
       ? await handler(args, requestContext)

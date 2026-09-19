@@ -1,14 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { selectProductMatches, type SelectorAi } from "../../src/services/product-selector.js";
+import {
+  selectProductMatches,
+  type SelectorAi,
+} from "../../src/services/product-selector.js";
 import { stubJevAi, type JevRun } from "../jev-stub.js";
 
-const candy = { upc: "1", description: "Candy", items: [{ fulfillment: { curbside: true } }] };
-const milk = { upc: "2", description: "Milk", items: [{ fulfillment: { curbside: true } }] };
+const candy = {
+  upc: "1",
+  description: "Candy",
+  items: [{ fulfillment: { curbside: true } }],
+};
+const milk = {
+  upc: "2",
+  description: "Milk",
+  items: [{ fulfillment: { curbside: true } }],
+};
 
 async function selectProductMatch(params: {
   ai: SelectorAi;
   query: string;
-  products: Parameters<typeof selectProductMatches>[0]["items"][number]["products"];
+  products: Parameters<
+    typeof selectProductMatches
+  >[0]["items"][number]["products"];
   forPickup: boolean;
 }) {
   const [selection] = await selectProductMatches({
@@ -22,7 +35,9 @@ async function selectProductMatch(params: {
 function response(choice: string, probabilities: Record<string, number>) {
   return {
     model: "jev-1.13.0",
-    answers: { item_0: { type: "choice", choice, confidence: 0.9, probabilities } },
+    answers: {
+      item_0: { type: "choice", choice, confidence: 0.9, probabilities },
+    },
   };
 }
 
@@ -42,9 +57,14 @@ describe("Jev product selection", () => {
       forPickup: true,
     });
     expect(run).toHaveBeenCalledTimes(1);
-    expect(Object.keys(run.mock.calls[0]?.[0].query.questions ?? {})).toHaveLength(10);
+    expect(
+      Object.keys(run.mock.calls[0]?.[0].query.questions ?? {}),
+    ).toHaveLength(10);
     expect(selections).toEqual(
-      Array.from({ length: 10 }, () => ({ status: "selected", product: products[19] })),
+      Array.from({ length: 10 }, () => ({
+        status: "selected",
+        product: products[19],
+      })),
     );
   });
 
@@ -53,10 +73,16 @@ describe("Jev product selection", () => {
       Response.json({
         model: "jev-test",
         answers: {
-          item_2: response("no_match", { candidate_0: 0, no_match: 1, needs_review: 0 }).answers
-            .item_0,
-          item_1: response("candidate_0", { candidate_0: 1, no_match: 0, needs_review: 0 }).answers
-            .item_0,
+          item_2: response("no_match", {
+            candidate_0: 0,
+            no_match: 1,
+            needs_review: 0,
+          }).answers.item_0,
+          item_1: response("candidate_0", {
+            candidate_0: 1,
+            no_match: 0,
+            needs_review: 0,
+          }).answers.item_0,
         },
       }),
     );
@@ -74,31 +100,43 @@ describe("Jev product selection", () => {
       { status: "selected", product: milk },
       { status: "unresolved" },
     ]);
-    expect(Object.keys(run.mock.calls[0]?.[0].query.questions ?? {})).toEqual(["item_1", "item_2"]);
+    expect(Object.keys(run.mock.calls[0]?.[0].query.questions ?? {})).toEqual([
+      "item_1",
+      "item_2",
+    ]);
     expect(run).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["missing", "unexpected"])("rejects a batch with a %s answer", async (failure) => {
-    const answer = response("candidate_0", { candidate_0: 1, no_match: 0, needs_review: 0 }).answers
-      .item_0;
-    const run = vi.fn<JevRun>(async () =>
-      Response.json({
-        model: "jev-test",
-        answers: failure === "missing" ? { item_0: answer } : { item_0: answer, item_9: answer },
-      }),
-    );
-    await expect(
-      selectProductMatches({
-        ai: { gateway: () => ({ run }) },
-        items: [
-          { query: "milk", products: [milk] },
-          { query: "candy", products: [candy] },
-        ],
-        forPickup: true,
-      }),
-    ).rejects.toThrow("Jev must answer exactly the requested item questions");
-    expect(run).toHaveBeenCalledTimes(1);
-  });
+  it.each(["missing", "unexpected"])(
+    "rejects a batch with a %s answer",
+    async (failure) => {
+      const answer = response("candidate_0", {
+        candidate_0: 1,
+        no_match: 0,
+        needs_review: 0,
+      }).answers.item_0;
+      const run = vi.fn<JevRun>(async () =>
+        Response.json({
+          model: "jev-test",
+          answers:
+            failure === "missing"
+              ? { item_0: answer }
+              : { item_0: answer, item_9: answer },
+        }),
+      );
+      await expect(
+        selectProductMatches({
+          ai: { gateway: () => ({ run }) },
+          items: [
+            { query: "milk", products: [milk] },
+            { query: "candy", products: [candy] },
+          ],
+          forPickup: true,
+        }),
+      ).rejects.toThrow("Jev must answer exactly the requested item questions");
+      expect(run).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("uses Jev on the default gateway and preserves its exact product choice", async () => {
     const stub = stubJevAi("Milk");
@@ -116,7 +154,10 @@ describe("Jev product selection", () => {
       {
         provider: "openrouter",
         endpoint: "../alpha/decisions",
-        headers: { "Content-Type": "application/json", "cf-aig-max-attempts": "1" },
+        headers: {
+          "Content-Type": "application/json",
+          "cf-aig-max-attempts": "1",
+        },
         query: expect.objectContaining({
           model: "typesafe/jev-1.13",
           state: { items: { item_0: { requestedItem: "milk" } } },
@@ -195,20 +236,31 @@ describe("Jev product selection", () => {
     {},
     response("invented_upc", { invented_upc: 1 }),
     response("candidate_0", { candidate_0: 1 }),
-    response("candidate_0", { candidate_0: 0.9, no_match: 0.9, needs_review: 0 }),
-    response("candidate_0", { candidate_0: 0.1, no_match: 0.9, needs_review: 0 }),
-  ])("rejects malformed or inconsistent responses without fallback", async (raw) => {
-    const run = vi.fn<JevRun>(async () => Response.json(raw));
-    await expect(
-      selectProductMatch({
-        ai: { gateway: () => ({ run }) },
-        query: "milk",
-        products: [milk],
-        forPickup: false,
-      }),
-    ).rejects.toThrow(/.+/);
-    expect(run).toHaveBeenCalledTimes(1);
-  });
+    response("candidate_0", {
+      candidate_0: 0.9,
+      no_match: 0.9,
+      needs_review: 0,
+    }),
+    response("candidate_0", {
+      candidate_0: 0.1,
+      no_match: 0.9,
+      needs_review: 0,
+    }),
+  ])(
+    "rejects malformed or inconsistent responses without fallback",
+    async (raw) => {
+      const run = vi.fn<JevRun>(async () => Response.json(raw));
+      await expect(
+        selectProductMatch({
+          ai: { gateway: () => ({ run }) },
+          query: "milk",
+          products: [milk],
+          forPickup: false,
+        }),
+      ).rejects.toThrow(/.+/);
+      expect(run).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("propagates provider errors without retrying or selecting a product", async () => {
     const run = vi.fn<JevRun>(async () => {
@@ -226,7 +278,9 @@ describe("Jev product selection", () => {
   });
 
   it("rejects HTTP errors without retrying or selecting a product", async () => {
-    const run = vi.fn<JevRun>(async () => new Response("Provider unavailable", { status: 503 }));
+    const run = vi.fn<JevRun>(
+      async () => new Response("Provider unavailable", { status: 503 }),
+    );
     await expect(
       selectProductMatch({
         ai: { gateway: () => ({ run }) },

@@ -4,16 +4,25 @@ import { createGatewayClient } from "../src/services/gateway/client.js";
 import { createGatewayShoppingStore } from "../src/utils/gateway-storage.js";
 import { safeStorage, toMcpError } from "../src/utils/result.js";
 
-type CapturedRequest = { method: string; url: string; headers: Headers; body?: unknown };
+type CapturedRequest = {
+  method: string;
+  url: string;
+  headers: Headers;
+  body?: unknown;
+};
 
 function mockGateway(
-  responder: (request: Request, body: unknown) => { status?: number; body?: unknown },
+  responder: (
+    request: Request,
+    body: unknown,
+  ) => { status?: number; body?: unknown },
 ) {
   const requests: CapturedRequest[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const request = input instanceof Request ? input : new Request(input, init);
+      const request =
+        input instanceof Request ? input : new Request(input, init);
       const body = request.body ? await request.clone().json() : undefined;
       requests.push({
         method: request.method,
@@ -64,9 +73,13 @@ describe("gateway shopping storage", () => {
     expect(requests[0]).toMatchObject({
       method: "POST",
       url: "https://gateway.example/api/grocery/pantry",
-      body: { items: [{ name: "Eggs", quantity: 12, expires_at: 1_784_937_600 }] },
+      body: {
+        items: [{ name: "Eggs", quantity: 12, expires_at: 1_784_937_600 }],
+      },
     });
-    expect(requests[0]?.headers.get("authorization")).toBe("Bearer mcp-access-token");
+    expect(requests[0]?.headers.get("authorization")).toBe(
+      "Bearer mcp-access-token",
+    );
     expect(requests[0]?.headers.has("x-shopping-service-secret")).toBe(false);
     expect(requests[0]?.headers.has("x-shopping-user-id")).toBe(false);
     expect(pantry).toEqual([
@@ -108,14 +121,18 @@ describe("gateway shopping storage", () => {
       },
     }));
 
-    const list = await makeStore().shoppingList.create("ignored-client-id", "Tuesday dinner", [
-      {
-        productName: "Milk",
-        upc: "0001111042578",
-        quantity: 2,
-        notes: "organic",
-      },
-    ]);
+    const list = await makeStore().shoppingList.create(
+      "ignored-client-id",
+      "Tuesday dinner",
+      [
+        {
+          productName: "Milk",
+          upc: "0001111042578",
+          quantity: 2,
+          notes: "organic",
+        },
+      ],
+    );
 
     expect(requests[0]).toMatchObject({
       method: "POST",
@@ -132,7 +149,9 @@ describe("gateway shopping storage", () => {
         ],
       },
     });
-    expect(requests[0]?.body as Record<string, unknown>).not.toHaveProperty("household_id");
+    expect(requests[0]?.body as Record<string, unknown>).not.toHaveProperty(
+      "household_id",
+    );
     expect(list).toEqual({
       id: "gateway-list-123",
       name: "Tuesday dinner",
@@ -161,12 +180,16 @@ describe("gateway shopping storage", () => {
       notes: "Pickup",
     };
     const requests = mockGateway((request) =>
-      request.method === "POST" ? { status: 201, body: wireOrder } : { body: { orders: [] } },
+      request.method === "POST"
+        ? { status: 201, body: wireOrder }
+        : { body: { orders: [] } },
     );
 
     const history = await makeStore().orderHistory.add({
       orderId: "order-123",
-      items: [{ upc: "0001111042578", productName: "Milk", quantity: 2, price: 3.5 }],
+      items: [
+        { upc: "0001111042578", productName: "Milk", quantity: 2, price: 3.5 },
+      ],
       totalItems: 2,
       estimatedTotal: 7,
       placedAt: "2026-07-18T00:00:00.000Z",
@@ -179,7 +202,9 @@ describe("gateway shopping storage", () => {
       method: "POST",
       body: {
         id: "order-123",
-        items: [{ upc: "0001111042578", name: "Milk", quantity: 2, price: 3.5 }],
+        items: [
+          { upc: "0001111042578", name: "Milk", quantity: 2, price: 3.5 },
+        ],
         total_items: 2,
         estimated_total: 7,
         placed_at: 1_784_332_800,
@@ -189,7 +214,9 @@ describe("gateway shopping storage", () => {
     });
     expect(history).toEqual({
       orderId: "order-123",
-      items: [{ upc: "0001111042578", productName: "Milk", quantity: 2, price: 3.5 }],
+      items: [
+        { upc: "0001111042578", productName: "Milk", quantity: 2, price: 3.5 },
+      ],
       totalItems: 2,
       estimatedTotal: 7,
       placedAt: "2026-07-18T00:00:00.000Z",
@@ -199,11 +226,18 @@ describe("gateway shopping storage", () => {
   });
 
   it("throws on non-success and malformed gateway responses", async () => {
-    mockGateway(() => ({ status: 503, body: { error: "grocery_api_unavailable" } }));
-    await expect(makeStore().pantry.getAll()).rejects.toThrow("Gateway request failed (503)");
+    mockGateway(() => ({
+      status: 503,
+      body: { error: "grocery_api_unavailable" },
+    }));
+    await expect(makeStore().pantry.getAll()).rejects.toThrow(
+      "Gateway request failed (503)",
+    );
 
     vi.unstubAllGlobals();
-    mockGateway(() => ({ body: { items: [{ name: "Milk", quantity: "wrong" }] } }));
+    mockGateway(() => ({
+      body: { items: [{ name: "Milk", quantity: "wrong" }] },
+    }));
     await expect(makeStore().pantry.getAll()).rejects.toThrow(
       "Gateway returned an invalid response",
     );
@@ -221,7 +255,10 @@ describe("gateway shopping storage", () => {
     "preserves gateway status %s through the tool boundary",
     async (status) => {
       mockGateway(() => ({ status, body: { error: "upstream_error" } }));
-      const result = await safeStorage(() => makeStore().pantry.getAll(), "read pantry");
+      const result = await safeStorage(
+        () => makeStore().pantry.getAll(),
+        "read pantry",
+      );
       expect(result._unsafeUnwrapErr()).toMatchObject(
         status === 401 ? { type: "AUTH_ERROR" } : { type: "API_ERROR", status },
       );
@@ -229,7 +266,11 @@ describe("gateway shopping storage", () => {
         structuredContent: {
           error: {
             recovery:
-              status === 401 ? "reconnect" : status === 409 ? "correct_input" : "retry_later",
+              status === 401
+                ? "reconnect"
+                : status === 409
+                  ? "correct_input"
+                  : "retry_later",
           },
         },
       });
@@ -237,8 +278,13 @@ describe("gateway shopping storage", () => {
   );
 
   it("distinguishes malformed gateway data from storage failures", async () => {
-    mockGateway(() => ({ body: { items: [{ name: "Milk", quantity: "wrong" }] } }));
-    const result = await safeStorage(() => makeStore().pantry.getAll(), "read pantry");
+    mockGateway(() => ({
+      body: { items: [{ name: "Milk", quantity: "wrong" }] },
+    }));
+    const result = await safeStorage(
+      () => makeStore().pantry.getAll(),
+      "read pantry",
+    );
     expect(result._unsafeUnwrapErr().type).toBe("INVALID_RESPONSE");
   });
 });

@@ -8,7 +8,10 @@
  * stub, so evals measure the actual wire payloads a host model would see —
  * tool list, content text, structuredContent — without hitting Kroger.
  */
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import {
+  Client,
+  StreamableHTTPClientTransport,
+} from "@modelcontextprotocol/client";
 import { SELF, env } from "cloudflare:test";
 import { expect, vi } from "vitest";
 import { stubJevAi } from "../jev-stub.js";
@@ -194,11 +197,13 @@ export const DEFAULT_STORE_ID = FIXTURE_STORES[0].locationId;
 
 /** Builds a full Kroger product payload, including realistic image bulk. */
 function makeFixtureProduct(spec: FixtureProductSpec) {
-  const imageSizes = ["thumbnail", "small", "medium", "large", "xlarge"].map((id, index) => ({
-    id,
-    size: String(50 + index * 250),
-    url: `https://www.kroger.com/product/images/${id}/front/${spec.upc}?wid=${50 + index * 250}&hei=${50 + index * 250}&fmt=pjpeg&qlt=85,0&resMode=sharp2&op_usm=1.75,0.3,2,0`,
-  }));
+  const imageSizes = ["thumbnail", "small", "medium", "large", "xlarge"].map(
+    (id, index) => ({
+      id,
+      size: String(50 + index * 250),
+      url: `https://www.kroger.com/product/images/${id}/front/${spec.upc}?wid=${50 + index * 250}&hei=${50 + index * 250}&fmt=pjpeg&qlt=85,0&resMode=sharp2&op_usm=1.75,0.3,2,0`,
+    }),
+  );
 
   return {
     productId: spec.upc,
@@ -239,7 +244,9 @@ function makeFixtureProduct(spec: FixtureProductSpec) {
         price: { regular: spec.regular, promo: spec.promo ?? 0 },
         size: spec.size,
         soldBy: "UNIT",
-        inventory: { stockLevel: spec.pickup ? "HIGH" : "TEMPORARILY_OUT_OF_STOCK" },
+        inventory: {
+          stockLevel: spec.pickup ? "HIGH" : "TEMPORARILY_OUT_OF_STOCK",
+        },
       },
     ],
     itemInformation: { depth: "3", height: "9", width: "6" },
@@ -247,7 +254,9 @@ function makeFixtureProduct(spec: FixtureProductSpec) {
   };
 }
 
-function productsForTerm(term: string): ReturnType<typeof makeFixtureProduct>[] {
+function productsForTerm(
+  term: string,
+): ReturnType<typeof makeFixtureProduct>[] {
   const normalized = term.toLowerCase().trim();
   if (normalized.startsWith("zzz")) return [];
 
@@ -262,7 +271,8 @@ function productsForTerm(term: string): ReturnType<typeof makeFixtureProduct>[] 
   // Synthesize a deterministic generic product so open-ended (live-model)
   // searches always find something.
   let hash = 0;
-  for (const char of normalized) hash = (hash * 31 + char.charCodeAt(0)) % 1_000_000;
+  for (const char of normalized)
+    hash = (hash * 31 + char.charCodeAt(0)) % 1_000_000;
   const upc = String(2_000_000_000_000 + hash).padStart(13, "0");
   return [
     makeFixtureProduct({
@@ -315,7 +325,8 @@ export function installKrogerFetchStub(): KrogerFetchStub {
   // Preserve the live host-model binding, but fixture the bounded product decision.
   env.AI = {
     run: (...args: Parameters<Ai["run"]>) => originalAi.run(...args),
-    gateway: (id: string) => (id === "default" ? jev.gateway(id) : originalAi.gateway(id)),
+    gateway: (id: string) =>
+      id === "default" ? jev.gateway(id) : originalAi.gateway(id),
   } as Ai;
   const cartPuts: Array<{ items: CapturedCartItem[] }> = [];
   let preferredStore: Record<string, unknown> | null = null;
@@ -331,10 +342,15 @@ export function installKrogerFetchStub(): KrogerFetchStub {
       const request = input instanceof Request ? input : null;
       const url = new URL(request ? request.url : input.toString());
 
-      if (url.hostname === "gateway.example" || url.hostname === "agents-gateway.up.railway.app") {
-        if (!request) throw new Error("Gateway fixture requires a Request instance");
+      if (
+        url.hostname === "gateway.example" ||
+        url.hostname === "agents-gateway.up.railway.app"
+      ) {
+        if (!request)
+          throw new Error("Gateway fixture requires a Request instance");
         const method = request.method.toUpperCase();
-        const jsonBody = async () => (await request.clone().json()) as Record<string, unknown>;
+        const jsonBody = async () =>
+          (await request.clone().json()) as Record<string, unknown>;
         const nowSeconds = 1_784_352_000;
         const nowMilliseconds = nowSeconds * 1000;
 
@@ -373,7 +389,9 @@ export function installKrogerFetchStub(): KrogerFetchStub {
               const name = String(item["name"] ?? "");
               const quantity = Number(item["quantity"] ?? 1);
               const existing = pantry.find(
-                (candidate) => String(candidate["name"]).toLowerCase() === name.toLowerCase(),
+                (candidate) =>
+                  String(candidate["name"]).toLowerCase() ===
+                  name.toLowerCase(),
               );
               if (existing) {
                 existing["quantity"] = Number(existing["quantity"]) + quantity;
@@ -386,7 +404,9 @@ export function installKrogerFetchStub(): KrogerFetchStub {
                   name,
                   quantity,
                   added_at: nowSeconds,
-                  ...(item["expires_at"] === undefined ? {} : { expires_at: item["expires_at"] }),
+                  ...(item["expires_at"] === undefined
+                    ? {}
+                    : { expires_at: item["expires_at"] }),
                 });
               }
             }
@@ -394,7 +414,10 @@ export function installKrogerFetchStub(): KrogerFetchStub {
           }
         }
 
-        if (url.pathname === "/api/grocery/pantry/remove" && method === "POST") {
+        if (
+          url.pathname === "/api/grocery/pantry/remove" &&
+          method === "POST"
+        ) {
           const body = await jsonBody();
           if (body["all"] === true) {
             pantry = [];
@@ -404,16 +427,22 @@ export function installKrogerFetchStub(): KrogerFetchStub {
                 String(name).toLowerCase(),
               ),
             );
-            pantry = pantry.filter((item) => !names.has(String(item["name"]).toLowerCase()));
+            pantry = pantry.filter(
+              (item) => !names.has(String(item["name"]).toLowerCase()),
+            );
           }
           return Response.json({ items: pantry });
         }
 
-        if (url.pathname === "/api/grocery/pantry/quantity" && method === "POST") {
+        if (
+          url.pathname === "/api/grocery/pantry/quantity" &&
+          method === "POST"
+        ) {
           const body = await jsonBody();
           const item = pantry.find(
             (candidate) =>
-              String(candidate["name"]).toLowerCase() === String(body["name"] ?? "").toLowerCase(),
+              String(candidate["name"]).toLowerCase() ===
+              String(body["name"] ?? "").toLowerCase(),
           );
           if (item) item["quantity"] = Number(body["quantity"]);
           return Response.json({ items: pantry });
@@ -429,7 +458,9 @@ export function installKrogerFetchStub(): KrogerFetchStub {
             for (const item of inputs) {
               const name = String(item["name"] ?? "");
               const existing = equipment.find(
-                (candidate) => String(candidate["name"]).toLowerCase() === name.toLowerCase(),
+                (candidate) =>
+                  String(candidate["name"]).toLowerCase() ===
+                  name.toLowerCase(),
               );
               if (existing) {
                 existing["added_at"] = nowSeconds;
@@ -440,7 +471,9 @@ export function installKrogerFetchStub(): KrogerFetchStub {
                 equipment.push({
                   name,
                   added_at: nowSeconds,
-                  ...(item["category"] === undefined ? {} : { category: item["category"] }),
+                  ...(item["category"] === undefined
+                    ? {}
+                    : { category: item["category"] }),
                 });
               }
             }
@@ -448,7 +481,10 @@ export function installKrogerFetchStub(): KrogerFetchStub {
           }
         }
 
-        if (url.pathname === "/api/grocery/equipment/remove" && method === "POST") {
+        if (
+          url.pathname === "/api/grocery/equipment/remove" &&
+          method === "POST"
+        ) {
           const body = await jsonBody();
           if (body["all"] === true) {
             equipment = [];
@@ -458,19 +494,26 @@ export function installKrogerFetchStub(): KrogerFetchStub {
                 String(name).toLowerCase(),
               ),
             );
-            equipment = equipment.filter((item) => !names.has(String(item["name"]).toLowerCase()));
+            equipment = equipment.filter(
+              (item) => !names.has(String(item["name"]).toLowerCase()),
+            );
           }
           return Response.json({ items: equipment });
         }
 
         if (url.pathname === "/api/grocery/orders") {
           if (method === "GET") {
-            const limit = Number(url.searchParams.get("limit") ?? orders.length);
+            const limit = Number(
+              url.searchParams.get("limit") ?? orders.length,
+            );
             return Response.json({ orders: orders.slice(0, limit) });
           }
           if (method === "POST") {
             const body = await jsonBody();
-            const order = { ...body, id: body["id"] ?? `order_${orders.length + 1}` };
+            const order = {
+              ...body,
+              id: body["id"] ?? `order_${orders.length + 1}`,
+            };
             orders.unshift(order);
             return Response.json(order, { status: 201 });
           }
@@ -504,7 +547,8 @@ export function installKrogerFetchStub(): KrogerFetchStub {
                 checked_at: null,
                 updated_at: nowMilliseconds,
               };
-              if (item["product"] !== undefined) entry["product"] = item["product"];
+              if (item["product"] !== undefined)
+                entry["product"] = item["product"];
               if (item["upc"] !== undefined) entry["upc"] = item["upc"];
               return entry;
             }),
@@ -513,7 +557,9 @@ export function installKrogerFetchStub(): KrogerFetchStub {
           return Response.json(list, { status: 201 });
         }
 
-        const listMatch = url.pathname.match(/^\/api\/grocery\/lists\/([^/]+)$/);
+        const listMatch = url.pathname.match(
+          /^\/api\/grocery\/lists\/([^/]+)$/,
+        );
         if (listMatch && method === "GET") {
           const list = lists.get(listMatch[1]);
           return list
@@ -521,7 +567,9 @@ export function installKrogerFetchStub(): KrogerFetchStub {
             : Response.json({ error: "grocery_not_found" }, { status: 404 });
         }
 
-        throw new Error(`Unexpected gateway fixture request: ${method} ${url.href}`);
+        throw new Error(
+          `Unexpected gateway fixture request: ${method} ${url.href}`,
+        );
       }
 
       if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
@@ -536,33 +584,49 @@ export function installKrogerFetchStub(): KrogerFetchStub {
         return Response.json({ data: { id: "eval-user" } });
       }
 
-      if (url.hostname === "api.kroger.com" && url.pathname === "/v1/products") {
+      if (
+        url.hostname === "api.kroger.com" &&
+        url.pathname === "/v1/products"
+      ) {
         const term = url.searchParams.get("filter.term") ?? "";
         const limit = Number(url.searchParams.get("filter.limit") ?? "5");
         return Response.json({ data: productsForTerm(term).slice(0, limit) });
       }
 
-      if (url.hostname === "api.kroger.com" && /^\/v1\/products\/[^/]+$/.test(url.pathname)) {
+      if (
+        url.hostname === "api.kroger.com" &&
+        /^\/v1\/products\/[^/]+$/.test(url.pathname)
+      ) {
         const upc = url.pathname.split("/").pop() ?? "";
         const product = findProductByUpc(upc);
         return Response.json({ data: product });
       }
 
-      if (url.hostname === "api.kroger.com" && url.pathname === "/v1/locations") {
+      if (
+        url.hostname === "api.kroger.com" &&
+        url.pathname === "/v1/locations"
+      ) {
         const limit = Number(url.searchParams.get("filter.limit") ?? "5");
         return Response.json({ data: FIXTURE_STORES.slice(0, limit) });
       }
 
-      if (url.hostname === "api.kroger.com" && /^\/v1\/locations\/[^/]+$/.test(url.pathname)) {
+      if (
+        url.hostname === "api.kroger.com" &&
+        /^\/v1\/locations\/[^/]+$/.test(url.pathname)
+      ) {
         const locationId = url.pathname.split("/").pop();
-        const store = FIXTURE_STORES.find((candidate) => candidate.locationId === locationId);
+        const store = FIXTURE_STORES.find(
+          (candidate) => candidate.locationId === locationId,
+        );
         return Response.json({ data: store ?? null });
       }
 
       if (url.href === "https://api.kroger.com/v1/cart/add") {
         const method = (request ? request.method : init?.method) ?? "GET";
         if (method.toUpperCase() === "PUT") {
-          const bodyText = request ? await request.text() : String(init?.body ?? "{}");
+          const bodyText = request
+            ? await request.text()
+            : String(init?.body ?? "{}");
           cartPuts.push(JSON.parse(bodyText) as { items: CapturedCartItem[] });
           return new Response(null, { status: 204 });
         }
@@ -591,11 +655,16 @@ type RegisteredClient = { client_id: string; client_secret: string };
 function base64Url(bytes: ArrayBuffer): string {
   let binary = "";
   for (const byte of new Uint8Array(bytes)) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/u, "");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/u, "");
 }
 
 async function pkceChallenge(verifier: string): Promise<string> {
-  return base64Url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  return base64Url(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
+  );
 }
 
 function cookieValue(setCookie: string, name: string): string {
@@ -610,8 +679,14 @@ function hiddenInputValue(html: string, name: string): string {
   return match[1];
 }
 
-function fetchThroughSelf(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const request = input instanceof Request ? new Request(input, init) : new Request(input, init);
+function fetchThroughSelf(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const request =
+    input instanceof Request
+      ? new Request(input, init)
+      : new Request(input, init);
   return SELF.fetch(request);
 }
 
@@ -642,7 +717,9 @@ async function authorizeOAuthClient(client: RegisteredClient) {
   authUrl.searchParams.set("code_challenge", await pkceChallenge(codeVerifier));
   authUrl.searchParams.set("code_challenge_method", "S256");
 
-  const approvalResponse = await SELF.fetch(new Request(authUrl, { redirect: "manual" }));
+  const approvalResponse = await SELF.fetch(
+    new Request(authUrl, { redirect: "manual" }),
+  );
   expect(approvalResponse.status).toBe(200);
   const approvalHtml = await approvalResponse.text();
   const approvalState = hiddenInputValue(approvalHtml, "state");
@@ -659,13 +736,18 @@ async function authorizeOAuthClient(client: RegisteredClient) {
         "Content-Type": "application/x-www-form-urlencoded",
         Cookie: `__Host-CSRF_TOKEN=${csrfCookie}`,
       },
-      body: new URLSearchParams({ state: approvalState, csrf_token: csrfToken }),
+      body: new URLSearchParams({
+        state: approvalState,
+        csrf_token: csrfToken,
+      }),
       redirect: "manual",
     }),
   );
   expect(authorizeResponse.status).toBe(302);
 
-  const krogerRedirect = new URL(authorizeResponse.headers.get("Location") ?? "");
+  const krogerRedirect = new URL(
+    authorizeResponse.headers.get("Location") ?? "",
+  );
   const krogerState = krogerRedirect.searchParams.get("state");
   const oauthCookie = cookieValue(
     authorizeResponse.headers.get("Set-Cookie") ?? "",
@@ -673,14 +755,19 @@ async function authorizeOAuthClient(client: RegisteredClient) {
   );
 
   const callbackResponse = await SELF.fetch(
-    new Request(`${MCP_BASE_URL}/callback?code=kroger-code&state=${krogerState}`, {
-      headers: { Cookie: `kroger_oauth_state=${oauthCookie}` },
-      redirect: "manual",
-    }),
+    new Request(
+      `${MCP_BASE_URL}/callback?code=kroger-code&state=${krogerState}`,
+      {
+        headers: { Cookie: `kroger_oauth_state=${oauthCookie}` },
+        redirect: "manual",
+      },
+    ),
   );
   expect(callbackResponse.status).toBe(302);
 
-  const clientRedirect = new URL(callbackResponse.headers.get("Location") ?? "");
+  const clientRedirect = new URL(
+    callbackResponse.headers.get("Location") ?? "",
+  );
   const authorizationCode = clientRedirect.searchParams.get("code");
   expect(authorizationCode).toBeTruthy();
   return { authorizationCode: authorizationCode as string, codeVerifier };
@@ -717,8 +804,13 @@ async function exchangeCodeForToken(
  */
 export async function createEvalMcpClient(): Promise<Client> {
   const registered = await registerOAuthClient();
-  const { authorizationCode, codeVerifier } = await authorizeOAuthClient(registered);
-  const accessToken = await exchangeCodeForToken(registered, authorizationCode, codeVerifier);
+  const { authorizationCode, codeVerifier } =
+    await authorizeOAuthClient(registered);
+  const accessToken = await exchangeCodeForToken(
+    registered,
+    authorizationCode,
+    codeVerifier,
+  );
 
   const transport = new StreamableHTTPClientTransport(new URL(MCP_URL), {
     fetch: fetchThroughSelf,
@@ -772,7 +864,9 @@ export function estimateJsonTokens(value: unknown): number {
 // --- The "small-model contract": ids must be regex-extractable from text ---
 
 export function extractStoreIds(text: string): string[] {
-  return [...text.matchAll(/storeId=([A-Za-z0-9]{8})/g)].map((match) => match[1]);
+  return [...text.matchAll(/storeId=([A-Za-z0-9]{8})/g)].map(
+    (match) => match[1],
+  );
 }
 
 export function extractUpcs(text: string): string[] {
@@ -780,9 +874,13 @@ export function extractUpcs(text: string): string[] {
 }
 
 export function extractProductRefs(text: string): string[] {
-  return [...text.matchAll(/productRef=([a-z][a-z0-9_]{0,63}:[^\s|]+)/g)].map((match) => match[1]);
+  return [...text.matchAll(/productRef=([a-z][a-z0-9_]{0,63}:[^\s|]+)/g)].map(
+    (match) => match[1],
+  );
 }
 
 export function extractListIds(text: string): string[] {
-  return [...text.matchAll(/listId=(list_[0-9a-f]{32})/g)].map((match) => match[1]);
+  return [...text.matchAll(/listId=(list_[0-9a-f]{32})/g)].map(
+    (match) => match[1],
+  );
 }

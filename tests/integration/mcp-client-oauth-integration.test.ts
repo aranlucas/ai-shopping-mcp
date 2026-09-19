@@ -1,4 +1,7 @@
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import {
+  Client,
+  StreamableHTTPClientTransport,
+} from "@modelcontextprotocol/client";
 import { SELF, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,11 +25,16 @@ function base64Url(bytes: ArrayBuffer): string {
   for (const byte of new Uint8Array(bytes)) {
     binary += String.fromCharCode(byte);
   }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/u, "");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/u, "");
 }
 
 async function pkceChallenge(verifier: string): Promise<string> {
-  return base64Url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  return base64Url(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
+  );
 }
 
 function cookieValue(setCookie: string, name: string): string {
@@ -41,8 +49,14 @@ function hiddenInputValue(html: string, name: string): string {
   return match[1];
 }
 
-function fetchThroughSelf(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const request = input instanceof Request ? new Request(input, init) : new Request(input, init);
+function fetchThroughSelf(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const request =
+    input instanceof Request
+      ? new Request(input, init)
+      : new Request(input, init);
   return SELF.fetch(request);
 }
 
@@ -77,7 +91,9 @@ async function authorizeClient(client: RegisteredClient): Promise<{
   authUrl.searchParams.set("code_challenge", await pkceChallenge(codeVerifier));
   authUrl.searchParams.set("code_challenge_method", "S256");
 
-  const approvalResponse = await SELF.fetch(new Request(authUrl, { redirect: "manual" }));
+  const approvalResponse = await SELF.fetch(
+    new Request(authUrl, { redirect: "manual" }),
+  );
 
   expect(approvalResponse.status).toBe(200);
   const approvalHtml = await approvalResponse.text();
@@ -104,7 +120,9 @@ async function authorizeClient(client: RegisteredClient): Promise<{
   );
 
   expect(authorizeResponse.status).toBe(302);
-  const krogerRedirect = new URL(authorizeResponse.headers.get("Location") ?? "");
+  const krogerRedirect = new URL(
+    authorizeResponse.headers.get("Location") ?? "",
+  );
   const krogerState = krogerRedirect.searchParams.get("state");
   expect(krogerState).toBeTruthy();
 
@@ -114,15 +132,22 @@ async function authorizeClient(client: RegisteredClient): Promise<{
   );
 
   const callbackResponse = await SELF.fetch(
-    new Request(`${MCP_BASE_URL}/callback?code=kroger-code&state=${krogerState}`, {
-      headers: { Cookie: `kroger_oauth_state=${oauthCookie}` },
-      redirect: "manual",
-    }),
+    new Request(
+      `${MCP_BASE_URL}/callback?code=kroger-code&state=${krogerState}`,
+      {
+        headers: { Cookie: `kroger_oauth_state=${oauthCookie}` },
+        redirect: "manual",
+      },
+    ),
   );
 
   expect(callbackResponse.status).toBe(302);
-  const clientRedirect = new URL(callbackResponse.headers.get("Location") ?? "");
-  expect(clientRedirect.origin + clientRedirect.pathname).toBe(CLIENT_REDIRECT_URI);
+  const clientRedirect = new URL(
+    callbackResponse.headers.get("Location") ?? "",
+  );
+  expect(clientRedirect.origin + clientRedirect.pathname).toBe(
+    CLIENT_REDIRECT_URI,
+  );
 
   const authorizationCode = clientRedirect.searchParams.get("code");
   expect(authorizationCode).toBeTruthy();
@@ -173,12 +198,16 @@ async function refreshAccessToken(
   );
 }
 
-function stubExpiringKrogerGrant(refresh: () => Response | Promise<Response>): void {
+function stubExpiringKrogerGrant(
+  refresh: () => Response | Promise<Response>,
+): void {
   let tokenRequests = 0;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
-      const url = new URL(input instanceof Request ? input.url : input.toString());
+      const url = new URL(
+        input instanceof Request ? input.url : input.toString(),
+      );
 
       if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
         tokenRequests += 1;
@@ -228,7 +257,9 @@ describe("MCP client over Worker OAuth integration", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
-        const url = new URL(input instanceof Request ? input.url : input.toString());
+        const url = new URL(
+          input instanceof Request ? input.url : input.toString(),
+        );
 
         if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
           return Response.json({
@@ -268,7 +299,9 @@ describe("MCP client over Worker OAuth integration", () => {
           });
         }
 
-        if (url.href === "https://gateway.example/api/grocery/preferred-store") {
+        if (
+          url.href === "https://gateway.example/api/grocery/preferred-store"
+        ) {
           return Response.json({
             provider: "kroger",
             location_id: "70500847",
@@ -291,8 +324,13 @@ describe("MCP client over Worker OAuth integration", () => {
 
   it("authorizes through OAuth and calls app tools through the MCP client", async () => {
     const registeredClient = await registerClient();
-    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
-    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+    const { authorizationCode, codeVerifier } =
+      await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(
+      registeredClient,
+      authorizationCode,
+      codeVerifier,
+    );
     const client = await createAuthorizedMcpClient(token.access_token);
 
     const tools = await client.listTools();
@@ -317,7 +355,9 @@ describe("MCP client over Worker OAuth integration", () => {
       )
       .map((tool) => tool.name);
     expect(uiMismatches).toEqual([]);
-    for (const tool of tools.tools.filter((candidate) => !textOnlyTools.has(candidate.name))) {
+    for (const tool of tools.tools.filter(
+      (candidate) => !textOnlyTools.has(candidate.name),
+    )) {
       expect(tool._meta).toMatchObject({
         ui: { resourceUri: "ui://shopping-app" },
         "ui/resourceUri": "ui://shopping-app",
@@ -352,8 +392,13 @@ describe("MCP client over Worker OAuth integration", () => {
   // hit this path and the bug shipped.
   it("resolves auth props for tool calls and resource reads (getProps path)", async () => {
     const registeredClient = await registerClient();
-    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
-    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+    const { authorizationCode, codeVerifier } =
+      await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(
+      registeredClient,
+      authorizationCode,
+      codeVerifier,
+    );
     const client = await createAuthorizedMcpClient(token.access_token);
 
     // No storeId → handler falls back to getProps().id to resolve the
@@ -376,15 +421,22 @@ describe("MCP client over Worker OAuth integration", () => {
     expect(resourceResult.contents).toBeDefined();
     expect(resourceResult.contents.length).toBeGreaterThan(0);
     const pantryText = resourceResult.contents
-      .map((entry) => ("text" in entry && typeof entry.text === "string" ? entry.text : ""))
+      .map((entry) =>
+        "text" in entry && typeof entry.text === "string" ? entry.text : "",
+      )
       .join("");
     expect(pantryText).not.toContain("outside an authenticated MCP request");
   });
 
   it("does not require persisted MCP session state", async () => {
     const registeredClient = await registerClient();
-    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
-    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+    const { authorizationCode, codeVerifier } =
+      await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(
+      registeredClient,
+      authorizationCode,
+      codeVerifier,
+    );
 
     const response = await SELF.fetch(
       new Request(MCP_URL, {
@@ -395,7 +447,12 @@ describe("MCP client over Worker OAuth integration", () => {
           "Content-Type": "application/json",
           "Mcp-Session-Id": crypto.randomUUID(),
         },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
       }),
     );
 
@@ -406,54 +463,93 @@ describe("MCP client over Worker OAuth integration", () => {
   it("returns invalid_grant when Kroger rejects its single-use refresh token", async () => {
     stubExpiringKrogerGrant(() =>
       Response.json(
-        { error: "invalid_grant", error_description: "Refresh token is invalid" },
+        {
+          error: "invalid_grant",
+          error_description: "Refresh token is invalid",
+        },
         { status: 400 },
       ),
     );
     const registeredClient = await registerClient();
-    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
-    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+    const { authorizationCode, codeVerifier } =
+      await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(
+      registeredClient,
+      authorizationCode,
+      codeVerifier,
+    );
 
-    const response = await refreshAccessToken(registeredClient, token.refresh_token);
+    const response = await refreshAccessToken(
+      registeredClient,
+      token.refresh_token,
+    );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_grant",
+    });
   });
 
   it("returns temporarily_unavailable when Kroger refresh has a transient failure", async () => {
     stubExpiringKrogerGrant(() =>
       Response.json(
-        { error: "server_error", error_description: "Kroger is temporarily unavailable" },
+        {
+          error: "server_error",
+          error_description: "Kroger is temporarily unavailable",
+        },
         { status: 503 },
       ),
     );
     const registeredClient = await registerClient();
-    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
-    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+    const { authorizationCode, codeVerifier } =
+      await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(
+      registeredClient,
+      authorizationCode,
+      codeVerifier,
+    );
 
-    const response = await refreshAccessToken(registeredClient, token.refresh_token);
+    const response = await refreshAccessToken(
+      registeredClient,
+      token.refresh_token,
+    );
 
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("60");
-    await expect(response.json()).resolves.toMatchObject({ error: "temporarily_unavailable" });
+    await expect(response.json()).resolves.toMatchObject({
+      error: "temporarily_unavailable",
+    });
   });
 
   it("preserves Kroger rate limiting as a retryable OAuth response", async () => {
     stubExpiringKrogerGrant(() =>
       Response.json(
-        { error: "rate_limited", error_description: "Too many refresh attempts" },
+        {
+          error: "rate_limited",
+          error_description: "Too many refresh attempts",
+        },
         { status: 429 },
       ),
     );
     const registeredClient = await registerClient();
-    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
-    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+    const { authorizationCode, codeVerifier } =
+      await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(
+      registeredClient,
+      authorizationCode,
+      codeVerifier,
+    );
 
-    const response = await refreshAccessToken(registeredClient, token.refresh_token);
+    const response = await refreshAccessToken(
+      registeredClient,
+      token.refresh_token,
+    );
 
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("60");
-    await expect(response.json()).resolves.toMatchObject({ error: "temporarily_unavailable" });
+    await expect(response.json()).resolves.toMatchObject({
+      error: "temporarily_unavailable",
+    });
   });
 
   it("requires reauthorization when Kroger does not rotate its refresh token", async () => {
@@ -461,12 +557,22 @@ describe("MCP client over Worker OAuth integration", () => {
       Response.json({ access_token: "new-access-token", expires_in: 1800 }),
     );
     const registeredClient = await registerClient();
-    const { authorizationCode, codeVerifier } = await authorizeClient(registeredClient);
-    const token = await exchangeCodeForToken(registeredClient, authorizationCode, codeVerifier);
+    const { authorizationCode, codeVerifier } =
+      await authorizeClient(registeredClient);
+    const token = await exchangeCodeForToken(
+      registeredClient,
+      authorizationCode,
+      codeVerifier,
+    );
 
-    const response = await refreshAccessToken(registeredClient, token.refresh_token);
+    const response = await refreshAccessToken(
+      registeredClient,
+      token.refresh_token,
+    );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_grant",
+    });
   });
 });

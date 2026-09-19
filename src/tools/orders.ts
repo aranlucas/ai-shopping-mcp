@@ -19,7 +19,9 @@ const orderItemSchema = z
       .refine((value) => parseProductReference(value) !== null)
       .optional()
       .describe("productRef from search_products"),
-    upc: upcSchema.optional().describe("Deprecated Kroger UPC compatibility input"),
+    upc: upcSchema
+      .optional()
+      .describe("Deprecated Kroger UPC compatibility input"),
     productName: z.string().max(200),
     quantity: z.coerce.number().int().min(1).max(999),
     price: z.coerce.number().min(0).optional(),
@@ -33,7 +35,9 @@ export const recordOrderInputSchema = z.object({
     .array(orderItemSchema)
     .min(1, { message: "At least one ordered item is required" })
     .describe("Items that were actually purchased in the completed order"),
-  storeId: storeIdSchema.optional().describe("8-character storeId from search_stores"),
+  storeId: storeIdSchema
+    .optional()
+    .describe("8-character storeId from search_stores"),
   notes: z.string().max(500).optional(),
 });
 

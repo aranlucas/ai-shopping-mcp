@@ -27,7 +27,10 @@ There is no need for backward compatibility.
 A new middleware factory, structured like `createKrogerAuthMiddleware` right above it:
 
 ```typescript
-export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: number): Middleware {
+export function createKrogerCacheMiddleware(
+  kv: KvLike | null,
+  ttlSeconds: number,
+): Middleware {
   return {
     async onRequest({ request }) {
       if (!kv || request.method !== "GET") return;
@@ -38,7 +41,9 @@ export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: numbe
     async onResponse({ request, response }) {
       if (!kv || request.method !== "GET" || !response.ok) return;
       const entry = await cacheEntryFromResponse(response); // clones, reads body/status/headers
-      await kv.put(cacheKeyFor(request.url), entry, { expirationTtl: ttlSeconds });
+      await kv.put(cacheKeyFor(request.url), entry, {
+        expirationTtl: ttlSeconds,
+      });
     },
   };
 }
@@ -62,9 +67,15 @@ export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: numbe
 **File:** `src/services/kroger/client.ts`
 
 ```typescript
-export function createKrogerClients(getTokenInfo: () => KrogerTokenInfo | null, kv: KvLike | null) {
+export function createKrogerClients(
+  getTokenInfo: () => KrogerTokenInfo | null,
+  kv: KvLike | null,
+) {
   const authMiddleware = createKrogerAuthMiddleware(getTokenInfo);
-  const cacheMiddleware = createKrogerCacheMiddleware(kv, KROGER_CACHE_TTL_SECONDS);
+  const cacheMiddleware = createKrogerCacheMiddleware(
+    kv,
+    KROGER_CACHE_TTL_SECONDS,
+  );
   const base = { baseUrl: "https://api.kroger.com" };
 
   const cartClient = createClient<CartPaths>(base);
@@ -72,7 +83,12 @@ export function createKrogerClients(getTokenInfo: () => KrogerTokenInfo | null, 
   const locationClient = createClient<LocationPaths>(base);
   const productClient = createClient<ProductPaths>(base);
 
-  for (const client of [cartClient, identityClient, locationClient, productClient]) {
+  for (const client of [
+    cartClient,
+    identityClient,
+    locationClient,
+    productClient,
+  ]) {
     client.use(authMiddleware);
   }
   locationClient.use(cacheMiddleware);
@@ -105,7 +121,10 @@ export class ProductService {
     //   .andThen(...) — not-found → AppError, mirrors get_product's existing logic
   }
 
-  async enrichProductName(upc: string, locationId?: string): Promise<string | null> {
+  async enrichProductName(
+    upc: string,
+    locationId?: string,
+  ): Promise<string | null> {
     // best-effort: returns product.description on success, null on any failure
     return this.getProduct(upc, locationId).match(
       (product) => product.description ?? null,

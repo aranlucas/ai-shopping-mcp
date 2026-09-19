@@ -32,7 +32,10 @@
     "tailwindcss/enforce-consistent-variable-syntax": "warn",
     "tailwindcss/consistent-variant-order": "warn",
     "tailwindcss/max-class-count": ["warn", { "max": 100 }],
-    "tailwindcss/enforce-consistent-line-wrapping": ["warn", { "printWidth": 2000 }],
+    "tailwindcss/enforce-consistent-line-wrapping": [
+      "warn",
+      { "printWidth": 2000 }
+    ],
     "tailwindcss/no-restricted-classes": [
       "error",
       {

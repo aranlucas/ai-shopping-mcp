@@ -31,7 +31,11 @@ const capturedPrompts: CapturedPrompt[] = [];
 
 function makeServer(): McpServer {
   return {
-    registerPrompt: (name: string, config: CapturedPrompt["config"], handler: PromptHandler) => {
+    registerPrompt: (
+      name: string,
+      config: CapturedPrompt["config"],
+      handler: PromptHandler,
+    ) => {
       capturedPrompts.push({ name, config, handler });
     },
   } as unknown as McpServer;
@@ -43,7 +47,10 @@ function getPrompt(name: string): CapturedPrompt {
   return prompt as CapturedPrompt;
 }
 
-async function callPrompt(name: string, args: PromptArgs = {}): Promise<PromptResult> {
+async function callPrompt(
+  name: string,
+  args: PromptArgs = {},
+): Promise<PromptResult> {
   return await getPrompt(name).handler(args);
 }
 
@@ -113,7 +120,9 @@ describe("registerPrompts", () => {
 
   describe("set_preferred_store", () => {
     it("includes the zip code in the message when zip_code is provided", async () => {
-      const result = await callPrompt("set_preferred_store", { zip_code: "98101" });
+      const result = await callPrompt("set_preferred_store", {
+        zip_code: "98101",
+      });
       const text = getText(result);
       expect(text).toContain("98101");
       expect(text).toContain("Search for stores near zip code: 98101");
@@ -157,7 +166,8 @@ describe("registerPrompts", () => {
     it("argsSchema defaults recipe_type to 'classic apple pie' when not provided", () => {
       const prompt = getPrompt("shop_recipe_ingredients");
       // The Zod schema carries the default; the MCP framework applies it before invoking the handler.
-      const applied = prompt.config.argsSchema?.shape.recipe_type.parse(undefined);
+      const applied =
+        prompt.config.argsSchema?.shape.recipe_type.parse(undefined);
       expect(applied).toBe("classic apple pie");
     });
 
@@ -170,7 +180,9 @@ describe("registerPrompts", () => {
     });
 
     it("returns a single user message", async () => {
-      const result = await callPrompt("shop_recipe_ingredients", { recipe_type: "lasagna" });
+      const result = await callPrompt("shop_recipe_ingredients", {
+        recipe_type: "lasagna",
+      });
       expect(result.messages).toHaveLength(1);
       expect(result.messages[0]?.role).toBe("user");
       expect(result.messages[0]?.content.type).toBe("text");
@@ -179,7 +191,9 @@ describe("registerPrompts", () => {
 
   describe("plan_meals_from_pantry", () => {
     it("directs the host model to fetch meal planning context", async () => {
-      const result = await callPrompt("plan_meals_from_pantry", { meal_count: "4" });
+      const result = await callPrompt("plan_meals_from_pantry", {
+        meal_count: "4",
+      });
       const text = getText(result);
       expect(text).toContain("get_meal_planning_context");
       expect(text).toContain("numberOfMeals: 4");

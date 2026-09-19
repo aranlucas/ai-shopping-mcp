@@ -42,8 +42,14 @@ export const addShoppingListToCartInputSchema = z
       .min(1)
       .max(100)
       .optional()
-      .describe("Inline retry key. Reuse for retries; change only for an intentional new add."),
-    listId: z.string().min(1).optional().describe("listId from create_shopping_list"),
+      .describe(
+        "Inline retry key. Reuse for retries; change only for an intentional new add.",
+      ),
+    listId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("listId from create_shopping_list"),
     items: z
       .array(inlineCartItemSchema)
       .min(1)
@@ -52,7 +58,9 @@ export const addShoppingListToCartInputSchema = z
       .describe("Inline UPC/quantity pairs; omit listId."),
     storeId: storeIdSchema
       .optional()
-      .describe("8-character storeId from search_stores. Uses your preferred store if omitted."),
+      .describe(
+        "8-character storeId from search_stores. Uses your preferred store if omitted.",
+      ),
     modality: modalityEnum.default("PICKUP"),
   })
   .refine((value) => Boolean(value.listId) !== Boolean(value.items), {
@@ -143,7 +151,9 @@ export async function addLineItemsToCart(
       await safeStorage(
         () => ctx.carts.operations.reject(operationKey, attempt),
         "release rejected cart operation",
-      ).orTee((failure) => console.warn("Cart claim release failed:", failure.message));
+      ).orTee((failure) =>
+        console.warn("Cart claim release failed:", failure.message),
+      );
       return err<CartAddStatus, AppError>(error);
     }
     return err<CartAddStatus, AppError>(
@@ -170,7 +180,9 @@ export async function addLineItemsToCart(
   await safeStorage(
     () => ctx.carts.cartMirror.append(mirrorItems, new Date().toISOString()),
     "append cart mirror",
-  ).orTee((e) => console.warn("Cart mirror append failed (non-fatal):", e.message));
+  ).orTee((e) =>
+    console.warn("Cart mirror append failed (non-fatal):", e.message),
+  );
 
   const receiptListId = options.receiptListId;
   if (receiptListId) {
@@ -178,7 +190,9 @@ export async function addLineItemsToCart(
     await safeStorage(
       () => ctx.carts.cartSnapshot.set(receiptListId, mirrorItems),
       "persist cart snapshot",
-    ).orTee((e) => console.warn("Legacy cart snapshot write failed (non-fatal):", e.message));
+    ).orTee((e) =>
+      console.warn("Legacy cart snapshot write failed (non-fatal):", e.message),
+    );
   }
   return ok("added");
 }
@@ -194,7 +208,9 @@ async function handleInlineItemsCart(
   const locationResult = await safeResolveLocationId(ctx.storage, storeId);
   if (locationResult.isErr()) return toMcpError(locationResult.error);
 
-  const addResult = await addLineItemsToCart(ctx, cartClient, items, modality, { operationId });
+  const addResult = await addLineItemsToCart(ctx, cartClient, items, modality, {
+    operationId,
+  });
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   if (addResult.value === "already_added")
@@ -235,7 +251,8 @@ async function handleListIdCart(
     "check existing cart snapshot",
   );
 
-  if (existingSnapshotResult.isErr()) return toMcpError(existingSnapshotResult.error);
+  if (existingSnapshotResult.isErr())
+    return toMcpError(existingSnapshotResult.error);
   const existingSnapshot = existingSnapshotResult.value;
 
   if (existingSnapshot && existingSnapshot.length > 0) {
@@ -298,7 +315,10 @@ async function handleListIdCart(
         listId,
         name: list.name,
         items: [],
-        needsUpc: withoutUpc.map((i) => ({ productName: i.productName, quantity: i.quantity })),
+        needsUpc: withoutUpc.map((i) => ({
+          productName: i.productName,
+          quantity: i.quantity,
+        })),
         actionDetail: "No Kroger items to add",
       }),
     };
@@ -314,12 +334,20 @@ async function handleListIdCart(
     productName: item.productName,
   }));
 
-  const addResult = await addLineItemsToCart(ctx, cartClient, lineItems, modality, {
-    receiptListId: listId,
-  });
+  const addResult = await addLineItemsToCart(
+    ctx,
+    cartClient,
+    lineItems,
+    modality,
+    {
+      receiptListId: listId,
+    },
+  );
   if (addResult.isErr()) return toMcpError(addResult.error);
   if (addResult.value === "already_added")
-    return textResult(`These items were already added to your Kroger cart from listId=${listId}.`);
+    return textResult(
+      `These items were already added to your Kroger cart from listId=${listId}.`,
+    );
 
   const snapshot = toCartSnapshotItems(lineItems, modality);
 
@@ -381,7 +409,10 @@ function formatLiveCart(cart: LiveCart, cartId: string): string {
  * `note` (when set) explains why the live cart is not being shown.
  */
 async function mirrorFallbackResult(ctx: ToolContext, note?: string) {
-  const mirrorResult = await safeStorage(() => ctx.carts.cartMirror.getAll(), "fetch cart mirror");
+  const mirrorResult = await safeStorage(
+    () => ctx.carts.cartMirror.getAll(),
+    "fetch cart mirror",
+  );
   if (mirrorResult.isErr()) return toMcpError(mirrorResult.error);
 
   const parts: string[] = note ? [note] : [];
@@ -427,7 +458,14 @@ export function registerCartTools(ctx: ToolContext) {
       }
 
       if (items) {
-        return handleInlineItemsCart(ctx, cartClient, items, storeId, modality, operationId);
+        return handleInlineItemsCart(
+          ctx,
+          cartClient,
+          items,
+          storeId,
+          modality,
+          operationId,
+        );
       }
 
       return toMcpError(
@@ -473,22 +511,31 @@ export function registerCartTools(ctx: ToolContext) {
 
       const liveCartId = resolvedId;
       const liveResult = await fromApiResponse(
-        () => cartClient.GET("/v1/carts/{id}", { params: { path: { id: liveCartId } } }),
+        () =>
+          cartClient.GET("/v1/carts/{id}", {
+            params: { path: { id: liveCartId } },
+          }),
         "read live cart",
       );
 
       if (liveResult.isErr()) {
-        if (liveResult.error.type === "AUTH_ERROR") return toMcpError(liveResult.error);
+        if (liveResult.error.type === "AUTH_ERROR")
+          return toMcpError(liveResult.error);
         return mirrorFallbackResult(
           ctx,
           `Live cart read failed${cartId ? ` for cartId=${cartId}` : ""} (${liveResult.error.message}). Showing items added through this assistant instead.`,
         );
       }
 
-      await safeStorage(() => ctx.carts.cartId.set(resolvedId), "store cart id").orTee((error) =>
+      await safeStorage(
+        () => ctx.carts.cartId.set(resolvedId),
+        "store cart id",
+      ).orTee((error) =>
         console.warn("Cart id store failed (non-fatal):", error.message),
       );
-      return textResult(formatLiveCart(liveResult.value.data ?? {}, resolvedId));
+      return textResult(
+        formatLiveCart(liveResult.value.data ?? {}, resolvedId),
+      );
     },
   );
 }

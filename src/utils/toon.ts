@@ -8,6 +8,8 @@ import { encode } from "@toon-format/toon";
  */
 export function toonResource(uri: string, data: unknown) {
   return {
-    contents: [{ type: "text" as const, uri, mimeType: "text/toon", text: encode(data) }],
+    contents: [
+      { type: "text" as const, uri, mimeType: "text/toon", text: encode(data) },
+    ],
   };
 }

@@ -14,7 +14,10 @@
  *  5. Client-side React in the iframe routes to the correct view component
  */
 
-import { registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
+import {
+  registerAppResource,
+  RESOURCE_MIME_TYPE,
+} from "@modelcontextprotocol/ext-apps/server";
 
 import type { ToolContext } from "../tools/types.js";
 

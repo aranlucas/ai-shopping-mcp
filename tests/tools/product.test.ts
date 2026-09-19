@@ -8,8 +8,14 @@ import type { PreferredLocation } from "../../src/utils/user-storage.js";
 
 import { AppErrorException, apiError, authError } from "../../src/errors.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
-import { logProductSearchError, registerProductTools } from "../../src/tools/product.js";
-import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import {
+  logProductSearchError,
+  registerProductTools,
+} from "../../src/tools/product.js";
+import {
+  type TestToolHandler as ToolHandler,
+  wrapV2ToolHandler,
+} from "../v2-tool-handler.js";
 import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
 import { stubCatalogProvider } from "../catalog-stub.js";
 
@@ -44,7 +50,11 @@ vi.mock("agents/mcp", () => ({
 
 function authenticate(userId = "user-123") {
   testState.authContext = {
-    props: { id: userId, accessToken: "test-token", tokenExpiresAt: Date.now() + 60_000 },
+    props: {
+      id: userId,
+      accessToken: "test-token",
+      tokenExpiresAt: Date.now() + 60_000,
+    },
   };
 }
 
@@ -94,8 +104,13 @@ function makeStorage(preferredLocation?: PreferredLocation): UserStorage {
   } as unknown as UserStorage;
 }
 
-function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolContext {
-  const clients = { productClient: { GET: productGet } } as unknown as ToolContext["clients"];
+function makeContext(
+  productGet: ProductGetFn,
+  storage?: UserStorage,
+): ToolContext {
+  const clients = {
+    productClient: { GET: productGet },
+  } as unknown as ToolContext["clients"];
   const server = {
     registerTool: (name: string, config: unknown, handler: ToolHandler) => {
       testState.capturedTools.push({
@@ -132,7 +147,9 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
       {
         perspective: "front",
         default: true,
-        sizes: [{ id: "medium", size: "medium", url: "https://example.com/milk.jpg" }],
+        sizes: [
+          { id: "medium", size: "medium", url: "https://example.com/milk.jpg" },
+        ],
       },
     ],
     items: [
@@ -140,7 +157,12 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
         itemId: "item-001",
         size: "1 gal",
         price: { regular: 3.99, promo: 2.99 },
-        fulfillment: { curbside: true, instore: true, delivery: false, shiptohome: false },
+        fulfillment: {
+          curbside: true,
+          instore: true,
+          delivery: false,
+          shiptohome: false,
+        },
       },
     ],
     ...overrides,
@@ -207,7 +229,10 @@ describe("logProductSearchError", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    logProductSearchError("eggs", authError("Kroger access token has expired."));
+    logProductSearchError(
+      "eggs",
+      authError("Kroger access token has expired."),
+    );
 
     expect(warnSpy).toHaveBeenCalledWith(
       'Search unavailable for "eggs":',
@@ -262,7 +287,10 @@ describe("search_products", () => {
     const config = tool.config as {
       inputSchema: {
         shape: {
-          includeLocation: { description?: string; parse: (value: unknown) => boolean };
+          includeLocation: {
+            description?: string;
+            parse: (value: unknown) => boolean;
+          };
         };
       };
     };
@@ -275,9 +303,13 @@ describe("search_products", () => {
 
   it("routes through result metadata and returns the compact search payload", async () => {
     const product = makeProduct();
-    registerProductTools(makeContext(async () => makeSearchResponse([product])));
+    registerProductTools(
+      makeContext(async () => makeSearchResponse([product])),
+    );
 
-    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+    });
 
     const sc = structuredContentOf(result) as {
       results: Array<{
@@ -327,12 +359,16 @@ describe("search_products", () => {
   it("returns routeable structured content when all terms return empty results and no failures", async () => {
     registerProductTools(makeContext(async () => makeSearchResponse([])));
 
-    const result = await getCapturedHandler("search_products")({ terms: ["unknownitem"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["unknownitem"],
+    });
 
     expect(textFromResult(result)).toContain("No Kroger results.");
     expect(result).toMatchObject({
       structuredContent: {
-        results: [{ term: "unknownitem", products: [], count: 0, failed: false }],
+        results: [
+          { term: "unknownitem", products: [], count: 0, failed: false },
+        ],
         totalProducts: 0,
       },
     });
@@ -341,7 +377,9 @@ describe("search_products", () => {
   it("preserves actionable errors when all searches fail", async () => {
     registerProductTools(makeContext(async () => makeErrorResponse(500)));
 
-    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+    });
 
     const text = textFromResult(result);
     expect(text).toContain("Failed to search products");
@@ -361,7 +399,9 @@ describe("search_products", () => {
       }),
     );
 
-    const result = await getCapturedHandler("search_products")({ terms: ["milk", "bread"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk", "bread"],
+    });
 
     const sc = structuredContentOf(result) as {
       results: Array<{
@@ -377,11 +417,15 @@ describe("search_products", () => {
     expect(sc.totalProducts).toBe(1);
     expect(sc.results).toHaveLength(2);
 
-    const milkResult = sc.results.find((r) => r.provider === "kroger" && r.term === "milk");
+    const milkResult = sc.results.find(
+      (r) => r.provider === "kroger" && r.term === "milk",
+    );
     expect(milkResult?.failed).toBe(false);
     expect(milkResult?.products).toHaveLength(1);
 
-    const breadResult = sc.results.find((r) => r.provider === "kroger" && r.term === "bread");
+    const breadResult = sc.results.find(
+      (r) => r.provider === "kroger" && r.term === "bread",
+    );
     expect(breadResult?.failed).toBe(true);
     expect(breadResult?.count).toBe(0);
   });
@@ -395,7 +439,10 @@ describe("search_products", () => {
       }),
     );
 
-    await getCapturedHandler("search_products")({ terms: ["milk"], storeId: "12345678" });
+    await getCapturedHandler("search_products")({
+      terms: ["milk"],
+      storeId: "12345678",
+    });
 
     expect(capturedQueries[0]["filter.locationId"]).toBe("12345678");
   });
@@ -409,7 +456,10 @@ describe("search_products", () => {
       }),
     );
 
-    await getCapturedHandler("search_products")({ terms: ["milk"], limitPerTerm: 3 });
+    await getCapturedHandler("search_products")({
+      terms: ["milk"],
+      limitPerTerm: 3,
+    });
 
     expect(capturedQueries[0]["filter.limit"]).toBe(3);
   });
@@ -438,11 +488,15 @@ describe("search_products", () => {
     const productGet = vi.fn<ProductGetFn>(async () => makeSearchResponse([]));
     registerProductTools(makeContext(productGet, storage));
 
-    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+    });
 
     expect(result).toMatchObject({
       isError: true,
-      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+      structuredContent: {
+        error: { code: "AUTH_ERROR", recovery: "reconnect" },
+      },
     });
     expect(productGet).not.toHaveBeenCalled();
   });
@@ -466,7 +520,9 @@ describe("search_products", () => {
     expect(productGet).toHaveBeenCalledWith(
       "/v1/products",
       expect.objectContaining({
-        params: { query: expect.objectContaining({ "filter.locationId": "99887766" }) },
+        params: {
+          query: expect.objectContaining({ "filter.locationId": "99887766" }),
+        },
       }),
     );
   });
@@ -496,13 +552,15 @@ describe("search_products", () => {
   it("sends progress notifications (notifications/progress) for each completed search when progressToken is present", async () => {
     const product = makeProduct();
     const notifications: Array<{ method: string; params: unknown }> = [];
-    registerProductTools(makeContext(async () => makeSearchResponse([product])));
-
-    const sendNotification = vi.fn<(notification: { method: string; params: unknown }) => unknown>(
-      async (notification: { method: string; params: unknown }) => {
-        notifications.push(notification);
-      },
+    registerProductTools(
+      makeContext(async () => makeSearchResponse([product])),
     );
+
+    const sendNotification = vi.fn<
+      (notification: { method: string; params: unknown }) => unknown
+    >(async (notification: { method: string; params: unknown }) => {
+      notifications.push(notification);
+    });
 
     await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
       mcpReq: {
@@ -525,9 +583,14 @@ describe("search_products", () => {
 
   it("accepts progress token zero and counts progress across providers", async () => {
     const notifications: unknown[] = [];
-    const context = makeContext(async () => makeSearchResponse([makeProduct()]));
+    const context = makeContext(async () =>
+      makeSearchResponse([makeProduct()]),
+    );
     const kroger = context.catalogs.kroger;
-    context.catalogs = { kroger, second: { ...kroger, id: "second", label: "Second" } };
+    context.catalogs = {
+      kroger,
+      second: { ...kroger, id: "second", label: "Second" },
+    };
     registerProductTools(context);
     await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
       mcpReq: {
@@ -547,10 +610,14 @@ describe("search_products", () => {
 
   it("reports reconnect guidance for expired authentication", async () => {
     registerProductTools(makeContext(async () => makeErrorResponse(401)));
-    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+    });
     expect(result).toMatchObject({
       isError: true,
-      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+      structuredContent: {
+        error: { code: "AUTH_ERROR", recovery: "reconnect" },
+      },
     });
     expect(textFromResult(result)).toContain("Reconnect");
   });
@@ -559,18 +626,26 @@ describe("search_products", () => {
     const noPickup = makeProduct({
       upc: "1111111111111",
       description: "No Pickup Product",
-      items: [{ itemId: "i1", fulfillment: { curbside: false, instore: false } }],
+      items: [
+        { itemId: "i1", fulfillment: { curbside: false, instore: false } },
+      ],
     });
     const withPickup = makeProduct({
       upc: "2222222222222",
       description: "Pickup Product",
       items: [{ itemId: "i2", fulfillment: { curbside: true, instore: true } }],
     });
-    registerProductTools(makeContext(async () => makeSearchResponse([noPickup, withPickup])));
+    registerProductTools(
+      makeContext(async () => makeSearchResponse([noPickup, withPickup])),
+    );
 
-    const result = await getCapturedHandler("search_products")({ terms: ["item"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["item"],
+    });
 
-    const sc = structuredContentOf(result) as { results: Array<{ products: ProductData[] }> };
+    const sc = structuredContentOf(result) as {
+      results: Array<{ products: ProductData[] }>;
+    };
     const products = sc.results[0].products;
     expect(products[0].product.id).toBe("2222222222222"); // pickup product sorted first
     expect(products[1].product.id).toBe("1111111111111"); // no-pickup product sorted after
@@ -580,11 +655,17 @@ describe("search_products", () => {
     const product = makeProduct();
     product.aliasProductIds = ["alias-upc"];
     product.allergensDescription = "Contains milk";
-    registerProductTools(makeContext(async () => makeSearchResponse([product])));
+    registerProductTools(
+      makeContext(async () => makeSearchResponse([product])),
+    );
 
-    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+    });
 
-    const sc = structuredContentOf(result) as { results: Array<{ products: ProductData[] }> };
+    const sc = structuredContentOf(result) as {
+      results: Array<{ products: ProductData[] }>;
+    };
     const projected = sc.results[0].products[0];
     expect(projected).toMatchObject({
       product: { provider: "kroger", id: "0001111041700" },
@@ -626,14 +707,18 @@ describe("search_products", () => {
         },
       ],
     });
-    registerProductTools(makeContext(async () => makeSearchResponse([product])));
+    registerProductTools(
+      makeContext(async () => makeSearchResponse([product])),
+    );
 
     const result = await getCapturedHandler("search_products")({
       terms: ["tortillas"],
       includeLocation: true,
     });
 
-    const sc = structuredContentOf(result) as { results: Array<{ products: ProductData[] }> };
+    const sc = structuredContentOf(result) as {
+      results: Array<{ products: ProductData[] }>;
+    };
     expect(sc.results[0].products[0].aisle).toMatchObject({
       description: "AISLE 3",
       number: "3",
@@ -656,9 +741,13 @@ describe("search_products", () => {
 
   it("markdown content reminds callers to preserve productRef for create_shopping_list", async () => {
     const product = makeProduct();
-    registerProductTools(makeContext(async () => makeSearchResponse([product])));
+    registerProductTools(
+      makeContext(async () => makeSearchResponse([product])),
+    );
 
-    const result = await getCapturedHandler("search_products")({ terms: ["milk"] });
+    const result = await getCapturedHandler("search_products")({
+      terms: ["milk"],
+    });
 
     expect(textFromResult(result)).toContain(
       "pass the productRef values above to create_shopping_list",
@@ -687,8 +776,13 @@ describe("get_product", () => {
     });
 
     const sc = structuredContentOf(result) as { product: ProductData };
-    expect(result).toMatchObject({ _meta: { "dev.aranlucas/view": "get_product" } });
-    expect(sc.product.product).toEqual({ provider: "kroger", id: "0001111041700" });
+    expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "get_product" },
+    });
+    expect(sc.product.product).toEqual({
+      provider: "kroger",
+      id: "0001111041700",
+    });
     expect(sc.product.name).toBe("Test Milk");
     expect(sc.product).toMatchObject({
       size: "1 gal",
@@ -732,7 +826,9 @@ describe("get_product", () => {
   });
 
   it("returns MCP error when API response has no product data (data.data is undefined)", async () => {
-    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    registerProductTools(
+      makeContext(async () => makeDetailResponse(undefined)),
+    );
 
     const result = await getCapturedHandler("get_product")({
       upc: "0001111041700",
@@ -790,43 +886,61 @@ describe("get_product", () => {
   });
 
   it("accepts a 10-digit upc and pads it to 13 digits via the schema", () => {
-    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    registerProductTools(
+      makeContext(async () => makeDetailResponse(undefined)),
+    );
     const tool = getCapturedTool("get_product");
-    const config = tool.config as { inputSchema: { parse: (v: unknown) => { upc: string } } };
-    expect(config.inputSchema.parse({ upc: "1111041700" }).upc).toBe("0001111041700");
+    const config = tool.config as {
+      inputSchema: { parse: (v: unknown) => { upc: string } };
+    };
+    expect(config.inputSchema.parse({ upc: "1111041700" }).upc).toBe(
+      "0001111041700",
+    );
   });
 
   it("accepts a universal productRef", () => {
-    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    registerProductTools(
+      makeContext(async () => makeDetailResponse(undefined)),
+    );
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { parse: (value: unknown) => { productRef: string } };
     };
-    expect(config.inputSchema.parse({ productRef: "trader_joes:076892" }).productRef).toBe(
-      "trader_joes:076892",
-    );
+    expect(
+      config.inputSchema.parse({ productRef: "trader_joes:076892" }).productRef,
+    ).toBe("trader_joes:076892");
   });
 
   it("rejects a upc containing letters", () => {
-    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    registerProductTools(
+      makeContext(async () => makeDetailResponse(undefined)),
+    );
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
-    expect(config.inputSchema.safeParse({ upc: "abc1111041700" }).success).toBe(false);
+    expect(config.inputSchema.safeParse({ upc: "abc1111041700" }).success).toBe(
+      false,
+    );
   });
 
   it("rejects productId instead of upc", () => {
-    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    registerProductTools(
+      makeContext(async () => makeDetailResponse(undefined)),
+    );
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
-    expect(config.inputSchema.safeParse({ productId: "1111041700" }).success).toBe(false);
+    expect(
+      config.inputSchema.safeParse({ productId: "1111041700" }).success,
+    ).toBe(false);
   });
 
   it("rejects a call without upc", () => {
-    registerProductTools(makeContext(async () => makeDetailResponse(undefined)));
+    registerProductTools(
+      makeContext(async () => makeDetailResponse(undefined)),
+    );
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };

@@ -24,7 +24,9 @@ function normalizeTokens(text: string): string[] {
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter(Boolean)
-    .map((word) => (word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word));
+    .map((word) =>
+      word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word,
+    );
 }
 
 /**
@@ -33,7 +35,10 @@ function normalizeTokens(text: string): string[] {
  * the fraction of item tokens found is at least `OVERLAP_THRESHOLD`. Returns
  * the highest-overlap match, or undefined when nothing clears the bar.
  */
-export function findDealForItem(itemName: string, deals: Deal[]): Deal | undefined {
+export function findDealForItem(
+  itemName: string,
+  deals: Deal[],
+): Deal | undefined {
   const itemTokens = normalizeTokens(itemName);
   if (itemTokens.length === 0) return undefined;
 
@@ -43,11 +48,16 @@ export function findDealForItem(itemName: string, deals: Deal[]): Deal | undefin
     const dealTokens = new Set(normalizeTokens(deal.title));
     if (dealTokens.size === 0) continue;
 
-    const matchedCount = itemTokens.filter((token) => dealTokens.has(token)).length;
+    const matchedCount = itemTokens.filter((token) =>
+      dealTokens.has(token),
+    ).length;
     const ratio = matchedCount / itemTokens.length;
     const allMatch = matchedCount === itemTokens.length;
 
-    if ((allMatch || ratio >= OVERLAP_THRESHOLD) && (!best || ratio > best.ratio)) {
+    if (
+      (allMatch || ratio >= OVERLAP_THRESHOLD) &&
+      (!best || ratio > best.ratio)
+    ) {
       best = { deal, ratio };
     }
   }

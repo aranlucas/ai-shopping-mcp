@@ -34,7 +34,11 @@ export function parseProductReference(value: string): ProductReference | null {
   if (separator <= 0) return null;
   const provider = value.slice(0, separator).trim();
   const id = value.slice(separator + 1).trim();
-  if (!/^[a-z][a-z0-9_]{0,63}$/u.test(provider) || id.length === 0 || id.length > 255) {
+  if (
+    !/^[a-z][a-z0-9_]{0,63}$/u.test(provider) ||
+    id.length === 0 ||
+    id.length > 255
+  ) {
     return null;
   }
   return { provider, id };

@@ -89,7 +89,11 @@ function toErrorCause(value: unknown): ErrorCause {
   return String(value);
 }
 
-export const apiError = (message: string, detail?: unknown, status?: number): ApiError => ({
+export const apiError = (
+  message: string,
+  detail?: unknown,
+  status?: number,
+): ApiError => ({
   type: "API_ERROR",
   message,
   detail: toErrorCause(detail),
@@ -111,19 +115,28 @@ export const validationError = (message: string): ValidationError => ({
   message,
 });
 
-export const storageError = (message: string, cause?: unknown): StorageError => ({
+export const storageError = (
+  message: string,
+  cause?: unknown,
+): StorageError => ({
   type: "STORAGE_ERROR",
   message,
   cause: toErrorCause(cause),
 });
 
-export const networkError = (message: string, cause?: unknown): NetworkError => ({
+export const networkError = (
+  message: string,
+  cause?: unknown,
+): NetworkError => ({
   type: "NETWORK_ERROR",
   message,
   cause: toErrorCause(cause),
 });
 
-export const invalidResponseError = (message: string, cause?: unknown): InvalidResponseError => ({
+export const invalidResponseError = (
+  message: string,
+  cause?: unknown,
+): InvalidResponseError => ({
   type: "INVALID_RESPONSE",
   message,
   cause: toErrorCause(cause),
@@ -141,7 +154,12 @@ export const mutationOutcomeUnknown = (
 /** Actionable recovery metadata for MCP consumers, without upstream details. */
 export function errorRecovery(
   error: AppError,
-): "reconnect" | "retry_later" | "check_cart" | "correct_input" | "contact_support" {
+):
+  | "reconnect"
+  | "retry_later"
+  | "check_cart"
+  | "correct_input"
+  | "contact_support" {
   switch (error.type) {
     case "AUTH_ERROR":
       return "reconnect";
@@ -151,7 +169,9 @@ export function errorRecovery(
     case "NOT_FOUND":
       return "correct_input";
     case "API_ERROR":
-      return error.status === 429 || (error.status ?? 0) >= 500 ? "retry_later" : "correct_input";
+      return error.status === 429 || (error.status ?? 0) >= 500
+        ? "retry_later"
+        : "correct_input";
     case "NETWORK_ERROR":
     case "STORAGE_ERROR":
       return "retry_later";

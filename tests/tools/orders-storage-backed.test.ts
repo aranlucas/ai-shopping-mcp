@@ -12,7 +12,10 @@ import {
   makeStorage,
   resetToolTestHarness,
 } from "./tool-test-harness.js";
-import { recordOrderInputSchema, registerOrderTools } from "../../src/tools/orders.js";
+import {
+  recordOrderInputSchema,
+  registerOrderTools,
+} from "../../src/tools/orders.js";
 
 describe("order storage-backed tools", () => {
   beforeEach(() => {
@@ -33,7 +36,12 @@ describe("order storage-backed tools", () => {
 
     const result = await getCapturedHandler("record_order")({
       items: [
-        { upc: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 },
+        {
+          upc: "0000000000001",
+          productName: "Apples",
+          quantity: 2,
+          price: 1.5,
+        },
         { upc: "0000000000002", productName: "Bananas", quantity: 3 },
       ],
       storeId: "70500847",
@@ -55,7 +63,14 @@ describe("order storage-backed tools", () => {
     registerOrderTools(makeContext());
 
     const result = await getCapturedHandler("record_order")({
-      items: [{ upc: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
+      items: [
+        {
+          upc: "0000000000001",
+          productName: "Apples",
+          quantity: 2,
+          price: 1.5,
+        },
+      ],
       storeId: "70500847",
       notes: "Test note",
     });
@@ -63,15 +78,23 @@ describe("order storage-backed tools", () => {
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "record_order" },
       structuredContent: {
-        items: [{ upc: "0000000000001", productName: "Apples", quantity: 2, price: 1.5 }],
+        items: [
+          {
+            upc: "0000000000001",
+            productName: "Apples",
+            quantity: 2,
+            price: 1.5,
+          },
+        ],
         totalItems: 2,
         estimatedTotal: 3,
         locationId: "70500847",
         notes: "Test note",
       },
     });
-    const sc = (result as { structuredContent: { orderId: string; placedAt: string } })
-      .structuredContent;
+    const sc = (
+      result as { structuredContent: { orderId: string; placedAt: string } }
+    ).structuredContent;
     expect(sc.orderId).toMatch(/^ORD-/);
     expect(sc.placedAt).toMatch(/^\d{4}-/);
   });
@@ -92,7 +115,9 @@ describe("order storage-backed tools", () => {
         structuredContent: { estimatedTotal?: number; totalItems: number };
       }
     ).structuredContent;
-    expect(result).toMatchObject({ _meta: { "dev.aranlucas/view": "record_order" } });
+    expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "record_order" },
+    });
     expect(sc.totalItems).toBe(5);
     expect(sc.estimatedTotal).toBeUndefined();
   });
@@ -121,7 +146,9 @@ describe("order storage-backed tools", () => {
     ).toBe(true);
     expect(
       config.inputSchema.safeParse({
-        items: [{ productId: "0000000000001", productName: "Apples", quantity: 2 }],
+        items: [
+          { productId: "0000000000001", productName: "Apples", quantity: 2 },
+        ],
       }).success,
     ).toBe(false);
   });
@@ -131,6 +158,8 @@ describe("order storage-backed tools", () => {
       items: [{ upc: "1", productName: "Apples", quantity: 2 }],
     });
 
-    expect(parsed.items).toEqual([{ upc: "0000000000001", productName: "Apples", quantity: 2 }]);
+    expect(parsed.items).toEqual([
+      { upc: "0000000000001", productName: "Apples", quantity: 2 },
+    ]);
   });
 });

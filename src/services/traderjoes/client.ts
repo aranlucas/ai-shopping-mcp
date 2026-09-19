@@ -182,7 +182,8 @@ type CatalogItem = z.output<typeof catalogItemSchema>;
 
 /** Clamps a caller-supplied limit into the range the storefront answers well. */
 function boundedLimit(limit: number | undefined): number {
-  if (limit === undefined || !Number.isFinite(limit) || limit <= 0) return DEFAULT_LIMIT;
+  if (limit === undefined || !Number.isFinite(limit) || limit <= 0)
+    return DEFAULT_LIMIT;
   return Math.min(Math.floor(limit), MAX_LIMIT);
 }
 
@@ -227,7 +228,8 @@ function itemCategory(item: CatalogItem): string | undefined {
 function absoluteUrl(path: string | null | undefined): string | undefined {
   const trimmed = path?.trim();
   if (!trimmed) return undefined;
-  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) return trimmed;
+  if (trimmed.startsWith("https://") || trimmed.startsWith("http://"))
+    return trimmed;
   if (trimmed.startsWith("//")) return `https:${trimmed}`;
   if (trimmed.startsWith("/")) return `https://www.traderjoes.com${trimmed}`;
   return `https://www.traderjoes.com/${trimmed}`;
@@ -251,7 +253,9 @@ function toProduct(item: CatalogItem): TraderJoesProduct | null {
     ...(size === undefined ? {} : { size }),
     ...(category === undefined ? {} : { category }),
     ...(imageUrl === undefined ? {} : { imageUrl }),
-    ...(urlKey ? { url: `https://www.traderjoes.com/home/products/pdp/${urlKey}` } : {}),
+    ...(urlKey
+      ? { url: `https://www.traderjoes.com/home/products/pdp/${urlKey}` }
+      : {}),
     available: (item.availability ?? "1").trim() !== "0",
   };
 }
@@ -274,18 +278,26 @@ function readCache(
     .map((raw) => {
       if (typeof raw !== "string") return null;
       try {
-        return cachedResultSchema.parse(JSON.parse(raw)) satisfies TraderJoesSearchResult;
+        return cachedResultSchema.parse(
+          JSON.parse(raw),
+        ) satisfies TraderJoesSearchResult;
       } catch {
         return null;
       }
     });
 }
 
-function writeCache(kv: KvLike | null, key: string, result: TraderJoesSearchResult): void {
+function writeCache(
+  kv: KvLike | null,
+  key: string,
+  result: TraderJoesSearchResult,
+): void {
   if (!kv) return;
   // Caching is an optimization: a write failure must never fail the search.
   Promise.resolve()
-    .then(() => kv.put(key, JSON.stringify(result), { expirationTtl: CACHE_TTL_SECONDS }))
+    .then(() =>
+      kv.put(key, JSON.stringify(result), { expirationTtl: CACHE_TTL_SECONDS }),
+    )
     .catch(() => undefined);
 }
 
@@ -302,10 +314,16 @@ function toCatalogError(cause: unknown): AppError {
     if (status === 403) {
       // Almost always bot management rejecting this egress address rather than
       // a bad query, so say that instead of implying the terms were wrong.
-      return apiError("Trader Joe's blocked this request (bot protection).", undefined, status);
+      return apiError(
+        "Trader Joe's blocked this request (bot protection).",
+        undefined,
+        status,
+      );
     }
     if (graphQLMessage) {
-      return apiError(`Trader Joe's catalog rejected the query: ${graphQLMessage}`);
+      return apiError(
+        `Trader Joe's catalog rejected the query: ${graphQLMessage}`,
+      );
     }
     return apiError(`Trader Joe's returned HTTP ${status}.`, undefined, status);
   }
@@ -323,9 +341,12 @@ export type TraderJoesClientOptions = {
   signal?: AbortSignal;
 };
 
-export function createTraderJoesClient(options: TraderJoesClientOptions = {}): TraderJoesClient {
+export function createTraderJoesClient(
+  options: TraderJoesClientOptions = {},
+): TraderJoesClient {
   const endpoint = options.endpoint?.trim() || TRADER_JOES_ENDPOINT;
-  const defaultStoreCode = options.storeCode?.trim() || TRADER_JOES_DEFAULT_STORE_CODE;
+  const defaultStoreCode =
+    options.storeCode?.trim() || TRADER_JOES_DEFAULT_STORE_CODE;
   const kv = options.kv ?? null;
 
   const graphQL = new GraphQLClient(endpoint, {
@@ -359,7 +380,11 @@ export function createTraderJoesClient(options: TraderJoesClientOptions = {}): T
     )().andThen((data) => {
       const parsed = searchDataSchema.safeParse(data);
       if (!parsed.success) {
-        return err(apiError("Trader Joe's catalog response did not match the expected shape."));
+        return err(
+          apiError(
+            "Trader Joe's catalog response did not match the expected shape.",
+          ),
+        );
       }
       const items = parsed.data.products?.items ?? [];
       const products: TraderJoesProduct[] = [];

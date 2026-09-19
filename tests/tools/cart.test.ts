@@ -9,8 +9,14 @@ import type {
   ShoppingList,
 } from "../../src/utils/user-storage.js";
 
-import { addShoppingListToCartInputSchema, registerCartTools } from "../../src/tools/cart.js";
-import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import {
+  addShoppingListToCartInputSchema,
+  registerCartTools,
+} from "../../src/tools/cart.js";
+import {
+  type TestToolHandler as ToolHandler,
+  wrapV2ToolHandler,
+} from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 import { AppErrorException, authError } from "../../src/errors.js";
 
@@ -68,7 +74,9 @@ function unauthenticate() {
 }
 
 function textFromResult(result: unknown): string {
-  const response = result as { content?: Array<{ type: string; text: string }> };
+  const response = result as {
+    content?: Array<{ type: string; text: string }>;
+  };
   return response.content?.[0]?.text ?? "";
 }
 
@@ -77,7 +85,10 @@ function isErrorResult(result: unknown): boolean {
 }
 
 function structuredContent(result: unknown): Record<string, unknown> {
-  return (result as { structuredContent?: Record<string, unknown> }).structuredContent ?? {};
+  return (
+    (result as { structuredContent?: Record<string, unknown> })
+      .structuredContent ?? {}
+  );
 }
 
 function listFixture(overrides: Partial<ShoppingList> = {}): ShoppingList {
@@ -168,7 +179,10 @@ const LIVE_CART = {
 function makeContext(
   storage?: UserStorage & CartStore,
   putConfig: { status: number; throws?: boolean } = { status: 204 },
-  getConfig: { status: number; cart?: typeof LIVE_CART } = { status: 200, cart: LIVE_CART },
+  getConfig: { status: number; cart?: typeof LIVE_CART } = {
+    status: 200,
+    cart: LIVE_CART,
+  },
 ): {
   context: ToolContext;
   putCalls: PutCall[];
@@ -178,7 +192,8 @@ function makeContext(
   const putCalls: PutCall[] = [];
   const snapshotSetCalls: unknown[][] = [];
   const getCalls: GetCall[] = [];
-  const actualStorage = storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
+  const actualStorage =
+    storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
 
   const server = {
     registerTool: (name: string, config: unknown, handler: ToolHandler) => {
@@ -228,7 +243,9 @@ function makeContext(
 }
 
 function getCapturedHandler(name: string): ToolHandler {
-  const tool = testState.capturedTools.find((captured) => captured.name === name);
+  const tool = testState.capturedTools.find(
+    (captured) => captured.name === name,
+  );
   expect(tool).toBeDefined();
   return (
     tool?.handler ??
@@ -319,7 +336,9 @@ describe("add_shopping_list_to_cart tool", () => {
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
       const results = await Promise.all(
-        Array.from({ length: 5 }, () => handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID })),
+        Array.from({ length: 5 }, () =>
+          handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }),
+        ),
       );
       expect(putCalls).toHaveLength(1);
       expect(results.some((result) => !isErrorResult(result))).toBe(true);
@@ -336,22 +355,36 @@ describe("add_shopping_list_to_cart tool", () => {
       };
       expect(isErrorResult(await handler(args))).toBe(false);
       expect(textFromResult(await handler(args))).toContain("already added");
-      const changed = await handler({ ...args, items: [{ upc: "0001111042578", quantity: 2 }] });
+      const changed = await handler({
+        ...args,
+        items: [{ upc: "0001111042578", quantity: 2 }],
+      });
       expect(isErrorResult(changed)).toBe(true);
       expect(textFromResult(changed)).toContain("different items");
       expect(putCalls).toHaveLength(1);
     });
 
     it("keeps a lost upstream response blocked on retry", async () => {
-      const { context, putCalls } = makeContext(undefined, { status: 204, throws: true });
+      const { context, putCalls } = makeContext(undefined, {
+        status: 204,
+        throws: true,
+      });
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
-      const result = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      const result = await handler({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
       expect(result).toMatchObject({
         isError: true,
-        structuredContent: { error: { code: "MUTATION_OUTCOME_UNKNOWN", recovery: "check_cart" } },
+        structuredContent: {
+          error: { code: "MUTATION_OUTCOME_UNKNOWN", recovery: "check_cart" },
+        },
       });
-      const retry = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      const retry = await handler({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
       expect(textFromResult(retry)).toContain("do not retry");
       expect(putCalls).toHaveLength(1);
     });
@@ -361,13 +394,17 @@ describe("add_shopping_list_to_cart tool", () => {
       const { context, putCalls } = makeContext(undefined, config);
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
-      expect(isErrorResult(await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }))).toBe(
-        true,
-      );
+      expect(
+        isErrorResult(
+          await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }),
+        ),
+      ).toBe(true);
       config.status = 204;
-      expect(isErrorResult(await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }))).toBe(
-        false,
-      );
+      expect(
+        isErrorResult(
+          await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }),
+        ),
+      ).toBe(false);
       expect(putCalls).toHaveLength(2);
     });
 
@@ -383,7 +420,10 @@ describe("add_shopping_list_to_cart tool", () => {
       };
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
-      const result = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      const result = await handler({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
       expect(textFromResult(result)).toContain("Kroger accepted");
       expect(textFromResult(result)).toContain("do not retry");
       await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
@@ -427,7 +467,9 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(putCalls[0]).toMatchObject({
         options: {
           body: {
-            items: [{ upc: "0001111042578", quantity: 2, modality: "DELIVERY" }],
+            items: [
+              { upc: "0001111042578", quantity: 2, modality: "DELIVERY" },
+            ],
           },
         },
       });
@@ -448,7 +490,9 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(putCalls[0]).toMatchObject({
         options: {
           body: {
-            items: [{ upc: "0001111042578", quantity: 2, modality: "DELIVERY" }],
+            items: [
+              { upc: "0001111042578", quantity: 2, modality: "DELIVERY" },
+            ],
           },
         },
       });
@@ -486,9 +530,11 @@ describe("add_shopping_list_to_cart tool", () => {
 
       const sc = structuredContent(result);
       expect((sc["items"] as Array<{ upc: string }>).length).toBe(1);
-      expect((sc["needsUpc"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
-        "Sourdough Bread",
-      ]);
+      expect(
+        (sc["needsUpc"] as Array<{ productName: string }>).map(
+          (i) => i.productName,
+        ),
+      ).toEqual(["Sourdough Bread"]);
       expect(putCalls).toHaveLength(1);
     });
   });
@@ -508,11 +554,16 @@ describe("add_shopping_list_to_cart tool", () => {
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      const result = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      const result = await handler({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
 
       expect(isErrorResult(result)).toBe(false);
       expect(putCalls).toHaveLength(0);
-      expect(textFromResult(result)).toContain("already added to your cart from this list");
+      expect(textFromResult(result)).toContain(
+        "already added to your cart from this list",
+      );
       expect(structuredContent(result)["items"]).toEqual(existingSnapshot);
     });
   });
@@ -534,13 +585,17 @@ describe("add_shopping_list_to_cart tool", () => {
       const parsed = addShoppingListToCartInputSchema.parse({
         items: [{ upc: "0001111042578", quantity: 3 }],
       });
-      const result = await handler(parsed as unknown as Record<string, unknown>);
+      const result = await handler(
+        parsed as unknown as Record<string, unknown>,
+      );
 
       expect(isErrorResult(result)).toBe(false);
       expect(putCalls).toHaveLength(1);
       expect(putCalls[0]).toMatchObject({
         options: {
-          body: { items: [{ upc: "0001111042578", quantity: 3, modality: "PICKUP" }] },
+          body: {
+            items: [{ upc: "0001111042578", quantity: 3, modality: "PICKUP" }],
+          },
         },
       });
       const sc = structuredContent(result);
@@ -562,12 +617,22 @@ describe("add_shopping_list_to_cart tool", () => {
   describe("cart mirror", () => {
     it("appends the added items to the cart mirror on a successful listId add", async () => {
       const mirrorAppendCalls: unknown[][] = [];
-      const storage = makeStorage(listFixture(), null, [], null, mirrorAppendCalls);
+      const storage = makeStorage(
+        listFixture(),
+        null,
+        [],
+        null,
+        mirrorAppendCalls,
+      );
       const { context } = makeContext(storage);
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID, modality: "PICKUP" });
+      await handler({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+        modality: "PICKUP",
+      });
 
       expect(mirrorAppendCalls).toHaveLength(1);
       expect(mirrorAppendCalls[0]?.[0]).toEqual([
@@ -607,7 +672,12 @@ describe("add_shopping_list_to_cart tool", () => {
 
       expect(mirrorAppendCalls).toHaveLength(1);
       expect(mirrorAppendCalls[0]?.[0]).toEqual([
-        { upc: "0001111042578", quantity: 3, modality: "PICKUP", productName: undefined },
+        {
+          upc: "0001111042578",
+          quantity: 3,
+          modality: "PICKUP",
+          productName: undefined,
+        },
       ]);
     });
 
@@ -621,7 +691,13 @@ describe("add_shopping_list_to_cart tool", () => {
           productName: "Organic Whole Milk",
         },
       ];
-      const storage = makeStorage(listFixture(), null, [], existingSnapshot, mirrorAppendCalls);
+      const storage = makeStorage(
+        listFixture(),
+        null,
+        [],
+        existingSnapshot,
+        mirrorAppendCalls,
+      );
       const { context } = makeContext(storage);
       registerCartTools(context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
@@ -791,7 +867,16 @@ describe("view_cart tool", () => {
 
   it("reads the live cart when an explicit cartId is passed and prints cartId= and upc=", async () => {
     const cartIdSetCalls: string[][] = [];
-    const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
+    const storage = makeStorage(
+      null,
+      null,
+      [],
+      null,
+      [],
+      [],
+      null,
+      cartIdSetCalls,
+    );
     const { context, getCalls } = makeContext(storage);
     registerCartTools(context);
 
@@ -810,11 +895,22 @@ describe("view_cart tool", () => {
 
   it("persists the cartId after a successful live read", async () => {
     const cartIdSetCalls: string[][] = [];
-    const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
+    const storage = makeStorage(
+      null,
+      null,
+      [],
+      null,
+      [],
+      [],
+      null,
+      cartIdSetCalls,
+    );
     const { context } = makeContext(storage);
     registerCartTools(context);
 
-    await getCapturedHandler("view_cart")({ cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4" });
+    await getCapturedHandler("view_cart")({
+      cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4",
+    });
 
     expect(cartIdSetCalls).toEqual([["2b9b3963-5cac-42f8-9d28-7bebdec0b9e4"]]);
   });
@@ -832,7 +928,9 @@ describe("view_cart tool", () => {
 
     expect(result).toMatchObject({
       isError: true,
-      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+      structuredContent: {
+        error: { code: "AUTH_ERROR", recovery: "reconnect" },
+      },
     });
     expect(readMirror).not.toHaveBeenCalled();
     expect(getCalls).toHaveLength(0);
@@ -847,7 +945,9 @@ describe("view_cart tool", () => {
     const { context, getCalls } = makeContext(storage);
     registerCartTools(context);
 
-    const result = await getCapturedHandler("view_cart")({ cartId: "explicit-cart-id" });
+    const result = await getCapturedHandler("view_cart")({
+      cartId: "explicit-cart-id",
+    });
 
     expect(isErrorResult(result)).toBe(false);
     expect(readId).not.toHaveBeenCalled();
@@ -855,14 +955,22 @@ describe("view_cart tool", () => {
   });
 
   it("returns actionable authentication errors instead of a successful mirror fallback", async () => {
-    const { context } = makeContext(makeStorage(), { status: 204 }, { status: 401 });
+    const { context } = makeContext(
+      makeStorage(),
+      { status: 204 },
+      { status: 401 },
+    );
     registerCartTools(context);
 
-    const result = await getCapturedHandler("view_cart")({ cartId: "known-cart-id" });
+    const result = await getCapturedHandler("view_cart")({
+      cartId: "known-cart-id",
+    });
 
     expect(result).toMatchObject({
       isError: true,
-      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+      structuredContent: {
+        error: { code: "AUTH_ERROR", recovery: "reconnect" },
+      },
     });
   });
 
@@ -925,7 +1033,9 @@ describe("view_cart tool", () => {
     const { context } = makeContext(storage, { status: 204 }, { status: 404 });
     registerCartTools(context);
 
-    const result = await getCapturedHandler("view_cart")({ cartId: "stale-cart-id" });
+    const result = await getCapturedHandler("view_cart")({
+      cartId: "stale-cart-id",
+    });
 
     expect(isErrorResult(result)).toBe(false);
     const text = textFromResult(result);
@@ -969,7 +1079,9 @@ describe("view_cart tool", () => {
     const { context } = makeContext(makeStorage());
     registerCartTools(context);
     const tool = testState.capturedTools.find((t) => t.name === "view_cart");
-    const config = tool?.config as { annotations?: { openWorldHint?: boolean } };
+    const config = tool?.config as {
+      annotations?: { openWorldHint?: boolean };
+    };
     expect(config.annotations?.openWorldHint).toBe(true);
   });
 });
@@ -990,7 +1102,9 @@ describe("addShoppingListToCartInputSchema", () => {
     });
 
     it("accepts listId alone", () => {
-      const result = addShoppingListToCartInputSchema.safeParse({ listId: SHORT_LIST_ID });
+      const result = addShoppingListToCartInputSchema.safeParse({
+        listId: SHORT_LIST_ID,
+      });
       expect(result.success).toBe(true);
     });
 

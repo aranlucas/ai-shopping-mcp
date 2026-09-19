@@ -8,11 +8,17 @@ describe("cart operation journal", () => {
       Array.from({ length: 8 }, () => journal.begin("list:one", "milk")),
     );
     const owner = claims.find((claim) => claim.status === "started");
-    expect(claims.filter((claim) => claim.status === "started")).toHaveLength(1);
+    expect(claims.filter((claim) => claim.status === "started")).toHaveLength(
+      1,
+    );
     if (!owner || owner.status !== "started") throw new Error("Missing owner");
     await journal.complete("list:one", owner.attempt);
-    expect(await journal.begin("list:one", "milk")).toMatchObject({ status: "completed" });
-    expect(await journal.begin("list:one", "eggs")).toEqual({ status: "conflict" });
+    expect(await journal.begin("list:one", "milk")).toMatchObject({
+      status: "completed",
+    });
+    expect(await journal.begin("list:one", "eggs")).toEqual({
+      status: "conflict",
+    });
   });
 
   it("does not let an old rejected attempt clear a newer claim", async () => {
@@ -23,7 +29,9 @@ describe("cart operation journal", () => {
     const second = await journal.begin("list:one", "milk");
     expect(second.status).toBe("started");
     await journal.reject("list:one", first.attempt);
-    expect(await journal.begin("list:one", "milk")).toMatchObject({ status: "pending" });
+    expect(await journal.begin("list:one", "milk")).toMatchObject({
+      status: "pending",
+    });
     expect(await journal.complete("list:one", first.attempt)).toBe(false);
   });
 });

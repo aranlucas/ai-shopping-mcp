@@ -16,7 +16,11 @@ function catalogItem(overrides: CatalogItemOverrides = {}) {
     url_key: "chili-onion-crunch-076892",
     availability: "1",
     retail_price: "3.99",
-    category_hierarchy: [{ name: "Products" }, { name: "Food" }, { name: "Condiments" }],
+    category_hierarchy: [
+      { name: "Products" },
+      { name: "Food" },
+      { name: "Condiments" },
+    ],
     price_range: { minimum_price: { final_price: { value: 3.99 } } },
     ...overrides,
   };
@@ -41,7 +45,9 @@ function memoryKv(): KvLike & { writes: number } {
 
 describe("Trader Joe's catalog client", () => {
   it("keeps successful catalog results when KV reads and writes throw synchronously", async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => catalogResponse([catalogItem()]));
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      catalogResponse([catalogItem()]),
+    );
     const kv: KvLike = {
       get: () => {
         throw new Error("synchronous cache read failure");
@@ -60,8 +66,12 @@ describe("Trader Joe's catalog client", () => {
   });
 
   it("normalizes catalog items into shopping-list-ready products", async () => {
-    const fetcher = vi.fn<() => unknown>(async () => catalogResponse([catalogItem()]));
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
+    const fetcher = vi.fn<() => unknown>(async () =>
+      catalogResponse([catalogItem()]),
+    );
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+    });
 
     const result = await client.searchProducts("chili crunch");
 
@@ -76,7 +86,8 @@ describe("Trader Joe's catalog client", () => {
           size: "6 Ounce",
           // The generic "Products" root is skipped for the specific category.
           category: "Condiments",
-          imageUrl: "https://www.traderjoes.com/content/dam/tjs/chili-onion-crunch.jpg",
+          imageUrl:
+            "https://www.traderjoes.com/content/dam/tjs/chili-onion-crunch.jpg",
           url: "https://www.traderjoes.com/home/products/pdp/chili-onion-crunch-076892",
           available: true,
         },
@@ -86,11 +97,15 @@ describe("Trader Joe's catalog client", () => {
 
   it("sends the search terms, store code, and page size the storefront expects", async () => {
     const fetcher = vi.fn<() => unknown>(async () => catalogResponse([]));
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+    });
 
     await client.searchProducts("gyoza", { storeCode: "546", limit: 3 });
 
-    const call = fetcher.mock.calls.at(0) as unknown as [URL | string, RequestInit] | undefined;
+    const call = fetcher.mock.calls.at(0) as unknown as
+      | [URL | string, RequestInit]
+      | undefined;
     const init = call?.[1] as RequestInit;
     const body = JSON.parse(String(init.body)) as {
       operationName: string;
@@ -109,11 +124,16 @@ describe("Trader Joe's catalog client", () => {
 
   it("falls back to retail_price when price_range is absent", async () => {
     const fetcher = vi.fn<() => unknown>(async () =>
-      catalogResponse([catalogItem({ price_range: null, retail_price: "$2.49" })]),
+      catalogResponse([
+        catalogItem({ price_range: null, retail_price: "$2.49" }),
+      ]),
     );
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+    });
 
-    const products = (await client.searchProducts("crackers"))._unsafeUnwrap().products;
+    const products = (await client.searchProducts("crackers"))._unsafeUnwrap()
+      .products;
     expect(products[0]?.price).toBe(2.49);
   });
 
@@ -125,9 +145,12 @@ describe("Trader Joe's catalog client", () => {
         catalogItem(),
       ]),
     );
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+    });
 
-    const products = (await client.searchProducts("anything"))._unsafeUnwrap().products;
+    const products = (await client.searchProducts("anything"))._unsafeUnwrap()
+      .products;
     expect(products).toHaveLength(1);
   });
 
@@ -139,9 +162,13 @@ describe("Trader Joe's catalog client", () => {
         catalogItem({ sku: "3" }),
       ]),
     );
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+    });
 
-    const products = (await client.searchProducts("x", { limit: 2 }))._unsafeUnwrap().products;
+    const products = (
+      await client.searchProducts("x", { limit: 2 })
+    )._unsafeUnwrap().products;
     expect(products.map((product) => product.sku)).toEqual(["1", "2"]);
   });
 
@@ -149,7 +176,9 @@ describe("Trader Joe's catalog client", () => {
     const fetcher = vi.fn<() => unknown>(
       async () => new Response("Access Denied", { status: 403 }),
     );
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+    });
 
     const result = await client.searchProducts("chili crunch");
 
@@ -159,20 +188,32 @@ describe("Trader Joe's catalog client", () => {
 
   it("surfaces GraphQL errors instead of returning an empty catalog", async () => {
     const fetcher = vi.fn<() => unknown>(async () =>
-      Response.json({ errors: [{ message: "Unknown field 'search'" }] }, { status: 200 }),
+      Response.json(
+        { errors: [{ message: "Unknown field 'search'" }] },
+        { status: 200 },
+      ),
     );
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+    });
 
     const result = await client.searchProducts("chili crunch");
 
     expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().message).toContain("Unknown field 'search'");
+    expect(result._unsafeUnwrapErr().message).toContain(
+      "Unknown field 'search'",
+    );
   });
 
   it("serves a repeat search from KV without calling the storefront again", async () => {
-    const fetcher = vi.fn<() => unknown>(async () => catalogResponse([catalogItem()]));
+    const fetcher = vi.fn<() => unknown>(async () =>
+      catalogResponse([catalogItem()]),
+    );
     const kv = memoryKv();
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch, kv });
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+      kv,
+    });
 
     const first = await client.searchProducts("chili crunch");
     const second = await client.searchProducts("Chili Crunch");
@@ -196,7 +237,9 @@ describe("Trader Joe's catalog client", () => {
 
   it("rejects an empty query without a network call", async () => {
     const fetcher = vi.fn<() => unknown>(async () => catalogResponse([]));
-    const client = createTraderJoesClient({ fetcher: fetcher as unknown as typeof fetch });
+    const client = createTraderJoesClient({
+      fetcher: fetcher as unknown as typeof fetch,
+    });
 
     const result = await client.searchProducts("   ");
 

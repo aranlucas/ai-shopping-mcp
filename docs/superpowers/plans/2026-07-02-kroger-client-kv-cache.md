@@ -97,7 +97,9 @@ Create `src/utils/kv.ts`:
 export type KvLike = Pick<KVNamespace, "get" | "put">;
 
 export function isKvLike(value: unknown): value is KvLike {
-  return !!value && typeof value === "object" && "get" in value && "put" in value;
+  return (
+    !!value && typeof value === "object" && "get" in value && "put" in value
+  );
 }
 
 /** Resolves the shared user-data KV binding, or null when absent/malformed. */
@@ -189,7 +191,9 @@ describe("createKrogerCacheMiddleware", () => {
   it("onRequest returns undefined on a cache miss", async () => {
     const kv = makeMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
 
     const result = await middleware.onRequest?.(makeRequestParams(request));
 
@@ -221,7 +225,9 @@ describe("createKrogerCacheMiddleware", () => {
   it("onRequest never reads the cache for non-GET requests", async () => {
     const kv = makeMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/cart/add", { method: "PUT" });
+    const request = new Request("https://api.kroger.com/v1/cart/add", {
+      method: "PUT",
+    });
 
     const result = await middleware.onRequest?.(makeRequestParams(request));
 
@@ -231,7 +237,9 @@ describe("createKrogerCacheMiddleware", () => {
 
   it("onRequest is a no-op when kv is null", async () => {
     const middleware = createKrogerCacheMiddleware(null, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
 
     const result = await middleware.onRequest?.(makeRequestParams(request));
 
@@ -241,26 +249,34 @@ describe("createKrogerCacheMiddleware", () => {
   it("onResponse caches a successful GET response", async () => {
     const kv = makeMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
-    const response = new Response('{"data":{"upc":"0001111041700"}}', { status: 200 });
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
+    const response = new Response('{"data":{"upc":"0001111041700"}}', {
+      status: 200,
+    });
 
     await middleware.onResponse?.(makeResponseParams(request, response));
 
     expect(kv.put).toHaveBeenCalledTimes(1);
-    const [key, value, options] = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      string,
-      string,
-      { expirationTtl: number },
-    ];
-    expect(key).toBe("kroger-cache|v1|https://api.kroger.com/v1/products/0001111041700");
-    expect(JSON.parse(value)).toEqual({ status: 200, body: '{"data":{"upc":"0001111041700"}}' });
+    const [key, value, options] = (kv.put as ReturnType<typeof vi.fn>).mock
+      .calls[0] as [string, string, { expirationTtl: number }];
+    expect(key).toBe(
+      "kroger-cache|v1|https://api.kroger.com/v1/products/0001111041700",
+    );
+    expect(JSON.parse(value)).toEqual({
+      status: 200,
+      body: '{"data":{"upc":"0001111041700"}}',
+    });
     expect(options.expirationTtl).toBe(600);
   });
 
   it("onResponse does not cache a non-GET response", async () => {
     const kv = makeMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/cart/add", { method: "PUT" });
+    const request = new Request("https://api.kroger.com/v1/cart/add", {
+      method: "PUT",
+    });
     const response = new Response(null, { status: 204 });
 
     await middleware.onResponse?.(makeResponseParams(request, response));
@@ -271,7 +287,9 @@ describe("createKrogerCacheMiddleware", () => {
   it("onResponse does not cache a non-ok GET response", async () => {
     const kv = makeMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0009999999999");
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0009999999999",
+    );
     const response = new Response('{"error":"not found"}', { status: 500 });
 
     await middleware.onResponse?.(makeResponseParams(request, response));
@@ -281,7 +299,9 @@ describe("createKrogerCacheMiddleware", () => {
 
   it("onResponse is a no-op when kv is null", async () => {
     const middleware = createKrogerCacheMiddleware(null, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
     const response = new Response('{"data":{}}', { status: 200 });
 
     // Should not throw even though there's no kv to write to.
@@ -315,8 +335,12 @@ describe("createKrogerClients cache wiring", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response('{"data":{}}', { status: 200 }));
 
-    await productClient.GET("/v1/products/{id}", { params: { path: { id: "0001111041700" } } });
-    await productClient.GET("/v1/products/{id}", { params: { path: { id: "0001111041700" } } });
+    await productClient.GET("/v1/products/{id}", {
+      params: { path: { id: "0001111041700" } },
+    });
+    await productClient.GET("/v1/products/{id}", {
+      params: { path: { id: "0001111041700" } },
+    });
 
     expect(getSpy).toHaveBeenCalledTimes(2);
     getSpy.mockRestore();
@@ -332,13 +356,18 @@ describe("createKrogerClients cache wiring", () => {
     };
 
     const { productClient } = createKrogerClients(
-      () => ({ accessToken: "token", tokenExpiresAt: Date.now() + 30 * 60 * 1000 }),
+      () => ({
+        accessToken: "token",
+        tokenExpiresAt: Date.now() + 30 * 60 * 1000,
+      }),
       kv,
     );
 
     const getSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response('{"data":{"upc":"0001111041700"}}', { status: 200 }));
+      .mockResolvedValue(
+        new Response('{"data":{"upc":"0001111041700"}}', { status: 200 }),
+      );
 
     const first = await productClient.GET("/v1/products/{id}", {
       params: { path: { id: "0001111041700" } },
@@ -363,7 +392,10 @@ describe("createKrogerClients cache wiring", () => {
     };
 
     const { cartClient } = createKrogerClients(
-      () => ({ accessToken: "token", tokenExpiresAt: Date.now() + 30 * 60 * 1000 }),
+      () => ({
+        accessToken: "token",
+        tokenExpiresAt: Date.now() + 30 * 60 * 1000,
+      }),
       kv,
     );
 
@@ -419,7 +451,10 @@ function krogerCacheKeyFor(url: string): string {
  * are non-fatal — a read failure falls through to a live request, a write
  * failure is logged and swallowed.
  */
-export function createKrogerCacheMiddleware(kv: KvLike | null, ttlSeconds: number): Middleware {
+export function createKrogerCacheMiddleware(
+  kv: KvLike | null,
+  ttlSeconds: number,
+): Middleware {
   return {
     async onRequest({ request }) {
       if (!kv || request.method !== "GET") return;
@@ -483,7 +518,10 @@ export function createKrogerClients(
   kv: KvLike | null = null,
 ) {
   const authMiddleware = createKrogerAuthMiddleware(getTokenInfo);
-  const cacheMiddleware = createKrogerCacheMiddleware(kv, KROGER_CACHE_TTL_SECONDS);
+  const cacheMiddleware = createKrogerCacheMiddleware(
+    kv,
+    KROGER_CACHE_TTL_SECONDS,
+  );
   const base = { baseUrl: "https://api.kroger.com" };
 
   const cartClient = createClient<CartPaths>(base);
@@ -549,7 +587,9 @@ import { ProductService } from "../../../src/services/kroger/product-service.js"
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 function stubProductClient(
-  get: (...args: unknown[]) => Promise<{ data?: unknown; error?: unknown; response: Response }>,
+  get: (
+    ...args: unknown[]
+  ) => Promise<{ data?: unknown; error?: unknown; response: Response }>,
 ): KrogerClients["productClient"] {
   return { GET: get } as unknown as KrogerClients["productClient"];
 }
@@ -587,7 +627,10 @@ describe("ProductService.getProduct", () => {
 
     await service.getProduct("0001111041700", "70500847");
 
-    const [, opts] = get.mock.calls[0] as [string, { params: { query: Record<string, string> } }];
+    const [, opts] = get.mock.calls[0] as [
+      string,
+      { params: { query: Record<string, string> } },
+    ];
     expect(opts.params.query["filter.locationId"]).toBe("70500847");
   });
 
@@ -647,7 +690,9 @@ describe("ProductService.enrichProductName", () => {
     }));
     const service = new ProductService(stubProductClient(get));
 
-    await expect(service.enrichProductName("0001111041700")).resolves.toBeNull();
+    await expect(
+      service.enrichProductName("0001111041700"),
+    ).resolves.toBeNull();
   });
 
   it("returns null when the product is not found", async () => {
@@ -711,7 +756,10 @@ export class ProductService {
     });
   }
 
-  async enrichProductName(upc: string, locationId?: string): Promise<string | null> {
+  async enrichProductName(
+    upc: string,
+    locationId?: string,
+  ): Promise<string | null> {
     return this.getProduct(upc, locationId).match(
       (product) => product.description ?? null,
       () => null,
@@ -796,7 +844,10 @@ function buildServer(env: Env, sessionId: string): McpServer {
     ) {
       return null;
     }
-    return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
+    return {
+      accessToken: props.accessToken,
+      tokenExpiresAt: props.tokenExpiresAt,
+    };
   }, getUserDataKv(env));
 
   const storage = createUserStorage(env.USER_DATA_KV);
@@ -875,10 +926,14 @@ Add this new exported function (place it after `makeStorage`, before `makeContex
  * back to `null` (the same fallback-to-upc behavior production code gets)
  * for any upc not in the map.
  */
-export function makeProductService(nameByUpc: Record<string, string> = {}): ProductService {
+export function makeProductService(
+  nameByUpc: Record<string, string> = {},
+): ProductService {
   return {
     getProduct: () => {
-      throw new Error("ProductService.getProduct stub not configured for this test");
+      throw new Error(
+        "ProductService.getProduct stub not configured for this test",
+      );
     },
     enrichProductName: async (upc: string) => nameByUpc[upc] ?? null,
   } as unknown as ProductService;
@@ -898,7 +953,10 @@ export function makeContext(
         testState.capturedTools.push({ name, config, handler });
       },
       server: {
-        elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
+        elicitInput: async () => ({
+          action: "accept",
+          content: { confirm: true },
+        }),
       },
     } as unknown as ToolContext["server"],
     clients: {
@@ -960,8 +1018,13 @@ import { ProductService } from "../../src/services/kroger/product-service.js";
 Replace `makeContext`:
 
 ```typescript
-function makeContext(productGet: ProductGetFn, storage?: UserStorage): ToolContext {
-  const clients = { productClient: { GET: productGet } } as unknown as ToolContext["clients"];
+function makeContext(
+  productGet: ProductGetFn,
+  storage?: UserStorage,
+): ToolContext {
+  const clients = {
+    productClient: { GET: productGet },
+  } as unknown as ToolContext["clients"];
   return {
     server: {} as ToolContext["server"],
     clients,
@@ -988,11 +1051,16 @@ import type { KrogerClients } from "../../src/services/kroger/client.js";
 Replace `makeContext`:
 
 ```typescript
-function makeContext(storage: UserStorage, productClient: unknown = {}): ToolContext {
+function makeContext(
+  storage: UserStorage,
+  productClient: unknown = {},
+): ToolContext {
   return {
     server: makeServer(),
     clients: { productClient } as unknown as ToolContext["clients"],
-    productService: new ProductService(productClient as KrogerClients["productClient"]),
+    productService: new ProductService(
+      productClient as KrogerClients["productClient"],
+    ),
     storage,
     getEnv: () => ({}) as Env,
     getSessionId: () => "session-1",
@@ -1310,7 +1378,12 @@ import {
   formatSearchProductsMarkdown,
 } from "../utils/format-response.js";
 import { safeJsonParseWithSchema } from "../utils/json.js";
-import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import {
+  fromApiResponse,
+  getProps,
+  safeResolveLocationId,
+  toMcpError,
+} from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
@@ -1332,7 +1405,12 @@ import {
   formatProductDetailMarkdown,
   formatSearchProductsMarkdown,
 } from "../utils/format-response.js";
-import { fromApiResponse, getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import {
+  fromApiResponse,
+  getProps,
+  safeResolveLocationId,
+  toMcpError,
+} from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 import { type ToolContext, errorResult } from "./types.js";
@@ -1397,17 +1475,28 @@ export async function searchProductsForTerms(
     );
 
     completedSearches++;
-    if (onSearchComplete) await onSearchComplete(completedSearches, totalSearches);
+    if (onSearchComplete)
+      await onSearchComplete(completedSearches, totalSearches);
 
     return apiResult
       .map((data) => {
         const products = data?.data || [];
-        return { term, products, count: products.length, failed: false as const };
+        return {
+          term,
+          products,
+          count: products.length,
+          failed: false as const,
+        };
       })
       .orTee((error) => logProductSearchError(term, error))
       .match(
         (result) => result,
-        () => ({ term, products: [] as Product[], count: 0, failed: true as const }),
+        () => ({
+          term,
+          products: [] as Product[],
+          count: 0,
+          failed: true as const,
+        }),
       );
   });
 
@@ -1418,8 +1507,10 @@ export async function searchProductsForTerms(
       result.products.sort((a, b) => {
         const aItem = a.items?.[0];
         const bItem = b.items?.[0];
-        const aPickup = aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
-        const bPickup = bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
+        const aPickup =
+          aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
+        const bPickup =
+          bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
 
         if (aPickup && !bPickup) return -1;
         if (!aPickup && bPickup) return 1;
@@ -1580,7 +1671,9 @@ Delete the local `isKvLike` function:
 
 ```typescript
 export function isKvLike(value: unknown): value is KvLike {
-  return !!value && typeof value === "object" && "get" in value && "put" in value;
+  return (
+    !!value && typeof value === "object" && "get" in value && "put" in value
+  );
 }
 ```
 
@@ -1640,7 +1733,11 @@ import { ResultAsync, okAsync } from "neverthrow";
 Replace the import:
 
 ```typescript
-import { buildWeeklyDealsCacheKey, isKvLike, parseCacheEntry } from "./weekly-deals.js";
+import {
+  buildWeeklyDealsCacheKey,
+  isKvLike,
+  parseCacheEntry,
+} from "./weekly-deals.js";
 ```
 
 with:
@@ -1705,12 +1802,22 @@ In `src/tools/shopping-list.ts`, replace:
 
 ```typescript
 export const createShoppingListInputSchema = z.object({
-  name: z.string().min(1).max(200).describe("List label, e.g. 'Tuesday dinner'."),
+  name: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe("List label, e.g. 'Tuesday dinner'."),
   items: z
     .array(
       z.object({
-        productName: z.string().min(1).max(200).describe("Product name, e.g. 'Whole Milk'"),
-        upc: upcSchema.optional().describe("UPC from search_products, needed for cart checkout"),
+        productName: z
+          .string()
+          .min(1)
+          .max(200)
+          .describe("Product name, e.g. 'Whole Milk'"),
+        upc: upcSchema
+          .optional()
+          .describe("UPC from search_products, needed for cart checkout"),
         quantity: z.coerce.number().min(1).max(999).default(1),
         notes: z.string().max(500).optional().describe("e.g. 'get organic'"),
       }),
@@ -1723,7 +1830,11 @@ with:
 
 ```typescript
 export const createShoppingListInputSchema = z.object({
-  name: z.string().min(1).max(200).describe("List label, e.g. 'Tuesday dinner'."),
+  name: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe("List label, e.g. 'Tuesday dinner'."),
   items: z
     .array(
       z.object({
@@ -1912,14 +2023,14 @@ it("creates a shopping list and returns a short listId", async () => {
   });
 
   expect(isErrorResult(result)).toBe(false);
-  const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+  const sc = (result as { structuredContent: Record<string, unknown> })
+    .structuredContent;
   expect(sc["_view"]).toBe("create_shopping_list");
   expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
   expect(sc["name"]).toBe("Tuesday Dinner");
-  expect((sc["items"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
-    "Milk",
-    "Bread",
-  ]);
+  expect(
+    (sc["items"] as Array<{ productName: string }>).map((i) => i.productName),
+  ).toEqual(["Milk", "Bread"]);
 });
 ```
 
@@ -1944,14 +2055,14 @@ it("creates a shopping list and returns a short listId", async () => {
   });
 
   expect(isErrorResult(result)).toBe(false);
-  const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+  const sc = (result as { structuredContent: Record<string, unknown> })
+    .structuredContent;
   expect(sc["_view"]).toBe("create_shopping_list");
   expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
   expect(sc["name"]).toBe("Tuesday Dinner");
-  expect((sc["items"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
-    "Milk",
-    "Bread",
-  ]);
+  expect(
+    (sc["items"] as Array<{ productName: string }>).map((i) => i.productName),
+  ).toEqual(["Milk", "Bread"]);
 });
 ```
 
@@ -1991,7 +2102,9 @@ Replace:
 it("flags an item already in the pantry", async () => {
   const storage = makeStorage({
     pantry: {
-      getAll: async () => [{ productName: "Milk", quantity: 1, addedAt: new Date().toISOString() }],
+      getAll: async () => [
+        { productName: "Milk", quantity: 1, addedAt: new Date().toISOString() },
+      ],
     } as unknown as UserStorage["pantry"],
   });
   registerShoppingListTools(makeContext(storage));
@@ -2009,7 +2122,11 @@ it("does not flag an item that isn't in the pantry", async () => {
   const storage = makeStorage({
     pantry: {
       getAll: async () => [
-        { productName: "Bread", quantity: 1, addedAt: new Date().toISOString() },
+        {
+          productName: "Bread",
+          quantity: 1,
+          addedAt: new Date().toISOString(),
+        },
       ],
     } as unknown as UserStorage["pantry"],
   });
@@ -2030,10 +2147,14 @@ with:
 it("flags an item already in the pantry", async () => {
   const storage = makeStorage({
     pantry: {
-      getAll: async () => [{ productName: "Milk", quantity: 1, addedAt: new Date().toISOString() }],
+      getAll: async () => [
+        { productName: "Milk", quantity: 1, addedAt: new Date().toISOString() },
+      ],
     } as unknown as UserStorage["pantry"],
   });
-  registerShoppingListTools(makeContext(storage, makeProductService({ "0001111000001": "Milk" })));
+  registerShoppingListTools(
+    makeContext(storage, makeProductService({ "0001111000001": "Milk" })),
+  );
 
   const result = await getCapturedHandler("create_shopping_list")({
     name: "Groceries",
@@ -2048,11 +2169,17 @@ it("does not flag an item that isn't in the pantry", async () => {
   const storage = makeStorage({
     pantry: {
       getAll: async () => [
-        { productName: "Bread", quantity: 1, addedAt: new Date().toISOString() },
+        {
+          productName: "Bread",
+          quantity: 1,
+          addedAt: new Date().toISOString(),
+        },
       ],
     } as unknown as UserStorage["pantry"],
   });
-  registerShoppingListTools(makeContext(storage, makeProductService({ "0001111000001": "Milk" })));
+  registerShoppingListTools(
+    makeContext(storage, makeProductService({ "0001111000001": "Milk" })),
+  );
 
   const result = await getCapturedHandler("create_shopping_list")({
     name: "Groceries",
@@ -2087,7 +2214,10 @@ const result = await getCapturedHandler("create_shopping_list")({
 (appears twice, once in "flags an item on sale..." and once in "yields no flag... for a corrupted weekly-deals cache entry") — in **both** occurrences, replace with:
 
 ```typescript
-const context = makeContext(undefined, makeProductService({ "0001111000001": "Whole Milk" }));
+const context = makeContext(
+  undefined,
+  makeProductService({ "0001111000001": "Whole Milk" }),
+);
 context.getEnv = () =>
   ({
     USER_DATA_KV: {
@@ -2151,18 +2281,21 @@ it("bails when the shopping list has no items with UPCs", async () => {
     name: "No UPCs",
     items: [{ productName: "Strawberries", quantity: 2 }],
   });
-  const listId = (createResult as { structuredContent: { listId: string } }).structuredContent
-    .listId;
+  const listId = (createResult as { structuredContent: { listId: string } })
+    .structuredContent.listId;
 
   const handler = getCapturedHandler("add_shopping_list_to_cart");
   const result = await handler({ listId, storeId: "70500847" });
 
   expect(isErrorResult(result)).toBe(false);
-  const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+  const sc = (result as { structuredContent: Record<string, unknown> })
+    .structuredContent;
   expect((sc["items"] as unknown[]).length).toBe(0);
-  expect((sc["needsUpc"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
-    "Strawberries",
-  ]);
+  expect(
+    (sc["needsUpc"] as Array<{ productName: string }>).map(
+      (i) => i.productName,
+    ),
+  ).toEqual(["Strawberries"]);
   expect(textFromResult(result)).toContain("no items with a UPC");
 });
 ```
@@ -2189,7 +2322,11 @@ it("bails when the shopping list has no items with UPCs", async () => {
   // buildShoppingListStorageKey scopes by (userId, sessionId) internally —
   // pass the raw userId/sessionId the harness authenticates as, not a
   // pre-scoped id.
-  const storageKey = buildShoppingListStorageKey("user-123", "session-1", listId);
+  const storageKey = buildShoppingListStorageKey(
+    "user-123",
+    "session-1",
+    listId,
+  );
   await storage.shoppingList.create(storageKey, "No UPCs", [
     { productName: "Strawberries", quantity: 2 },
   ]);
@@ -2198,11 +2335,14 @@ it("bails when the shopping list has no items with UPCs", async () => {
   const result = await handler({ listId, storeId: "70500847" });
 
   expect(isErrorResult(result)).toBe(false);
-  const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+  const sc = (result as { structuredContent: Record<string, unknown> })
+    .structuredContent;
   expect((sc["items"] as unknown[]).length).toBe(0);
-  expect((sc["needsUpc"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
-    "Strawberries",
-  ]);
+  expect(
+    (sc["needsUpc"] as Array<{ productName: string }>).map(
+      (i) => i.productName,
+    ),
+  ).toEqual(["Strawberries"]);
   expect(textFromResult(result)).toContain("no items with a UPC");
 });
 ```

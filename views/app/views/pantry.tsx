@@ -25,7 +25,11 @@ const REMOVE_ICON = (
     strokeWidth={2.5}
     stroke="currentColor"
   >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M6 18 18 6M6 6l12 12"
+    />
   </svg>
 );
 
@@ -46,12 +50,27 @@ const EMPTY_PANTRY_ICON = (
   </svg>
 );
 
-function ExpiryBadge({ expiresAt, now }: { expiresAt: string | undefined; now: number }) {
-  const expiryDate = useMemo(() => (expiresAt ? new Date(expiresAt) : null), [expiresAt]);
+function ExpiryBadge({
+  expiresAt,
+  now,
+}: {
+  expiresAt: string | undefined;
+  now: number;
+}) {
+  const expiryDate = useMemo(
+    () => (expiresAt ? new Date(expiresAt) : null),
+    [expiresAt],
+  );
   if (!expiresAt || !expiryDate) return null;
-  const daysUntil = Math.floor((expiryDate.getTime() - now) / (1000 * 60 * 60 * 24));
+  const daysUntil = Math.floor(
+    (expiryDate.getTime() - now) / (1000 * 60 * 60 * 24),
+  );
   const expiryLabel = useMemo(
-    () => expiryDate.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    () =>
+      expiryDate.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      }),
     [expiryDate],
   );
   const soonLabel = useMemo(() => `${daysUntil}d left`, [daysUntil]);
@@ -87,7 +106,9 @@ function PantryItemRow({
   onRemove: (name: string) => Promise<void>;
   now: number;
 }) {
-  const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [removeState, setRemoveState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
 
   const handleRemove = useCallback(async () => {
     setRemoveState("loading");
@@ -102,7 +123,9 @@ function PantryItemRow({
 
   const isExpiringSoon = useMemo(() => {
     if (!item.expiresAt) return false;
-    const d = Math.floor((new Date(item.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24));
+    const d = Math.floor(
+      (new Date(item.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
+    );
     return d >= 0 && d <= 3;
   }, [item.expiresAt, now]);
 
@@ -132,9 +155,13 @@ function PantryItemRow({
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-gray-900">{item.productName}</div>
+        <div className="truncate text-sm font-medium text-gray-900">
+          {item.productName}
+        </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
+          <span className="font-mono text-xs text-gray-400">
+            ×{item.quantity}
+          </span>
           <ExpiryBadge expiresAt={item.expiresAt} now={now} />
         </div>
       </div>
@@ -173,12 +200,17 @@ export function PantryView({
     () =>
       items.filter((i) => {
         if (!i.expiresAt) return false;
-        const d = Math.floor((new Date(i.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24));
+        const d = Math.floor(
+          (new Date(i.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
+        );
         return d >= 0 && d <= 3;
       }),
     [items, now],
   );
-  const nonExpiring = useMemo(() => items.filter((i) => !expiring.includes(i)), [items, expiring]);
+  const nonExpiring = useMemo(
+    () => items.filter((i) => !expiring.includes(i)),
+    [items, expiring],
+  );
 
   const handleRemove = useCallback(
     async (name: string) => {
@@ -194,7 +226,8 @@ export function PantryView({
   );
 
   const handleSuggestRecipes = useCallback(() => {
-    const focus = expiring.length > 0 ? " Prioritize what's expiring soon." : "";
+    const focus =
+      expiring.length > 0 ? " Prioritize what's expiring soon." : "";
     sendUserMessage(
       app,
       `Suggest a few recipes I can make from what's currently in my pantry.${focus}`,
@@ -202,14 +235,20 @@ export function PantryView({
   }, [app, expiring.length]);
 
   const headerBadge = useMemo(
-    () => <span className="font-mono text-xs text-gray-400">{items.length} items</span>,
+    () => (
+      <span className="font-mono text-xs text-gray-400">
+        {items.length} items
+      </span>
+    ),
     [items.length],
   );
 
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Pantry</h1>
+        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">
+          Pantry
+        </h1>
         <EmptyState
           icon={EMPTY_PANTRY_ICON}
           message="Your pantry is empty"
@@ -221,7 +260,11 @@ export function PantryView({
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader title="Pantry" badge={headerBadge} subtitle={actionDetail} />
+      <SectionHeader
+        title="Pantry"
+        badge={headerBadge}
+        subtitle={actionDetail}
+      />
 
       {items.length >= 3 && (
         <div className="mb-3 flex justify-end">

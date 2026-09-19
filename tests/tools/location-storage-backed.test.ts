@@ -61,8 +61,11 @@ describe("location storage-backed tools", () => {
         stores: [{ locationId: "70500847", name: "QFC Broadway" }],
       },
     });
-    const store = (result as { structuredContent: { stores: Array<Record<string, unknown>> } })
-      .structuredContent.stores[0];
+    const store = (
+      result as {
+        structuredContent: { stores: Array<Record<string, unknown>> };
+      }
+    ).structuredContent.stores[0];
     expect(store).not.toHaveProperty("geolocation");
     expect(store).not.toHaveProperty("hours");
     expect(getCalls[0]).toMatchObject({
@@ -88,7 +91,9 @@ describe("location storage-backed tools", () => {
     };
 
     expect(config.inputSchema.safeParse({}).success).toBe(false);
-    expect(config.inputSchema.safeParse({ zipCodeNear: "98122" }).success).toBe(true);
+    expect(config.inputSchema.safeParse({ zipCodeNear: "98122" }).success).toBe(
+      true,
+    );
     expect(config.inputSchema.parse({ zipCodeNear: "98122" }).limit).toBe(5);
   });
 
@@ -104,7 +109,9 @@ describe("location storage-backed tools", () => {
         state: "WA",
         zipCode: "98102",
       },
-      departments: [{ name: "Bakery", phone: "206-555-9999", hours: { open24: false } }],
+      departments: [
+        { name: "Bakery", phone: "206-555-9999", hours: { open24: false } },
+      ],
       geolocation: { latitude: 47.6, longitude: -122.3 },
     };
     const context = makeContext();
@@ -135,8 +142,9 @@ describe("location storage-backed tools", () => {
         },
       },
     });
-    const store = (result as { structuredContent: { store: Record<string, unknown> } })
-      .structuredContent.store;
+    const store = (
+      result as { structuredContent: { store: Record<string, unknown> } }
+    ).structuredContent.store;
     expect(store).not.toHaveProperty("geolocation");
   });
 
@@ -157,7 +165,9 @@ describe("location storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.text).toContain("No information found for location ID: 70500847");
+    expect(result.text).toContain(
+      "No information found for location ID: 70500847",
+    );
   });
 
   it("saves preferred location details for the authenticated user", async () => {
@@ -235,6 +245,8 @@ describe("location storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.text).toContain("No information found for location ID: 70500847");
+    expect(result.text).toContain(
+      "No information found for location ID: 70500847",
+    );
   });
 });

@@ -80,7 +80,11 @@ try {
       // oxlint-disable-next-line eslint/no-await-in-loop -- score each completed batch before the next
       const body = await response.json();
       const batchIndex = report.batches.length;
-      report.batches.push({ order, ids: batch.map((testCase) => testCase.id), ...body });
+      report.batches.push({
+        order,
+        ids: batch.map((testCase) => testCase.id),
+        ...body,
+      });
       for (const [index, testCase] of batch.entries()) {
         const selection = body.selections?.[index];
         const expectedAbstention = testCase.acceptableUpcs.length === 0;
@@ -103,11 +107,19 @@ try {
           expected: expectedAbstention
             ? "unresolved"
             : testCase.candidates
-                .filter((product) => testCase.acceptableUpcs.includes(product.upc))
-                .map((product) => ({ upc: product.upc, name: product.description })),
+                .filter((product) =>
+                  testCase.acceptableUpcs.includes(product.upc),
+                )
+                .map((product) => ({
+                  upc: product.upc,
+                  name: product.description,
+                })),
           actual:
             selection?.status === "selected"
-              ? { upc: selection.product.upc, name: selection.product.description }
+              ? {
+                  upc: selection.product.upc,
+                  name: selection.product.description,
+                }
               : (selection?.status ?? "error"),
           choice: answer?.choice,
           confidence: answer?.confidence,
@@ -121,9 +133,15 @@ try {
     }
   }
   const results = report.results;
-  const selections = results.filter((result) => typeof result.actual === "object");
-  const expectedAbstentions = results.filter((result) => result.expected === "unresolved");
-  const durations = report.batches.map((batch) => batch.elapsedMs).toSorted((a, b) => a - b);
+  const selections = results.filter(
+    (result) => typeof result.actual === "object",
+  );
+  const expectedAbstentions = results.filter(
+    (result) => result.expected === "unresolved",
+  );
+  const durations = report.batches
+    .map((batch) => batch.elapsedMs)
+    .toSorted((a, b) => a - b);
   report.summary = {
     ...summarize(results),
     uniqueCases: cases.length,
@@ -131,13 +149,17 @@ try {
     expectedAbstentions: summarize(expectedAbstentions),
     errors: results.filter((result) => result.actual === "error").length,
     casesPassingAllOrders: cases.filter((testCase) =>
-      results.filter((result) => result.id === testCase.id).every((result) => result.correct),
+      results
+        .filter((result) => result.id === testCase.id)
+        .every((result) => result.correct),
     ).length,
     byCategory: Object.fromEntries(
-      [...new Set(cases.map((testCase) => testCase.category))].map((category) => [
-        category,
-        summarize(results.filter((result) => result.category === category)),
-      ]),
+      [...new Set(cases.map((testCase) => testCase.category))].map(
+        (category) => [
+          category,
+          summarize(results.filter((result) => result.category === category)),
+        ],
+      ),
     ),
     latencyMs: {
       min: durations[0],
@@ -149,7 +171,10 @@ try {
       .reduce((sum, call) => sum + (call.response?.usage?.cost ?? 0), 0),
     inputTokens: report.batches
       .flatMap((batch) => batch.calls ?? [])
-      .reduce((sum, call) => sum + (call.response?.usage?.input_tokens ?? 0), 0),
+      .reduce(
+        (sum, call) => sum + (call.response?.usage?.input_tokens ?? 0),
+        0,
+      ),
   };
   console.log(JSON.stringify(report.summary, null, 2));
 } finally {

@@ -14,14 +14,20 @@ export type SelectorAi = {
         provider: "openrouter";
         endpoint: string;
         headers: Record<string, string>;
-        query: { model: typeof JEV_MODEL; state: unknown; questions: Record<string, unknown> };
+        query: {
+          model: typeof JEV_MODEL;
+          state: unknown;
+          questions: Record<string, unknown>;
+        };
       },
       options: { signal: AbortSignal },
     ): Promise<Response>;
   };
 };
 
-export type ProductSelection = { status: "selected"; product: Product } | { status: "unresolved" };
+export type ProductSelection =
+  | { status: "selected"; product: Product }
+  | { status: "unresolved" };
 
 const probability = z.number().min(0).max(1);
 const responseSchema = z.object({
@@ -66,12 +72,15 @@ export async function selectProductMatches(params: {
         const variant = product.items?.[0];
         return (
           variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
-          (!forPickup || (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
+          (!forPickup ||
+            (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
         );
       }),
     }))
     .filter((entry) => entry.products.length > 0);
-  const selections: ProductSelection[] = items.map(() => ({ status: "unresolved" }));
+  const selections: ProductSelection[] = items.map(() => ({
+    status: "unresolved",
+  }));
   if (entries.length === 0) return selections;
 
   const questions = Object.fromEntries(
@@ -99,7 +108,8 @@ export async function selectProductMatches(params: {
           ),
           no_match:
             "Every candidate conflicts with the requested product or an explicit attribute.",
-          needs_review: "The request is ambiguous or evidence for a required attribute is missing.",
+          needs_review:
+            "The request is ambiguous or evidence for a required attribute is missing.",
         },
       },
     ]),
@@ -119,12 +129,18 @@ export async function selectProductMatches(params: {
           provider: "openrouter",
           // OpenRouter's base is /api/v1; Decisions lives at /api/alpha/decisions.
           endpoint: "../alpha/decisions",
-          headers: { "Content-Type": "application/json", "cf-aig-max-attempts": "1" },
+          headers: {
+            "Content-Type": "application/json",
+            "cf-aig-max-attempts": "1",
+          },
           query: {
             model: JEV_MODEL,
             state: {
               items: Object.fromEntries(
-                entries.map((entry) => [entry.id, { requestedItem: entry.query }]),
+                entries.map((entry) => [
+                  entry.id,
+                  { requestedItem: entry.query },
+                ]),
               ),
             },
             questions,
@@ -132,7 +148,8 @@ export async function selectProductMatches(params: {
         },
         { signal: controller.signal },
       );
-      if (!response.ok) throw new Error(`Jev request failed with HTTP ${response.status}`);
+      if (!response.ok)
+        throw new Error(`Jev request failed with HTTP ${response.status}`);
       return response.json();
     };
     const raw = await Promise.race([infer(), deadline]);
@@ -152,8 +169,13 @@ export async function selectProductMatches(params: {
         !Object.hasOwn(criteria, answer.choice) ||
         Object.keys(probabilities).length !== keys.length ||
         keys.some((key) => !Object.hasOwn(probabilities, key)) ||
-        Math.abs(Object.values(probabilities).reduce((sum, value) => sum + value, 0) - 1) > 0.02 ||
-        Object.values(probabilities).some((value) => value > probabilities[answer.choice] + 0.001)
+        Math.abs(
+          Object.values(probabilities).reduce((sum, value) => sum + value, 0) -
+            1,
+        ) > 0.02 ||
+        Object.values(probabilities).some(
+          (value) => value > probabilities[answer.choice] + 0.001,
+        )
       ) {
         throw new Error("Invalid Jev choice distribution");
       }

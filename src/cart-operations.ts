@@ -15,13 +15,23 @@ export interface CartOperationStore {
 }
 
 /** One journal per user. Pending writes never expire into permission to retry. */
-export class CartOperations extends DurableObject<Env> implements CartOperationStore {
+export class CartOperations
+  extends DurableObject<Env>
+  implements CartOperationStore
+{
   async begin(key: string, fingerprint: string): Promise<CartClaim> {
     return this.ctx.storage.transaction(async (txn) => {
       const existing = await txn.get<CartOperation>(key);
-      if (existing) return existing.fingerprint === fingerprint ? existing : { status: "conflict" };
+      if (existing)
+        return existing.fingerprint === fingerprint
+          ? existing
+          : { status: "conflict" };
       const attempt = crypto.randomUUID();
-      await txn.put(key, { status: "pending", attempt, fingerprint } satisfies CartOperation);
+      await txn.put(key, {
+        status: "pending",
+        attempt,
+        fingerprint,
+      } satisfies CartOperation);
       return { status: "started", attempt, fingerprint };
     });
   }
@@ -43,7 +53,8 @@ export class CartOperations extends DurableObject<Env> implements CartOperationS
   async reject(key: string, attempt: string): Promise<void> {
     await this.ctx.storage.transaction(async (txn) => {
       const operation = await txn.get<CartOperation>(key);
-      if (operation?.status === "pending" && operation.attempt === attempt) await txn.delete(key);
+      if (operation?.status === "pending" && operation.attempt === attempt)
+        await txn.delete(key);
     });
   }
 }

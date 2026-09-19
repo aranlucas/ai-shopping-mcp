@@ -97,7 +97,9 @@ type ToolConfig = {
     idempotentHint?: boolean;
     openWorldHint?: boolean;
   };
-  inputSchema?: { safeParse: (input: unknown) => { success: boolean; data?: unknown } };
+  inputSchema?: {
+    safeParse: (input: unknown) => { success: boolean; data?: unknown };
+  };
   outputSchema?: { safeParse: (input: unknown) => { success: boolean } };
 };
 
@@ -112,7 +114,12 @@ const testState = vi.hoisted(() => ({
 }));
 
 vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
-  registerAppTool: (_server: unknown, name: string, config: ToolConfig, handler: ToolHandler) => {
+  registerAppTool: (
+    _server: unknown,
+    name: string,
+    config: ToolConfig,
+    handler: ToolHandler,
+  ) => {
     testState.capturedTools.push({ name, config, handler });
   },
 }));
@@ -121,13 +128,22 @@ function makeContext(): ToolContext {
   return {
     server: {
       server: {
-        elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
+        elicitInput: async () => ({
+          action: "accept",
+          content: { confirm: true },
+        }),
       },
     } as unknown as ToolContext["server"],
     clients: {
-      productClient: { GET: async () => ({ response: new Response(null, { status: 204 }) }) },
-      locationClient: { GET: async () => ({ response: new Response(null, { status: 204 }) }) },
-      cartClient: { PUT: async () => ({ response: new Response(null, { status: 204 }) }) },
+      productClient: {
+        GET: async () => ({ response: new Response(null, { status: 204 }) }),
+      },
+      locationClient: {
+        GET: async () => ({ response: new Response(null, { status: 204 }) }),
+      },
+      cartClient: {
+        PUT: async () => ({ response: new Response(null, { status: 204 }) }),
+      },
     } as unknown as ToolContext["clients"],
     storage: {} as ToolContext["storage"],
     getEnv: () => ({}) as Env,
@@ -197,18 +213,25 @@ describe("MCP agent contract", () => {
   it("gives every tool metadata and exact annotations", () => {
     const tools = registerAllTools();
     for (const tool of tools) {
-      expect(tool.config.title, `${tool.name} title`).toEqual(expect.any(String));
-      expect(tool.config.description, `${tool.name} description`).toEqual(expect.any(String));
-      expect(tool.config.description?.length, `${tool.name} description length`).toBeGreaterThan(
-        60,
+      expect(tool.config.title, `${tool.name} title`).toEqual(
+        expect.any(String),
       );
+      expect(tool.config.description, `${tool.name} description`).toEqual(
+        expect.any(String),
+      );
+      expect(
+        tool.config.description?.length,
+        `${tool.name} description length`,
+      ).toBeGreaterThan(60);
       expect(tool.config.inputSchema, `${tool.name} inputSchema`).toBeDefined();
-      expect(tool.config.annotations, `${tool.name} annotations`).toMatchObject({
-        readOnlyHint: expect.any(Boolean),
-        destructiveHint: expect.any(Boolean),
-        idempotentHint: expect.any(Boolean),
-        openWorldHint: expect.any(Boolean),
-      });
+      expect(tool.config.annotations, `${tool.name} annotations`).toMatchObject(
+        {
+          readOnlyHint: expect.any(Boolean),
+          destructiveHint: expect.any(Boolean),
+          idempotentHint: expect.any(Boolean),
+          openWorldHint: expect.any(Boolean),
+        },
+      );
     }
 
     for (const name of [
@@ -219,7 +242,10 @@ describe("MCP agent contract", () => {
       "search_products",
       "search_stores",
     ]) {
-      expect(toolByName(tools, name).config.annotations?.readOnlyHint, name).toBe(true);
+      expect(
+        toolByName(tools, name).config.annotations?.readOnlyHint,
+        name,
+      ).toBe(true);
     }
 
     for (const name of [
@@ -228,7 +254,10 @@ describe("MCP agent contract", () => {
       "remove_kitchen_equipment",
       "remove_pantry_items",
     ]) {
-      expect(toolByName(tools, name).config.annotations?.destructiveHint, name).toBe(true);
+      expect(
+        toolByName(tools, name).config.annotations?.destructiveHint,
+        name,
+      ).toBe(true);
     }
   });
 
@@ -240,7 +269,11 @@ describe("MCP agent contract", () => {
         items: [],
         actionDetail: "Added 0 item(s)",
       },
-      add_pantry_items: { _view: "pantry", items: [], actionDetail: "Added 0 item(s)" },
+      add_pantry_items: {
+        _view: "pantry",
+        items: [],
+        actionDetail: "Added 0 item(s)",
+      },
       add_shopping_list_to_cart: {
         _view: "add_shopping_list_to_cart",
         shopping_list_id: "user-123:session:eval-session:list:abc12345",
@@ -253,20 +286,36 @@ describe("MCP agent contract", () => {
         items: [],
         actionDetail: "Kitchen equipment cleared",
       },
-      clear_pantry: { _view: "pantry", items: [], actionDetail: "Pantry cleared" },
+      clear_pantry: {
+        _view: "pantry",
+        items: [],
+        actionDetail: "Pantry cleared",
+      },
       create_shopping_list: {
         _view: "create_shopping_list",
         shopping_list_id: "user-123:session:eval-session:list:abc12345",
         name: "Dinner",
         items: [{ productName: "Milk", quantity: 1 }],
       },
-      get_product: { _view: "get_product", product: { upc: "0001112223334", description: "Milk" } },
-      get_store: { _view: "get_store", store: { locationId: "70500847", name: "QFC" } },
-      get_weekly_deals: { _view: "get_weekly_deals", deals: [], cache: { state: "miss" } },
+      get_product: {
+        _view: "get_product",
+        product: { upc: "0001112223334", description: "Milk" },
+      },
+      get_store: {
+        _view: "get_store",
+        store: { locationId: "70500847", name: "QFC" },
+      },
+      get_weekly_deals: {
+        _view: "get_weekly_deals",
+        deals: [],
+        cache: { state: "miss" },
+      },
       record_order: {
         _view: "record_order",
         orderId: "ORD-1",
-        items: [{ productId: "0001112223334", productName: "Milk", quantity: 1 }],
+        items: [
+          { productId: "0001112223334", productName: "Milk", quantity: 1 },
+        ],
         totalItems: 1,
         placedAt: "2026-06-30T00:00:00.000Z",
       },
@@ -275,8 +324,16 @@ describe("MCP agent contract", () => {
         items: [],
         actionDetail: "Removed 1 item(s)",
       },
-      remove_pantry_items: { _view: "pantry", items: [], actionDetail: "Removed 1 item(s)" },
-      search_products: { _view: "search_products", results: [], totalProducts: 0 },
+      remove_pantry_items: {
+        _view: "pantry",
+        items: [],
+        actionDetail: "Removed 1 item(s)",
+      },
+      search_products: {
+        _view: "search_products",
+        results: [],
+        totalProducts: 0,
+      },
       search_stores: { _view: "search_stores", stores: [] },
       set_preferred_store: {
         _view: "set_preferred_store",
@@ -286,11 +343,14 @@ describe("MCP agent contract", () => {
 
     for (const [name, example] of Object.entries(appBackedExamples)) {
       const tool = toolByName(tools, name);
-      expect(tool.config._meta?.ui?.resourceUri, `${name} UI resource`).toBe(APP_VIEW_URI);
-      expect(tool.config.outputSchema, `${name} outputSchema`).toBeDefined();
-      expect(tool.config.outputSchema?.safeParse(example).success, `${name} output example`).toBe(
-        true,
+      expect(tool.config._meta?.ui?.resourceUri, `${name} UI resource`).toBe(
+        APP_VIEW_URI,
       );
+      expect(tool.config.outputSchema, `${name} outputSchema`).toBeDefined();
+      expect(
+        tool.config.outputSchema?.safeParse(example).success,
+        `${name} output example`,
+      ).toBe(true);
     }
 
     const mealContext = toolByName(tools, "get_meal_planning_context");
@@ -314,7 +374,10 @@ describe("MCP agent contract", () => {
       }).success,
     ).toBe(false);
     expect(
-      createShoppingList.config.inputSchema?.safeParse({ name: "Empty", items: [] }).success,
+      createShoppingList.config.inputSchema?.safeParse({
+        name: "Empty",
+        items: [],
+      }).success,
     ).toBe(false);
     expect(
       createShoppingList.config.inputSchema?.safeParse({
@@ -370,12 +433,14 @@ it("rejects more than 10 search terms", () => {
   registerProductTools(makeContext(async () => makeSearchResponse([])));
   const tool = getCapturedTool("search_products");
   expect(
-    tool.config.inputSchema.safeParse({ terms: Array.from({ length: 10 }, (_, i) => `term-${i}`) })
-      .success,
+    tool.config.inputSchema.safeParse({
+      terms: Array.from({ length: 10 }, (_, i) => `term-${i}`),
+    }).success,
   ).toBe(true);
   expect(
-    tool.config.inputSchema.safeParse({ terms: Array.from({ length: 11 }, (_, i) => `term-${i}`) })
-      .success,
+    tool.config.inputSchema.safeParse({
+      terms: Array.from({ length: 11 }, (_, i) => `term-${i}`),
+    }).success,
   ).toBe(false);
 });
 ```
@@ -385,7 +450,9 @@ Add an empty search result test:
 ```typescript
 it("returns routeable structured content when no products match", async () => {
   registerProductTools(makeContext(async () => makeSearchResponse([])));
-  const result = await getCapturedHandler("search_products")({ terms: ["dragonfruit"] });
+  const result = await getCapturedHandler("search_products")({
+    terms: ["dragonfruit"],
+  });
   expect(result).toMatchObject({
     structuredContent: {
       _view: "search_products",
@@ -754,7 +821,10 @@ In `tests/views/tool-calls.test.ts`, update calls to expect `add_shopping_list_t
 ```typescript
 expect(app.calls[1]).toMatchObject({
   name: "add_shopping_list_to_cart",
-  arguments: { shopping_list_id: "user-123:session:s1:list:def67890", modality: "PICKUP" },
+  arguments: {
+    shopping_list_id: "user-123:session:s1:list:def67890",
+    modality: "PICKUP",
+  },
 });
 ```
 

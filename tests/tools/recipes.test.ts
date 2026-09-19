@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
-import type { EquipmentItem, OrderRecord, PantryItem } from "../../src/utils/user-storage.js";
+import type {
+  EquipmentItem,
+  OrderRecord,
+  PantryItem,
+} from "../../src/utils/user-storage.js";
 
-import { computeRestockSuggestions, registerRecipeTools } from "../../src/tools/recipes.js";
+import {
+  computeRestockSuggestions,
+  registerRecipeTools,
+} from "../../src/tools/recipes.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
 type AuthContext = {
@@ -46,7 +53,9 @@ function unauthenticate() {
 }
 
 function textFromResult(result: unknown): string {
-  const response = result as { content?: Array<{ type: string; text: string }> };
+  const response = result as {
+    content?: Array<{ type: string; text: string }>;
+  };
   return response.content?.[0]?.text ?? "";
 }
 
@@ -87,7 +96,11 @@ function makeStorage(
 function makeContext(storage = makeStorage()): ToolContext {
   return {
     server: {
-      registerTool: (name: string, config: CapturedTool["config"], handler: ToolHandler) => {
+      registerTool: (
+        name: string,
+        config: CapturedTool["config"],
+        handler: ToolHandler,
+      ) => {
         testState.capturedTools.push({ name, config, handler });
       },
     } as unknown as ToolContext["server"],
@@ -106,7 +119,9 @@ function makeContext(storage = makeStorage()): ToolContext {
 }
 
 function getCapturedHandler(name: string): ToolHandler {
-  const tool = testState.capturedTools.find((captured) => captured.name === name);
+  const tool = testState.capturedTools.find(
+    (captured) => captured.name === name,
+  );
   expect(tool).toBeDefined();
   return (
     tool?.handler ??
@@ -142,7 +157,9 @@ describe("recipe tools", () => {
     it("registers meal planning context as text-only without app UI metadata", () => {
       registerRecipeTools(makeContext());
 
-      expect(testState.capturedTools[0]?.config._meta?.ui?.resourceUri).toBeUndefined();
+      expect(
+        testState.capturedTools[0]?.config._meta?.ui?.resourceUri,
+      ).toBeUndefined();
     });
   });
 
@@ -184,7 +201,13 @@ describe("recipe tools", () => {
           },
           { productName: "Salt", quantity: 1, addedAt: isoDaysFromNow(-1) },
         ],
-        equipment: [{ equipmentName: "Oven", category: "Cooking", addedAt: isoDaysFromNow(-1) }],
+        equipment: [
+          {
+            equipmentName: "Oven",
+            category: "Cooking",
+            addedAt: isoDaysFromNow(-1),
+          },
+        ],
         orders: [
           {
             orderId: "o1",
@@ -214,7 +237,9 @@ describe("recipe tools", () => {
       });
 
       const text = textFromResult(result);
-      expect((result as { structuredContent?: unknown }).structuredContent).toBeUndefined();
+      expect(
+        (result as { structuredContent?: unknown }).structuredContent,
+      ).toBeUndefined();
       expect(text).toContain("**Meal Plan** (2 meals - dinner)");
       expect(text).toContain("1 expired item(s) excluded: Old Yogurt");
       expect(text).toContain("Dietary preferences: vegetarian");
@@ -296,7 +321,9 @@ describe("recipe tools", () => {
 
     it("uses singular 'meal' in the header when numberOfMeals is 1", async () => {
       const storage = makeStorage({
-        pantry: [{ productName: "Pasta", quantity: 1, addedAt: isoDaysFromNow(-1) }],
+        pantry: [
+          { productName: "Pasta", quantity: 1, addedAt: isoDaysFromNow(-1) },
+        ],
       });
 
       registerRecipeTools(makeContext(storage));
@@ -315,9 +342,9 @@ describe("recipe tools", () => {
       unauthenticate();
       registerRecipeTools(makeContext());
 
-      await expect(getCapturedHandler("get_meal_planning_context")({})).rejects.toThrow(
-        "outside an authenticated MCP request",
-      );
+      await expect(
+        getCapturedHandler("get_meal_planning_context")({}),
+      ).rejects.toThrow("outside an authenticated MCP request");
     });
   });
 
@@ -399,7 +426,10 @@ describe("recipe tools", () => {
 
       const suggestions = computeRestockSuggestions(orders, now);
       expect(suggestions).toHaveLength(1);
-      expect(suggestions[0]).toMatchObject({ daysSinceLast: 30, medianIntervalDays: 10 });
+      expect(suggestions[0]).toMatchObject({
+        daysSinceLast: 30,
+        medianIntervalDays: 10,
+      });
       expect(suggestions[0].name.toLowerCase()).toBe("milk");
     });
 

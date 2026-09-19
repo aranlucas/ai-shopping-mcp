@@ -8,10 +8,18 @@ import type { ShoppingList, ShoppingListItem } from "../utils/user-storage.js";
 import { appResult } from "../app-results.js";
 import { apiError, notFoundError, validationError } from "../errors.js";
 import { selectProductMatches } from "../services/product-selector.js";
-import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import {
+  getProps,
+  safeResolveLocationId,
+  toMcpError,
+} from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { type LineItem, addLineItemsToCart } from "./cart.js";
-import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
+import {
+  getDealsForFlags,
+  getPantryForFlags,
+  itemFlagLabels,
+} from "./item-flags.js";
 import { searchProductsForTerms } from "./product.js";
 import { coercedBooleanSchema } from "./schemas.js";
 import { createShoppingListRecord } from "./shopping-list.js";
@@ -20,7 +28,11 @@ import { type ToolContext } from "./types.js";
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 const shopItemSchema = z.object({
-  name: z.string().min(1).max(100).describe("Item to shop for, e.g. 'whole milk'"),
+  name: z
+    .string()
+    .min(1)
+    .max(100)
+    .describe("Item to shop for, e.g. 'whole milk'"),
   quantity: z.coerce.number().int().min(1).max(999).default(1),
 });
 
@@ -33,7 +45,9 @@ export const shopForItemsInputSchema = z.object({
   addToCart: coercedBooleanSchema
     .optional()
     .default(false)
-    .describe("Also add matched items to the Kroger cart (PICKUP) after creating the list"),
+    .describe(
+      "Also add matched items to the Kroger cart (PICKUP) after creating the list",
+    ),
 });
 
 /**
@@ -47,7 +61,9 @@ function formatMatchLineMarkdown(
   flags: string[] = [],
 ): string {
   const item = product.items?.[0];
-  const parts: string[] = [`${searchedName} → ${product.description ?? "Unknown product"}`];
+  const parts: string[] = [
+    `${searchedName} → ${product.description ?? "Unknown product"}`,
+  ];
 
   if (product.brand) parts.push(product.brand);
   if (item?.size) parts.push(item.size);
@@ -67,7 +83,11 @@ function formatMatchLineMarkdown(
   return `- ${parts.join(" | ")} (qty ${quantity})`;
 }
 
-function shoppingListResponse(listId: string, list: ShoppingList, parts: string[]) {
+function shoppingListResponse(
+  listId: string,
+  list: ShoppingList,
+  parts: string[],
+) {
   return {
     content: [{ type: "text" as const, text: parts.join("\n") }],
     ...appResult("create_shopping_list", {
@@ -86,9 +106,15 @@ async function finishShopForItemsCart(
   lineItems: LineItem[],
 ) {
   const parts = [responseText];
-  const addResult = await addLineItemsToCart(ctx, ctx.clients.cartClient, lineItems, "PICKUP", {
-    receiptListId: listId,
-  });
+  const addResult = await addLineItemsToCart(
+    ctx,
+    ctx.clients.cartClient,
+    lineItems,
+    "PICKUP",
+    {
+      receiptListId: listId,
+    },
+  );
   if (addResult.isErr()) {
     if (
       addResult.error.type === "STORAGE_ERROR" ||
@@ -140,9 +166,13 @@ export function registerShopTools(ctx: ToolContext) {
     },
     async ({ items, addToCart }) => {
       getProps();
-      const resolvedLocation = await safeResolveLocationId(ctx.storage, undefined);
+      const resolvedLocation = await safeResolveLocationId(
+        ctx.storage,
+        undefined,
+      );
       if (resolvedLocation.isErr()) {
-        if (resolvedLocation.error.type !== "NOT_FOUND") return toMcpError(resolvedLocation.error);
+        if (resolvedLocation.error.type !== "NOT_FOUND")
+          return toMcpError(resolvedLocation.error);
         return toMcpError(
           notFoundError(
             "No preferred store set. Use search_stores to find a store, then set_preferred_store to save it, and try again.",
@@ -180,14 +210,19 @@ export function registerShopTools(ctx: ToolContext) {
         getDealsForFlags(ctx, locationId),
       ]);
 
-      const matched: Array<{ name: string; quantity: number; product: Product; flags: string[] }> =
-        [];
+      const matched: Array<{
+        name: string;
+        quantity: number;
+        product: Product;
+        flags: string[];
+      }> = [];
       const notFound: string[] = [];
       const unresolved: string[] = [];
 
       items.forEach((item, index) => {
         const selection = selections[index];
-        const best = selection?.status === "selected" ? selection.product : undefined;
+        const best =
+          selection?.status === "selected" ? selection.product : undefined;
         if (best) {
           matched.push({
             name: item.name,
@@ -195,7 +230,10 @@ export function registerShopTools(ctx: ToolContext) {
             product: best,
             flags: itemFlagLabels(item.name, pantry, deals),
           });
-        } else if (!searchResults[index].failed && searchResults[index].products.length > 0) {
+        } else if (
+          !searchResults[index].failed &&
+          searchResults[index].products.length > 0
+        ) {
           unresolved.push(item.name);
         } else {
           notFound.push(item.name);
@@ -216,14 +254,20 @@ export function registerShopTools(ctx: ToolContext) {
 
       const listItems: ShoppingListItem[] = matched.map((match) => ({
         productName: match.product.description || match.name,
-        ...(match.product.upc ? { product: { provider: "kroger", id: match.product.upc } } : {}),
+        ...(match.product.upc
+          ? { product: { provider: "kroger", id: match.product.upc } }
+          : {}),
         upc: match.product.upc,
         quantity: match.quantity,
       }));
 
       const listName = `Shopping list ${new Date().toISOString().slice(0, 10)}`;
 
-      const createResult = await createShoppingListRecord(ctx.storage, listName, listItems);
+      const createResult = await createShoppingListRecord(
+        ctx.storage,
+        listName,
+        listItems,
+      );
       if (createResult.isErr()) return toMcpError(createResult.error);
       const { listId, list } = createResult.value;
 
@@ -231,7 +275,12 @@ export function registerShopTools(ctx: ToolContext) {
         `Created shopping list "${listName}" (listId=${listId}) with ${matched.length} item(s).`,
         "",
         ...matched.map((match) =>
-          formatMatchLineMarkdown(match.name, match.quantity, match.product, match.flags),
+          formatMatchLineMarkdown(
+            match.name,
+            match.quantity,
+            match.product,
+            match.flags,
+          ),
         ),
       ];
 
@@ -275,7 +324,13 @@ export function registerShopTools(ctx: ToolContext) {
         return shoppingListResponse(listId, list, parts);
       }
 
-      return finishShopForItemsCart(ctx, listId, parts.join("\n"), list, lineItems);
+      return finishShopForItemsCart(
+        ctx,
+        listId,
+        parts.join("\n"),
+        list,
+        lineItems,
+      );
     },
   );
 }

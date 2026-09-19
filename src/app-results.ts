@@ -116,7 +116,10 @@ type AppResultPayloads = {
   };
   get_product: { product: ProductData };
   pantry: { items: PantryItemData[]; actionDetail?: string };
-  kitchen_equipment: { items: KitchenEquipmentItemData[]; actionDetail?: string };
+  kitchen_equipment: {
+    items: KitchenEquipmentItemData[];
+    actionDetail?: string;
+  };
   create_shopping_list: {
     listId: string;
     name: string;
@@ -155,13 +158,28 @@ export type AppData = {
 export type WeeklyDealsContent = Extract<AppData, { view: "get_weekly_deals" }>;
 export type StoreResultsContent = Extract<AppData, { view: "search_stores" }>;
 export type StoreDetailContent = Extract<AppData, { view: "get_store" }>;
-export type PreferredStoreContent = Extract<AppData, { view: "set_preferred_store" }>;
-export type ProductSearchResultsContent = Extract<AppData, { view: "search_products" }>;
+export type PreferredStoreContent = Extract<
+  AppData,
+  { view: "set_preferred_store" }
+>;
+export type ProductSearchResultsContent = Extract<
+  AppData,
+  { view: "search_products" }
+>;
 export type ProductDetailContent = Extract<AppData, { view: "get_product" }>;
 export type PantryListContent = Extract<AppData, { view: "pantry" }>;
-export type KitchenEquipmentContent = Extract<AppData, { view: "kitchen_equipment" }>;
-export type ShoppingListContent = Extract<AppData, { view: "create_shopping_list" }>;
-export type AddShoppingListToCartContent = Extract<AppData, { view: "add_shopping_list_to_cart" }>;
+export type KitchenEquipmentContent = Extract<
+  AppData,
+  { view: "kitchen_equipment" }
+>;
+export type ShoppingListContent = Extract<
+  AppData,
+  { view: "create_shopping_list" }
+>;
+export type AddShoppingListToCartContent = Extract<
+  AppData,
+  { view: "add_shopping_list_to_cart" }
+>;
 export type OrderHistoryContent = Extract<AppData, { view: "record_order" }>;
 
 export const APP_VIEW_NAMES: Record<AppViewName, true> = {
@@ -192,7 +210,9 @@ export function appResult<View extends AppViewName>(
 }
 
 /** Convert a wire result into the app's internal discriminated view data. */
-export function parseAppResult(result: CallToolResult | null | undefined): AppData | null {
+export function parseAppResult(
+  result: CallToolResult | null | undefined,
+): AppData | null {
   const structuredContent = result?.structuredContent;
   const view = result?._meta?.[APP_VIEW_META_KEY];
   if (

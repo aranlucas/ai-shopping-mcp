@@ -38,7 +38,9 @@ export function formatPantryItemCompact(item: PantryItem): string {
   // Expiry with urgency indicator
   if (item.expiresAt) {
     const expiryDate = new Date(item.expiresAt);
-    const daysUntil = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    const daysUntil = Math.floor(
+      (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    );
 
     if (daysUntil < 0) {
       parts.push("❌EXPIRED");
@@ -60,7 +62,9 @@ export function formatPantryItemCompact(item: PantryItem): string {
 export function formatPantryListCompact(items: PantryItem[]): string {
   if (items.length === 0) return "Pantry empty.";
 
-  return items.map((item, index) => `${index + 1}. ${formatPantryItemCompact(item)}`).join("\n");
+  return items
+    .map((item, index) => `${index + 1}. ${formatPantryItemCompact(item)}`)
+    .join("\n");
 }
 
 /**
@@ -123,13 +127,17 @@ export function formatEquipmentItemCompact(item: EquipmentItem): string {
 export function formatEquipmentListCompact(items: EquipmentItem[]): string {
   if (items.length === 0) return "Equipment list empty.";
 
-  return items.map((item, index) => `${index + 1}. ${formatEquipmentItemCompact(item)}`).join("\n");
+  return items
+    .map((item, index) => `${index + 1}. ${formatEquipmentItemCompact(item)}`)
+    .join("\n");
 }
 
 /**
  * COMPACT: Token-efficient preferred location formatting
  */
-export function formatPreferredLocationCompact(location: PreferredLocation): string {
+export function formatPreferredLocationCompact(
+  location: PreferredLocation,
+): string {
   return `${location.locationName} (${location.chain}) | ${location.address} | ${location.locationId}`;
 }
 
@@ -162,7 +170,9 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
   if (items.length === 0) return "Shopping list empty.";
 
   return items
-    .map((item, index) => `${index + 1}. ${formatShoppingListItemCompact(item)}`)
+    .map(
+      (item, index) => `${index + 1}. ${formatShoppingListItemCompact(item)}`,
+    )
     .join("\n");
 }
 
@@ -188,7 +198,10 @@ export function formatCatalogProductLine(
   provider: CatalogProvider,
   options: { includeLocation?: boolean } = {},
 ): string {
-  const parts: string[] = [`productRef=${formatProductReference(product.ref)}`, product.name];
+  const parts: string[] = [
+    `productRef=${formatProductReference(product.ref)}`,
+    product.name,
+  ];
 
   if (product.brand) parts.push(product.brand);
   if (product.size) parts.push(product.size);
@@ -201,7 +214,8 @@ export function formatCatalogProductLine(
     );
   }
 
-  if (provider.capabilities.cart) parts.push(`pickup: ${product.pickup ? "yes" : "no"}`);
+  if (provider.capabilities.cart)
+    parts.push(`pickup: ${product.pickup ? "yes" : "no"}`);
   if (!product.available) parts.push("out of stock");
 
   const aisle = product.aisle;
@@ -213,11 +227,13 @@ export function formatCatalogProductLine(
         ? `${description} ${number}`
         : (description ?? number);
     if (locationLabel) parts.push(`location: ${locationLabel}`);
-    if (aisle.sequenceNumber) parts.push(`route sequence: ${aisle.sequenceNumber}`);
+    if (aisle.sequenceNumber)
+      parts.push(`route sequence: ${aisle.sequenceNumber}`);
     if (aisle.bayNumber) parts.push(`bay: ${aisle.bayNumber}`);
     if (aisle.side) parts.push(`side: ${aisle.side}`);
     if (aisle.shelfNumber) parts.push(`shelf: ${aisle.shelfNumber}`);
-    if (aisle.shelfPositionInBay) parts.push(`shelf position: ${aisle.shelfPositionInBay}`);
+    if (aisle.shelfPositionInBay)
+      parts.push(`shelf position: ${aisle.shelfPositionInBay}`);
   }
 
   return `- ${parts.join(" | ")}`;
@@ -228,7 +244,9 @@ export function formatCatalogProductDetailMarkdown(
   product: CatalogProduct,
   provider: CatalogProvider,
 ): string {
-  return formatCatalogProductLine(product, provider, { includeLocation: true }).slice(2);
+  return formatCatalogProductLine(product, provider, {
+    includeLocation: true,
+  }).slice(2);
 }
 
 /**
@@ -250,7 +268,8 @@ export function formatCatalogSearchMarkdown(
     lines.push(`## ${term}`);
     for (const provider of providers) {
       const result = results.find(
-        (candidate) => candidate.term === term && candidate.provider === provider.id,
+        (candidate) =>
+          candidate.term === term && candidate.provider === provider.id,
       );
       if (!result) continue;
       if (result.failed) {
@@ -271,7 +290,9 @@ export function formatCatalogSearchMarkdown(
   const listOnly = providers.filter((provider) => !provider.capabilities.cart);
   lines.push("");
   if (cartable.length > 0) {
-    lines.push("To save exact matches, pass the productRef values above to create_shopping_list.");
+    lines.push(
+      "To save exact matches, pass the productRef values above to create_shopping_list.",
+    );
   }
   for (const provider of listOnly) {
     lines.push(
@@ -299,13 +320,18 @@ export function formatProductDetailMarkdown(product: Product): string {
       if (item.price) {
         const { regular, promo } = item.price;
         parts.push(
-          promo != null && promo !== regular ? `$${promo} (was $${regular})` : `$${regular ?? "?"}`,
+          promo != null && promo !== regular
+            ? `$${promo} (was $${regular})`
+            : `$${regular ?? "?"}`,
         );
       }
 
-      const pickup = Boolean(item.fulfillment?.curbside || item.fulfillment?.instore);
+      const pickup = Boolean(
+        item.fulfillment?.curbside || item.fulfillment?.instore,
+      );
       parts.push(`pickup: ${pickup ? "yes" : "no"}`);
-      if (item.inventory?.stockLevel) parts.push(`stock: ${item.inventory.stockLevel}`);
+      if (item.inventory?.stockLevel)
+        parts.push(`stock: ${item.inventory.stockLevel}`);
 
       lines.push(`- ${parts.join(" | ")}`);
     }
@@ -313,7 +339,9 @@ export function formatProductDetailMarkdown(product: Product): string {
 
   if (product.aisleLocations && product.aisleLocations.length > 0) {
     const aisle = product.aisleLocations[0];
-    lines.push(`aisle: ${[aisle.description, aisle.number].filter(Boolean).join(" ")}`);
+    lines.push(
+      `aisle: ${[aisle.description, aisle.number].filter(Boolean).join(" ")}`,
+    );
   }
 
   return lines.join("\n");
@@ -363,7 +391,8 @@ function formatStoreHoursMarkdown(location: Location): string {
   const lines = ["hours:"];
   for (const day of days) {
     const hours = location.hours[day];
-    if (hours) lines.push(`- ${day}: ${hours.open ?? "?"}-${hours.close ?? "?"}`);
+    if (hours)
+      lines.push(`- ${day}: ${hours.open ?? "?"}-${hours.close ?? "?"}`);
   }
 
   return lines.length > 1 ? lines.join("\n") : "";

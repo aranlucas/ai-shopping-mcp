@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { APP_VIEW_NAMES, appResult, parseAppResult } from "../../src/app-results.js";
+import {
+  APP_VIEW_NAMES,
+  appResult,
+  parseAppResult,
+} from "../../src/app-results.js";
 
 describe("MCP App view routing", () => {
   it("routes from namespaced result metadata without exposing _view on the wire", () => {
@@ -10,14 +14,22 @@ describe("MCP App view routing", () => {
       structuredContent: { results: [], totalProducts: 0 },
     });
 
-    expect(result).toEqual({ view: "search_products", results: [], totalProducts: 0 });
+    expect(result).toEqual({
+      view: "search_products",
+      results: [],
+      totalProducts: 0,
+    });
   });
 
   it("does not accept the removed structuredContent _view convention", () => {
     expect(
       parseAppResult({
         content: [],
-        structuredContent: { _view: "search_products", results: [], totalProducts: 0 },
+        structuredContent: {
+          _view: "search_products",
+          results: [],
+          totalProducts: 0,
+        },
       }),
     ).toBeNull();
   });

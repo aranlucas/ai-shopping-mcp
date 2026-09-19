@@ -6,7 +6,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext } from "../../src/tools/types.js";
-import type { ShoppingListItem, ShoppingListItemPatch } from "../../src/utils/user-storage.js";
+import type {
+  ShoppingListItem,
+  ShoppingListItemPatch,
+} from "../../src/utils/user-storage.js";
 
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerProductTools } from "../../src/tools/product.js";
@@ -27,7 +30,9 @@ function makeListStorage(overrides: Partial<ListStore>) {
   return storage;
 }
 
-function storedItem(overrides: Partial<ShoppingListItem> = {}): ShoppingListItem {
+function storedItem(
+  overrides: Partial<ShoppingListItem> = {},
+): ShoppingListItem {
   return { id: "item-1", productName: "Milk", quantity: 1, ...overrides };
 }
 
@@ -39,7 +44,12 @@ describe("shopping list editing tools", () => {
   it("lists saved lists with their ids when no listId is given", async () => {
     const storage = makeListStorage({
       list: async () => [
-        { id: "list-a", name: "Tuesday dinner", itemCount: 3, updatedAt: "2026-08-01T00:00:00Z" },
+        {
+          id: "list-a",
+          name: "Tuesday dinner",
+          itemCount: 3,
+          updatedAt: "2026-08-01T00:00:00Z",
+        },
       ],
     });
     registerShoppingListTools(makeContext(storage));
@@ -56,13 +66,17 @@ describe("shopping list editing tools", () => {
       get: async () => ({
         id: "list-a",
         name: "Tuesday dinner",
-        items: [storedItem({ id: "item-7", productName: "Chili Onion Crunch" })],
+        items: [
+          storedItem({ id: "item-7", productName: "Chili Onion Crunch" }),
+        ],
         createdAt: "2026-08-01T00:00:00Z",
       }),
     });
     registerShoppingListTools(makeContext(storage));
 
-    const result = await getCapturedHandler("get_shopping_list")({ listId: "list-a" });
+    const result = await getCapturedHandler("get_shopping_list")({
+      listId: "list-a",
+    });
 
     expect(result.text).toContain("itemId=item-7");
     expect(result.text).toContain("Chili Onion Crunch");
@@ -72,7 +86,9 @@ describe("shopping list editing tools", () => {
     const storage = makeListStorage({ get: async () => null });
     registerShoppingListTools(makeContext(storage));
 
-    const result = await getCapturedHandler("get_shopping_list")({ listId: "missing" });
+    const result = await getCapturedHandler("get_shopping_list")({
+      listId: "missing",
+    });
 
     expect(result.isError).toBe(true);
     expect(result.text).toContain("get_shopping_list with no listId");
@@ -81,7 +97,9 @@ describe("shopping list editing tools", () => {
   it("appends an item that has a name but no UPC", async () => {
     const addItems = vi.fn<
       (listId: string, items: ShoppingListItem[]) => Promise<ShoppingListItem[]>
-    >(async (_listId, items) => items.map((item, index) => ({ ...item, id: `item-${index + 1}` })));
+    >(async (_listId, items) =>
+      items.map((item, index) => ({ ...item, id: `item-${index + 1}` })),
+    );
     registerShoppingListTools(makeContext(makeListStorage({ addItems })));
 
     const result = await getCapturedHandler("add_shopping_list_items")({
@@ -99,7 +117,9 @@ describe("shopping list editing tools", () => {
   it("looks a name up from the UPC when only a UPC is given", async () => {
     const addItems = vi.fn<
       (listId: string, items: ShoppingListItem[]) => Promise<ShoppingListItem[]>
-    >(async (_listId, items) => items.map((item) => ({ ...item, id: "item-1" })));
+    >(async (_listId, items) =>
+      items.map((item) => ({ ...item, id: "item-1" })),
+    );
     const ctx = makeContext(makeListStorage({ addItems }));
     ctx.productService = {
       enrichProductName: async () => "Whole Milk",
@@ -128,14 +148,19 @@ describe("shopping list editing tools", () => {
       inputSchema: { safeParse: (input: unknown) => { success: boolean } };
     };
 
-    expect(inputSchema.safeParse({ listId: "list-a", items: [{ quantity: 1 }] }).success).toBe(
-      false,
-    );
+    expect(
+      inputSchema.safeParse({ listId: "list-a", items: [{ quantity: 1 }] })
+        .success,
+    ).toBe(false);
   });
 
   it("edits only the fields it is given", async () => {
     const updateItem = vi.fn<
-      (listId: string, itemId: string, patch: ShoppingListItemPatch) => Promise<ShoppingListItem>
+      (
+        listId: string,
+        itemId: string,
+        patch: ShoppingListItemPatch,
+      ) => Promise<ShoppingListItem>
     >(async () => storedItem({ quantity: 3 }));
     registerShoppingListTools(makeContext(makeListStorage({ updateItem })));
 
@@ -146,15 +171,25 @@ describe("shopping list editing tools", () => {
     });
 
     expect(result.isError).toBe(false);
-    expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", { quantity: 3 });
+    expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", {
+      quantity: 3,
+    });
   });
 
   it("checks an item off without deleting it", async () => {
     const updateItem = vi.fn<
-      (listId: string, itemId: string, patch: ShoppingListItemPatch) => Promise<ShoppingListItem>
+      (
+        listId: string,
+        itemId: string,
+        patch: ShoppingListItemPatch,
+      ) => Promise<ShoppingListItem>
     >(async () => storedItem({ checked: true }));
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
-    registerShoppingListTools(makeContext(makeListStorage({ updateItem, removeItem })));
+    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
+      async () => {},
+    );
+    registerShoppingListTools(
+      makeContext(makeListStorage({ updateItem, removeItem })),
+    );
 
     const result = await getCapturedHandler("edit_shopping_list_item")({
       listId: "list-a",
@@ -162,17 +197,27 @@ describe("shopping list editing tools", () => {
       checked: true,
     });
 
-    expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", { checked: true });
+    expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", {
+      checked: true,
+    });
     expect(removeItem).not.toHaveBeenCalled();
     expect(result.text).toContain("checked off");
   });
 
   it("deletes the item when remove is set, without also patching it", async () => {
     const updateItem = vi.fn<
-      (listId: string, itemId: string, patch: ShoppingListItemPatch) => Promise<ShoppingListItem>
+      (
+        listId: string,
+        itemId: string,
+        patch: ShoppingListItemPatch,
+      ) => Promise<ShoppingListItem>
     >(async () => storedItem());
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
-    registerShoppingListTools(makeContext(makeListStorage({ updateItem, removeItem })));
+    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
+      async () => {},
+    );
+    registerShoppingListTools(
+      makeContext(makeListStorage({ updateItem, removeItem })),
+    );
 
     const result = await getCapturedHandler("edit_shopping_list_item")({
       listId: "list-a",

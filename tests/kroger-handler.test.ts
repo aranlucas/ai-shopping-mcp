@@ -19,13 +19,17 @@ function makeEnv() {
       completeAuthorization: vi
         .fn<(...args: unknown[]) => Promise<unknown>>()
         .mockResolvedValue({ redirectTo: "https://mcp.test/done" }),
-      lookupClient: vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue(null),
-      parseAuthRequest: vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
-        clientId: "mcp-client",
-        codeChallenge: "challenge",
-        redirectUri: "https://mcp.test/callback",
-        scope: "tools",
-      }),
+      lookupClient: vi
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue(null),
+      parseAuthRequest: vi
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue({
+          clientId: "mcp-client",
+          codeChallenge: "challenge",
+          redirectUri: "https://mcp.test/callback",
+          scope: "tools",
+        }),
     },
   };
 }
@@ -45,7 +49,9 @@ function getCookieHeader(response: Response): string {
 }
 
 /** Go through the full consent-form approval flow and return the 302 redirect response. */
-async function approveClient(env: ReturnType<typeof makeEnv>): Promise<Response> {
+async function approveClient(
+  env: ReturnType<typeof makeEnv>,
+): Promise<Response> {
   const consentResponse = await KrogerHandler.request(
     `${BASE_URL}/authorize?client_id=mcp-client`,
     undefined,
@@ -78,8 +84,12 @@ async function getCallbackSetup(
   const approveResponse = await approveClient(env);
 
   const stateCookieHeader =
-    approveResponse.headers.getSetCookie().find((c) => c.startsWith("kroger_oauth_state=")) ?? "";
-  const stateCookieValue = stateCookieHeader.split(";")[0].replace("kroger_oauth_state=", "");
+    approveResponse.headers
+      .getSetCookie()
+      .find((c) => c.startsWith("kroger_oauth_state=")) ?? "";
+  const stateCookieValue = stateCookieHeader
+    .split(";")[0]
+    .replace("kroger_oauth_state=", "");
 
   const location = approveResponse.headers.get("Location") ?? "";
   const stateParam = new URL(location).searchParams.get("state") ?? "";
@@ -183,7 +193,9 @@ describe("Kroger OAuth handler", () => {
       );
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("Content-Security-Policy")).not.toContain("form-action");
+      expect(response.headers.get("Content-Security-Policy")).not.toContain(
+        "form-action",
+      );
     });
 
     it("skips dialog and redirects to Kroger when client is already approved", async () => {
@@ -212,7 +224,9 @@ describe("Kroger OAuth handler", () => {
       const approvedCookie =
         approvedResponse.headers
           .getSetCookie()
-          .find((cookie) => cookie.startsWith("__Host-mcp-approved-clients=")) ?? "";
+          .find((cookie) =>
+            cookie.startsWith("__Host-mcp-approved-clients="),
+          ) ?? "";
 
       env.OAUTH_PROVIDER.parseAuthRequest = vi
         .fn<(...args: unknown[]) => Promise<unknown>>()
@@ -359,7 +373,8 @@ describe("Kroger OAuth handler", () => {
     it("returns 500 when KROGER_CLIENT_ID is missing from env", async () => {
       const env = makeEnv();
       env.KROGER_CLIENT_ID = "";
-      const { csrfToken, state, csrfCookieValue } = await getConsentFormData(env);
+      const { csrfToken, state, csrfCookieValue } =
+        await getConsentFormData(env);
 
       const response = await KrogerHandler.request(
         `${BASE_URL}/authorize`,
@@ -378,7 +393,8 @@ describe("Kroger OAuth handler", () => {
     it("returns 500 when KROGER_CLIENT_SECRET is missing from env", async () => {
       const env = makeEnv();
       env.KROGER_CLIENT_SECRET = "";
-      const { csrfToken, state, csrfCookieValue } = await getConsentFormData(env);
+      const { csrfToken, state, csrfCookieValue } =
+        await getConsentFormData(env);
 
       const response = await KrogerHandler.request(
         `${BASE_URL}/authorize`,
@@ -553,14 +569,15 @@ describe("Kroger OAuth handler", () => {
 
       vi.stubGlobal(
         "fetch",
-        vi
-          .fn()
-          .mockResolvedValue(
-            new Response(
-              JSON.stringify({ error: "invalid_grant", error_description: "Code has expired" }),
-              { status: 400, headers: { "Content-Type": "application/json" } },
-            ),
+        vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              error: "invalid_grant",
+              error_description: "Code has expired",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } },
           ),
+        ),
       );
 
       const response = await KrogerHandler.request(
@@ -617,7 +634,9 @@ describe("Kroger OAuth handler", () => {
               { status: 200, headers: { "Content-Type": "application/json" } },
             ),
           )
-          .mockResolvedValueOnce(new Response("Service Unavailable", { status: 503 })),
+          .mockResolvedValueOnce(
+            new Response("Service Unavailable", { status: 503 }),
+          ),
       );
 
       const response = await KrogerHandler.request(
@@ -732,7 +751,11 @@ describe("Kroger OAuth handler", () => {
           .fn()
           .mockResolvedValueOnce(
             new Response(
-              JSON.stringify({ access_token: "at", expires_in: 1800, refresh_token: "rt" }),
+              JSON.stringify({
+                access_token: "at",
+                expires_in: 1800,
+                refresh_token: "rt",
+              }),
               { status: 200, headers: { "Content-Type": "application/json" } },
             ),
           )
@@ -754,7 +777,9 @@ describe("Kroger OAuth handler", () => {
       );
 
       expect(response.status).toBe(500);
-      expect(await response.text()).toContain("Failed to complete authorization");
+      expect(await response.text()).toContain(
+        "Failed to complete authorization",
+      );
     });
   });
 });

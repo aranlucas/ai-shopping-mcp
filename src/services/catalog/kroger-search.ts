@@ -90,8 +90,10 @@ export async function searchProductsForTerms(
       result.products.sort((a, b) => {
         const aItem = a.items?.[0];
         const bItem = b.items?.[0];
-        const aPickup = aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
-        const bPickup = bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
+        const aPickup =
+          aItem?.fulfillment?.curbside || aItem?.fulfillment?.instore;
+        const bPickup =
+          bItem?.fulfillment?.curbside || bItem?.fulfillment?.instore;
 
         if (aPickup && !bPickup) return -1;
         if (!aPickup && bPickup) return 1;

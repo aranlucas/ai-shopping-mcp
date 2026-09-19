@@ -1,4 +1,7 @@
-import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
+import type {
+  AuthRequest,
+  OAuthHelpers,
+} from "@cloudflare/workers-oauth-provider";
 
 import { Hono } from "hono";
 import { generateSignedCookie, getCookie, getSignedCookie } from "hono/cookie";
@@ -39,7 +42,13 @@ app.get("/authorize", async (c) => {
     return c.text("Invalid request - missing clientId", 400);
   }
 
-  if (await clientIdAlreadyApproved(c.req.raw, oauthReqInfo, c.env.COOKIE_ENCRYPTION_KEY)) {
+  if (
+    await clientIdAlreadyApproved(
+      c.req.raw,
+      oauthReqInfo,
+      c.env.COOKIE_ENCRYPTION_KEY,
+    )
+  ) {
     return redirectToKroger(c.req.raw, oauthReqInfo, c.env);
   }
 
@@ -48,7 +57,8 @@ app.get("/authorize", async (c) => {
     server: {
       name: "Kroger Shopping List API",
       logo: "https://www.kroger.com/content/v2/binary/image/banner/logowhite/imageset/kroger_svg_logo_link_white--kroger_svg_logo_link_white--freshcart-singlecolor.svg",
-      description: "This server allows access to Kroger Shopping List and Product APIs.",
+      description:
+        "This server allows access to Kroger Shopping List and Product APIs.",
     },
     state: { oauthReqInfo },
   });
@@ -59,7 +69,10 @@ app.post("/authorize", async (c) => {
   let headers: Headers;
   try {
     // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
-    const result = await parseRedirectApproval(c.req.raw, c.env.COOKIE_ENCRYPTION_KEY);
+    const result = await parseRedirectApproval(
+      c.req.raw,
+      c.env.COOKIE_ENCRYPTION_KEY,
+    );
     state = result.state;
     headers = result.headers;
   } catch (parseError) {
@@ -74,7 +87,12 @@ app.post("/authorize", async (c) => {
     return c.text("Invalid request - missing oauthReqInfo", 400);
   }
 
-  return redirectToKroger(c.req.raw, state.oauthReqInfo as AuthRequest, c.env, headers);
+  return redirectToKroger(
+    c.req.raw,
+    state.oauthReqInfo as AuthRequest,
+    c.env,
+    headers,
+  );
 });
 
 async function redirectToKroger(
@@ -85,9 +103,12 @@ async function redirectToKroger(
 ) {
   if (!env.KROGER_CLIENT_ID || !env.KROGER_CLIENT_SECRET) {
     console.error("Missing Kroger OAuth credentials in environment");
-    return new Response("Server configuration error: Missing Kroger OAuth credentials", {
-      status: 500,
-    });
+    return new Response(
+      "Server configuration error: Missing Kroger OAuth credentials",
+      {
+        status: 500,
+      },
+    );
   }
 
   const redirectUri = new URL("/callback", request.url).href;
@@ -208,15 +229,18 @@ app.get("/callback", async (c) => {
     redirect_uri: redirectUri,
   });
 
-  const tokenResponse = await fetch("https://api.kroger.com/v1/connect/oauth2/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: `Basic ${btoa(`${c.env.KROGER_CLIENT_ID}:${c.env.KROGER_CLIENT_SECRET}`)}`,
+  const tokenResponse = await fetch(
+    "https://api.kroger.com/v1/connect/oauth2/token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${btoa(`${c.env.KROGER_CLIENT_ID}:${c.env.KROGER_CLIENT_SECRET}`)}`,
+      },
+      body: tokenBody.toString(),
+      signal: AbortSignal.timeout(30_000),
     },
-    body: tokenBody.toString(),
-    signal: AbortSignal.timeout(30_000),
-  });
+  );
 
   const tokenData = (await tokenResponse.json()) as KrogerTokenResponse;
 
@@ -244,14 +268,17 @@ app.get("/callback", async (c) => {
   }
 
   // Fetch the user profile from Kroger using direct fetch
-  const profileResponse = await fetch("https://api.kroger.com/v1/identity/profile", {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
+  const profileResponse = await fetch(
+    "https://api.kroger.com/v1/identity/profile",
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(15_000),
     },
-    signal: AbortSignal.timeout(15_000),
-  });
+  );
 
   let id = "unknown";
   if (profileResponse.ok) {
@@ -290,7 +317,8 @@ app.get("/callback", async (c) => {
       status: 302,
       headers: {
         Location: redirectTo,
-        "Set-Cookie": "kroger_oauth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/",
+        "Set-Cookie":
+          "kroger_oauth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/",
       },
     });
   } catch (completeError) {
@@ -319,9 +347,12 @@ function isKrogerEnv(env: Env): env is KrogerEnv {
 export const KrogerWorker = {
   fetch(request: Request, env: Env, ctx: ExecutionContext) {
     if (!isKrogerEnv(env)) {
-      return new Response("Server configuration error: Kroger OAuth is not configured", {
-        status: 500,
-      });
+      return new Response(
+        "Server configuration error: Kroger OAuth is not configured",
+        {
+          status: 500,
+        },
+      );
     }
     return app.fetch(request, env, ctx);
   },

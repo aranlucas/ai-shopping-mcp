@@ -11,6 +11,11 @@ Gateway-backed tools forward the authenticated MCP bearer token. The gateway
 validates it against this Worker's `/userinfo` endpoint, so no additional
 Worker-to-gateway secret is required.
 
+Formatting uses Oxfmt with Prettier-style defaults: 80-column print width,
+two-space indentation, double quotes, semicolons, and trailing commas. Run
+`pnpm fmt` to apply formatting or `pnpm fmt:check` to check it. CI runs the
+format check alongside Oxlint, including the type-aware promise rules.
+
 ## Production resources
 
 Deploy from this repository with:
@@ -190,7 +195,11 @@ For a client that still needs a local proxy:
   "mcpServers": {
     "kroger-shopping": {
       "command": "pnpm",
-      "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"]
+      "args": [
+        "dlx",
+        "mcp-remote",
+        "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"
+      ]
     }
   }
 }

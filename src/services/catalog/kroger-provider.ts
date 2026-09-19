@@ -21,12 +21,20 @@ function toAisle(product: Product): CatalogAisle | undefined {
   const location = product.aisleLocations?.[0];
   if (!location) return undefined;
   return {
-    ...(location.description === undefined ? {} : { description: location.description }),
+    ...(location.description === undefined
+      ? {}
+      : { description: location.description }),
     ...(location.number === undefined ? {} : { number: location.number }),
-    ...(location.sequenceNumber === undefined ? {} : { sequenceNumber: location.sequenceNumber }),
-    ...(location.bayNumber === undefined ? {} : { bayNumber: location.bayNumber }),
+    ...(location.sequenceNumber === undefined
+      ? {}
+      : { sequenceNumber: location.sequenceNumber }),
+    ...(location.bayNumber === undefined
+      ? {}
+      : { bayNumber: location.bayNumber }),
     ...(location.side === undefined ? {} : { side: location.side }),
-    ...(location.shelfNumber === undefined ? {} : { shelfNumber: location.shelfNumber }),
+    ...(location.shelfNumber === undefined
+      ? {}
+      : { shelfNumber: location.shelfNumber }),
     ...(location.shelfPositionInBay === undefined
       ? {}
       : { shelfPositionInBay: location.shelfPositionInBay }),
@@ -43,11 +51,14 @@ export function toCatalogProduct(product: Product): CatalogProduct {
   const price = hasPromo ? promo : (regular ?? undefined);
   const aisle = toAisle(product);
   const image =
-    product.images?.find((candidate) => candidate.default || candidate.perspective === "front") ??
-    product.images?.[0];
+    product.images?.find(
+      (candidate) => candidate.default || candidate.perspective === "front",
+    ) ?? product.images?.[0];
   const imageUrl =
-    image?.sizes?.find((candidate) => candidate.size === "thumbnail" || candidate.size === "small")
-      ?.url ?? image?.sizes?.[0]?.url;
+    image?.sizes?.find(
+      (candidate) =>
+        candidate.size === "thumbnail" || candidate.size === "small",
+    )?.url ?? image?.sizes?.[0]?.url;
 
   return {
     ref: { provider: "kroger", id: product.upc ?? "" },
@@ -56,7 +67,9 @@ export function toCatalogProduct(product: Product): CatalogProduct {
     ...(price === undefined ? {} : { price }),
     ...(hasPromo && regular != null ? { regularPrice: regular } : {}),
     ...(item?.size === undefined ? {} : { size: item.size }),
-    ...(product.categories?.[0] === undefined ? {} : { category: product.categories[0] }),
+    ...(product.categories?.[0] === undefined
+      ? {}
+      : { category: product.categories[0] }),
     ...(imageUrl === undefined ? {} : { imageUrl }),
     ...(aisle === undefined ? {} : { aisle }),
     // Kroger's search filter already restricts to items sold at the store, so
@@ -89,7 +102,9 @@ export function createKrogerCatalogProvider(
           terms,
           {
             limitPerTerm: options.limitPerTerm,
-            ...(options.storeId === undefined ? {} : { locationId: options.storeId }),
+            ...(options.storeId === undefined
+              ? {}
+              : { locationId: options.storeId }),
           },
           options.onTermComplete,
         ),
@@ -105,7 +120,9 @@ export function createKrogerCatalogProvider(
       );
     },
     get(reference, options: CatalogGetOptions) {
-      return products.getProduct(reference.id, options.storeId).map(toCatalogProduct);
+      return products
+        .getProduct(reference.id, options.storeId)
+        .map(toCatalogProduct);
     },
   };
 }

@@ -2,7 +2,12 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback } from "react";
 
-import { Badge, FulfillmentTags, PriceDisplay, ProductActions } from "../../shared/components.js";
+import {
+  Badge,
+  FulfillmentTags,
+  PriceDisplay,
+  ProductActions,
+} from "../../shared/components.js";
 import { type ProductDetailContent } from "../../shared/types.js";
 import { addProductToCart, saveProductToList } from "../tool-calls.js";
 
@@ -21,7 +26,11 @@ export function ProductDetailView({
   const productRef = `${product.product.provider}:${product.product.id}`;
 
   const handleAddToCart = useCallback(
-    async (productName: string, selectedProductRef: string, quantity: number) => {
+    async (
+      productName: string,
+      selectedProductRef: string,
+      quantity: number,
+    ) => {
       await addProductToCart(app, {
         listName: `Cart: ${productName}`,
         productName,
@@ -48,7 +57,9 @@ export function ProductDetailView({
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         {/* Header */}
         <div className="border-b border-border px-4 pt-4 pb-3">
-          <h1 className="text-sm leading-snug font-semibold text-gray-900">{name}</h1>
+          <h1 className="text-sm leading-snug font-semibold text-gray-900">
+            {name}
+          </h1>
           {brand && <p className="mt-0.5 text-xs text-gray-400">{brand}</p>}
           <div className="mt-2.5 flex flex-wrap items-center gap-3">
             <PriceDisplay product={product} />
@@ -89,7 +100,10 @@ export function ProductDetailView({
                 Category
               </p>
               <div className="flex flex-wrap gap-1">
-                <Badge variant="secondary" className="bg-gray-100 text-gray-500">
+                <Badge
+                  variant="secondary"
+                  className="bg-gray-100 text-gray-500"
+                >
                   {product.category}
                 </Badge>
               </div>

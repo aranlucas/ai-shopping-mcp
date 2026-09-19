@@ -1,4 +1,7 @@
-import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
+import type {
+  App,
+  McpUiHostContext,
+} from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useMemo } from "react";
 
@@ -10,9 +13,17 @@ import {
   CarouselPrevious,
 } from "../../shared/ui/carousel";
 
-import { Badge, DisplayModeToggle, ProductCard, SectionHeader } from "../../shared/components.js";
+import {
+  Badge,
+  DisplayModeToggle,
+  ProductCard,
+  SectionHeader,
+} from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import { type ProductData, type ProductSearchResultsContent } from "../../shared/types.js";
+import {
+  type ProductData,
+  type ProductSearchResultsContent,
+} from "../../shared/types.js";
 import { addProductToCart, saveProductToList } from "../tool-calls.js";
 
 const CAROUSEL_OPTS = { align: "start" } as const;
@@ -64,7 +75,9 @@ function ProductCarousel({
       </CarouselContent>
       {products.length > 1 && (
         <div className="mt-3 flex items-center justify-end gap-2">
-          <span className="me-auto text-xs text-gray-500">Swipe or use the arrows to compare</span>
+          <span className="me-auto text-xs text-gray-500">
+            Swipe or use the arrows to compare
+          </span>
           <CarouselPrevious size="icon-lg" className="static translate-y-0" />
           <CarouselNext size="icon-lg" className="static translate-y-0" />
         </div>
@@ -163,8 +176,8 @@ export function ProductSearchView({
                   d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
                 />
               </svg>
-              Could not search {result.provider} for &ldquo;{result.term}&rdquo;. Ask your assistant
-              to retry.
+              Could not search {result.provider} for &ldquo;{result.term}
+              &rdquo;. Ask your assistant to retry.
             </div>
           );
         }
@@ -182,9 +195,14 @@ export function ProductSearchView({
           );
         }
         return (
-          <section key={`${result.provider}:${result.term}`} className="mb-7 last:mb-0">
+          <section
+            key={`${result.provider}:${result.term}`}
+            className="mb-7 last:mb-0"
+          >
             <div className="mb-3 flex flex-wrap items-baseline gap-2">
-              <h2 className="text-sm font-semibold text-gray-900">{result.term}</h2>
+              <h2 className="text-sm font-semibold text-gray-900">
+                {result.term}
+              </h2>
               <span className="text-xs text-gray-500">
                 {result.provider} · {result.products.length} items
               </span>

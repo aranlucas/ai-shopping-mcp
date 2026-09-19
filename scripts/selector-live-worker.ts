@@ -1,10 +1,17 @@
-import { selectProductMatches, type SelectorAi } from "../src/services/product-selector.js";
+import {
+  selectProductMatches,
+  type SelectorAi,
+} from "../src/services/product-selector.js";
 
 /** Ephemeral local test worker: only the AI binding connects to Cloudflare. */
 export default {
   async fetch(request: Request, env: { AI: SelectorAi }): Promise<Response> {
     const diagnostic = new URL(request.url).searchParams.has("diagnostics");
-    const calls: Array<{ elapsedMs: number; status: number; response: unknown }> = [];
+    const calls: Array<{
+      elapsedMs: number;
+      status: number;
+      response: unknown;
+    }> = [];
     const started = Date.now();
     const ai: SelectorAi = diagnostic
       ? {
@@ -23,10 +30,15 @@ export default {
         }
       : env.AI;
     try {
-      const input = await request.json<Omit<Parameters<typeof selectProductMatches>[0], "ai">>();
+      const input =
+        await request.json<
+          Omit<Parameters<typeof selectProductMatches>[0], "ai">
+        >();
       const selections = await selectProductMatches({ ...input, ai });
       return Response.json(
-        diagnostic ? { selections, calls, elapsedMs: Date.now() - started } : selections,
+        diagnostic
+          ? { selections, calls, elapsedMs: Date.now() - started }
+          : selections,
       );
     } catch (error) {
       return Response.json(

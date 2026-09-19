@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { DEAL_CATEGORIES, classifyDealCategory } from "../../src/utils/deal-category.js";
+import {
+  DEAL_CATEGORIES,
+  classifyDealCategory,
+} from "../../src/utils/deal-category.js";
 
 describe("DEAL_CATEGORIES", () => {
   it("lists categories in meal-planning priority order, ending with Other", () => {
@@ -19,7 +22,10 @@ describe("DEAL_CATEGORIES", () => {
 describe("classifyDealCategory", () => {
   const cases: Array<[string, string]> = [
     // Meat & Seafood
-    ["Fresh Coastal Range Organic Boneless Chicken Full Line Sale", "Meat & Seafood"],
+    [
+      "Fresh Coastal Range Organic Boneless Chicken Full Line Sale",
+      "Meat & Seafood",
+    ],
     ["Oscar Mayer Beef Franks", "Meat & Seafood"],
     ["Hempler's Bacon", "Meat & Seafood"],
     ["Flank Steaks", "Meat & Seafood"],
@@ -55,7 +61,10 @@ describe("classifyDealCategory", () => {
     ["Stumptown Coffee", "Pantry, Snacks & Beverages"],
     ["Private Selection Pasta", "Pantry, Snacks & Beverages"],
     ["Powerade", "Pantry, Snacks & Beverages"],
-    ["Modelo, Elysian or White Claw Hard Seltzer", "Pantry, Snacks & Beverages"],
+    [
+      "Modelo, Elysian or White Claw Hard Seltzer",
+      "Pantry, Snacks & Beverages",
+    ],
     ["Pepsi", "Pantry, Snacks & Beverages"],
     // Cincinnati (Kroger flagship, division 014) — a second real circular
     // pulled to avoid overfitting the keyword lists to one week's QFC data.

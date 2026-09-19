@@ -23,14 +23,20 @@ const EMPTY_CART_ICON = (
   </svg>
 );
 
-export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) {
+export function AddToCartView({
+  data,
+}: {
+  data: AddShoppingListToCartContent;
+}) {
   const { listId, name, items, needsUpc, actionDetail } = data;
   const title = `Cart · ${name}`;
 
   const headerBadge = useMemo(
     () =>
       listId ? (
-        <span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>
+        <span className="max-w-32 truncate font-mono text-xs text-gray-400">
+          {listId}
+        </span>
       ) : undefined,
     [listId],
   );
@@ -50,12 +56,19 @@ export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) 
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader title={title} badge={headerBadge} subtitle={actionDetail} />
+      <SectionHeader
+        title={title}
+        badge={headerBadge}
+        subtitle={actionDetail}
+      />
 
       {items.length > 0 && (
         <>
           <div className="mb-3 flex flex-wrap gap-1.5">
-            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+            <Badge
+              variant="secondary"
+              className="bg-emerald-50 text-emerald-700"
+            >
               {items.length} added
             </Badge>
             {needsUpc.length > 0 && (
@@ -77,7 +90,11 @@ export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) 
                     strokeWidth={3.5}
                     stroke="currentColor"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="m4.5 12.75 6 6 9-13.5"
+                    />
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1">
@@ -85,8 +102,12 @@ export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) 
                     {item.productName ?? item.upc}
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
-                    <span className="font-mono text-xs text-gray-400">{item.modality}</span>
+                    <span className="font-mono text-xs text-gray-400">
+                      ×{item.quantity}
+                    </span>
+                    <span className="font-mono text-xs text-gray-400">
+                      {item.modality}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -102,12 +123,17 @@ export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) 
           </p>
           <div className="divide-y divide-border">
             {needsUpc.map((item) => (
-              <div key={item.productName} className="flex items-center gap-2.5 py-2.5 opacity-60">
+              <div
+                key={item.productName}
+                className="flex items-center gap-2.5 py-2.5 opacity-60"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm leading-snug font-medium text-gray-700">
                     {item.productName}
                   </div>
-                  <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
+                  <span className="font-mono text-xs text-gray-400">
+                    ×{item.quantity}
+                  </span>
                 </div>
               </div>
             ))}

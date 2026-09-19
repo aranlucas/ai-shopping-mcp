@@ -3,10 +3,20 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 import { useCallback, useMemo, useState } from "react";
 
 import { ActionButton, Badge } from "../../shared/components.js";
-import { type StoreDetailContent, callTool, openExternalLink } from "../../shared/types.js";
+import {
+  type StoreDetailContent,
+  callTool,
+  openExternalLink,
+} from "../../shared/types.js";
 
 const PREFERRED_STAR_ICON = (
-  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+  <svg
+    aria-hidden="true"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={2}
+    stroke="currentColor"
+  >
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -24,13 +34,17 @@ export function LocationDetailView({
   app: App | null;
   canCallTools: boolean;
 }) {
-  const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [prefState, setPrefState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
   const { store: location } = data;
   const id = location.locationId || "";
   const mapsUrl = useMemo(() => {
     const a = location.address;
     if (!a?.addressLine1) return null;
-    const parts = [a.addressLine1, a.city, a.state, a.zipCode].filter(Boolean).join(", ");
+    const parts = [a.addressLine1, a.city, a.state, a.zipCode]
+      .filter(Boolean)
+      .join(", ");
     return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
   }, [location.address]);
 
@@ -83,7 +97,10 @@ export function LocationDetailView({
               </h1>
               {location.chain && (
                 <div className="mt-0.5">
-                  <Badge variant="secondary" className="bg-gray-100 text-gray-500">
+                  <Badge
+                    variant="secondary"
+                    className="bg-gray-100 text-gray-500"
+                  >
                     {location.chain}
                   </Badge>
                 </div>
@@ -122,7 +139,8 @@ export function LocationDetailView({
                 <span>
                   {location.address.addressLine1}
                   <br />
-                  {location.address.city}, {location.address.state} {location.address.zipCode}
+                  {location.address.city}, {location.address.state}{" "}
+                  {location.address.zipCode}
                 </span>
               </div>
             </div>
@@ -162,7 +180,11 @@ export function LocationDetailView({
                 {location.departments
                   .filter((d) => d.name)
                   .map((d) => (
-                    <Badge key={d.name} variant="secondary" className="bg-gray-100 text-gray-500">
+                    <Badge
+                      key={d.name}
+                      variant="secondary"
+                      className="bg-gray-100 text-gray-500"
+                    >
                       {d.name}
                     </Badge>
                   ))}

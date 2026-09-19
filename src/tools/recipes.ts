@@ -41,7 +41,9 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 function median(values: number[]): number {
   const sorted = [...values].toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
 }
 
 /**
@@ -55,7 +57,10 @@ export function computeRestockSuggestions(
   orders: OrderRecord[],
   now: number = Date.now(),
 ): RestockSuggestion[] {
-  const purchasesByName = new Map<string, { displayName: string; timestamps: number[] }>();
+  const purchasesByName = new Map<
+    string,
+    { displayName: string; timestamps: number[] }
+  >();
 
   for (const order of orders) {
     const placedAt = new Date(order.placedAt).getTime();
@@ -67,7 +72,10 @@ export function computeRestockSuggestions(
       if (existing) {
         existing.timestamps.push(placedAt);
       } else {
-        purchasesByName.set(key, { displayName: item.productName, timestamps: [placedAt] });
+        purchasesByName.set(key, {
+          displayName: item.productName,
+          timestamps: [placedAt],
+        });
       }
     }
   }
@@ -110,7 +118,10 @@ export function computeRestockSuggestions(
 
 const mealPlanningInputSchema = z.object({
   numberOfMeals: z.number().min(1).max(7).optional().default(3),
-  mealType: z.enum(["any", "breakfast", "lunch", "dinner", "snack"]).optional().default("any"),
+  mealType: z
+    .enum(["any", "breakfast", "lunch", "dinner", "snack"])
+    .optional()
+    .default("any"),
   dietaryPreferences: z
     .string()
     .max(300)
@@ -125,7 +136,9 @@ const mealPlanningInputSchema = z.object({
     .optional()
     .default(false)
     .describe("Include up to 10 QFC/Kroger offers"),
-  storeId: storeIdSchema.optional().describe("Deal store; defaults to preferred Kroger store"),
+  storeId: storeIdSchema
+    .optional()
+    .describe("Deal store; defaults to preferred Kroger store"),
 });
 
 export function registerRecipeTools(ctx: ToolContext) {
@@ -158,9 +171,14 @@ export function registerRecipeTools(ctx: ToolContext) {
         ResultAsync.combine([
           safeStorage(() => storage.pantry.getAll(), "fetch pantry"),
           safeStorage(() => storage.equipment.getAll(), "fetch equipment"),
-          safeStorage(() => storage.orderHistory.getRecent(10), "fetch order history"),
+          safeStorage(
+            () => storage.orderHistory.getRecent(10),
+            "fetch order history",
+          ),
         ]),
-        includeWeeklyDeals ? getMealPlanningDeals(ctx, storeId) : Promise.resolve(undefined),
+        includeWeeklyDeals
+          ? getMealPlanningDeals(ctx, storeId)
+          : Promise.resolve(undefined),
       ]);
       if (contextResult.isErr()) return toMcpError(contextResult.error);
       const [pantry, equipment, recentOrders] = contextResult.value;
@@ -173,26 +191,47 @@ export function registerRecipeTools(ctx: ToolContext) {
       const now = Date.now();
       const categorizedPantry = pantry.map((item) => {
         if (!item.expiresAt)
-          return Object.assign({}, item, { urgency: "none" as const, daysUntil: undefined });
+          return Object.assign({}, item, {
+            urgency: "none" as const,
+            daysUntil: undefined,
+          });
         const expiresAtMs = new Date(item.expiresAt).getTime();
         if (Number.isNaN(expiresAtMs)) {
-          return Object.assign({}, item, { urgency: "none" as const, daysUntil: undefined });
+          return Object.assign({}, item, {
+            urgency: "none" as const,
+            daysUntil: undefined,
+          });
         }
-        const daysUntil = Math.floor((expiresAtMs - now) / (1000 * 60 * 60 * 24));
+        const daysUntil = Math.floor(
+          (expiresAtMs - now) / (1000 * 60 * 60 * 24),
+        );
         if (daysUntil < 0)
-          return Object.assign({}, item, { urgency: "expired" as const, daysUntil });
+          return Object.assign({}, item, {
+            urgency: "expired" as const,
+            daysUntil,
+          });
         if (daysUntil <= 1)
-          return Object.assign({}, item, { urgency: "critical" as const, daysUntil });
+          return Object.assign({}, item, {
+            urgency: "critical" as const,
+            daysUntil,
+          });
         if (daysUntil <= 3)
-          return Object.assign({}, item, { urgency: "warning" as const, daysUntil });
+          return Object.assign({}, item, {
+            urgency: "warning" as const,
+            daysUntil,
+          });
         return Object.assign({}, item, { urgency: "ok" as const, daysUntil });
       });
 
       const expiringItems = categorizedPantry.filter(
         (item) => item.urgency === "critical" || item.urgency === "warning",
       );
-      const expiredItems = categorizedPantry.filter((item) => item.urgency === "expired");
-      const availableItems = categorizedPantry.filter((item) => item.urgency !== "expired");
+      const expiredItems = categorizedPantry.filter(
+        (item) => item.urgency === "expired",
+      );
+      const availableItems = categorizedPantry.filter(
+        (item) => item.urgency !== "expired",
+      );
 
       const parts: string[] = [
         `**Meal Plan** (${numberOfMeals} meal${numberOfMeals > 1 ? "s" : ""}${mealType !== "any" ? ` - ${mealType}` : ""})`,
@@ -211,7 +250,8 @@ export function registerRecipeTools(ctx: ToolContext) {
       if (prioritizeExpiring && expiringItems.length > 0) {
         parts.push("\n**⚠️ Expiring Soon (use first!):**");
         for (const item of expiringItems) {
-          const urgency = item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
+          const urgency =
+            item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
           parts.push(`- ${item.productName} x${item.quantity} (${urgency})`);
         }
       }
@@ -221,7 +261,9 @@ export function registerRecipeTools(ctx: ToolContext) {
         parts.push(`- ${item.productName} x${item.quantity}`);
       }
       if (pantry.length === 0) {
-        parts.push("Your pantry is empty. Treat all recipe ingredients as items to buy.");
+        parts.push(
+          "Your pantry is empty. Treat all recipe ingredients as items to buy.",
+        );
       }
 
       if (weeklyDeals) parts.push(weeklyDeals);
@@ -229,7 +271,9 @@ export function registerRecipeTools(ctx: ToolContext) {
       if (equipment.length > 0) {
         parts.push(`\n**Equipment (${equipment.length} items):**`);
         for (const item of equipment) {
-          parts.push(`- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`);
+          parts.push(
+            `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
+          );
         }
       }
 
@@ -249,12 +293,16 @@ export function registerRecipeTools(ctx: ToolContext) {
           ? "Respect dietary preferences and offer conditions; do not assume sale items are already in the pantry. Use search_products to confirm exact products and current prices before create_shopping_list."
           : "",
         "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
-        prioritizeExpiring ? "Prioritize using expiring items first to reduce food waste." : "",
+        prioritizeExpiring
+          ? "Prioritize using expiring items first to reduce food waste."
+          : "",
         "After suggesting meals, offer to add any missing ingredients to a shopping list using create_shopping_list.",
       );
 
       return {
-        content: [{ type: "text" as const, text: parts.filter(Boolean).join("\n") }],
+        content: [
+          { type: "text" as const, text: parts.filter(Boolean).join("\n") },
+        ],
       };
     },
   );

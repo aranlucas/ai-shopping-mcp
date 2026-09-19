@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { CatalogProduct, CatalogProvider } from "../../src/services/catalog/types.js";
+import type {
+  CatalogProduct,
+  CatalogProvider,
+} from "../../src/services/catalog/types.js";
 
 import type { components as LocationComponents } from "../../src/services/kroger/location.js";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
@@ -51,7 +54,12 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
       {
         size: "1 gal",
         price: { regular: 3.49, promo: 2.99 },
-        fulfillment: { curbside: true, instore: true, delivery: false, shiptohome: false },
+        fulfillment: {
+          curbside: true,
+          instore: true,
+          delivery: false,
+          shiptohome: false,
+        },
       },
     ],
     ...overrides,
@@ -112,7 +120,9 @@ describe("formatPantryItemCompact", () => {
 
   it("shows day count warning when item expires within 1-3 days", () => {
     // 2.5 days from now → Math.floor(2.5) = 2
-    const expiresAt = new Date(Date.now() + 2.5 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(
+      Date.now() + 2.5 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const item: PantryItem = {
       productName: "Cheese",
       quantity: 1,
@@ -262,7 +272,11 @@ describe("formatEquipmentListCompact", () => {
 
   it("formats non-empty equipment list as numbered items", () => {
     const items: EquipmentItem[] = [
-      { equipmentName: "Oven", category: "Cooking", addedAt: "2025-01-01T00:00:00Z" },
+      {
+        equipmentName: "Oven",
+        category: "Cooking",
+        addedAt: "2025-01-01T00:00:00Z",
+      },
       { equipmentName: "Knife", addedAt: "2025-01-01T00:00:00Z" },
     ];
     const result = formatEquipmentListCompact(items);
@@ -357,7 +371,9 @@ const traderJoesProvider: CatalogProvider = {
   },
 };
 
-function krogerProduct(overrides: Partial<CatalogProduct> = {}): CatalogProduct {
+function krogerProduct(
+  overrides: Partial<CatalogProduct> = {},
+): CatalogProduct {
   return {
     ref: { provider: "kroger", id: "0001111041700" },
     name: "Kroger 2% Reduced Fat Milk",
@@ -430,12 +446,18 @@ describe("formatCatalogProductLine", () => {
   });
 
   it("shows pickup: no when the provider offers no pickup for the item", () => {
-    const line = formatCatalogProductLine(krogerProduct({ pickup: false }), krogerProvider);
+    const line = formatCatalogProductLine(
+      krogerProduct({ pickup: false }),
+      krogerProvider,
+    );
     expect(line).toContain("pickup: no");
   });
 
   it("marks an unavailable item", () => {
-    const line = formatCatalogProductLine(krogerProduct({ available: false }), krogerProvider);
+    const line = formatCatalogProductLine(
+      krogerProduct({ available: false }),
+      krogerProvider,
+    );
     expect(line).toContain("out of stock");
   });
 });
@@ -443,7 +465,14 @@ describe("formatCatalogProductLine", () => {
 describe("formatCatalogSearchMarkdown", () => {
   it("renders a heading and product lines per search term", () => {
     const text = formatCatalogSearchMarkdown(
-      [{ provider: "kroger", term: "milk", products: [krogerProduct()], failed: false }],
+      [
+        {
+          provider: "kroger",
+          term: "milk",
+          products: [krogerProduct()],
+          failed: false,
+        },
+      ],
       [krogerProvider],
     );
     expect(text).toContain("## milk");
@@ -454,7 +483,12 @@ describe("formatCatalogSearchMarkdown", () => {
   it("groups both providers under one term heading", () => {
     const text = formatCatalogSearchMarkdown(
       [
-        { provider: "kroger", term: "crunch", products: [krogerProduct()], failed: false },
+        {
+          provider: "kroger",
+          term: "crunch",
+          products: [krogerProduct()],
+          failed: false,
+        },
         {
           provider: "trader_joes",
           term: "crunch",
@@ -481,7 +515,9 @@ describe("formatCatalogSearchMarkdown", () => {
         {
           provider: "kroger",
           term: "milk",
-          products: [krogerProduct({ aisle: { description: "Dairy", number: "21" } })],
+          products: [
+            krogerProduct({ aisle: { description: "Dairy", number: "21" } }),
+          ],
           failed: false,
         },
       ],
@@ -493,7 +529,14 @@ describe("formatCatalogSearchMarkdown", () => {
 
   it("names the provider when a term has no results", () => {
     const text = formatCatalogSearchMarkdown(
-      [{ provider: "kroger", term: "unobtainium", products: [], failed: false }],
+      [
+        {
+          provider: "kroger",
+          term: "unobtainium",
+          products: [],
+          failed: false,
+        },
+      ],
       [krogerProvider],
     );
     expect(text).toContain("## unobtainium");
@@ -510,16 +553,27 @@ describe("formatCatalogSearchMarkdown", () => {
 
   it("reminds the model to preserve universal product references", () => {
     const withCart = formatCatalogSearchMarkdown(
-      [{ provider: "kroger", term: "milk", products: [krogerProduct()], failed: false }],
+      [
+        {
+          provider: "kroger",
+          term: "milk",
+          products: [krogerProduct()],
+          failed: false,
+        },
+      ],
       [krogerProvider],
     );
-    expect(withCart).toContain("pass the productRef values above to create_shopping_list");
+    expect(withCart).toContain(
+      "pass the productRef values above to create_shopping_list",
+    );
 
     const withoutCart = formatCatalogSearchMarkdown(
       [{ provider: "trader_joes", term: "milk", products: [], failed: false }],
       [traderJoesProvider],
     );
-    expect(withoutCart).not.toContain("pass the productRef values above to create_shopping_list");
+    expect(withoutCart).not.toContain(
+      "pass the productRef values above to create_shopping_list",
+    );
     expect(withoutCart).toContain("Trader Joe's has no cart");
   });
 });
@@ -539,7 +593,13 @@ describe("formatProductDetailMarkdown", () => {
   it("does not mention images", () => {
     const text = formatProductDetailMarkdown(
       makeProduct({
-        images: [{ perspective: "front", default: true, sizes: [{ id: "a", url: "http://x" }] }],
+        images: [
+          {
+            perspective: "front",
+            default: true,
+            sizes: [{ id: "a", url: "http://x" }],
+          },
+        ],
       }),
     );
     expect(text).not.toContain("images");
@@ -605,18 +665,24 @@ describe("formatWeeklyDealsMarkdown", () => {
       "2026-06-25",
       "2026-07-01",
     );
-    expect(text).toContain("Deals valid 2026-06-25 to 2026-07-01. dealCount: 1");
+    expect(text).toContain(
+      "Deals valid 2026-06-25 to 2026-07-01. dealCount: 1",
+    );
     expect(text).toContain("- Ground Beef | 80% Lean | $3.99/lb | Save $2.00");
   });
 
   it("falls back to a bare dealCount header when dates are missing", () => {
-    const text = formatWeeklyDealsMarkdown([{ title: "Bananas", category: "Produce" }]);
+    const text = formatWeeklyDealsMarkdown([
+      { title: "Bananas", category: "Produce" },
+    ]);
     expect(text).toContain("dealCount: 1");
     expect(text).not.toContain("Deals valid");
   });
 
   it("includes warnings when present", () => {
-    const text = formatWeeklyDealsMarkdown([], undefined, undefined, ["Live refresh failed"]);
+    const text = formatWeeklyDealsMarkdown([], undefined, undefined, [
+      "Live refresh failed",
+    ]);
     expect(text).toContain("warnings: Live refresh failed");
   });
 

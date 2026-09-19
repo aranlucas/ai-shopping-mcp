@@ -50,7 +50,9 @@ describe("storage-backed tools", () => {
   it("rejects remove_from_inventory without items or all", async () => {
     registerInventoryTools(makeContext());
 
-    const result = await getCapturedHandler("remove_from_inventory")({ inventory: "pantry" });
+    const result = await getCapturedHandler("remove_from_inventory")({
+      inventory: "pantry",
+    });
 
     expect(result.isError).toBe(true);
     expect(result.text).toContain("Provide items to remove");
@@ -93,7 +95,10 @@ describe("storage-backed tools", () => {
     registerInventoryTools(makeContext());
 
     await expect(
-      getCapturedHandler("remove_from_inventory")({ inventory: "pantry", all: true }),
+      getCapturedHandler("remove_from_inventory")({
+        inventory: "pantry",
+        all: true,
+      }),
     ).rejects.toThrow("outside an authenticated MCP request");
   });
 
@@ -128,7 +133,10 @@ describe("storage-backed tools", () => {
       },
     });
 
-    const clearResult = await removeHandler({ inventory: "equipment", all: true });
+    const clearResult = await removeHandler({
+      inventory: "equipment",
+      all: true,
+    });
     expect(clearResult.text).toBe("Equipment cleared successfully.");
     expect(clearResult).toMatchObject({
       _meta: { "dev.aranlucas/view": "kitchen_equipment" },
@@ -158,7 +166,9 @@ describe("storage-backed tools", () => {
 
       expect(result.isError).toBe(false);
       const text = result.text;
-      expect(text).toContain("none set — use search_stores + set_preferred_store");
+      expect(text).toContain(
+        "none set — use search_stores + set_preferred_store",
+      );
       expect(text).toContain("## Pantry");
       expect(text).toContain("empty");
       expect(text).toContain("## Kitchen equipment");
@@ -172,7 +182,8 @@ describe("storage-backed tools", () => {
     it("lists items due to restock based on order history cadence", async () => {
       const DAY = 24 * 60 * 60 * 1000;
       const now = Date.now();
-      const daysAgoIso = (days: number) => new Date(now - days * DAY).toISOString();
+      const daysAgoIso = (days: number) =>
+        new Date(now - days * DAY).toISOString();
 
       // Milk bought every ~10 days, but the most recent purchase was 30 days
       // ago — well past due.
@@ -181,19 +192,25 @@ describe("storage-backed tools", () => {
           getRecent: async () => [
             {
               orderId: "o3",
-              items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
+              items: [
+                { upc: "0000000000001", productName: "Milk", quantity: 1 },
+              ],
               totalItems: 1,
               placedAt: daysAgoIso(30),
             },
             {
               orderId: "o2",
-              items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
+              items: [
+                { upc: "0000000000001", productName: "Milk", quantity: 1 },
+              ],
               totalItems: 1,
               placedAt: daysAgoIso(40),
             },
             {
               orderId: "o1",
-              items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
+              items: [
+                { upc: "0000000000001", productName: "Milk", quantity: 1 },
+              ],
               totalItems: 1,
               placedAt: daysAgoIso(50),
             },
@@ -230,17 +247,25 @@ describe("storage-backed tools", () => {
               addedAt: new Date().toISOString(),
               expiresAt: soon,
             },
-            { productName: "Rice", quantity: 2, addedAt: new Date().toISOString() },
+            {
+              productName: "Rice",
+              quantity: 2,
+              addedAt: new Date().toISOString(),
+            },
           ],
         } as unknown as UserStorage["pantry"],
         equipment: {
-          getAll: async () => [{ equipmentName: "Dutch oven", category: "Cooking", addedAt: "" }],
+          getAll: async () => [
+            { equipmentName: "Dutch oven", category: "Cooking", addedAt: "" },
+          ],
         } as unknown as UserStorage["equipment"],
         orderHistory: {
           getRecent: async () => [
             {
               orderId: "o1",
-              items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
+              items: [
+                { upc: "0000000000001", productName: "Milk", quantity: 1 },
+              ],
               totalItems: 1,
               placedAt: new Date().toISOString(),
             },
@@ -264,9 +289,12 @@ describe("storage-backed tools", () => {
 
       const tool = getCapturedTool("get_shopping_profile");
       expect(
-        (tool.config as { annotations?: { readOnlyHint?: boolean } }).annotations?.readOnlyHint,
+        (tool.config as { annotations?: { readOnlyHint?: boolean } })
+          .annotations?.readOnlyHint,
       ).toBe(true);
-      expect((tool.config as { _meta?: { ui?: unknown } })._meta?.ui).toBeUndefined();
+      expect(
+        (tool.config as { _meta?: { ui?: unknown } })._meta?.ui,
+      ).toBeUndefined();
     });
   });
 
@@ -274,7 +302,10 @@ describe("storage-backed tools", () => {
     registerShoppingListTools(
       makeContext(
         undefined,
-        makeProductService({ "0001111042578": "Milk", "0009999999999": "Bread" }),
+        makeProductService({
+          "0001111042578": "Milk",
+          "0009999999999": "Bread",
+        }),
       ),
     );
     const handler = getCapturedHandler("create_shopping_list");
@@ -288,16 +319,16 @@ describe("storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(false);
-    const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+    const sc = (result as { structuredContent: Record<string, unknown> })
+      .structuredContent;
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "create_shopping_list" },
     });
     expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
     expect(sc["name"]).toBe("Tuesday Dinner");
-    expect((sc["items"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
-      "Milk",
-      "Bread",
-    ]);
+    expect(
+      (sc["items"] as Array<{ productName: string }>).map((i) => i.productName),
+    ).toEqual(["Milk", "Bread"]);
   });
 
   it("rejects shopping list creation with empty items before touching storage", async () => {
@@ -324,13 +355,18 @@ describe("storage-backed tools", () => {
       items: [{ upc: "0001111000002", quantity: 2 }],
     });
 
-    const firstId = (first as { structuredContent: { listId: string } }).structuredContent.listId;
-    const secondId = (second as { structuredContent: { listId: string } }).structuredContent.listId;
+    const firstId = (first as { structuredContent: { listId: string } })
+      .structuredContent.listId;
+    const secondId = (second as { structuredContent: { listId: string } })
+      .structuredContent.listId;
     expect(firstId).not.toBe(secondId);
-    expect((first as { structuredContent: { name: string } }).structuredContent.name).toBe("First");
-    expect((second as { structuredContent: { name: string } }).structuredContent.name).toBe(
-      "Second",
-    );
+    expect(
+      (first as { structuredContent: { name: string } }).structuredContent.name,
+    ).toBe("First");
+    expect(
+      (second as { structuredContent: { name: string } }).structuredContent
+        .name,
+    ).toBe("Second");
   });
 
   describe("create_shopping_list pantry/deal flags", () => {
@@ -338,7 +374,11 @@ describe("storage-backed tools", () => {
       const storage = makeStorage({
         pantry: {
           getAll: async () => [
-            { productName: "Milk", quantity: 1, addedAt: new Date().toISOString() },
+            {
+              productName: "Milk",
+              quantity: 1,
+              addedAt: new Date().toISOString(),
+            },
           ],
         } as unknown as UserStorage["pantry"],
       });
@@ -359,7 +399,11 @@ describe("storage-backed tools", () => {
       const storage = makeStorage({
         pantry: {
           getAll: async () => [
-            { productName: "Bread", quantity: 1, addedAt: new Date().toISOString() },
+            {
+              productName: "Bread",
+              quantity: 1,
+              addedAt: new Date().toISOString(),
+            },
           ],
         } as unknown as UserStorage["pantry"],
       });
@@ -377,7 +421,11 @@ describe("storage-backed tools", () => {
 
     it("flags an item on sale using the weekly-deals KV cache", async () => {
       const store = new Map<string, string>();
-      const cacheKey = buildWeeklyDealsCacheKey({ locationId: undefined, limit: 50, pageLimit: 2 });
+      const cacheKey = buildWeeklyDealsCacheKey({
+        locationId: undefined,
+        limit: 50,
+        pageLimit: 2,
+      });
       const now = Date.now();
       store.set(
         cacheKey,
@@ -392,13 +440,21 @@ describe("storage-backed tools", () => {
             divisionCode: "705",
             warnings: [],
             deals: [
-              { id: "d1", title: "Kroger Whole Milk, Gallon", price: "$2.99", source: "print" },
+              {
+                id: "d1",
+                title: "Kroger Whole Milk, Gallon",
+                price: "$2.99",
+                source: "print",
+              },
             ],
           },
         }),
       );
 
-      const context = makeContext(undefined, makeProductService({ "0001111000001": "Whole Milk" }));
+      const context = makeContext(
+        undefined,
+        makeProductService({ "0001111000001": "Whole Milk" }),
+      );
       context.getEnv = () =>
         ({
           USER_DATA_KV: {
@@ -421,10 +477,17 @@ describe("storage-backed tools", () => {
 
     it("yields no flag (and no error) for a corrupted weekly-deals cache entry", async () => {
       const store = new Map<string, string>();
-      const cacheKey = buildWeeklyDealsCacheKey({ locationId: undefined, limit: 50, pageLimit: 2 });
+      const cacheKey = buildWeeklyDealsCacheKey({
+        locationId: undefined,
+        limit: 50,
+        pageLimit: 2,
+      });
       store.set(cacheKey, "{not-valid-json");
 
-      const context = makeContext(undefined, makeProductService({ "0001111000001": "Whole Milk" }));
+      const context = makeContext(
+        undefined,
+        makeProductService({ "0001111000001": "Whole Milk" }),
+      );
       context.getEnv = () =>
         ({
           USER_DATA_KV: {
@@ -467,8 +530,8 @@ describe("storage-backed tools", () => {
       name: "Dinner",
       items: [{ upc: "0001111042578", quantity: 2 }],
     });
-    const listId = (createResult as { structuredContent: { listId: string } }).structuredContent
-      .listId;
+    const listId = (createResult as { structuredContent: { listId: string } })
+      .structuredContent.listId;
 
     registerCartTools(ctx);
     const addHandler = getCapturedHandler("add_shopping_list_to_cart");
@@ -476,7 +539,8 @@ describe("storage-backed tools", () => {
     const result = await addHandler({ listId });
 
     expect(result.isError).toBe(false);
-    const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+    const sc = (result as { structuredContent: Record<string, unknown> })
+      .structuredContent;
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
     });
@@ -510,12 +574,14 @@ describe("storage-backed tools", () => {
       name: "Dinner",
       items: [{ upc: "0001111042578", quantity: 2 }],
     });
-    const listId = (createResult as { structuredContent: { listId: string } }).structuredContent
-      .listId;
+    const listId = (createResult as { structuredContent: { listId: string } })
+      .structuredContent.listId;
 
     const putCalls: unknown[] = [];
     (
-      ctx.clients as unknown as { cartClient: { PUT: (...args: unknown[]) => Promise<unknown> } }
+      ctx.clients as unknown as {
+        cartClient: { PUT: (...args: unknown[]) => Promise<unknown> };
+      }
     ).cartClient.PUT = async (...args: unknown[]) => {
       putCalls.push(args);
       return { data: undefined, response: new Response(null, { status: 204 }) };
@@ -535,10 +601,17 @@ describe("storage-backed tools", () => {
     const gatewayListId = `list_${"a".repeat(32)}`;
     const lookups: string[] = [];
     const storage = makeStorage();
-    let savedList: Awaited<ReturnType<typeof storage.shoppingList.create>> | null = null;
+    let savedList: Awaited<
+      ReturnType<typeof storage.shoppingList.create>
+    > | null = null;
     storage.shoppingList = {
       create: async (_clientId, name, items) => {
-        savedList = { id: gatewayListId, name, items, createdAt: "2026-07-18T00:00:00.000Z" };
+        savedList = {
+          id: gatewayListId,
+          name,
+          items,
+          createdAt: "2026-07-18T00:00:00.000Z",
+        };
         return savedList;
       },
       get: async (id) => {
@@ -561,7 +634,11 @@ describe("storage-backed tools", () => {
       },
     };
 
-    const ctx = makeCartContext(storage, 204, makeProductService({ "0001111042578": "Milk" }));
+    const ctx = makeCartContext(
+      storage,
+      204,
+      makeProductService({ "0001111042578": "Milk" }),
+    );
     registerShoppingListTools(ctx);
     registerCartTools(ctx);
 
@@ -603,11 +680,14 @@ describe("storage-backed tools", () => {
     const result = await handler({ listId, storeId: "70500847" });
 
     expect(result.isError).toBe(false);
-    const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+    const sc = (result as { structuredContent: Record<string, unknown> })
+      .structuredContent;
     expect((sc["items"] as unknown[]).length).toBe(0);
-    expect((sc["needsUpc"] as Array<{ productName: string }>).map((i) => i.productName)).toEqual([
-      "Strawberries",
-    ]);
+    expect(
+      (sc["needsUpc"] as Array<{ productName: string }>).map(
+        (i) => i.productName,
+      ),
+    ).toEqual(["Strawberries"]);
     expect(result.text).toContain("no Kroger product references");
   });
 
@@ -643,11 +723,14 @@ describe("storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(false);
-    const sc = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+    const sc = (result as { structuredContent: Record<string, unknown> })
+      .structuredContent;
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
     });
-    expect((sc["items"] as Array<{ upc: string; quantity: number }>)[0]).toMatchObject({
+    expect(
+      (sc["items"] as Array<{ upc: string; quantity: number }>)[0],
+    ).toMatchObject({
       upc: "0001111042578",
       quantity: 3,
     });

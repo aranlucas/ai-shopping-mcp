@@ -9,7 +9,9 @@ export function stubJevAi(preferredName?: string): SelectorAi {
       return {
         async run({ query: input }) {
           const questions = input.questions as {
-            [id: string]: { criteria: Record<string, { name?: string } | string> };
+            [id: string]: {
+              criteria: Record<string, { name?: string } | string>;
+            };
           };
           return Response.json({
             model: "jev-test-fixture",
@@ -19,7 +21,10 @@ export function stubJevAi(preferredName?: string): SelectorAi {
                 const choice =
                   Object.keys(criteria).find((key) => {
                     const candidate = criteria[key];
-                    return typeof candidate === "object" && candidate.name === preferredName;
+                    return (
+                      typeof candidate === "object" &&
+                      candidate.name === preferredName
+                    );
                   }) ?? "candidate_0";
                 return [
                   id,
@@ -28,7 +33,10 @@ export function stubJevAi(preferredName?: string): SelectorAi {
                     choice,
                     confidence: 1,
                     probabilities: Object.fromEntries(
-                      Object.keys(criteria).map((key) => [key, key === choice ? 1 : 0]),
+                      Object.keys(criteria).map((key) => [
+                        key,
+                        key === choice ? 1 : 0,
+                      ]),
                     ),
                   },
                 ];

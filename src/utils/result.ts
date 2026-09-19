@@ -28,7 +28,11 @@ type McpToolResult = {
   content: Array<{ type: "text"; text: string }>;
   isError?: true;
   structuredContent?: {
-    error: { code: AppError["type"]; message: string; recovery: ReturnType<typeof errorRecovery> };
+    error: {
+      code: AppError["type"];
+      message: string;
+      recovery: ReturnType<typeof errorRecovery>;
+    };
   };
 };
 
@@ -41,7 +45,11 @@ export function toMcpError(error: AppError): McpToolResult {
     content: [{ type: "text" as const, text: formatAppError(error) }],
     isError: true as const,
     structuredContent: {
-      error: { code: error.type, message: error.message, recovery: errorRecovery(error) },
+      error: {
+        code: error.type,
+        message: error.message,
+        recovery: errorRecovery(error),
+      },
     },
   };
 }
@@ -64,11 +72,17 @@ export function fromApiResponse<T>(
   const mapFailure = (e: unknown): AppError => {
     if (e instanceof AppErrorException) return e.appError;
     if (e instanceof SyntaxError)
-      return invalidResponseError(`${context}: upstream returned malformed JSON.`, e);
+      return invalidResponseError(
+        `${context}: upstream returned malformed JSON.`,
+        e,
+      );
     if (e instanceof Error && e.name === "KrogerTokenExpiredError") {
       return authError(e.message);
     }
-    return networkError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e);
+    return networkError(
+      `${context}: ${e instanceof Error ? e.message : String(e)}`,
+      e,
+    );
   };
   const result =
     typeof promise === "function"
@@ -76,7 +90,9 @@ export function fromApiResponse<T>(
       : ResultAsync.fromPromise(promise, mapFailure);
   return result.andThen(({ data, error, response }) => {
     if (response.status === 401)
-      return err(authError("Authentication expired. Reconnect the MCP server."));
+      return err(
+        authError("Authentication expired. Reconnect the MCP server."),
+      );
     if (error !== undefined || !response.ok) {
       return err(apiError(`Failed to ${context}`, error, response.status));
     }
@@ -134,30 +150,31 @@ export function safeResolveLocationId(
     });
   }
 
-  return safeStorage(() => storage.preferredLocation.get(), "fetch preferred location").andThen(
-    (preferredLocation) => {
-      if (!preferredLocation) {
-        return err(
-          notFoundError(
-            "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
-          ),
-        );
-      }
-      // Legacy storage rows predate provider-scoped locations and are Kroger-only.
-      const preferredProvider = preferredLocation.provider || "kroger";
-      if (preferredProvider !== provider) {
-        return err(
-          notFoundError(
-            `The preferred store belongs to provider=${preferredProvider}, not provider=${provider}. Provide a locationId for ${provider}.`,
-          ),
-        );
-      }
-      return ok({
-        locationId: preferredLocation.locationId,
-        locationName: preferredLocation.locationName,
-      });
-    },
-  );
+  return safeStorage(
+    () => storage.preferredLocation.get(),
+    "fetch preferred location",
+  ).andThen((preferredLocation) => {
+    if (!preferredLocation) {
+      return err(
+        notFoundError(
+          "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
+        ),
+      );
+    }
+    // Legacy storage rows predate provider-scoped locations and are Kroger-only.
+    const preferredProvider = preferredLocation.provider || "kroger";
+    if (preferredProvider !== provider) {
+      return err(
+        notFoundError(
+          `The preferred store belongs to provider=${preferredProvider}, not provider=${provider}. Provide a locationId for ${provider}.`,
+        ),
+      );
+    }
+    return ok({
+      locationId: preferredLocation.locationId,
+      locationName: preferredLocation.locationName,
+    });
+  });
 }
 
 // --- Storage Wrappers ---
@@ -172,6 +189,9 @@ export function safeStorage<T>(
   return ResultAsync.fromThrowable(operation, (e): AppError =>
     e instanceof AppErrorException
       ? e.appError
-      : storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
+      : storageError(
+          `${context}: ${e instanceof Error ? e.message : String(e)}`,
+          e,
+        ),
   )();
 }

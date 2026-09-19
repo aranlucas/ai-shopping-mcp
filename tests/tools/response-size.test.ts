@@ -18,7 +18,10 @@ import { createKrogerClients } from "../../src/services/kroger/client.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerProductTools } from "../../src/tools/product.js";
 import { createCartPersistence } from "../../src/utils/user-storage.js";
-import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import {
+  type TestToolHandler as ToolHandler,
+  wrapV2ToolHandler,
+} from "../v2-tool-handler.js";
 import { createKrogerCatalogProvider } from "../../src/services/catalog/kroger-provider.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
@@ -37,7 +40,11 @@ vi.mock("agents/mcp", () => ({
 
 function authenticate() {
   testState.authContext = {
-    props: { id: "user-size-test", accessToken: "token", tokenExpiresAt: Date.now() + 60_000 },
+    props: {
+      id: "user-size-test",
+      accessToken: "token",
+      tokenExpiresAt: Date.now() + 60_000,
+    },
   };
 }
 
@@ -62,11 +69,15 @@ function getTool(name: string): ToolHandler {
 function createMockKV(): KVNamespace {
   const store = new Map<string, string>();
   return {
-    get: vi.fn<(key: string) => unknown>((key: string) => Promise.resolve(store.get(key) ?? null)),
-    put: vi.fn<(key: string, value: string) => unknown>((key: string, value: string) => {
-      store.set(key, value);
-      return Promise.resolve();
-    }),
+    get: vi.fn<(key: string) => unknown>((key: string) =>
+      Promise.resolve(store.get(key) ?? null),
+    ),
+    put: vi.fn<(key: string, value: string) => unknown>(
+      (key: string, value: string) => {
+        store.set(key, value);
+        return Promise.resolve();
+      },
+    ),
     delete: vi.fn<(key: string) => unknown>((key: string) => {
       store.delete(key);
       return Promise.resolve();
@@ -143,7 +154,12 @@ function makeProduct(upc: string, term: string) {
         itemId: `${upc}-001`,
         size: "1 gallon",
         price: { regular: 4.99, promo: 3.49 },
-        fulfillment: { curbside: true, delivery: true, instore: true, shiptohome: false },
+        fulfillment: {
+          curbside: true,
+          delivery: true,
+          instore: true,
+          shiptohome: false,
+        },
         inventory: { stockLevel: "HIGH" },
       },
     ],
@@ -164,18 +180,22 @@ describe("search_products content size", () => {
     testState.capturedTools.length = 0;
 
     const clients = createKrogerClients(() => null);
-    vi.spyOn(clients.productClient, "GET").mockImplementation(async (_path, options) => {
-      const query = (options as { params?: { query?: Record<string, unknown> } })?.params?.query;
-      const term = String(query?.["filter.term"] ?? "");
-      const data = Array.from({ length: productsPerTerm }, (_, i) =>
-        makeProduct(String(10000000000000 + i).slice(0, 13), term),
-      );
-      return {
-        data: { data },
-        error: undefined,
-        response: new Response("", { status: 200 }),
-      } as Awaited<ReturnType<typeof clients.productClient.GET>>;
-    });
+    vi.spyOn(clients.productClient, "GET").mockImplementation(
+      async (_path, options) => {
+        const query = (
+          options as { params?: { query?: Record<string, unknown> } }
+        )?.params?.query;
+        const term = String(query?.["filter.term"] ?? "");
+        const data = Array.from({ length: productsPerTerm }, (_, i) =>
+          makeProduct(String(10000000000000 + i).slice(0, 13), term),
+        );
+        return {
+          data: { data },
+          error: undefined,
+          response: new Response("", { status: 200 }),
+        } as Awaited<ReturnType<typeof clients.productClient.GET>>;
+      },
+    );
 
     const carts = createCartPersistence(
       createMockKV(),
@@ -227,11 +247,15 @@ describe("search_products content size", () => {
     // Structured content carries only the compact view projection.
     const sc = (
       result as {
-        structuredContent?: { results?: Array<{ products: Array<{ imageUrl?: unknown }> }> };
+        structuredContent?: {
+          results?: Array<{ products: Array<{ imageUrl?: unknown }> }>;
+        };
       }
     ).structuredContent;
     expect(sc?.results?.[0]?.products?.[0]?.imageUrl).toBeDefined();
-    expect(sc?.results?.[0]?.products?.[0]).not.toHaveProperty("nutritionInformation");
+    expect(sc?.results?.[0]?.products?.[0]).not.toHaveProperty(
+      "nutritionInformation",
+    );
   });
 
   it("stays under 60 KB for 25 terms × 10 products (worst-case bulk search)", async () => {

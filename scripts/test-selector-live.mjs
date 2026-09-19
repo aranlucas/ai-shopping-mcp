@@ -92,10 +92,14 @@ async function main() {
       rejected.status === "unresolved",
       "Expected Jev to abstain when only candy is available.",
     );
-    assert(body.length === items.length, "Expected one result per requested item.");
+    assert(
+      body.length === items.length,
+      "Expected one result per requested item.",
+    );
     for (const [index, product] of otherProducts.entries()) {
       assert(
-        body[index + 2].status === "selected" && body[index + 2].product.upc === product.upc,
+        body[index + 2].status === "selected" &&
+          body[index + 2].product.upc === product.upc,
         `Expected Jev to select ${product.description}.`,
       );
     }
@@ -109,6 +113,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`Live Jev failed: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `Live Jev failed: ${error instanceof Error ? error.message : String(error)}`,
+  );
   process.exitCode = 1;
 });

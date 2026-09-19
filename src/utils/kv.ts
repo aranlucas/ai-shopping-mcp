@@ -4,12 +4,18 @@ export type KvLike = Pick<KVNamespace, "get" | "put">;
 /** Minimal KV surface needed by identity-bound user persistence. */
 export interface PersistenceKv {
   get(key: string): Promise<string | null>;
-  put(key: string, value: string, options?: KVNamespacePutOptions): Promise<void>;
+  put(
+    key: string,
+    value: string,
+    options?: KVNamespacePutOptions,
+  ): Promise<void>;
   delete(key: string): Promise<void>;
 }
 
 export function isKvLike(value: unknown): value is KvLike {
-  return !!value && typeof value === "object" && "get" in value && "put" in value;
+  return (
+    !!value && typeof value === "object" && "get" in value && "put" in value
+  );
 }
 
 /** Resolves the shared user-data KV binding, or null when absent/malformed. */

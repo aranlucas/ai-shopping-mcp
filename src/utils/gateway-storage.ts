@@ -23,7 +23,10 @@ const unixSecondsSchema = z.number().int();
 const unixMillisecondsSchema = z.number().int();
 const nullableStringSchema = z.string().nullable().optional();
 const nullableNumberSchema = z.number().nullable().optional();
-const productReferenceSchema = z.object({ provider: z.string(), id: z.string() });
+const productReferenceSchema = z.object({
+  provider: z.string(),
+  id: z.string(),
+});
 
 const pantryItemSchema = z.object({
   name: z.string(),
@@ -95,16 +98,26 @@ const listSchema = z.object({
 });
 
 const pantryResponseSchema = z.object({ items: z.array(pantryItemSchema) });
-const equipmentResponseSchema = z.object({ items: z.array(equipmentItemSchema) });
+const equipmentResponseSchema = z.object({
+  items: z.array(equipmentItemSchema),
+});
 const ordersResponseSchema = z.object({ orders: z.array(orderSchema) });
 
-type GatewayCall = Promise<{ data?: unknown; error?: unknown; response: Response }>;
+type GatewayCall = Promise<{
+  data?: unknown;
+  error?: unknown;
+  response: Response;
+}>;
 
 function gatewayFailure(response: Response, error: unknown): AppErrorException {
   return new AppErrorException(
     response.status === 401
       ? authError("Gateway authentication expired. Reconnect the MCP server.")
-      : apiError(`Gateway request failed (${response.status})`, error, response.status),
+      : apiError(
+          `Gateway request failed (${response.status})`,
+          error,
+          response.status,
+        ),
   );
 }
 
@@ -127,7 +140,10 @@ function parseGateway<TSchema extends z.ZodType>(
   const parsed = schema.safeParse(data);
   if (!parsed.success) {
     throw new AppErrorException(
-      invalidResponseError("Gateway returned an invalid response.", parsed.error),
+      invalidResponseError(
+        "Gateway returned an invalid response.",
+        parsed.error,
+      ),
     );
   }
   return parsed.data;
@@ -184,11 +200,15 @@ function adaptPantryItem(item: z.output<typeof pantryItemSchema>): PantryItem {
     productName: item.name,
     quantity: item.quantity,
     addedAt: fromUnixSeconds(item.added_at),
-    ...(item.expires_at == null ? {} : { expiresAt: fromUnixSeconds(item.expires_at) }),
+    ...(item.expires_at == null
+      ? {}
+      : { expiresAt: fromUnixSeconds(item.expires_at) }),
   };
 }
 
-function adaptEquipmentItem(item: z.output<typeof equipmentItemSchema>): EquipmentItem {
+function adaptEquipmentItem(
+  item: z.output<typeof equipmentItemSchema>,
+): EquipmentItem {
   return {
     equipmentName: item.name,
     ...(item.category == null ? {} : { category: item.category }),
@@ -207,14 +227,18 @@ function adaptOrder(order: z.output<typeof orderSchema>): OrderRecord {
       ...(item.price == null ? {} : { price: item.price }),
     })),
     totalItems: order.total_items,
-    ...(order.estimated_total == null ? {} : { estimatedTotal: order.estimated_total }),
+    ...(order.estimated_total == null
+      ? {}
+      : { estimatedTotal: order.estimated_total }),
     placedAt: fromUnixSeconds(order.placed_at),
     ...(order.location_id == null ? {} : { locationId: order.location_id }),
     ...(order.notes == null ? {} : { notes: order.notes }),
   };
 }
 
-function adaptPreferredStore(store: z.output<typeof preferredStoreSchema>): PreferredLocation {
+function adaptPreferredStore(
+  store: z.output<typeof preferredStoreSchema>,
+): PreferredLocation {
   return {
     provider: store.provider,
     locationId: store.location_id,
@@ -225,7 +249,9 @@ function adaptPreferredStore(store: z.output<typeof preferredStoreSchema>): Pref
   };
 }
 
-function adaptShoppingListItem(item: z.output<typeof listItemSchema>): ShoppingListItem {
+function adaptShoppingListItem(
+  item: z.output<typeof listItemSchema>,
+): ShoppingListItem {
   return {
     id: item.id,
     productName: item.name,
@@ -246,7 +272,9 @@ function adaptShoppingList(list: z.output<typeof listSchema>): ShoppingList {
   };
 }
 
-function adaptShoppingListSummary(list: z.output<typeof listSchema>): ShoppingListSummary {
+function adaptShoppingListSummary(
+  list: z.output<typeof listSchema>,
+): ShoppingListSummary {
   return {
     id: list.id,
     name: list.title,
@@ -276,7 +304,10 @@ export interface ShoppingStore {
     getAll(): Promise<PantryItem[]>;
     add(items: PantryItem | PantryItem[]): Promise<PantryItem[]>;
     remove(names: string | string[]): Promise<PantryItem[]>;
-    updateQuantity(productName: string, quantity: number): Promise<PantryItem[]>;
+    updateQuantity(
+      productName: string,
+      quantity: number,
+    ): Promise<PantryItem[]>;
     clear(): Promise<void>;
   };
   equipment: {
@@ -286,10 +317,17 @@ export interface ShoppingStore {
     clear(): Promise<void>;
   };
   shoppingList: {
-    create(listId: string, name: string, items: ShoppingListItem[]): Promise<ShoppingList>;
+    create(
+      listId: string,
+      name: string,
+      items: ShoppingListItem[],
+    ): Promise<ShoppingList>;
     get(listId: string): Promise<ShoppingList | null>;
     list(): Promise<ShoppingListSummary[]>;
-    addItems(listId: string, items: ShoppingListItem[]): Promise<ShoppingListItem[]>;
+    addItems(
+      listId: string,
+      items: ShoppingListItem[],
+    ): Promise<ShoppingListItem[]>;
     updateItem(
       listId: string,
       itemId: string,
@@ -305,7 +343,9 @@ export interface ShoppingStore {
 }
 
 /** Adapts the gateway wire contract to the existing MCP tool storage contract. */
-export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore {
+export function createGatewayShoppingStore(
+  client: GatewayClient,
+): ShoppingStore {
   const getOrders = async (limit?: number): Promise<OrderRecord[]> => {
     const data = await readGateway(
       client.GET("/api/grocery/orders", {
@@ -341,12 +381,17 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
         );
       },
       delete: async () => {
-        await expectGatewaySuccess(client.DELETE("/api/grocery/preferred-store"));
+        await expectGatewaySuccess(
+          client.DELETE("/api/grocery/preferred-store"),
+        );
       },
     },
     pantry: {
       getAll: async () => {
-        const data = await readGateway(client.GET("/api/grocery/pantry"), pantryResponseSchema);
+        const data = await readGateway(
+          client.GET("/api/grocery/pantry"),
+          pantryResponseSchema,
+        );
         return data.items.map(adaptPantryItem);
       },
       add: async (items) => {
@@ -354,10 +399,15 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
           client.POST("/api/grocery/pantry", {
             body: {
               items: (Array.isArray(items) ? items : [items]).map((item) => {
-                const base = { name: item.productName, quantity: item.quantity };
+                const base = {
+                  name: item.productName,
+                  quantity: item.quantity,
+                };
                 return item.expiresAt === undefined
                   ? base
-                  : Object.assign(base, { expires_at: toUnixSeconds(item.expiresAt) });
+                  : Object.assign(base, {
+                      expires_at: toUnixSeconds(item.expiresAt),
+                    });
               }),
             },
           }),
@@ -442,7 +492,9 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
       },
       get: async (listId) => {
         const data = await readOptionalGateway(
-          client.GET("/api/grocery/lists/{id}", { params: { path: { id: listId } } }),
+          client.GET("/api/grocery/lists/{id}", {
+            params: { path: { id: listId } },
+          }),
           listSchema,
         );
         return data == null ? null : adaptShoppingList(data);
@@ -469,10 +521,16 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
           client.PATCH("/api/grocery/lists/{id}/items/{itemId}", {
             params: { path: { id: listId, itemId } },
             body: {
-              ...(patch.productName === undefined ? {} : { name: patch.productName }),
-              ...(patch.quantity === undefined ? {} : { quantity: String(patch.quantity) }),
+              ...(patch.productName === undefined
+                ? {}
+                : { name: patch.productName }),
+              ...(patch.quantity === undefined
+                ? {}
+                : { quantity: String(patch.quantity) }),
               ...(patch.notes === undefined ? {} : { note: patch.notes }),
-              ...(patch.checked === undefined ? {} : { checked: patch.checked }),
+              ...(patch.checked === undefined
+                ? {}
+                : { checked: patch.checked }),
             },
           }),
           listItemSchema,
@@ -495,7 +553,9 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
             body: {
               id: order.orderId,
               items: order.items.map((item) => ({
-                ...(item.product === undefined ? {} : { product: item.product }),
+                ...(item.product === undefined
+                  ? {}
+                  : { product: item.product }),
                 ...(item.upc === undefined ? {} : { upc: item.upc }),
                 name: item.productName,
                 quantity: item.quantity,
@@ -506,7 +566,9 @@ export function createGatewayShoppingStore(client: GatewayClient): ShoppingStore
                 ? {}
                 : { estimated_total: order.estimatedTotal }),
               placed_at: toUnixSeconds(order.placedAt),
-              ...(order.locationId === undefined ? {} : { location_id: order.locationId }),
+              ...(order.locationId === undefined
+                ? {}
+                : { location_id: order.locationId }),
               ...(order.notes === undefined ? {} : { notes: order.notes }),
             },
           }),
