@@ -13,12 +13,12 @@ The live model is strong at distinguishing explicit grocery matches, but missing
 
 ## Results
 
-| Variant | Correct end-to-end outcomes | Correct among selected products | Correct abstentions | Items blocked by batch errors | Median batch latency |
-|---|---:|---:|---:|---:|---:|
-| Original rubric, tuning set | 77/90 (85.6%) | 66/79 (83.5%) | 11/24 | 0 | 348 ms |
-| Long explicit rubric, tuning set — discarded | 23/90 (25.6%) | 1/1 | 22/24 | 10 | 360 ms |
-| Short evidence rule, tuning set — retained locally | 77/90 (85.6%) | 59/62 (95.2%) | 18/24 | 10 | 286 ms |
-| Short evidence rule, fresh cases | 25/36 (69.4%) | 16/17 (94.1%) | 9/15 | 10 | 277 ms |
+| Variant                                            | Correct end-to-end outcomes | Correct among selected products | Correct abstentions | Items blocked by batch errors | Median batch latency |
+| -------------------------------------------------- | --------------------------: | ------------------------------: | ------------------: | ----------------------------: | -------------------: |
+| Original rubric, tuning set                        |               77/90 (85.6%) |                   66/79 (83.5%) |               11/24 |                             0 |               348 ms |
+| Long explicit rubric, tuning set — discarded       |               23/90 (25.6%) |                             1/1 |               22/24 |                            10 |               360 ms |
+| Short evidence rule, tuning set — retained locally |               77/90 (85.6%) |                   59/62 (95.2%) |               18/24 |                            10 |               286 ms |
+| Short evidence rule, fresh cases                   |               25/36 (69.4%) |                   16/17 (94.1%) |                9/15 |                            10 |               277 ms |
 
 The shorter prompt did **not** improve total end-to-end accuracy on the tuning run: fewer false selections were offset by a rejected batch. In its successful tuning batches, it produced 77 correct outcomes out of 80; on the fresh check, 25 out of 26. Those conditional rates exclude failures and must not replace the totals above.
 

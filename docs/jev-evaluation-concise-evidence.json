@@ -515,9 +515,7 @@
           "product": {
             "upc": "4000000000027",
             "description": "Rice Pasta",
-            "manufacturerDeclarations": [
-              "Certified Gluten Free"
-            ],
+            "manufacturerDeclarations": ["Certified Gluten Free"],
             "items": [
               {
                 "size": "",
@@ -536,9 +534,7 @@
           "product": {
             "upc": "4000000000031",
             "description": "Vegan Shredded Cheese",
-            "manufacturerDeclarations": [
-              "Vegan"
-            ],
+            "manufacturerDeclarations": ["Vegan"],
             "nutritionInformation": {
               "ingredientStatement": "Water, coconut oil, potato starch"
             },
@@ -560,9 +556,7 @@
           "product": {
             "upc": "4000000000035",
             "description": "Bananas",
-            "manufacturerDeclarations": [
-              "USDA Organic"
-            ],
+            "manufacturerDeclarations": ["USDA Organic"],
             "items": [
               {
                 "size": "",
@@ -1001,9 +995,7 @@
           "product": {
             "upc": "4000000000053",
             "description": "Vegan Cheese",
-            "manufacturerDeclarations": [
-              "Vegan"
-            ],
+            "manufacturerDeclarations": ["Vegan"],
             "nutritionInformation": {
               "ingredientStatement": "Coconut oil, potato starch"
             },
@@ -1764,9 +1756,7 @@
           "product": {
             "upc": "4000000000027",
             "description": "Rice Pasta",
-            "manufacturerDeclarations": [
-              "Certified Gluten Free"
-            ],
+            "manufacturerDeclarations": ["Certified Gluten Free"],
             "items": [
               {
                 "size": "",
@@ -1785,9 +1775,7 @@
           "product": {
             "upc": "4000000000031",
             "description": "Vegan Shredded Cheese",
-            "manufacturerDeclarations": [
-              "Vegan"
-            ],
+            "manufacturerDeclarations": ["Vegan"],
             "nutritionInformation": {
               "ingredientStatement": "Water, coconut oil, potato starch"
             },
@@ -1809,9 +1797,7 @@
           "product": {
             "upc": "4000000000035",
             "description": "Bananas",
-            "manufacturerDeclarations": [
-              "USDA Organic"
-            ],
+            "manufacturerDeclarations": ["USDA Organic"],
             "items": [
               {
                 "size": "",
@@ -2250,9 +2236,7 @@
           "product": {
             "upc": "4000000000053",
             "description": "Vegan Cheese",
-            "manufacturerDeclarations": [
-              "Vegan"
-            ],
+            "manufacturerDeclarations": ["Vegan"],
             "nutritionInformation": {
               "ingredientStatement": "Coconut oil, potato starch"
             },
@@ -3132,9 +3116,7 @@
           "product": {
             "upc": "4000000000027",
             "description": "Rice Pasta",
-            "manufacturerDeclarations": [
-              "Certified Gluten Free"
-            ],
+            "manufacturerDeclarations": ["Certified Gluten Free"],
             "items": [
               {
                 "size": "",
@@ -3153,9 +3135,7 @@
           "product": {
             "upc": "4000000000031",
             "description": "Vegan Shredded Cheese",
-            "manufacturerDeclarations": [
-              "Vegan"
-            ],
+            "manufacturerDeclarations": ["Vegan"],
             "nutritionInformation": {
               "ingredientStatement": "Water, coconut oil, potato starch"
             },
@@ -3177,9 +3157,7 @@
           "product": {
             "upc": "4000000000035",
             "description": "Bananas",
-            "manufacturerDeclarations": [
-              "USDA Organic"
-            ],
+            "manufacturerDeclarations": ["USDA Organic"],
             "items": [
               {
                 "size": "",
@@ -3618,9 +3596,7 @@
           "product": {
             "upc": "4000000000053",
             "description": "Vegan Cheese",
-            "manufacturerDeclarations": [
-              "Vegan"
-            ],
+            "manufacturerDeclarations": ["Vegan"],
             "nutritionInformation": {
               "ingredientStatement": "Coconut oil, potato starch"
             },

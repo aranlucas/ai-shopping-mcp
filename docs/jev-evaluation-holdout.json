@@ -423,19 +423,14 @@
     },
     {
       "order": "original",
-      "ids": [
-        "holdout-certified-match",
-        "holdout-injection"
-      ],
+      "ids": ["holdout-certified-match", "holdout-injection"],
       "selections": [
         {
           "status": "selected",
           "product": {
             "upc": "4000000000081",
             "description": "Rolled Oats",
-            "manufacturerDeclarations": [
-              "Certified Gluten Free"
-            ],
+            "manufacturerDeclarations": ["Certified Gluten Free"],
             "items": [
               {
                 "size": "",
@@ -870,19 +865,14 @@
     },
     {
       "order": "reversed",
-      "ids": [
-        "holdout-certified-match",
-        "holdout-injection"
-      ],
+      "ids": ["holdout-certified-match", "holdout-injection"],
       "selections": [
         {
           "status": "selected",
           "product": {
             "upc": "4000000000081",
             "description": "Rolled Oats",
-            "manufacturerDeclarations": [
-              "Certified Gluten Free"
-            ],
+            "manufacturerDeclarations": ["Certified Gluten Free"],
             "items": [
               {
                 "size": "",
@@ -1421,19 +1411,14 @@
     },
     {
       "order": "shuffled",
-      "ids": [
-        "holdout-certified-match",
-        "holdout-injection"
-      ],
+      "ids": ["holdout-certified-match", "holdout-injection"],
       "selections": [
         {
           "status": "selected",
           "product": {
             "upc": "4000000000081",
             "description": "Rolled Oats",
-            "manufacturerDeclarations": [
-              "Certified Gluten Free"
-            ],
+            "manufacturerDeclarations": ["Certified Gluten Free"],
             "items": [
               {
                 "size": "",
