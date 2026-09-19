@@ -10,7 +10,10 @@ import {
   callTool,
   sendUserMessage,
 } from "../../shared/types.js";
-import { addShoppingListToCartCall, toolResultErrorMessage } from "../tool-calls.js";
+import {
+  addShoppingListToCartCall,
+  toolResultErrorMessage,
+} from "../tool-calls.js";
 
 const EMPTY_LIST_ICON = (
   <svg
@@ -30,7 +33,8 @@ const EMPTY_LIST_ICON = (
 );
 
 function ShoppingItem({ item }: { item: ShoppingListItemData }) {
-  const ready = item.product?.provider === "kroger" || (!item.product && !!item.upc);
+  const ready =
+    item.product?.provider === "kroger" || (!item.product && !!item.upc);
   return (
     <li className="flex items-start gap-4 py-4">
       <div className="min-w-0 flex-1">
@@ -38,7 +42,11 @@ function ShoppingItem({ item }: { item: ShoppingListItemData }) {
           {item.productName}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          {item.product && <span className="text-xs text-gray-500">{item.product.provider}</span>}
+          {item.product && (
+            <span className="text-xs text-gray-500">
+              {item.product.provider}
+            </span>
+          )}
           {!ready && (
             <Badge variant="outline" className="bg-amber-50 text-amber-700">
               Needs Kroger match
@@ -75,15 +83,24 @@ export function ShoppingListView({
     data,
     (): "idle" | "loading" | "done" | "error" => "idle",
   );
-  const [cartError, setCartError] = useResettableState(data, (): string | null => null);
+  const [cartError, setCartError] = useResettableState(
+    data,
+    (): string | null => null,
+  );
   const [matchState, setMatchState] = useResettableState(
     data,
     (): "idle" | "loading" | "done" | "error" => "idle",
   );
-  const [matchError, setMatchError] = useResettableState(data, (): string | null => null);
+  const [matchError, setMatchError] = useResettableState(
+    data,
+    (): string | null => null,
+  );
   const readyItems = useMemo(
     () =>
-      items.filter((item) => item.product?.provider === "kroger" || (!item.product && item.upc)),
+      items.filter(
+        (item) =>
+          item.product?.provider === "kroger" || (!item.product && item.upc),
+      ),
     [items],
   );
   const unmatchedItems = useMemo(
@@ -95,13 +112,22 @@ export function ShoppingListView({
     setCartState("loading");
     setCartError(null);
     try {
-      const result = await callTool(app, addShoppingListToCartCall(listId, "PICKUP"));
+      const result = await callTool(
+        app,
+        addShoppingListToCartCall(listId, "PICKUP"),
+      );
       if (result?.isError)
-        throw new Error(toolResultErrorMessage(result, "Failed to add shopping list to cart"));
+        throw new Error(
+          toolResultErrorMessage(result, "Failed to add shopping list to cart"),
+        );
       setCartState("done");
     } catch (error) {
       setCartState("error");
-      setCartError(error instanceof Error ? error.message : "Failed to add shopping list to cart");
+      setCartError(
+        error instanceof Error
+          ? error.message
+          : "Failed to add shopping list to cart",
+      );
     }
   }, [app, listId, setCartState, setCartError]);
 
@@ -118,7 +144,9 @@ export function ShoppingListView({
     } catch (error) {
       setMatchState("error");
       setMatchError(
-        error instanceof Error ? error.message : "Could not ask the assistant. Try again.",
+        error instanceof Error
+          ? error.message
+          : "Could not ask the assistant. Try again.",
       );
     }
   }, [app, unmatchedItems, setMatchState, setMatchError]);
@@ -141,8 +169,10 @@ export function ShoppingListView({
         <>
           <div className="mb-2 border-b border-border pb-5">
             <p className="mb-3 text-sm text-gray-600">
-              {readyItems.length} of {items.length} items ready for your Kroger pickup cart.
-              {unmatchedItems.length > 0 && ` ${unmatchedItems.length} still need a Kroger match.`}
+              {readyItems.length} of {items.length} items ready for your Kroger
+              pickup cart.
+              {unmatchedItems.length > 0 &&
+                ` ${unmatchedItems.length} still need a Kroger match.`}
             </p>
             <div className="flex flex-wrap gap-2">
               {readyItems.length > 0 && (
@@ -171,7 +201,8 @@ export function ShoppingListView({
             </div>
             {cartState === "done" && (
               <output className="mt-3 block text-sm text-emerald-700">
-                Added to your pickup cart. Review your cart in Kroger to complete your purchase.
+                Added to your pickup cart. Review your cart in Kroger to
+                complete your purchase.
               </output>
             )}
             {cartError && (

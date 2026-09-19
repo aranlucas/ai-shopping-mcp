@@ -24,7 +24,9 @@ function makePantryItem(overrides: Partial<PantryItem> = {}): PantryItem {
   };
 }
 
-function makeDealsResponse(overrides: Partial<QfcDealsApiResponse> = {}): QfcDealsApiResponse {
+function makeDealsResponse(
+  overrides: Partial<QfcDealsApiResponse> = {},
+): QfcDealsApiResponse {
   return {
     sourceMode: "print_fallback",
     locationId: "70500847",
@@ -35,7 +37,9 @@ function makeDealsResponse(overrides: Partial<QfcDealsApiResponse> = {}): QfcDea
   };
 }
 
-function makeCacheEntry(overrides: Partial<WeeklyDealsCacheEntry> = {}): WeeklyDealsCacheEntry {
+function makeCacheEntry(
+  overrides: Partial<WeeklyDealsCacheEntry> = {},
+): WeeklyDealsCacheEntry {
   const now = Date.now();
   return {
     version: 1,
@@ -64,7 +68,9 @@ function makeKvContext(store: Map<string, string> | null): ToolContext {
       (store
         ? {
             USER_DATA_KV: {
-              get: vi.fn<(key: string) => unknown>(async (key: string) => store.get(key) ?? null),
+              get: vi.fn<(key: string) => unknown>(
+                async (key: string) => store.get(key) ?? null,
+              ),
               put: vi.fn<(key: string, value: string) => unknown>(
                 async (key: string, value: string) => {
                   store.set(key, value);
@@ -113,18 +119,31 @@ describe("pantryFlagLabel", () => {
 describe("dealFlagLabel", () => {
   it("includes the price when the matched deal has one", () => {
     const deals = [
-      { id: "d1", title: "Kroger Whole Milk, Gallon", price: "$2.99", source: "print" as const },
+      {
+        id: "d1",
+        title: "Kroger Whole Milk, Gallon",
+        price: "$2.99",
+        source: "print" as const,
+      },
     ];
     expect(dealFlagLabel("whole milk", deals)).toBe("on sale: $2.99");
   });
 
   it("falls back to a plain 'on sale' label when the deal has no price", () => {
-    const deals = [{ id: "d1", title: "Kroger Whole Milk, Gallon", source: "print" as const }];
+    const deals = [
+      {
+        id: "d1",
+        title: "Kroger Whole Milk, Gallon",
+        source: "print" as const,
+      },
+    ];
     expect(dealFlagLabel("whole milk", deals)).toBe("on sale");
   });
 
   it("returns undefined when no deal matches", () => {
-    const deals = [{ id: "d1", title: "Frozen Pizza", source: "print" as const }];
+    const deals = [
+      { id: "d1", title: "Frozen Pizza", source: "print" as const },
+    ];
     expect(dealFlagLabel("whole milk", deals)).toBeUndefined();
   });
 });
@@ -137,10 +156,18 @@ describe("itemFlagLabels", () => {
   it("returns only the pantry and deal labels that apply", () => {
     const pantry = [makePantryItem({ productName: "Whole Milk" })];
     const deals = [
-      { id: "d1", title: "Kroger Whole Milk, Gallon", price: "$2.99", source: "print" as const },
+      {
+        id: "d1",
+        title: "Kroger Whole Milk, Gallon",
+        price: "$2.99",
+        source: "print" as const,
+      },
     ];
 
-    expect(itemFlagLabels("whole milk", pantry, deals)).toEqual(["in pantry", "on sale: $2.99"]);
+    expect(itemFlagLabels("whole milk", pantry, deals)).toEqual([
+      "in pantry",
+      "on sale: $2.99",
+    ]);
     expect(itemFlagLabels("bread", pantry, deals)).toEqual([]);
   });
 });
@@ -180,10 +207,24 @@ describe("getPantryForFlags", () => {
 
 describe("getDealsForFlags", () => {
   it("returns deals from a fresh cache entry", async () => {
-    const deals = [{ id: "d1", title: "Bananas", price: "$0.59/lb", source: "print" as const }];
+    const deals = [
+      {
+        id: "d1",
+        title: "Bananas",
+        price: "$0.59/lb",
+        source: "print" as const,
+      },
+    ];
     const store = new Map<string, string>();
-    const cacheKey = buildWeeklyDealsCacheKey({ locationId: "70500847", limit: 50, pageLimit: 2 });
-    store.set(cacheKey, JSON.stringify(makeCacheEntry({ data: makeDealsResponse({ deals }) })));
+    const cacheKey = buildWeeklyDealsCacheKey({
+      locationId: "70500847",
+      limit: 50,
+      pageLimit: 2,
+    });
+    store.set(
+      cacheKey,
+      JSON.stringify(makeCacheEntry({ data: makeDealsResponse({ deals }) })),
+    );
 
     const ctx = makeKvContext(store);
 
@@ -191,10 +232,21 @@ describe("getDealsForFlags", () => {
   });
 
   it("returns deals from a stale-but-within-grace cache entry", async () => {
-    const deals = [{ id: "d1", title: "Bananas", price: "$0.59/lb", source: "print" as const }];
+    const deals = [
+      {
+        id: "d1",
+        title: "Bananas",
+        price: "$0.59/lb",
+        source: "print" as const,
+      },
+    ];
     const now = Date.now();
     const store = new Map<string, string>();
-    const cacheKey = buildWeeklyDealsCacheKey({ locationId: "70500847", limit: 50, pageLimit: 2 });
+    const cacheKey = buildWeeklyDealsCacheKey({
+      locationId: "70500847",
+      limit: 50,
+      pageLimit: 2,
+    });
     store.set(
       cacheKey,
       JSON.stringify(
@@ -219,10 +271,16 @@ describe("getDealsForFlags", () => {
   it("returns an empty list when the cache entry is past its stale grace window", async () => {
     const now = Date.now();
     const store = new Map<string, string>();
-    const cacheKey = buildWeeklyDealsCacheKey({ locationId: "70500847", limit: 50, pageLimit: 2 });
+    const cacheKey = buildWeeklyDealsCacheKey({
+      locationId: "70500847",
+      limit: 50,
+      pageLimit: 2,
+    });
     store.set(
       cacheKey,
-      JSON.stringify(makeCacheEntry({ freshUntil: now - 120_000, staleUntil: now - 60_000 })),
+      JSON.stringify(
+        makeCacheEntry({ freshUntil: now - 120_000, staleUntil: now - 60_000 }),
+      ),
     );
 
     const ctx = makeKvContext(store);
@@ -232,7 +290,11 @@ describe("getDealsForFlags", () => {
 
   it("returns an empty list, not a throw, for a corrupted cache entry", async () => {
     const store = new Map<string, string>();
-    const cacheKey = buildWeeklyDealsCacheKey({ locationId: "70500847", limit: 50, pageLimit: 2 });
+    const cacheKey = buildWeeklyDealsCacheKey({
+      locationId: "70500847",
+      limit: 50,
+      pageLimit: 2,
+    });
     store.set(cacheKey, "{not-valid-json");
 
     const ctx = makeKvContext(store);

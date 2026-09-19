@@ -19,7 +19,9 @@ describe("Worker configuration", () => {
   });
 
   it("configures secretless bearer authentication for the gateway", () => {
-    expect(wranglerConfig).toContain('"GATEWAY_URL": "https://agents-gateway.up.railway.app"');
+    expect(wranglerConfig).toContain(
+      '"GATEWAY_URL": "https://agents-gateway.up.railway.app"',
+    );
     expect(generatedTypes).toContain("GATEWAY_URL");
     expect(serverSource).toContain("createGatewayShoppingStore");
     expect(serverSource).toContain("requestBearerToken(requestContext)");

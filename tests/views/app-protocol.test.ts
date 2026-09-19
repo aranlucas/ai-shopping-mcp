@@ -1,18 +1,30 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 import { AppBridge } from "@modelcontextprotocol/ext-apps/app-bridge";
-import { Client, InMemoryTransport, ProtocolError } from "@modelcontextprotocol/client";
+import {
+  Client,
+  InMemoryTransport,
+  ProtocolError,
+} from "@modelcontextprotocol/client";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod/v4";
 
 import { describe, expect, it } from "vitest";
 
-import { callTool, parseToolResult, type ToolCall } from "../../views/shared/types.js";
+import {
+  callTool,
+  parseToolResult,
+  type ToolCall,
+} from "../../views/shared/types.js";
 
 describe("MCP Apps v2 protocol bridge", () => {
   it("handshakes, routes tool results, and preserves ProtocolError rejections", async () => {
     const [viewTransport, hostTransport] = InMemoryTransport.createLinkedPair();
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    const server = new McpServer({ name: "shopping-server-test", version: "2.0.0" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    const server = new McpServer({
+      name: "shopping-server-test",
+      version: "2.0.0",
+    });
     server.registerTool(
       "search_products",
       {
@@ -23,7 +35,10 @@ describe("MCP Apps v2 protocol bridge", () => {
         structuredContent: { accepted: true, name: "search_products" },
       }),
     );
-    const client = new Client({ name: "shopping-client-test", version: "2.0.0" });
+    const client = new Client({
+      name: "shopping-client-test",
+      version: "2.0.0",
+    });
     const app = new App(
       { name: "shopping-app-test", version: "1.0.0" },
       {},
@@ -44,10 +59,19 @@ describe("MCP Apps v2 protocol bridge", () => {
     };
 
     try {
-      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-      await Promise.all([app.connect(viewTransport), bridge.connect(hostTransport)]);
+      await Promise.all([
+        server.connect(serverTransport),
+        client.connect(clientTransport),
+      ]);
+      await Promise.all([
+        app.connect(viewTransport),
+        bridge.connect(hostTransport),
+      ]);
 
-      expect(app.getHostVersion()).toEqual({ name: "shopping-host-test", version: "2.0.0" });
+      expect(app.getHostVersion()).toEqual({
+        name: "shopping-host-test",
+        version: "2.0.0",
+      });
       expect(app.getHostCapabilities()?.serverTools).toEqual({});
 
       await bridge.sendToolInput({ arguments: { terms: ["milk"] } });
@@ -89,7 +113,10 @@ describe("MCP Apps v2 protocol bridge", () => {
         structuredContent: { accepted: true, name: "search_products" },
       });
 
-      const rejectedCall = callTool(app, { name: "get_store", arguments: { storeId: "missing" } });
+      const rejectedCall = callTool(app, {
+        name: "get_store",
+        arguments: { storeId: "missing" },
+      });
       await expect(rejectedCall).rejects.toMatchObject({
         code: -32602,
         message: expect.stringContaining("get_store"),
@@ -98,7 +125,12 @@ describe("MCP Apps v2 protocol bridge", () => {
         (error: unknown) => error instanceof ProtocolError,
       );
     } finally {
-      await Promise.all([app.close(), bridge.close(), client.close(), server.close()]);
+      await Promise.all([
+        app.close(),
+        bridge.close(),
+        client.close(),
+        server.close(),
+      ]);
     }
   });
 });

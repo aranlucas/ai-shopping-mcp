@@ -37,7 +37,10 @@ Create `tests/utils/deal-category.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
 
-import { DEAL_CATEGORIES, classifyDealCategory } from "../../src/utils/deal-category.js";
+import {
+  DEAL_CATEGORIES,
+  classifyDealCategory,
+} from "../../src/utils/deal-category.js";
 
 describe("DEAL_CATEGORIES", () => {
   it("lists categories in meal-planning priority order, ending with Other", () => {
@@ -56,7 +59,10 @@ describe("DEAL_CATEGORIES", () => {
 describe("classifyDealCategory", () => {
   const cases: Array<[string, string]> = [
     // Meat & Seafood
-    ["Fresh Coastal Range Organic Boneless Chicken Full Line Sale", "Meat & Seafood"],
+    [
+      "Fresh Coastal Range Organic Boneless Chicken Full Line Sale",
+      "Meat & Seafood",
+    ],
     ["Oscar Mayer Beef Franks", "Meat & Seafood"],
     ["Hempler's Bacon", "Meat & Seafood"],
     ["Flank Steaks", "Meat & Seafood"],
@@ -92,7 +98,10 @@ describe("classifyDealCategory", () => {
     ["Stumptown Coffee", "Pantry, Snacks & Beverages"],
     ["Private Selection Pasta", "Pantry, Snacks & Beverages"],
     ["Powerade", "Pantry, Snacks & Beverages"],
-    ["Modelo, Elysian or White Claw Hard Seltzer", "Pantry, Snacks & Beverages"],
+    [
+      "Modelo, Elysian or White Claw Hard Seltzer",
+      "Pantry, Snacks & Beverages",
+    ],
     ["Pepsi", "Pantry, Snacks & Beverages"],
   ];
 
@@ -339,12 +348,13 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const CATEGORY_PATTERNS: Array<{ category: KeywordCategory; pattern: RegExp }> = (
-  Object.entries(CATEGORY_KEYWORDS) as Array<[KeywordCategory, string[]]>
-).map(([category, keywords]) => ({
-  category,
-  pattern: new RegExp(`\\b(?:${keywords.map(escapeRegExp).join("|")})\\b`),
-}));
+const CATEGORY_PATTERNS: Array<{ category: KeywordCategory; pattern: RegExp }> =
+  (Object.entries(CATEGORY_KEYWORDS) as Array<[KeywordCategory, string[]]>).map(
+    ([category, keywords]) => ({
+      category,
+      pattern: new RegExp(`\\b(?:${keywords.map(escapeRegExp).join("|")})\\b`),
+    }),
+  );
 
 /** Lowercase and strip diacritics so accented titles (e.g. "Entrée") match ASCII keywords. */
 function normalizeTitle(title: string): string {
@@ -424,7 +434,11 @@ it("classifies and sorts deals into category order (meat before produce before p
   const structured = response.structuredContent as {
     deals: Array<{ title: string; category: string }>;
   };
-  expect(structured.deals.map((d) => d.title)).toEqual(["Flank Steaks", "Zucchini", "Doritos"]);
+  expect(structured.deals.map((d) => d.title)).toEqual([
+    "Flank Steaks",
+    "Zucchini",
+    "Doritos",
+  ]);
   expect(structured.deals.map((d) => d.category)).toEqual([
     "Meat & Seafood",
     "Produce",
@@ -440,8 +454,13 @@ it("keeps deals within the same category in their original (source) order", asyn
     ],
   });
   const response = formatWeeklyDealsToolResponse(result, "miss");
-  const structured = response.structuredContent as { deals: Array<{ title: string }> };
-  expect(structured.deals.map((d) => d.title)).toEqual(["Chicken Breast", "Ground Beef"]);
+  const structured = response.structuredContent as {
+    deals: Array<{ title: string }>;
+  };
+  expect(structured.deals.map((d) => d.title)).toEqual([
+    "Chicken Breast",
+    "Ground Beef",
+  ]);
 });
 ```
 
@@ -461,7 +480,10 @@ import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 becomes:
 
 ```ts
-import { DEAL_CATEGORIES, classifyDealCategory } from "../utils/deal-category.js";
+import {
+  DEAL_CATEGORIES,
+  classifyDealCategory,
+} from "../utils/deal-category.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 ```
 
@@ -493,7 +515,10 @@ const deals = result.deals
     validTill: deal.validTill,
     category: classifyDealCategory(deal.title),
   }))
-  .sort((a, b) => DEAL_CATEGORIES.indexOf(a.category) - DEAL_CATEGORIES.indexOf(b.category));
+  .sort(
+    (a, b) =>
+      DEAL_CATEGORIES.indexOf(a.category) - DEAL_CATEGORIES.indexOf(b.category),
+  );
 ```
 
 (`Array.prototype.sort` is stable per spec, so this only reorders across categories — deals within the same category keep their original relative order.)
@@ -548,7 +573,9 @@ it("includes a validity header and dealCount when both dates are present", () =>
 });
 
 it("falls back to a bare dealCount header when dates are missing", () => {
-  const text = formatWeeklyDealsMarkdown([{ title: "Bananas", category: "Produce" }]);
+  const text = formatWeeklyDealsMarkdown([
+    { title: "Bananas", category: "Produce" },
+  ]);
   expect(text).toContain("dealCount: 1");
   expect(text).not.toContain("Deals valid");
 });
@@ -605,7 +632,9 @@ export type WeeklyDealMarkdownItem = {
 };
 
 /** One markdown line for a weekly deal: title, details, price, savings. */
-export function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
+export function formatWeeklyDealLineMarkdown(
+  deal: WeeklyDealMarkdownItem,
+): string {
   const parts: string[] = [deal.title];
   if (deal.details) parts.push(deal.details);
   if (deal.price) parts.push(deal.price);
@@ -785,7 +814,9 @@ In `views/app/views/weekly-deals.tsx`, add a grouping helper above `WeeklyDealsV
 
 ```ts
 /** Groups a category-sorted deals array into consecutive same-category runs. */
-function groupDealsByCategory(deals: DealData[]): Array<{ category: string; deals: DealData[] }> {
+function groupDealsByCategory(
+  deals: DealData[],
+): Array<{ category: string; deals: DealData[] }> {
   const groups: Array<{ category: string; deals: DealData[] }> = [];
   for (const deal of deals) {
     const last = groups[groups.length - 1];

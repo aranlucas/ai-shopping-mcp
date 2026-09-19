@@ -29,7 +29,8 @@ export const storeIdSchema = z
   .string()
   .trim()
   .refine((value) => value.length === 8, {
-    message: "Store ID must be the 8-character storeId from search_stores output.",
+    message:
+      "Store ID must be the 8-character storeId from search_stores output.",
   });
 
 /** A quantity field coerced from string/number input, bounded by min/max. */

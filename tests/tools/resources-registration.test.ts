@@ -13,7 +13,12 @@ type AuthContext = {
 };
 
 type ResourceHandler = (uri: URL) => Promise<{
-  contents: Array<{ type: string; uri: string; mimeType?: string; text: string }>;
+  contents: Array<{
+    type: string;
+    uri: string;
+    mimeType?: string;
+    text: string;
+  }>;
 }>;
 
 type CompleteFn = (value: string) => Promise<string[]>;
@@ -35,7 +40,11 @@ vi.mock("agents/mcp", () => ({
 
 function authenticate(userId = "user-123") {
   testState.authContext = {
-    props: { id: userId, accessToken: "test-token", tokenExpiresAt: Date.now() + 60_000 },
+    props: {
+      id: userId,
+      accessToken: "test-token",
+      tokenExpiresAt: Date.now() + 60_000,
+    },
   };
 }
 
@@ -43,7 +52,9 @@ function unauthenticate() {
   testState.authContext = undefined;
 }
 
-function decodeResource(result: { contents: Array<{ text: string }> }): Record<string, unknown> {
+function decodeResource(result: {
+  contents: Array<{ text: string }>;
+}): Record<string, unknown> {
   return decode(result.contents[0]?.text ?? "") as Record<string, unknown>;
 }
 
@@ -78,25 +89,38 @@ function storageFailure(): Promise<never> {
 function makeStorage(seed: StorageSeed = {}): UserStorage {
   return {
     pantry: {
-      getAll: seed.pantryThrows ? storageFailure : async () => seed.pantry ?? [],
+      getAll: seed.pantryThrows
+        ? storageFailure
+        : async () => seed.pantry ?? [],
     },
     equipment: {
-      getAll: seed.equipmentThrows ? storageFailure : async () => seed.equipment ?? [],
+      getAll: seed.equipmentThrows
+        ? storageFailure
+        : async () => seed.equipment ?? [],
     },
     preferredLocation: {
-      get: seed.locationThrows ? storageFailure : async () => seed.location ?? null,
+      get: seed.locationThrows
+        ? storageFailure
+        : async () => seed.location ?? null,
     },
     orderHistory: {
-      getRecent: seed.ordersThrows ? storageFailure : async () => seed.orders ?? [],
+      getRecent: seed.ordersThrows
+        ? storageFailure
+        : async () => seed.orders ?? [],
     },
   } as unknown as UserStorage;
 }
 
-function makeContext(storage: UserStorage, productClient: unknown = {}): ToolContext {
+function makeContext(
+  storage: UserStorage,
+  productClient: unknown = {},
+): ToolContext {
   return {
     server: makeServer(),
     clients: { productClient } as unknown as ToolContext["clients"],
-    productService: new ProductService(productClient as KrogerClients["productClient"]),
+    productService: new ProductService(
+      productClient as KrogerClients["productClient"],
+    ),
     catalogs: stubCatalogRegistry(),
     storage,
     carts: {} as ToolContext["carts"],
@@ -119,23 +143,31 @@ function getCompleteFn(name: string, field: string): CompleteFn {
     callbacks?: { complete?: Record<string, CompleteFn> };
     _callbacks?: { complete?: Record<string, CompleteFn> };
   };
-  const complete = template.callbacks?.complete ?? template["_callbacks"]?.complete;
+  const complete =
+    template.callbacks?.complete ?? template["_callbacks"]?.complete;
   const fn = complete?.[field];
   expect(fn).toBeTypeOf("function");
   return fn as CompleteFn;
 }
 
-function makeProductClient(overrides: { product?: unknown; error?: boolean } = {}) {
+function makeProductClient(
+  overrides: { product?: unknown; error?: boolean } = {},
+) {
   return {
     GET: async () => {
       if (overrides.error) {
         return {
           data: undefined,
-          response: new Response(null, { status: 500, statusText: "Server Error" }),
+          response: new Response(null, {
+            status: 500,
+            statusText: "Server Error",
+          }),
         };
       }
       const product =
-        "product" in overrides ? overrides.product : { upc: "0001112223334", description: "Milk" };
+        "product" in overrides
+          ? overrides.product
+          : { upc: "0001112223334", description: "Milk" };
       return {
         data: { data: product },
         response: new Response(null, { status: 200 }),
@@ -158,7 +190,13 @@ describe("registerResources", () => {
     registerResources(
       makeContext(
         makeStorage({
-          pantry: [{ productName: "Milk", quantity: 1, addedAt: "2026-06-01T00:00:00.000Z" }],
+          pantry: [
+            {
+              productName: "Milk",
+              quantity: 1,
+              addedAt: "2026-06-01T00:00:00.000Z",
+            },
+          ],
         }),
       ),
     );
@@ -185,15 +223,19 @@ describe("registerResources", () => {
 
   it("returns kitchen equipment and handles storage failures", async () => {
     registerResources(
-      makeContext(makeStorage({ equipment: [{ equipmentName: "Oven", addedAt: "x" }] })),
+      makeContext(
+        makeStorage({ equipment: [{ equipmentName: "Oven", addedAt: "x" }] }),
+      ),
     );
-    expect(decodeResource(await callResource("Kitchen Equipment")).itemCount).toBe(1);
+    expect(
+      decodeResource(await callResource("Kitchen Equipment")).itemCount,
+    ).toBe(1);
 
     testState.capturedResources.length = 0;
     registerResources(makeContext(makeStorage({ equipmentThrows: true })));
-    expect(decodeResource(await callResource("Kitchen Equipment")).error).toContain(
-      "Failed to fetch equipment data",
-    );
+    expect(
+      decodeResource(await callResource("Kitchen Equipment")).error,
+    ).toContain("Failed to fetch equipment data");
 
     testState.capturedResources.length = 0;
     unauthenticate();
@@ -217,7 +259,9 @@ describe("registerResources", () => {
         }),
       ),
     );
-    expect(decodeResource(await callResource("Preferred Store")).locationName).toBe("QFC");
+    expect(
+      decodeResource(await callResource("Preferred Store")).locationName,
+    ).toBe("QFC");
 
     testState.capturedResources.length = 0;
     registerResources(makeContext(makeStorage({ location: null })));
@@ -230,9 +274,9 @@ describe("registerResources", () => {
 
     testState.capturedResources.length = 0;
     registerResources(makeContext(makeStorage({ locationThrows: true })));
-    expect(decodeResource(await callResource("Preferred Store")).error).toContain(
-      "Failed to fetch preferred store data",
-    );
+    expect(
+      decodeResource(await callResource("Preferred Store")).error,
+    ).toContain("Failed to fetch preferred store data");
 
     testState.capturedResources.length = 0;
     unauthenticate();
@@ -250,7 +294,9 @@ describe("registerResources", () => {
         }),
       ),
     );
-    expect(decodeResource(await callResource("Order History")).orderCount).toBe(1);
+    expect(decodeResource(await callResource("Order History")).orderCount).toBe(
+      1,
+    );
 
     testState.capturedResources.length = 0;
     registerResources(makeContext(makeStorage({ ordersThrows: true })));
@@ -269,22 +315,26 @@ describe("registerResources", () => {
   it("does not register a session shopping list resource", () => {
     registerResources(makeContext(makeStorage()));
 
-    expect(testState.capturedResources.map((resource) => resource.name)).toEqual([
+    expect(
+      testState.capturedResources.map((resource) => resource.name),
+    ).toEqual([
       "Pantry Inventory",
       "Kitchen Equipment",
       "Preferred Store",
       "Order History",
       "Product Details",
     ]);
-    expect(testState.capturedResources.map((resource) => resource.name)).not.toContain(
-      "Shopping List",
-    );
+    expect(
+      testState.capturedResources.map((resource) => resource.name),
+    ).not.toContain("Shopping List");
   });
 
   it("registers workflow-first resource URIs", () => {
     registerResources(makeContext(makeStorage()));
 
-    expect(testState.capturedResources.map((resource) => resource.uriOrTemplate)).toEqual(
+    expect(
+      testState.capturedResources.map((resource) => resource.uriOrTemplate),
+    ).toEqual(
       expect.arrayContaining([
         "shopping://user/pantry",
         "shopping://user/kitchen-equipment",
@@ -292,7 +342,9 @@ describe("registerResources", () => {
         "shopping://user/order-history",
       ]),
     );
-    expect(testState.capturedResources.map((resource) => resource.uriOrTemplate)).not.toEqual(
+    expect(
+      testState.capturedResources.map((resource) => resource.uriOrTemplate),
+    ).not.toEqual(
       expect.arrayContaining([
         "shopping://user/equipment",
         "shopping://user/location",
@@ -324,12 +376,17 @@ describe("registerResources", () => {
               setAt: "x",
             },
           }),
-          makeProductClient({ product: { upc: "0001112223334", description: "Whole Milk" } }),
+          makeProductClient({
+            product: { upc: "0001112223334", description: "Whole Milk" },
+          }),
         ),
       );
 
       const decoded = decodeResource(
-        await callResource("Product Details", "shopping://product/0001112223334"),
+        await callResource(
+          "Product Details",
+          "shopping://product/0001112223334",
+        ),
       );
       expect(decoded.description).toBe("Whole Milk");
     });
@@ -339,31 +396,46 @@ describe("registerResources", () => {
       registerResources(
         makeContext(
           makeStorage({ location: null }),
-          makeProductClient({ product: { upc: "0001112223334", description: "Organic Milk" } }),
+          makeProductClient({
+            product: { upc: "0001112223334", description: "Organic Milk" },
+          }),
         ),
       );
 
       const decoded = decodeResource(
-        await callResource("Product Details", "shopping://product/0001112223334"),
+        await callResource(
+          "Product Details",
+          "shopping://product/0001112223334",
+        ),
       );
       expect(decoded.description).toBe("Organic Milk");
       expect(decoded.error).toBeUndefined();
     });
 
     it("returns a not-found message when the product is missing", async () => {
-      registerResources(makeContext(makeStorage(), makeProductClient({ product: null })));
+      registerResources(
+        makeContext(makeStorage(), makeProductClient({ product: null })),
+      );
 
       const decoded = decodeResource(
-        await callResource("Product Details", "shopping://product/0001112223334"),
+        await callResource(
+          "Product Details",
+          "shopping://product/0001112223334",
+        ),
       );
       expect(decoded.error).toContain("No product found");
     });
 
     it("returns an error when the product API fails", async () => {
-      registerResources(makeContext(makeStorage(), makeProductClient({ error: true })));
+      registerResources(
+        makeContext(makeStorage(), makeProductClient({ error: true })),
+      );
 
       const decoded = decodeResource(
-        await callResource("Product Details", "shopping://product/0001112223334"),
+        await callResource(
+          "Product Details",
+          "shopping://product/0001112223334",
+        ),
       );
       expect(decoded.error).toContain("Failed to fetch product");
     });
@@ -403,13 +475,17 @@ describe("registerResources", () => {
             orders: [
               {
                 orderId: "o1",
-                items: [{ upc: "3333333333333", productName: "Milk", quantity: 1 }],
+                items: [
+                  { upc: "3333333333333", productName: "Milk", quantity: 1 },
+                ],
                 totalItems: 1,
                 placedAt: "x",
               },
               {
                 orderId: "o2",
-                items: [{ upc: "3333333333333", productName: "Milk", quantity: 1 }],
+                items: [
+                  { upc: "3333333333333", productName: "Milk", quantity: 1 },
+                ],
                 totalItems: 1,
                 placedAt: "x",
               },
@@ -443,7 +519,9 @@ describe("registerResources", () => {
       unauthenticate();
 
       const complete = getCompleteFn("Product Details", "upc");
-      await expect(complete("1")).rejects.toThrow("outside an authenticated MCP request");
+      await expect(complete("1")).rejects.toThrow(
+        "outside an authenticated MCP request",
+      );
     });
   });
 });

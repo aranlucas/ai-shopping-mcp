@@ -1,4 +1,7 @@
-import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
+import type {
+  App,
+  McpUiHostContext,
+} from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
@@ -12,7 +15,13 @@ import type { ProductData } from "./types.js";
 export { Badge };
 
 const CART_ICON = (
-  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+  <svg
+    aria-hidden="true"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={2}
+    stroke="currentColor"
+  >
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -22,8 +31,18 @@ const CART_ICON = (
 );
 
 const PLUS_ICON = (
-  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+  <svg
+    aria-hidden="true"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={2}
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M12 4.5v15m7.5-7.5h-15"
+    />
   </svg>
 );
 
@@ -110,7 +129,8 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   const tags: Array<{ label: string; className: string }> = product.pickup
     ? [{ label: "Pickup", className: "bg-blue-50 text-blue-700" }]
     : [];
-  if (!product.available) tags.push({ label: "Out of Stock", className: "bg-red-50 text-red-600" });
+  if (!product.available)
+    tags.push({ label: "Out of Stock", className: "bg-red-50 text-red-600" });
   if (tags.length === 0) return null;
 
   return (
@@ -128,7 +148,8 @@ export function PriceDisplay({ product }: { product: ProductData }) {
   if (product.price === undefined) {
     return <span className="text-xs text-gray-500">Price unavailable</span>;
   }
-  const hasPromo = product.regularPrice !== undefined && product.regularPrice > product.price;
+  const hasPromo =
+    product.regularPrice !== undefined && product.regularPrice > product.price;
 
   return (
     <span className="inline-flex flex-wrap items-baseline gap-2">
@@ -213,7 +234,9 @@ export function ActionButton({
               : undefined
       }
     >
-      {icon && state === "idle" && <span className="size-3 shrink-0">{icon}</span>}
+      {icon && state === "idle" && (
+        <span className="size-3 shrink-0">{icon}</span>
+      )}
       {state === "loading" && (
         <svg
           aria-hidden="true"
@@ -258,8 +281,12 @@ export function ProductActions({
   onAddToCart: (name: string, productRef: string, qty: number) => Promise<void>;
   onAddToList: (name: string, productRef: string) => Promise<void>;
 }) {
-  const [cartState, setCartState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [listState, setListState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [cartState, setCartState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
+  const [listState, setListState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleCart = useCallback(async () => {
@@ -332,7 +359,10 @@ export function ProductActions({
 function ProductImage({ product }: { product: ProductData }) {
   const thumbnail = product.imageUrl;
   const [failedUrl, setFailedUrl] = useState<string | undefined>();
-  const handleImageError = useCallback(() => setFailedUrl(thumbnail), [thumbnail]);
+  const handleImageError = useCallback(
+    () => setFailedUrl(thumbnail),
+    [thumbnail],
+  );
 
   if (!thumbnail || failedUrl === thumbnail) {
     const initials = product.name
@@ -343,7 +373,10 @@ function ProductImage({ product }: { product: ProductData }) {
       .toUpperCase();
     return (
       <div className="flex aspect-4/3 w-full flex-col items-center justify-center gap-1 bg-muted">
-        <span aria-hidden="true" className="text-2xl font-semibold text-gray-500">
+        <span
+          aria-hidden="true"
+          className="text-2xl font-semibold text-gray-500"
+        >
           {initials}
         </span>
         <span className="text-xs text-gray-500">No image</span>
@@ -388,7 +421,9 @@ export function ProductCard({
       <ProductImage product={product} />
       <CardContent className="flex flex-1 flex-col pt-2">
         <div className="flex-1">
-          <h3 className="text-sm leading-snug font-semibold text-gray-900">{name}</h3>
+          <h3 className="text-sm leading-snug font-semibold text-gray-900">
+            {name}
+          </h3>
           {(brand || size) && (
             <div className="mt-0.5 text-xs text-gray-400">
               {brand}

@@ -34,13 +34,24 @@ describe("input forgiveness", () => {
   });
 
   /** callTool never throws here — schema failures come back as isError results. */
-  async function call(name: string, args: Record<string, unknown>): Promise<ToolCallResult> {
+  async function call(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolCallResult> {
     try {
-      return (await client.callTool({ name, arguments: args })) as ToolCallResult;
+      return (await client.callTool({
+        name,
+        arguments: args,
+      })) as ToolCallResult;
     } catch (error) {
       return {
         isError: true,
-        content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
+        content: [
+          {
+            type: "text",
+            text: error instanceof Error ? error.message : String(error),
+          },
+        ],
       };
     }
   }
@@ -66,13 +77,17 @@ describe("input forgiveness", () => {
 
     it("rejects record_order items keyed by productId instead of upc", async () => {
       const result = await call("record_order", {
-        items: [{ productId: "0001111041700", productName: "Milk", quantity: 1 }],
+        items: [
+          { productId: "0001111041700", productName: "Milk", quantity: 1 },
+        ],
       });
       expect(result.isError, `${contentText(result)}`).toBeTruthy();
     });
 
     it("accepts a storeId with surrounding whitespace", async () => {
-      const result = await call("set_preferred_store", { storeId: " 70500847 " });
+      const result = await call("set_preferred_store", {
+        storeId: " 70500847 ",
+      });
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
@@ -92,7 +107,10 @@ describe("input forgiveness", () => {
     });
 
     it("accepts limitPerTerm as a string", async () => {
-      const result = await call("search_products", { terms: ["milk"], limitPerTerm: "3" });
+      const result = await call("search_products", {
+        terms: ["milk"],
+        limitPerTerm: "3",
+      });
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
@@ -140,7 +158,10 @@ describe("input forgiveness", () => {
     });
 
     it("rejects an empty shopping list with an actionable message", async () => {
-      const result = await call("create_shopping_list", { name: "Empty", items: [] });
+      const result = await call("create_shopping_list", {
+        name: "Empty",
+        items: [],
+      });
       expect(result.isError).toBe(true);
       expect(contentText(result)).toContain("at least one item");
     });

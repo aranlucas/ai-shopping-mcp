@@ -1,8 +1,16 @@
-import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
+import type {
+  App,
+  McpUiHostContext,
+} from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useMemo, useState } from "react";
 
-import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
+import {
+  ActionButton,
+  Badge,
+  DisplayModeToggle,
+  SectionHeader,
+} from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import {
   type AppData,
@@ -22,7 +30,11 @@ const EMPTY_LOCATIONS_ICON = (
     strokeWidth={1.5}
     stroke="currentColor"
   >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+    />
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -32,7 +44,13 @@ const EMPTY_LOCATIONS_ICON = (
 );
 
 const PREFERRED_STAR_ICON = (
-  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+  <svg
+    aria-hidden="true"
+    fill="none"
+    viewBox="0 0 24 24"
+    strokeWidth={2}
+    stroke="currentColor"
+  >
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -44,7 +62,9 @@ const PREFERRED_STAR_ICON = (
 function locationToMapsUrl(loc: LocationData): string | null {
   const a = loc.address;
   if (!a?.addressLine1) return null;
-  const parts = [a.addressLine1, a.city, a.state, a.zipCode].filter(Boolean).join(", ");
+  const parts = [a.addressLine1, a.city, a.state, a.zipCode]
+    .filter(Boolean)
+    .join(", ");
   return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
 }
 
@@ -62,8 +82,12 @@ function LocationCard({
   onViewDetails: (id: string) => Promise<void>;
 }) {
   const id = location.locationId || "";
-  const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [detailState, setDetailState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [prefState, setPrefState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
+  const [detailState, setDetailState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
   const mapsUrl = locationToMapsUrl(location);
 
   const handleSetPreferred = useCallback(async () => {
@@ -151,8 +175,8 @@ function LocationCard({
             />
           </svg>
           <span className="min-w-0 flex-1">
-            {location.address.addressLine1}, {location.address.city}, {location.address.state}{" "}
-            {location.address.zipCode}
+            {location.address.addressLine1}, {location.address.city},{" "}
+            {location.address.state} {location.address.zipCode}
           </span>
           {mapsUrl && (
             <button
@@ -269,7 +293,11 @@ export function LocationResultsView({
   );
 
   const headerBadge = useMemo(
-    () => <span className="font-mono text-xs text-gray-400">{stores.length} found</span>,
+    () => (
+      <span className="font-mono text-xs text-gray-400">
+        {stores.length} found
+      </span>
+    ),
     [stores.length],
   );
   const headerTrailing = useMemo(
@@ -280,7 +308,9 @@ export function LocationResultsView({
   if (stores.length === 0) {
     return (
       <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Store Locations</h1>
+        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">
+          Store Locations
+        </h1>
         <EmptyState
           icon={EMPTY_LOCATIONS_ICON}
           message="No locations found"
@@ -292,7 +322,11 @@ export function LocationResultsView({
 
   return (
     <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader title="Store Locations" badge={headerBadge} trailing={headerTrailing} />
+      <SectionHeader
+        title="Store Locations"
+        badge={headerBadge}
+        trailing={headerTrailing}
+      />
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {stores.map((loc) => (
           <LocationCard

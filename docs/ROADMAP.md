@@ -9,8 +9,8 @@ the MCP server. [VISION.md](VISION.md) describes the architecture and host contr
 - Keep planning, substitutions, scheduling, and purchase approval in the host. This server
   supplies catalog data, household context, deterministic enrichment, and cart operations.
 - Use open provider registration and `productRef=<provider>:<id>` at shared boundaries.
-  Kroger supports cart writes; Trader Joe's currently supports browsing and lists. Do not
-  assume every provider supports stores, prices, aisle data, or carts.
+  Kroger is the only registered provider and supports cart writes. Do not assume future
+  providers support stores, prices, aisle data, or carts.
 - Shared household data belongs in agents-gateway/D1. New persistent profile fields need a
   gateway contract and migration, not another Worker KV storage class. KV remains appropriate
   for caches and cart state; atomic cart operations use the existing Durable Object journal.

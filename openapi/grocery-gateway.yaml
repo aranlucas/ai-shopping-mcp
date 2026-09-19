@@ -738,7 +738,8 @@ components:
           format: int64
     Invite:
       type: object
-      required: [code, household_id, created_by, expires_at, max_uses, used_count]
+      required:
+        [code, household_id, created_by, expires_at, max_uses, used_count]
       properties:
         code:
           type: string
@@ -794,7 +795,18 @@ components:
     Item:
       type: object
       required:
-        [id, list_id, name, quantity, note, position, added_by, checked_by, checked_at, updated_at]
+        [
+          id,
+          list_id,
+          name,
+          quantity,
+          note,
+          position,
+          added_by,
+          checked_by,
+          checked_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string

@@ -51,14 +51,18 @@ export function ProductCard({
   const size = product.items?.[0]?.size;
   const aisle =
     product.aisleLocations?.[0]?.description ||
-    (product.aisleLocations?.[0]?.number ? `Aisle ${product.aisleLocations[0].number}` : undefined);
+    (product.aisleLocations?.[0]?.number
+      ? `Aisle ${product.aisleLocations[0].number}`
+      : undefined);
 
   return (
     <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 flex flex-col overflow-hidden">
       <div className="p-3 flex-1">
         <div className="flex items-start gap-2">
           <div className="flex-1 min-w-0">
-            <div className="font-medium text-[13px] text-gray-900 leading-snug">{name}</div>
+            <div className="font-medium text-[13px] text-gray-900 leading-snug">
+              {name}
+            </div>
             {(brand || size) && (
               <div className="text-[11px] text-gray-400 mt-0.5">
                 {brand}
@@ -96,7 +100,9 @@ export function ProductCard({
           </div>
         </div>
         <FulfillmentTags product={product} />
-        {upc && <div className="text-[9px] text-gray-300 mt-1 font-mono">{upc}</div>}
+        {upc && (
+          <div className="text-[9px] text-gray-300 mt-1 font-mono">{upc}</div>
+        )}
       </div>
       <ProductActions
         upc={upc}
@@ -216,8 +222,12 @@ const STAPLE_KEYWORDS = [
   "vanilla",
 ];
 
-function isPantryStaple(term: string, firstProduct: ProductData | undefined): boolean {
-  if (firstProduct?.categories?.some((c) => STAPLE_CATEGORIES.has(c))) return true;
+function isPantryStaple(
+  term: string,
+  firstProduct: ProductData | undefined,
+): boolean {
+  if (firstProduct?.categories?.some((c) => STAPLE_CATEGORIES.has(c)))
+    return true;
   const lower = term.toLowerCase();
   return STAPLE_KEYWORDS.some((kw) => lower.includes(kw));
 }
@@ -230,7 +240,12 @@ function formatIngredientLabel(ing: {
   name: string;
   notes?: string;
 }): string {
-  return [ing.quantity, ing.unit, ing.name, ing.notes ? `(${ing.notes})` : undefined]
+  return [
+    ing.quantity,
+    ing.unit,
+    ing.name,
+    ing.notes ? `(${ing.notes})` : undefined,
+  ]
     .filter(Boolean)
     .join(" ");
 }
@@ -259,7 +274,9 @@ export function RecipeShoppingView({
 }) {
   const [includeStaples, setIncludeStaples] = useState(true);
   const [showStapleDetails, setShowStapleDetails] = useState(false);
-  const [addAllState, setAddAllState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [addAllState, setAddAllState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
 
   const ingredients = recipe.ingredients ?? [];
   const searched = ingredients.slice(0, 10);
@@ -272,7 +289,9 @@ export function RecipeShoppingView({
   const classified = results.results.map((result) => {
     const firstProduct = result.failed ? undefined : result.products[0];
     const staple =
-      !result.failed && result.products.length > 0 && isPantryStaple(result.term, firstProduct);
+      !result.failed &&
+      result.products.length > 0 &&
+      isPantryStaple(result.term, firstProduct);
     return { result, staple };
   });
 
@@ -302,7 +321,10 @@ export function RecipeShoppingView({
   const handleAddToList = async (name: string, upc: string) => {
     const r = await callTool(app, {
       name: "manage_shopping_list",
-      arguments: { action: "add", items: [{ productName: name, upc, quantity: 1 }] },
+      arguments: {
+        action: "add",
+        items: [{ productName: name, upc, quantity: 1 }],
+      },
     });
     if (r?.isError) {
       const msg =
@@ -317,7 +339,8 @@ export function RecipeShoppingView({
   // "Add All to Cart" — single batched call
   const handleAddAll = async () => {
     setAddAllState("loading");
-    const items: Array<{ upc: string; quantity: number; modality: string }> = [];
+    const items: Array<{ upc: string; quantity: number; modality: string }> =
+      [];
     for (const { result, staple } of classified) {
       if (staple && !includeStaples) continue;
       const upc = result.products[0]?.upc;
@@ -409,7 +432,11 @@ export function RecipeShoppingView({
             strokeWidth={2}
             stroke="currentColor"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 19.5 8.25 12l7.5-7.5"
+            />
           </svg>
           Show All Recipes
         </button>
@@ -418,12 +445,15 @@ export function RecipeShoppingView({
       {/* Subtitle */}
       <p className="text-[11px] text-gray-400 mb-4">
         {mainWithResults} product{mainWithResults !== 1 ? "s" : ""}
-        {stapleCount > 0 && ` | ${stapleCount} pantry staple${stapleCount !== 1 ? "s" : ""}`}
+        {stapleCount > 0 &&
+          ` | ${stapleCount} pantry staple${stapleCount !== 1 ? "s" : ""}`}
       </p>
 
       {/* Main ingredient cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-        {mainEntries.map(({ result }, idx) => renderIngredientCard(result, idx))}
+        {mainEntries.map(({ result }, idx) =>
+          renderIngredientCard(result, idx),
+        )}
       </div>
 
       {/* Not searched */}
@@ -457,7 +487,8 @@ export function RecipeShoppingView({
                 className="rounded border-gray-300 accent-[var(--app-accent)]"
               />
               <span className="text-[12px] text-gray-700">
-                Include {stapleCount} pantry staple{stapleCount !== 1 ? "s" : ""}
+                Include {stapleCount} pantry staple
+                {stapleCount !== 1 ? "s" : ""}
               </span>
             </label>
             <button
@@ -470,7 +501,9 @@ export function RecipeShoppingView({
           </div>
           {showStapleDetails && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
-              {stapleEntries.map(({ result }, idx) => renderIngredientCard(result, idx))}
+              {stapleEntries.map(({ result }, idx) =>
+                renderIngredientCard(result, idx),
+              )}
             </div>
           )}
         </div>
@@ -562,7 +595,9 @@ function RecipeCard({
   return (
     <div className="bg-[var(--app-card-bg)] rounded-lg border border-[var(--app-border)] hover:border-[var(--app-border-hover)] hover:shadow-sm transition-all duration-150 overflow-hidden flex flex-col">
       <div className="p-3">
-        <h3 className="font-semibold text-[13px] text-gray-900 leading-snug">{recipe.title}</h3>
+        <h3 className="font-semibold text-[13px] text-gray-900 leading-snug">
+          {recipe.title}
+        </h3>
         {recipe.description && (
           <p className="text-[11px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">
             {recipe.description}
@@ -605,7 +640,9 @@ function RecipeCard({
             </span>
           )}
           {recipe.servings && (
-            <span className="text-[11px] text-gray-400">{recipe.servings} servings</span>
+            <span className="text-[11px] text-gray-400">
+              {recipe.servings} servings
+            </span>
           )}
         </div>
       </div>
@@ -620,18 +657,31 @@ function RecipeCard({
             {recipe.ingredients.slice(0, 6).map((ing) => {
               const amount = [ing.quantity, ing.unit].filter(Boolean).join(" ");
               return (
-                <div key={`${ing.name}-${ing.quantity}`} className="flex gap-1.5 items-baseline">
+                <div
+                  key={`${ing.name}-${ing.quantity}`}
+                  className="flex gap-1.5 items-baseline"
+                >
                   <span className="text-gray-300 shrink-0">·</span>
                   <span>
-                    {amount && <span className="text-gray-400 mr-0.5">{amount}</span>}
-                    <span className="font-medium text-gray-700">{ing.name}</span>
-                    {ing.notes && <span className="text-gray-400 ml-0.5">({ing.notes})</span>}
+                    {amount && (
+                      <span className="text-gray-400 mr-0.5">{amount}</span>
+                    )}
+                    <span className="font-medium text-gray-700">
+                      {ing.name}
+                    </span>
+                    {ing.notes && (
+                      <span className="text-gray-400 ml-0.5">
+                        ({ing.notes})
+                      </span>
+                    )}
                   </span>
                 </div>
               );
             })}
             {recipe.ingredients.length > 6 && (
-              <p className="text-gray-400 pl-3">+{recipe.ingredients.length - 6} more</p>
+              <p className="text-gray-400 pl-3">
+                +{recipe.ingredients.length - 6} more
+              </p>
             )}
           </div>
         </div>
@@ -653,7 +703,11 @@ function RecipeCard({
               strokeWidth={2.5}
               stroke="currentColor"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="m8.25 4.5 7.5 7.5-7.5 7.5"
+              />
             </svg>
             Instructions · {recipe.instructions.length} steps
           </button>
@@ -664,7 +718,9 @@ function RecipeCard({
                   <span className="shrink-0 w-4 h-4 rounded-sm bg-gray-100 text-gray-500 text-[9px] font-bold flex items-center justify-center">
                     {step.stepNumber}
                   </span>
-                  <span className="pt-0.5 leading-relaxed">{step.instruction}</span>
+                  <span className="pt-0.5 leading-relaxed">
+                    {step.instruction}
+                  </span>
                 </div>
               ))}
             </div>
@@ -737,7 +793,13 @@ export function RecipeResultsView({
 
   const handleShopIngredients = async (recipe: RecipeData) => {
     if (!recipe.ingredients?.length) return;
-    setViewMode({ mode: "shopping", recipe, results: null, loading: true, error: null });
+    setViewMode({
+      mode: "shopping",
+      recipe,
+      results: null,
+      loading: true,
+      error: null,
+    });
     const terms = recipe.ingredients.slice(0, 10).map((i) => i.name);
     try {
       const result = await callTool(app, {
@@ -750,14 +812,26 @@ export function RecipeResultsView({
             ?.map((c) => ("text" in c ? c.text : ""))
             .filter(Boolean)
             .join(" ") || "Search failed. Try again.";
-        setViewMode({ mode: "shopping", recipe, results: null, loading: false, error: msg });
+        setViewMode({
+          mode: "shopping",
+          recipe,
+          results: null,
+          loading: false,
+          error: msg,
+        });
         return;
       }
       // `structuredContent` is present on `CallToolResult` in this SDK version —
       // same access pattern used in App.tsx line 127.
       const parsed = parseStructuredContent(result?.structuredContent);
       if (parsed?._view === "search_products") {
-        setViewMode({ mode: "shopping", recipe, results: parsed, loading: false, error: null });
+        setViewMode({
+          mode: "shopping",
+          recipe,
+          results: parsed,
+          loading: false,
+          error: null,
+        });
       } else {
         setViewMode({
           mode: "shopping",
@@ -769,7 +843,13 @@ export function RecipeResultsView({
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Search failed. Try again.";
-      setViewMode({ mode: "shopping", recipe, results: null, loading: false, error: msg });
+      setViewMode({
+        mode: "shopping",
+        recipe,
+        results: null,
+        loading: false,
+        error: msg,
+      });
     }
   };
 
@@ -794,11 +874,17 @@ export function RecipeResultsView({
               strokeWidth={2}
               stroke="currentColor"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 19.5 8.25 12l7.5-7.5"
+              />
             </svg>
             Back to recipes
           </button>
-          <p className="text-sm text-red-600 mb-3">{viewMode.error ?? "Something went wrong."}</p>
+          <p className="text-sm text-red-600 mb-3">
+            {viewMode.error ?? "Something went wrong."}
+          </p>
           <button
             type="button"
             onClick={() => handleShopIngredients(viewMode.recipe)}
@@ -826,7 +912,9 @@ export function RecipeResultsView({
   if (recipes.length === 0) {
     return (
       <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
-        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">Recipes</h1>
+        <h1 className="text-sm font-semibold text-gray-900 tracking-tight mb-1">
+          Recipes
+        </h1>
         <EmptyState
           icon={
             <svg
@@ -855,12 +943,20 @@ export function RecipeResultsView({
     <div className="px-3.5 py-3 max-w-4xl mx-auto animate-view-in">
       <SectionHeader
         title="Recipes"
-        badge={<span className="text-[11px] text-gray-400 font-mono">{recipes.length} found</span>}
+        badge={
+          <span className="text-[11px] text-gray-400 font-mono">
+            {recipes.length} found
+          </span>
+        }
         subtitle={`Results for "${searchQuery}"`}
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {recipes.map((recipe) => (
-          <RecipeCard key={recipe.slug} recipe={recipe} onShopIngredients={handleShopIngredients} />
+          <RecipeCard
+            key={recipe.slug}
+            recipe={recipe}
+            onShopIngredients={handleShopIngredients}
+          />
         ))}
       </div>
     </div>

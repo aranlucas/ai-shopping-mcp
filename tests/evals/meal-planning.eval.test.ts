@@ -36,7 +36,10 @@ const CACHE_KEY = buildWeeklyDealsCacheKey({
 const DEAL_START = "2026-09-09";
 const DEAL_END = "2026-09-15";
 
-function dealsData(deals = conciseDeals(10), warnings: string[] = []): QfcDealsApiResponse {
+function dealsData(
+  deals = conciseDeals(10),
+  warnings: string[] = [],
+): QfcDealsApiResponse {
   return {
     sourceMode: "print_fallback",
     locationId: DEFAULT_STORE_ID,
@@ -49,7 +52,10 @@ function dealsData(deals = conciseDeals(10), warnings: string[] = []): QfcDealsA
 function conciseDeals(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     id: `deal-${index + 1}`,
-    title: index === 0 ? "Kroger 2% Reduced Fat Milk" : `Weeknight Offer ${index + 1}`,
+    title:
+      index === 0
+        ? "Kroger 2% Reduced Fat Milk"
+        : `Weeknight Offer ${index + 1}`,
     details: index === 0 ? "1 gal" : "12 oz",
     price: index === 0 ? "$3.49" : "$2.00",
     savings: index === 0 ? "Save $0.50 (was $3.99)" : "Save $1.00",
@@ -82,8 +88,11 @@ function failKrogerFetches() {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = new URL(input instanceof Request ? input.url : input.toString());
-      if (url.hostname === "api.kroger.com") throw new Error("fixture Kroger outage");
+      const url = new URL(
+        input instanceof Request ? input.url : input.toString(),
+      );
+      if (url.hostname === "api.kroger.com")
+        throw new Error("fixture Kroger outage");
       return originalFetch(input, init);
     }),
   );
@@ -105,10 +114,19 @@ describe("meal planning weekly deals (wire eval)", () => {
     await reset();
   });
 
-  async function call(name: string, args: Record<string, unknown>): Promise<ToolCallResult> {
+  async function call(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolCallResult> {
     toolCalls++;
-    const result = (await client.callTool({ name, arguments: args })) as ToolCallResult;
-    expect(result.isError, `${name} failed: ${contentText(result)}`).toBeFalsy();
+    const result = (await client.callTool({
+      name,
+      arguments: args,
+    })) as ToolCallResult;
+    expect(
+      result.isError,
+      `${name} failed: ${contentText(result)}`,
+    ).toBeFalsy();
     return result;
   }
 
@@ -163,7 +181,9 @@ describe("meal planning weekly deals (wire eval)", () => {
     });
     await seedDeals();
 
-    const disabled = await call("get_meal_planning_context", { includeWeeklyDeals: " FALSE " });
+    const disabled = await call("get_meal_planning_context", {
+      includeWeeklyDeals: " FALSE ",
+    });
     expect(contentText(disabled)).toContain("Rice x1");
     expect(contentText(disabled)).not.toContain("Weekly Deals");
     expect(contentText(disabled)).not.toContain("Kroger 2% Reduced Fat Milk");
@@ -184,7 +204,9 @@ describe("meal planning weekly deals (wire eval)", () => {
       storeId: DEFAULT_STORE_ID,
     });
     const text = contentText(result);
-    expect(text).toContain("Your pantry is empty. Treat all recipe ingredients as items to buy.");
+    expect(text).toContain(
+      "Your pantry is empty. Treat all recipe ingredients as items to buy.",
+    );
     expect(text).toContain("Kroger 2% Reduced Fat Milk");
     expect(text).toContain("Action Required");
     expect(text).toContain("search_products");
@@ -193,7 +215,10 @@ describe("meal planning weekly deals (wire eval)", () => {
 
   it("surfaces a refresh warning when stale cached deals cannot refresh", async () => {
     await seedDeals(
-      { freshUntil: Date.now() - 60_000, staleUntil: Date.now() + 60 * 60 * 1000 },
+      {
+        freshUntil: Date.now() - 60_000,
+        staleUntil: Date.now() + 60 * 60 * 1000,
+      },
       dealsData(conciseDeals(2), ["Member prices require a loyalty card."]),
     );
     failKrogerFetches();

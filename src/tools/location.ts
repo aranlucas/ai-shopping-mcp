@@ -36,7 +36,9 @@ function compactLocation(location: Location): LocationData {
         }
       : undefined,
     phone: location.phone,
-    departments: location.departments?.map((department) => ({ name: department.name })),
+    departments: location.departments?.map((department) => ({
+      name: department.name,
+    })),
   };
 }
 
@@ -61,7 +63,9 @@ export function registerLocationTools(ctx: ToolContext) {
         zipCodeNear: z
           .string()
           .length(5, { message: "Zip code must be exactly 5 digits" })
-          .describe("5-digit zip code. Ask the user for their zip code if you don't know it."),
+          .describe(
+            "5-digit zip code. Ask the user for their zip code if you don't know it.",
+          ),
         limit: z.coerce.number().min(1).max(200).optional().default(5),
         chain: z
           .string()
@@ -96,7 +100,9 @@ export function registerLocationTools(ctx: ToolContext) {
       if (result.isErr()) return toMcpError(result.error);
       const stores = result.value;
       return {
-        content: [{ type: "text" as const, text: formatStoreListMarkdown(stores) }],
+        content: [
+          { type: "text" as const, text: formatStoreListMarkdown(stores) },
+        ],
         ...appResult("search_stores", { stores: stores.map(compactLocation) }),
       };
     },
@@ -117,7 +123,9 @@ export function registerLocationTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: z.object({
-        storeId: storeIdSchema.describe("8-character storeId from search_stores"),
+        storeId: storeIdSchema.describe(
+          "8-character storeId from search_stores",
+        ),
       }),
     },
     async ({ storeId }) => {
@@ -130,7 +138,9 @@ export function registerLocationTools(ctx: ToolContext) {
       ).andThen((data) => {
         const location = data?.data;
         if (!location) {
-          return err(notFoundError(`No information found for location ID: ${storeId}`));
+          return err(
+            notFoundError(`No information found for location ID: ${storeId}`),
+          );
         }
         return ok(location);
       });
@@ -138,7 +148,9 @@ export function registerLocationTools(ctx: ToolContext) {
       if (result.isErr()) return toMcpError(result.error);
       const location = result.value;
       return {
-        content: [{ type: "text" as const, text: formatStoreDetailMarkdown(location) }],
+        content: [
+          { type: "text" as const, text: formatStoreDetailMarkdown(location) },
+        ],
         ...appResult("get_store", { store: compactLocation(location) }),
       };
     },
@@ -159,7 +171,9 @@ export function registerLocationTools(ctx: ToolContext) {
         openWorldHint: true,
       },
       inputSchema: z.object({
-        storeId: storeIdSchema.describe("8-character storeId from search_stores"),
+        storeId: storeIdSchema.describe(
+          "8-character storeId from search_stores",
+        ),
       }),
     },
     async ({ storeId }) => {
@@ -172,7 +186,9 @@ export function registerLocationTools(ctx: ToolContext) {
       ).andThen((data) => {
         const location = data?.data;
         if (!location) {
-          return err(notFoundError(`No information found for location ID: ${storeId}`));
+          return err(
+            notFoundError(`No information found for location ID: ${storeId}`),
+          );
         }
 
         const preferredLocation: PreferredLocation = {

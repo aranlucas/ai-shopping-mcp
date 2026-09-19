@@ -26,7 +26,8 @@ import {
   installKrogerFetchStub,
 } from "./harness.js";
 
-const logEnabled = () => Boolean((env as unknown as Record<string, string | undefined>).EVAL_LOG);
+const logEnabled = () =>
+  Boolean((env as unknown as Record<string, string | undefined>).EVAL_LOG);
 
 function log(...parts: unknown[]) {
   if (logEnabled()) console.log("[eval]", ...parts);
@@ -68,7 +69,10 @@ describe("token budget: tool surface", () => {
     // No single tool may dominate the surface. Baseline max: 311
     // (add_shopping_list_to_cart).
     for (const entry of perTool) {
-      expect(entry.tokens, `tool ${entry.name} definition too large`).toBeLessThan(400);
+      expect(
+        entry.tokens,
+        `tool ${entry.name} definition too large`,
+      ).toBeLessThan(400);
     }
   });
 
@@ -107,7 +111,10 @@ describe("token budget: tool responses", () => {
     await reset();
   });
 
-  async function call(name: string, args: Record<string, unknown>): Promise<ToolCallResult> {
+  async function call(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolCallResult> {
     return (await client.callTool({ name, arguments: args })) as ToolCallResult;
   }
 
@@ -117,7 +124,9 @@ describe("token budget: tool responses", () => {
     const structuredTokens = result.structuredContent
       ? estimateJsonTokens(result.structuredContent)
       : 0;
-    log(`${name}: content=${textTokens}t structuredContent=${structuredTokens}t`);
+    log(
+      `${name}: content=${textTokens}t structuredContent=${structuredTokens}t`,
+    );
     return { textTokens, structuredTokens };
   }
 
@@ -129,7 +138,10 @@ describe("token budget: tool responses", () => {
     expect(result.isError).toBeFalsy();
 
     // Baseline before compact projection: content=291t, structuredContent=4658t.
-    const { textTokens, structuredTokens } = report("search_products x5", result);
+    const { textTokens, structuredTokens } = report(
+      "search_products x5",
+      result,
+    );
     expect(textTokens).toBeLessThan(600);
 
     // Some hosts expose structuredContent to the model, so this is a real

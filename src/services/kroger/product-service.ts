@@ -37,7 +37,10 @@ export class ProductService {
     });
   }
 
-  async enrichProductName(upc: string, locationId?: string): Promise<string | null> {
+  async enrichProductName(
+    upc: string,
+    locationId?: string,
+  ): Promise<string | null> {
     return this.getProduct(upc, locationId).match(
       (product) => product.description ?? null,
       () => null,

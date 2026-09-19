@@ -219,12 +219,13 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const CATEGORY_PATTERNS: Array<{ category: KeywordCategory; pattern: RegExp }> = (
-  Object.entries(CATEGORY_KEYWORDS) as Array<[KeywordCategory, string[]]>
-).map(([category, keywords]) => ({
-  category,
-  pattern: new RegExp(`\\b(?:${keywords.map(escapeRegExp).join("|")})\\b`),
-}));
+const CATEGORY_PATTERNS: Array<{ category: KeywordCategory; pattern: RegExp }> =
+  (Object.entries(CATEGORY_KEYWORDS) as Array<[KeywordCategory, string[]]>).map(
+    ([category, keywords]) => ({
+      category,
+      pattern: new RegExp(`\\b(?:${keywords.map(escapeRegExp).join("|")})\\b`),
+    }),
+  );
 
 /** Lowercase and strip diacritics so accented titles (e.g. "Entrée") match ASCII keywords. */
 function normalizeTitle(title: string): string {

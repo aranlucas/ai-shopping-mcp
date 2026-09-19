@@ -29,31 +29,48 @@ const PREFERRED_STORE = {
   chain: "QFC",
   setAt: "2026-09-12T00:00:00Z",
 };
-const TRADER_JOES_STORE = { ...PREFERRED_STORE, provider: "trader_joes", locationId: "701" };
-const CACHE_KEY = buildWeeklyDealsCacheKey({ locationId: STORE_ID, limit: 50, pageLimit: 2 });
+const OTHER_PROVIDER_STORE = {
+  ...PREFERRED_STORE,
+  provider: "sample_catalog",
+  locationId: "701",
+};
+const CACHE_KEY = buildWeeklyDealsCacheKey({
+  locationId: STORE_ID,
+  limit: 50,
+  pageLimit: 2,
+});
 
-function dealsResponse(overrides: Partial<QfcDealsApiResponse> = {}): QfcDealsApiResponse {
+function dealsResponse(
+  overrides: Partial<QfcDealsApiResponse> = {},
+): QfcDealsApiResponse {
   return {
     locationId: STORE_ID,
     divisionCode: "705",
     sourceMode: "print_fallback",
     warnings: [],
-    deals: [{ id: "deal-1", title: "Black beans", price: "$0.99", source: "print" }],
+    deals: [
+      { id: "deal-1", title: "Black beans", price: "$0.99", source: "print" },
+    ],
     ...overrides,
   };
 }
 
 function call(args: Record<string, unknown> = {}) {
-  const { inputSchema } = getCapturedTool("get_meal_planning_context").config as {
+  const { inputSchema } = getCapturedTool("get_meal_planning_context")
+    .config as {
     inputSchema: z.ZodType<Record<string, unknown>>;
   };
-  return getCapturedHandler("get_meal_planning_context")(inputSchema.parse(args));
+  return getCapturedHandler("get_meal_planning_context")(
+    inputSchema.parse(args),
+  );
 }
 
 describe("meal planning with weekly deals", () => {
   let context: ReturnType<typeof makeContext>;
   let cache: Map<string, string>;
-  let readCache: ReturnType<typeof vi.fn<(key: string) => Promise<string | null>>>;
+  let readCache: ReturnType<
+    typeof vi.fn<(key: string) => Promise<string | null>>
+  >;
 
   beforeEach(async () => {
     resetToolTestHarness();
@@ -121,11 +138,17 @@ describe("meal planning with weekly deals", () => {
     expect(result.text).toContain("Dietary preferences: vegetarian");
     expect(result.text).toContain("search_products");
     expect(result.text).toContain("create_shopping_list");
-    expect(result.text).toContain("do not assume sale items are already in the pantry");
+    expect(result.text).toContain(
+      "do not assume sale items are already in the pantry",
+    );
     expect(result.structuredContent).toBeUndefined();
     expect(result._meta).toBeUndefined();
     expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
-      expect.objectContaining({ locationId: STORE_ID, limit: 50, pageLimit: 2 }),
+      expect.objectContaining({
+        locationId: STORE_ID,
+        limit: 50,
+        pageLimit: 2,
+      }),
     );
     expect(cache.has(CACHE_KEY)).toBe(true);
   });
@@ -140,18 +163,18 @@ describe("meal planning with weekly deals", () => {
   });
 
   it("honors an explicit Kroger store without changing a different provider's preference", async () => {
-    await context.storage.preferredLocation.set(TRADER_JOES_STORE);
+    await context.storage.preferredLocation.set(OTHER_PROVIDER_STORE);
     await call({ includeWeeklyDeals: true, storeId: ` ${STORE_ID} ` });
     expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
       expect.objectContaining({ locationId: STORE_ID }),
     );
     expect(await context.storage.preferredLocation.get()).toMatchObject({
-      provider: "trader_joes",
+      provider: "sample_catalog",
       locationId: "701",
     });
   });
 
-  it.each([null, TRADER_JOES_STORE])(
+  it.each([null, OTHER_PROVIDER_STORE])(
     "preserves pantry context and store recovery guidance for preference %j",
     async (preferred) => {
       context.storage.preferredLocation.get = async () => preferred;
@@ -169,13 +192,17 @@ describe("meal planning with weekly deals", () => {
     await context.storage.pantry.clear();
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
-    expect(result.text).toContain("Treat all recipe ingredients as items to buy");
+    expect(result.text).toContain(
+      "Treat all recipe ingredients as items to buy",
+    );
     expect(result.text).toContain("Black beans");
     expect(result.text).toContain("Action Required");
   });
 
   it("handles empty ads without suggesting that discounts exist", async () => {
-    vi.mocked(getQfcWeeklyDeals).mockResolvedValue(dealsResponse({ deals: [] }));
+    vi.mocked(getQfcWeeklyDeals).mockResolvedValue(
+      dealsResponse({ deals: [] }),
+    );
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("No weekly offers found");
@@ -185,9 +212,13 @@ describe("meal planning with weekly deals", () => {
   it("labels stale fallback offers and preserves upstream warnings", async () => {
     seedCache({
       freshUntil: Date.now() - 60_000,
-      data: dealsResponse({ warnings: ["Member prices require a loyalty card."] }),
+      data: dealsResponse({
+        warnings: ["Member prices require a loyalty card."],
+      }),
     });
-    vi.mocked(getQfcWeeklyDeals).mockRejectedValue(new Error("Service unavailable"));
+    vi.mocked(getQfcWeeklyDeals).mockRejectedValue(
+      new Error("Service unavailable"),
+    );
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("cache=stale");
@@ -197,8 +228,13 @@ describe("meal planning with weekly deals", () => {
   });
 
   it("keeps pantry planning available when a refresh fails beyond the stale grace period", async () => {
-    seedCache({ freshUntil: Date.now() - 120_000, staleUntil: Date.now() - 60_000 });
-    vi.mocked(getQfcWeeklyDeals).mockRejectedValue(new Error("Service unavailable"));
+    seedCache({
+      freshUntil: Date.now() - 120_000,
+      staleUntil: Date.now() - 60_000,
+    });
+    vi.mocked(getQfcWeeklyDeals).mockRejectedValue(
+      new Error("Service unavailable"),
+    );
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("Weekly Deals Unavailable");
@@ -231,7 +267,9 @@ describe("meal planning with weekly deals", () => {
     );
     expect(result.text).not.toContain("Offer 11");
     expect(result.text).toContain("get_weekly_deals for more offers");
-    expect(JSON.parse(cache.get(CACHE_KEY) ?? "{}").data.deals).toHaveLength(12);
+    expect(JSON.parse(cache.get(CACHE_KEY) ?? "{}").data.deals).toHaveLength(
+      12,
+    );
   });
 
   it("normalizes string booleans without treating false as an opt-in", async () => {
@@ -245,14 +283,20 @@ describe("meal planning with weekly deals", () => {
   it("keeps stale fallback when the refresh exceeds its deadline instead of caching partial data", async () => {
     seedCache({ freshUntil: Date.now() - 60_000 });
     const originalCache = cache.get(CACHE_KEY);
-    const signal = AbortSignal.abort(new DOMException("Deal request timed out", "TimeoutError"));
+    const signal = AbortSignal.abort(
+      new DOMException("Deal request timed out", "TimeoutError"),
+    );
     vi.spyOn(AbortSignal, "timeout").mockReturnValue(signal);
-    vi.mocked(getQfcWeeklyDeals).mockResolvedValue(dealsResponse({ deals: [] }));
+    vi.mocked(getQfcWeeklyDeals).mockResolvedValue(
+      dealsResponse({ deals: [] }),
+    );
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("cache=stale");
     expect(result.text).toContain("Black beans");
-    expect(getQfcWeeklyDeals).toHaveBeenCalledWith(expect.objectContaining({ signal }));
+    expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
+      expect.objectContaining({ signal }),
+    );
     expect(cache.get(CACHE_KEY)).toBe(originalCache);
   });
 });

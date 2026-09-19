@@ -3,12 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ToolContext, UserStorage } from "../../src/tools/types.js";
-import type { CartStore, PreferredLocation, ShoppingList } from "../../src/utils/user-storage.js";
+import type {
+  CartStore,
+  PreferredLocation,
+  ShoppingList,
+} from "../../src/utils/user-storage.js";
 
-import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
+import {
+  registerShopTools,
+  shopForItemsInputSchema,
+} from "../../src/tools/shop.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
-import { type TestToolHandler as ToolHandler, wrapV2ToolHandler } from "../v2-tool-handler.js";
+import {
+  type TestToolHandler as ToolHandler,
+  wrapV2ToolHandler,
+} from "../v2-tool-handler.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
+import { stubJevAi, type JevRun } from "../jev-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -38,7 +49,11 @@ vi.mock("agents/mcp", () => ({
 
 function authenticate(userId = "user-123") {
   testState.authContext = {
-    props: { id: userId, accessToken: "test-token", tokenExpiresAt: Date.now() + 60_000 },
+    props: {
+      id: userId,
+      accessToken: "test-token",
+      tokenExpiresAt: Date.now() + 60_000,
+    },
   };
 }
 
@@ -52,7 +67,10 @@ function isErrorResult(result: unknown): boolean {
 }
 
 function structuredContentOf(result: unknown): Record<string, unknown> {
-  return (result as { structuredContent?: Record<string, unknown> }).structuredContent ?? {};
+  return (
+    (result as { structuredContent?: Record<string, unknown> })
+      .structuredContent ?? {}
+  );
 }
 
 function makeProduct(overrides: Partial<Product> = {}): Product {
@@ -72,14 +90,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
 }
 
 function makeStubAi() {
-  return {
-    run: async (_model: string, options: { contexts: { text?: string }[] }) => ({
-      response: options.contexts.map((context, index) => ({
-        id: index,
-        score: context.text?.startsWith("Whole Milk") ? 0.9 : 0.1,
-      })),
-    }),
-  };
+  return stubJevAi("Whole Milk");
 }
 
 function makeMinimalKv() {
@@ -116,8 +127,17 @@ function makeContext(
       set: async () => {},
     },
     shoppingList: {
-      create: async (id: string, name: string, items: ShoppingList["items"]) => {
-        const list: ShoppingList = { id, name, items, createdAt: new Date().toISOString() };
+      create: async (
+        id: string,
+        name: string,
+        items: ShoppingList["items"],
+      ) => {
+        const list: ShoppingList = {
+          id,
+          name,
+          items,
+          createdAt: new Date().toISOString(),
+        };
         createdLists.push(list);
         return list;
       },
@@ -175,7 +195,7 @@ function makeContext(
     carts: storage,
     getEnv: () =>
       ({
-        AI: { run: async () => ({ data: [] }) },
+        AI: stubJevAi(),
         USER_DATA_KV: { get: async () => null, put: async () => {} },
       }) as unknown as Env,
   };
@@ -220,12 +240,20 @@ describe("shop_for_items", () => {
         if (term === "eggs") {
           return {
             data: {
-              data: [makeProduct({ upc: "0002000000029", description: "Grade A Large Eggs" })],
+              data: [
+                makeProduct({
+                  upc: "0002000000029",
+                  description: "Grade A Large Eggs",
+                }),
+              ],
             },
             response: new Response(null, { status: 200 }),
           };
         }
-        return { data: { data: [] }, response: new Response(null, { status: 200 }) };
+        return {
+          data: { data: [] },
+          response: new Response(null, { status: 200 }),
+        };
       }, PREFERRED_LOCATION),
     );
 
@@ -239,14 +267,18 @@ describe("shop_for_items", () => {
       _meta: { "dev.aranlucas/view": "create_shopping_list" },
     });
     expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
-    expect((sc["items"] as Array<{ productName: string; upc?: string }>).map((i) => i.upc)).toEqual(
-      ["0001111041700", "0002000000029"],
-    );
+    expect(
+      (sc["items"] as Array<{ productName: string; upc?: string }>).map(
+        (i) => i.upc,
+      ),
+    ).toEqual(["0001111041700", "0002000000029"]);
 
     const text = textFromResult(result);
     expect(text).toContain("whole milk → Kroger 2% Reduced Fat Milk");
     expect(text).toContain("eggs → Grade A Large Eggs");
-    expect(text).toContain(`call add_shopping_list_to_cart with listId "${sc["listId"]}"`);
+    expect(text).toContain(
+      `call add_shopping_list_to_cart with listId "${sc["listId"]}"`,
+    );
   });
 
   it("picks the pickup-available product over a non-pickup product for the same name", async () => {
@@ -270,10 +302,14 @@ describe("shop_for_items", () => {
       }, PREFERRED_LOCATION),
     );
 
-    const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+    const result = await getCapturedHandler("shop_for_items")({
+      items: [{ name: "milk" }],
+    });
 
     const sc = structuredContentOf(result);
-    expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe("2222222222222");
+    expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(
+      "2222222222222",
+    );
   });
 
   it("tracks names with zero results and still creates a list for the rest", async () => {
@@ -281,9 +317,15 @@ describe("shop_for_items", () => {
       makeContext(async (_path, opts) => {
         const term = String(opts.params.query?.["filter.term"] ?? "");
         if (term === "milk") {
-          return { data: { data: [makeProduct()] }, response: new Response(null, { status: 200 }) };
+          return {
+            data: { data: [makeProduct()] },
+            response: new Response(null, { status: 200 }),
+          };
         }
-        return { data: { data: [] }, response: new Response(null, { status: 200 }) };
+        return {
+          data: { data: [] },
+          response: new Response(null, { status: 200 }),
+        };
       }, PREFERRED_LOCATION),
     );
 
@@ -292,7 +334,9 @@ describe("shop_for_items", () => {
     });
 
     expect(isErrorResult(result)).toBe(false);
-    expect(textFromResult(result)).toContain("No results for: unobtainium sauce.");
+    expect(textFromResult(result)).toContain(
+      "No results for: unobtainium sauce.",
+    );
     const sc = structuredContentOf(result);
     expect((sc["items"] as unknown[]).length).toBe(1);
   });
@@ -300,25 +344,37 @@ describe("shop_for_items", () => {
   it("returns an error when every name has zero results", async () => {
     registerShopTools(
       makeContext(async () => {
-        return { data: { data: [] }, response: new Response(null, { status: 200 }) };
+        return {
+          data: { data: [] },
+          response: new Response(null, { status: 200 }),
+        };
       }, PREFERRED_LOCATION),
     );
 
-    const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "unobtainium" }] });
+    const result = await getCapturedHandler("shop_for_items")({
+      items: [{ name: "unobtainium" }],
+    });
 
     expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("No products found for: unobtainium");
+    expect(textFromResult(result)).toContain(
+      "No products found for: unobtainium",
+    );
     expect(textFromResult(result)).toContain("search_products");
   });
 
   it("returns a prescriptive error when no preferred store is set", async () => {
     registerShopTools(
       makeContext(async () => {
-        return { data: { data: [] }, response: new Response(null, { status: 200 }) };
+        return {
+          data: { data: [] },
+          response: new Response(null, { status: 200 }),
+        };
       }, null),
     );
 
-    const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+    const result = await getCapturedHandler("shop_for_items")({
+      items: [{ name: "milk" }],
+    });
 
     expect(isErrorResult(result)).toBe(true);
     expect(textFromResult(result)).toContain("No preferred store set");
@@ -328,16 +384,24 @@ describe("shop_for_items", () => {
 
   describe("addToCart", () => {
     it("defaults to false when omitted", () => {
-      const parsed = shopForItemsInputSchema.parse({ items: [{ name: "milk" }] });
+      const parsed = shopForItemsInputSchema.parse({
+        items: [{ name: "milk" }],
+      });
       expect(parsed.addToCart).toBe(false);
     });
 
     it("coerces the strings 'true' and 'false' since small models sometimes stringify booleans", () => {
       expect(
-        shopForItemsInputSchema.parse({ items: [{ name: "milk" }], addToCart: "true" }).addToCart,
+        shopForItemsInputSchema.parse({
+          items: [{ name: "milk" }],
+          addToCart: "true",
+        }).addToCart,
       ).toBe(true);
       expect(
-        shopForItemsInputSchema.parse({ items: [{ name: "milk" }], addToCart: "false" }).addToCart,
+        shopForItemsInputSchema.parse({
+          items: [{ name: "milk" }],
+          addToCart: "false",
+        }).addToCart,
       ).toBe(false);
     });
 
@@ -347,11 +411,15 @@ describe("shop_for_items", () => {
       const mirrorAppendCalls: unknown[][] = [];
 
       registerShopTools(
-        makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION, {
-          cartPutCalls,
-          snapshotSetCalls,
-          mirrorAppendCalls,
-        }),
+        makeContext(
+          async () => makeSearchResponse([makeProduct()]),
+          PREFERRED_LOCATION,
+          {
+            cartPutCalls,
+            snapshotSetCalls,
+            mirrorAppendCalls,
+          },
+        ),
       );
 
       const result = await getCapturedHandler("shop_for_items")({
@@ -363,7 +431,9 @@ describe("shop_for_items", () => {
       expect(cartPutCalls).toHaveLength(1);
       expect(cartPutCalls[0]).toMatchObject({
         options: {
-          body: { items: [{ upc: "0001111041700", quantity: 1, modality: "PICKUP" }] },
+          body: {
+            items: [{ upc: "0001111041700", quantity: 1, modality: "PICKUP" }],
+          },
         },
       });
       expect(snapshotSetCalls).toHaveLength(1);
@@ -380,6 +450,134 @@ describe("shop_for_items", () => {
   });
 
   describe("semantic match ranking", () => {
+    it("selects multiple grocery items in one Jev call and preserves quantities", async () => {
+      const milk = makeProduct();
+      const eggs = makeProduct({ upc: "0002000000029", description: "Eggs" });
+      const ctx = makeContext(
+        async (_path, options) =>
+          makeSearchResponse(
+            options.params.query?.["filter.term"] === "milk" ? [milk] : [eggs],
+          ),
+        PREFERRED_LOCATION,
+      );
+      const run = vi.fn<JevRun>(stubJevAi().gateway("default").run);
+      ctx.getEnv = () =>
+        ({ AI: { gateway: () => ({ run }) } }) as unknown as Env;
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [
+          { name: "milk", quantity: 2 },
+          { name: "eggs", quantity: 3 },
+        ],
+      });
+      expect(isErrorResult(result)).toBe(false);
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(structuredContentOf(result).items).toEqual([
+        expect.objectContaining({ upc: milk.upc, quantity: 2 }),
+        expect.objectContaining({ upc: eggs.upc, quantity: 3 }),
+      ]);
+    });
+
+    it("can select the twentieth product in the expanded candidate pool", async () => {
+      const products = Array.from({ length: 20 }, (_, index) =>
+        makeProduct({
+          upc: String(index + 1).padStart(13, "0"),
+          description: `Milk ${index + 1}`,
+        }),
+      );
+      const ctx = makeContext(async (_path, options) => {
+        expect(options.params.query?.["filter.limit"]).toBe(20);
+        return makeSearchResponse(products);
+      }, PREFERRED_LOCATION);
+      ctx.getEnv = () => ({ AI: stubJevAi("Milk 20") }) as unknown as Env;
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "milk" }],
+      });
+      expect(isErrorResult(result)).toBe(false);
+      expect(structuredContentOf(result).items).toEqual([
+        expect.objectContaining({
+          productName: "Milk 20",
+          upc: "0000000000020",
+        }),
+      ]);
+    });
+
+    it("surfaces Jev failure before any list or cart mutation", async () => {
+      const cartPutCalls: CartPutCall[] = [];
+      const ctx = makeContext(
+        async () => makeSearchResponse([makeProduct()]),
+        PREFERRED_LOCATION,
+        {
+          cartPutCalls,
+        },
+      );
+      const create = vi.spyOn(ctx.storage.shoppingList, "create");
+      ctx.getEnv = () =>
+        ({
+          AI: {
+            gateway: () => ({
+              run: async () => {
+                throw new Error("offline");
+              },
+            }),
+          },
+        }) as unknown as Env;
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "milk" }],
+        addToCart: true,
+      });
+      expect(isErrorResult(result)).toBe(true);
+      expect(textFromResult(result)).toContain("Jev product selection failed");
+      expect(create).not.toHaveBeenCalled();
+      expect(cartPutCalls).toHaveLength(0);
+    });
+
+    it("does not put an abstained item in a list or cart", async () => {
+      const cartPutCalls: CartPutCall[] = [];
+      const ctx = makeContext(
+        async () => makeSearchResponse([makeProduct()]),
+        PREFERRED_LOCATION,
+        {
+          cartPutCalls,
+        },
+      );
+      const create = vi.spyOn(ctx.storage.shoppingList, "create");
+      ctx.getEnv = () =>
+        ({
+          AI: {
+            gateway: () => ({
+              run: async () =>
+                Response.json({
+                  model: "jev-test",
+                  answers: {
+                    item_0: {
+                      type: "choice",
+                      choice: "no_match",
+                      confidence: 1,
+                      probabilities: {
+                        candidate_0: 0,
+                        no_match: 1,
+                        needs_review: 0,
+                      },
+                    },
+                  },
+                }),
+            }),
+          },
+        }) as unknown as Env;
+      registerShopTools(ctx);
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "milk" }],
+        addToCart: true,
+      });
+      expect(isErrorResult(result)).toBe(true);
+      expect(textFromResult(result)).toContain("No suitable match");
+      expect(create).not.toHaveBeenCalled();
+      expect(cartPutCalls).toHaveLength(0);
+    });
+
     // Both pickup-available, so the old first-pickup-available heuristic
     // alone would pick the wrong (first-listed) product for "milk".
     function makeAdversarialCandidates() {
@@ -403,24 +601,36 @@ describe("shop_for_items", () => {
         async () => makeSearchResponse([wrongMatch, rightMatch]),
         PREFERRED_LOCATION,
       );
-      ctx.getEnv = () => ({ AI: makeStubAi(), USER_DATA_KV: makeMinimalKv() }) as unknown as Env;
+      ctx.getEnv = () =>
+        ({ AI: makeStubAi(), USER_DATA_KV: makeMinimalKv() }) as unknown as Env;
 
       registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({ items: [{ name: "milk" }] });
+      const result = await getCapturedHandler("shop_for_items")({
+        items: [{ name: "milk" }],
+      });
 
       const sc = structuredContentOf(result);
-      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe("2222222222222");
+      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(
+        "2222222222222",
+      );
     });
   });
 
   describe("pantry and deal flags", () => {
     it("appends ' | in pantry' when the requested item is already in the pantry", async () => {
-      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+      const ctx = makeContext(
+        async () => makeSearchResponse([makeProduct()]),
+        PREFERRED_LOCATION,
+      );
       ctx.storage = {
         ...ctx.storage,
         pantry: {
           getAll: async () => [
-            { productName: "Whole Milk", quantity: 1, addedAt: new Date().toISOString() },
+            {
+              productName: "Whole Milk",
+              quantity: 1,
+              addedAt: new Date().toISOString(),
+            },
           ],
         } as unknown as UserStorage["pantry"],
       };
@@ -434,12 +644,19 @@ describe("shop_for_items", () => {
     });
 
     it("does not flag pantry when the item isn't present", async () => {
-      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+      const ctx = makeContext(
+        async () => makeSearchResponse([makeProduct()]),
+        PREFERRED_LOCATION,
+      );
       ctx.storage = {
         ...ctx.storage,
         pantry: {
           getAll: async () => [
-            { productName: "Bread", quantity: 1, addedAt: new Date().toISOString() },
+            {
+              productName: "Bread",
+              quantity: 1,
+              addedAt: new Date().toISOString(),
+            },
           ],
         } as unknown as UserStorage["pantry"],
       };
@@ -473,16 +690,24 @@ describe("shop_for_items", () => {
             divisionCode: "705",
             warnings: [],
             deals: [
-              { id: "d1", title: "Kroger Whole Milk, Gallon", price: "$2.99", source: "print" },
+              {
+                id: "d1",
+                title: "Kroger Whole Milk, Gallon",
+                price: "$2.99",
+                source: "print",
+              },
             ],
           },
         }),
       );
 
-      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+      const ctx = makeContext(
+        async () => makeSearchResponse([makeProduct()]),
+        PREFERRED_LOCATION,
+      );
       ctx.getEnv = () =>
         ({
-          AI: { run: async () => ({ data: [] }) },
+          AI: stubJevAi(),
           USER_DATA_KV: {
             get: async (key: string) => store.get(key) ?? null,
             put: async (key: string, value: string) => {
@@ -500,7 +725,10 @@ describe("shop_for_items", () => {
     });
 
     it("does not flag on sale when the weekly-deals cache is cold", async () => {
-      const ctx = makeContext(async () => makeSearchResponse([makeProduct()]), PREFERRED_LOCATION);
+      const ctx = makeContext(
+        async () => makeSearchResponse([makeProduct()]),
+        PREFERRED_LOCATION,
+      );
 
       registerShopTools(ctx);
       const result = await getCapturedHandler("shop_for_items")({
@@ -513,5 +741,8 @@ describe("shop_for_items", () => {
 });
 
 function makeSearchResponse(products: Product[]) {
-  return { data: { data: products }, response: new Response(null, { status: 200 }) };
+  return {
+    data: { data: products },
+    response: new Response(null, { status: 200 }),
+  };
 }

@@ -163,8 +163,8 @@ After the successful `callTool` call in `handleAddAll`, build the message and se
 const addedNames = items
   .map(
     (item) =>
-      classified.find((e) => e.result.products[0]?.upc === item.upc)?.result.products[0]
-        ?.description,
+      classified.find((e) => e.result.products[0]?.upc === item.upc)?.result
+        .products[0]?.description,
   )
   .filter(Boolean);
 

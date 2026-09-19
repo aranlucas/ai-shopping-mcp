@@ -9,9 +9,18 @@ import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
 import { parseProductReference } from "../services/catalog/types.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
-import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
+import {
+  getProps,
+  safeResolveLocationId,
+  safeStorage,
+  toMcpError,
+} from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
+import {
+  getDealsForFlags,
+  getPantryForFlags,
+  itemFlagLabels,
+} from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
 import { type ToolContext, type UserStorage, textResult } from "./types.js";
 
@@ -29,8 +38,12 @@ const productRefSchema = z
 
 export const shoppingListItemInputSchema = z
   .object({
-    productRef: productRefSchema.optional().describe("productRef from search_products"),
-    upc: upcSchema.optional().describe("Deprecated Kroger UPC compatibility input"),
+    productRef: productRefSchema
+      .optional()
+      .describe("productRef from search_products"),
+    upc: upcSchema
+      .optional()
+      .describe("Deprecated Kroger UPC compatibility input"),
     productName: z.string().trim().min(1).max(200).optional(),
     quantity: z.coerce.number().min(1).max(999).default(1),
     notes: z.string().max(500).optional(),
@@ -43,7 +56,11 @@ const listIdSchema = z.string().trim().min(1);
 const itemIdSchema = z.string().trim().min(1);
 
 export const createShoppingListInputSchema = z.object({
-  name: z.string().min(1).max(200).describe("List label, e.g. 'Tuesday dinner'."),
+  name: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe("List label, e.g. 'Tuesday dinner'."),
   items: z
     .array(shoppingListItemInputSchema)
     .min(1, { message: "Shopping list must include at least one item" }),
@@ -91,7 +108,8 @@ async function toStoredItems(
       const productName =
         item.productName ??
         (product?.provider === "kroger"
-          ? ((await ctx.productService.enrichProductName(product.id)) ?? product.id)
+          ? ((await ctx.productService.enrichProductName(product.id)) ??
+            product.id)
           : (product?.id ?? ""));
       return {
         productName,
@@ -150,7 +168,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       getProps();
 
       if (items.length === 0) {
-        return toMcpError(validationError("Shopping list must include at least one item."));
+        return toMcpError(
+          validationError("Shopping list must include at least one item."),
+        );
       }
 
       const enrichedItems = await toStoredItems(ctx, items);
@@ -163,19 +183,26 @@ export function registerShoppingListTools(ctx: ToolContext) {
         getPantryForFlags(ctx),
         safeResolveLocationId(ctx.storage, undefined),
       ]);
-      const locationId = resolvedLocation.isOk() ? resolvedLocation.value.locationId : undefined;
+      const locationId = resolvedLocation.isOk()
+        ? resolvedLocation.value.locationId
+        : undefined;
       const deals = await getDealsForFlags(ctx, locationId);
 
       const lines = enrichedItems
         .map((item, index) => {
           const flags = itemFlagLabels(item.productName, pantry, deals);
           const base = formatShoppingListItemCompact(item);
-          const suffixed = flags.length > 0 ? `${base} | ${flags.join(" | ")}` : base;
+          const suffixed =
+            flags.length > 0 ? `${base} | ${flags.join(" | ")}` : base;
           return `${index + 1}. ${suffixed}`;
         })
         .join("\n");
 
-      const result = await createShoppingListRecord(ctx.storage, listName, enrichedItems);
+      const result = await createShoppingListRecord(
+        ctx.storage,
+        listName,
+        enrichedItems,
+      );
       if (result.isErr()) return toMcpError(result.error);
       const { listId, list } = result.value;
       return {
@@ -218,7 +245,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
 
         const lists = result.value;
         if (lists.length === 0) {
-          return textResult("No saved lists yet. Create one with create_shopping_list.");
+          return textResult(
+            "No saved lists yet. Create one with create_shopping_list.",
+          );
         }
         const lines = lists
           .map(
@@ -238,7 +267,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       const list = result.value;
       if (!list) {
         return toMcpError(
-          notFoundError(`No list with listId=${listId}. Call get_shopping_list with no listId.`),
+          notFoundError(
+            `No list with listId=${listId}. Call get_shopping_list with no listId.`,
+          ),
         );
       }
       if (list.items.length === 0) {
@@ -287,7 +318,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
             `${index + 1}. itemId=${item.id ?? "unknown"} ${formatShoppingListItemCompact(item)}`,
         )
         .join("\n");
-      return textResult(`Added ${added.length} item(s) to listId=${listId}.\n\n${lines}`);
+      return textResult(
+        `Added ${added.length} item(s) to listId=${listId}.\n\n${lines}`,
+      );
     },
   );
 
@@ -306,7 +339,15 @@ export function registerShoppingListTools(ctx: ToolContext) {
       },
       inputSchema: editShoppingListItemInputSchema,
     },
-    async ({ listId, itemId, productName, quantity, notes, checked, remove }) => {
+    async ({
+      listId,
+      itemId,
+      productName,
+      quantity,
+      notes,
+      checked,
+      remove,
+    }) => {
       if (remove) {
         const removed = await safeStorage(
           () => ctx.storage.shoppingList.removeItem(listId, itemId),
@@ -324,7 +365,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       };
       if (Object.keys(patch).length === 0) {
         return toMcpError(
-          validationError("Pass productName, quantity, notes, checked, or remove=true."),
+          validationError(
+            "Pass productName, quantity, notes, checked, or remove=true.",
+          ),
         );
       }
 

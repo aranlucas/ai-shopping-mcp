@@ -41,10 +41,19 @@ describe("golden path (scripted agent, text-only)", () => {
     await reset();
   });
 
-  async function call(name: string, args: Record<string, unknown>): Promise<ToolCallResult> {
+  async function call(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolCallResult> {
     toolCalls++;
-    const result = (await client.callTool({ name, arguments: args })) as ToolCallResult;
-    expect(result.isError, `${name} failed: ${contentText(result)}`).toBeFalsy();
+    const result = (await client.callTool({
+      name,
+      arguments: args,
+    })) as ToolCallResult;
+    expect(
+      result.isError,
+      `${name} failed: ${contentText(result)}`,
+    ).toBeFalsy();
     return result;
   }
 
@@ -68,7 +77,9 @@ describe("golden path (scripted agent, text-only)", () => {
     expect(shopText).toContain("add_shopping_list_to_cart");
 
     // 4. Hand the listId straight back.
-    const added = await call("add_shopping_list_to_cart", { listId: listIds[0] });
+    const added = await call("add_shopping_list_to_cart", {
+      listId: listIds[0],
+    });
     expect(contentText(added)).toContain("Added");
 
     // The Kroger cart received one item per requested product, quantities intact.
@@ -85,7 +96,10 @@ describe("golden path (scripted agent, text-only)", () => {
   it("manual path: search_products → create_shopping_list → add to cart, with exact productRef handoff", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
 
-    const search = await call("search_products", { terms: ["bread"], providers: ["kroger"] });
+    const search = await call("search_products", {
+      terms: ["bread"],
+      providers: ["kroger"],
+    });
     const searchText = contentText(search);
     const productRefs = extractProductRefs(searchText);
     expect(productRefs.length).toBeGreaterThan(0);
@@ -128,7 +142,10 @@ describe("golden path (scripted agent, text-only)", () => {
     await call("set_preferred_store", { storeId: "70500847" });
     toolCalls = 0;
 
-    const shop = await call("shop_for_items", { items: [{ name: "milk" }], addToCart: true });
+    const shop = await call("shop_for_items", {
+      items: [{ name: "milk" }],
+      addToCart: true,
+    });
     const shopText = contentText(shop);
     const listIds = extractListIds(shopText);
     expect(listIds, `no extractable listId in:\n${shopText}`).toHaveLength(1);
@@ -145,14 +162,19 @@ describe("golden path (scripted agent, text-only)", () => {
     // The addToCart path persists a cart snapshot under the same storage key
     // add_shopping_list_to_cart checks, so a follow-up call with this listId
     // must not double-add.
-    const retry = await call("add_shopping_list_to_cart", { listId: listIds[0] });
+    const retry = await call("add_shopping_list_to_cart", {
+      listId: listIds[0],
+    });
     expect(stub.cartPuts).toHaveLength(1);
     expect(contentText(retry)).toContain("already added");
   });
 
   it("view_cart shows items added through this assistant, with name and upc", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
-    const shop = await call("shop_for_items", { items: [{ name: "eggs" }], addToCart: true });
+    const shop = await call("shop_for_items", {
+      items: [{ name: "eggs" }],
+      addToCart: true,
+    });
     expect(extractListIds(contentText(shop))).toHaveLength(1);
 
     const viewed = await call("view_cart", {});
@@ -166,7 +188,9 @@ describe("golden path (scripted agent, text-only)", () => {
 
   it("no-results terms are reported per term without failing the whole search", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
-    const result = await call("search_products", { terms: ["milk", "zzz-unfindable"] });
+    const result = await call("search_products", {
+      terms: ["milk", "zzz-unfindable"],
+    });
     const text = contentText(result);
 
     expect(extractProductRefs(text).length).toBeGreaterThan(0);

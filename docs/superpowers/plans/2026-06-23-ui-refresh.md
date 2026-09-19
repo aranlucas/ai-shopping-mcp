@@ -240,7 +240,13 @@ Replace `views/shared/ui/card.tsx`:
 import type { ReactNode } from "react";
 import { cn } from "./utils.js";
 
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
+export function Card({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <div
       className={cn(
@@ -253,13 +259,30 @@ export function Card({ className, children }: { className?: string; children: Re
   );
 }
 
-export function CardContent({ className, children }: { className?: string; children: ReactNode }) {
+export function CardContent({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return <div className={cn("p-3", className)}>{children}</div>;
 }
 
-export function CardFooter({ className, children }: { className?: string; children: ReactNode }) {
+export function CardFooter({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className={cn("px-3 py-2.5 border-t border-[var(--app-border)]", className)}>
+    <div
+      className={cn(
+        "px-3 py-2.5 border-t border-[var(--app-border)]",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -331,7 +354,9 @@ describe("productSchema images field", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.product.images?.[0]?.perspective).toBe("front");
-      expect(result.data.product.images?.[0]?.sizes?.[0]?.url).toContain("kroger.com");
+      expect(result.data.product.images?.[0]?.sizes?.[0]?.url).toContain(
+        "kroger.com",
+      );
     }
   });
 
@@ -370,9 +395,9 @@ describe("productSchema images field", () => {
     const result = searchProductsOutputSchema.safeParse(payload);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.results[0]?.products[0]?.images?.[0]?.sizes?.[0]?.url).toBe(
-        "https://example.com/img.jpg",
-      );
+      expect(
+        result.data.results[0]?.products[0]?.images?.[0]?.sizes?.[0]?.url,
+      ).toBe("https://example.com/img.jpg");
     }
   });
 });
@@ -469,7 +494,8 @@ function ProductImage({ product }: { product: ProductData }) {
     }
   ).images;
   const front = images?.find((i) => i.perspective === "front") ?? images?.[0];
-  const url = front?.sizes?.find((s) => s.id === "medium")?.url ?? front?.sizes?.[0]?.url;
+  const url =
+    front?.sizes?.find((s) => s.id === "medium")?.url ?? front?.sizes?.[0]?.url;
 
   if (!url) {
     return (
@@ -578,7 +604,9 @@ export function ProductCard({
 }) {
   const [qty, setQty] = useState(0);
   const [cartLoading, setCartLoading] = useState(false);
-  const [listState, setListState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [listState, setListState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const name = product.description || "Unknown Product";
@@ -733,12 +761,18 @@ export function ProductCard({
                 strokeWidth={2}
                 stroke="currentColor"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4.5v15m7.5-7.5h-15"
+                />
               </svg>
             }
           />
           {errorMsg && (
-            <span className="text-[11px] text-red-600 truncate max-w-28">{errorMsg}</span>
+            <span className="text-[11px] text-red-600 truncate max-w-28">
+              {errorMsg}
+            </span>
           )}
         </CardFooter>
       )}
@@ -966,7 +1000,9 @@ if (!data) {
         </div>
       );
     default: {
-      const message = partialArgs ? getPartialLoadingMessage(toolName, partialArgs) : undefined;
+      const message = partialArgs
+        ? getPartialLoadingMessage(toolName, partialArgs)
+        : undefined;
       return <Loading message={message} />;
     }
   }
@@ -1016,9 +1052,13 @@ New `ShoppingItem` content row (the `<div className="flex-1 min-w-0">` block):
     {item.productName}
   </div>
   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-    <span className="text-[11px] text-gray-400 font-mono">×{item.quantity}</span>
+    <span className="text-[11px] text-gray-400 font-mono">
+      ×{item.quantity}
+    </span>
     {item.notes && (
-      <span className="text-[11px] text-gray-400 italic truncate max-w-28">{item.notes}</span>
+      <span className="text-[11px] text-gray-400 italic truncate max-w-28">
+        {item.notes}
+      </span>
     )}
   </div>
 </div>
@@ -1097,7 +1137,9 @@ In `PantryView`, replace the amber banner and the single `items.map(...)` list w
   {items
     .filter((i) => {
       if (!i.expiresAt) return true;
-      const d = Math.floor((new Date(i.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24));
+      const d = Math.floor(
+        (new Date(i.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
+      );
       return d > 3;
     })
     .map((item) => (
@@ -1120,7 +1162,12 @@ In `views/app/views/RecipeResults.tsx`, in `RecipeCard`, the `RecipeCard` compon
 Add import to `RecipeResults.tsx`:
 
 ```tsx
-import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
+import {
+  ActionButton,
+  Badge,
+  DisplayModeToggle,
+  SectionHeader,
+} from "../../shared/components.js";
 ```
 
 (`ActionButton` is now imported; `Badge` was already imported.)
@@ -1212,13 +1259,25 @@ it("returns structuredContent with _view mark_order_placed", async () => {
   // and assert on the result shape.
   // Look at the existing test setup to find how ctx / tool invocation works.
   const result = await callMarkOrderPlaced(ctx, {
-    items: [{ productId: "0001111041700", productName: "Whole Milk", quantity: 2, price: 3.99 }],
+    items: [
+      {
+        productId: "0001111041700",
+        productName: "Whole Milk",
+        quantity: 2,
+        price: 3.99,
+      },
+    ],
     locationId: "12345678",
     notes: "test order",
   });
   expect(result.structuredContent).toBeDefined();
-  expect((result.structuredContent as { _view: string })._view).toBe("mark_order_placed");
-  expect((result.structuredContent as { order: { totalItems: number } }).order.totalItems).toBe(2);
+  expect((result.structuredContent as { _view: string })._view).toBe(
+    "mark_order_placed",
+  );
+  expect(
+    (result.structuredContent as { order: { totalItems: number } }).order
+      .totalItems,
+  ).toBe(2);
 });
 ```
 
@@ -1274,7 +1333,9 @@ Replace:
 const result = await safeStorage(
   () => ctx.storage.orderHistory.add(props.id, order),
   "record order",
-).map(() => `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`);
+).map(
+  () => `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
+);
 
 return toMcpResponse(result);
 ```
@@ -1380,8 +1441,12 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
   return (
     <div className="px-3.5 py-3 max-w-2xl mx-auto animate-view-in">
       <div className="mb-4">
-        <h1 className="text-sm font-semibold text-gray-900 tracking-tight">Order Recorded</h1>
-        <p className="text-[11px] text-gray-400 mt-0.5">{formatDate(order.placedAt)}</p>
+        <h1 className="text-sm font-semibold text-gray-900 tracking-tight">
+          Order Recorded
+        </h1>
+        <p className="text-[11px] text-gray-400 mt-0.5">
+          {formatDate(order.placedAt)}
+        </p>
       </div>
 
       <Card>
@@ -1401,7 +1466,9 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
                   </span>
                 </div>
                 <div className="shrink-0 flex items-baseline gap-2">
-                  <span className="text-[11px] text-gray-400 font-mono">×{item.quantity}</span>
+                  <span className="text-[11px] text-gray-400 font-mono">
+                    ×{item.quantity}
+                  </span>
                   {item.price != null && (
                     <span className="text-[13px] text-emerald-600 font-mono font-medium">
                       ${(item.price * item.quantity).toFixed(2)}
@@ -1417,26 +1484,34 @@ export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
           <CardFooter className="flex flex-col gap-1.5 items-start">
             {order.estimatedTotal != null && (
               <div className="flex items-center justify-between w-full">
-                <span className="text-[11px] text-gray-500">Estimated Total</span>
+                <span className="text-[11px] text-gray-500">
+                  Estimated Total
+                </span>
                 <span className="text-sm font-semibold text-emerald-600 font-mono">
                   ${order.estimatedTotal.toFixed(2)}
                 </span>
               </div>
             )}
             {order.locationId && (
-              <p className="text-[11px] text-gray-400">Store: {order.locationId}</p>
+              <p className="text-[11px] text-gray-400">
+                Store: {order.locationId}
+              </p>
             )}
             {order.notes && (
               <>
                 <Separator className="my-1" />
-                <p className="text-[11px] text-gray-500 italic">{order.notes}</p>
+                <p className="text-[11px] text-gray-500 italic">
+                  {order.notes}
+                </p>
               </>
             )}
           </CardFooter>
         )}
       </Card>
 
-      <p className="text-[10px] text-gray-300 font-mono mt-3">{order.orderId}</p>
+      <p className="text-[10px] text-gray-300 font-mono mt-3">
+        {order.orderId}
+      </p>
     </div>
   );
 }

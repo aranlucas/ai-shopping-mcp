@@ -39,8 +39,8 @@ client with `pnpm generate:gateway`; `pnpm api:check` checks generated-client dr
 
 Catalog identity is provider-neutral: `ProductReference` contains an open `provider` name
 and its opaque `id`, rendered in model-facing text as `productRef=<provider>:<id>`.
-UPC and SKU belong to adapters. Capabilities are explicit: Trader Joe's currently supports
-browsing and lists, while Kroger supports cart writes using its native UPCs. Generic tools
+UPC and SKU belong to adapters. Kroger is the only registered provider and supports
+cart writes using its native UPCs. Capabilities are explicit: generic tools
 must not assume that search implies support for carts, locations, aisle data, or checkout.
 
 ## Design principles
@@ -51,8 +51,10 @@ The server performs API calls, storage operations, normalization, deduplication,
 enrichment. The host chooses what to cook, buy, or substitute. Do not embed an entire weekly
 shopping policy in a new composite tool.
 
-`shop_for_items` is an accepted convenience path: it selects one candidate per item, with a
-bounded best-effort reranker, and can request a confirmed cart add. For price, brand, or
+`shop_for_items` is an accepted convenience path: it uses a bounded Jev decision to select
+one candidate per item or leave it unresolved, and can request a cart add. Jev is enabled
+by default; inference failures return a tool error before mutations, with no fallback.
+For price, brand, or
 substitution decisions that require alternatives, use `search_products` followed by list
 creation. Optional weekly deals in `get_meal_planning_context` supply evidence for the host;
 they do not generate a meal plan.
@@ -109,7 +111,7 @@ as a reason to trust caller-supplied user identity headers.
 ## Outside the server's role
 
 - Meal-plan generation, MCP Sampling, internal agent loops, and a recipe database. The
-  bounded fallback-safe product reranker does not expand this responsibility.
+  bounded product selector does not expand this responsibility.
 - Scheduled shopping proposals, push notifications, and account-linking UX; these belong
   to the host and must use the server's existing user and retry boundaries.
 - Payment and final order placement; the user completes purchase with the retailer.

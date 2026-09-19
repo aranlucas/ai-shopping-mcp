@@ -4,7 +4,12 @@ import * as z from "zod/v4";
 
 import type { Props, UserStorage } from "../../src/tools/types.js";
 
-import { AppErrorException, apiError, authError, notFoundError } from "../../src/errors.js";
+import {
+  AppErrorException,
+  apiError,
+  authError,
+  notFoundError,
+} from "../../src/errors.js";
 import { KrogerTokenExpiredError } from "../../src/services/kroger/client.js";
 import {
   fromApiResponse,
@@ -69,7 +74,10 @@ describe("safeJsonParseWithSchema", () => {
   });
 
   it("returns validated data for valid JSON matching the schema", () => {
-    const result = safeJsonParseWithSchema('{"name":"milk","quantity":2}', schema);
+    const result = safeJsonParseWithSchema(
+      '{"name":"milk","quantity":2}',
+      schema,
+    );
 
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({ name: "milk", quantity: 2 });
@@ -83,7 +91,10 @@ describe("safeJsonParseWithSchema", () => {
   });
 
   it("returns a ZodError for JSON that does not match the schema", () => {
-    const result = safeJsonParseWithSchema('{"name":"milk","quantity":0}', schema);
+    const result = safeJsonParseWithSchema(
+      '{"name":"milk","quantity":0}',
+      schema,
+    );
 
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr()).toBeInstanceOf(z.ZodError);
@@ -176,7 +187,10 @@ describe("fromApiResponse", () => {
   });
 
   it("returns Err on promise rejection with Error instance", async () => {
-    const result = await fromApiResponse(Promise.reject(new Error("network fail")), "test api");
+    const result = await fromApiResponse(
+      Promise.reject(new Error("network fail")),
+      "test api",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
@@ -185,7 +199,10 @@ describe("fromApiResponse", () => {
   });
 
   it("uses String() coercion in NETWORK_ERROR message when rejected value is not an Error instance", async () => {
-    const result = await fromApiResponse(Promise.reject("plain string rejection"), "test api");
+    const result = await fromApiResponse(
+      Promise.reject("plain string rejection"),
+      "test api",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
@@ -204,7 +221,11 @@ describe("fromApiResponse", () => {
 
   it("preserves Kroger expired-token rejections as auth errors", async () => {
     const result = await fromApiResponse(
-      Promise.reject(new KrogerTokenExpiredError("Kroger access token has expired. Reconnect.")),
+      Promise.reject(
+        new KrogerTokenExpiredError(
+          "Kroger access token has expired. Reconnect.",
+        ),
+      ),
       "search products",
     );
 
@@ -240,7 +261,11 @@ describe("getProps", () => {
 
   it("throws when id is a number instead of a string", () => {
     authMock.context = {
-      props: { id: 999, accessToken: "token", tokenExpiresAt: Date.now() + 1000 },
+      props: {
+        id: 999,
+        accessToken: "token",
+        tokenExpiresAt: Date.now() + 1000,
+      },
     };
     expect(() => getProps()).toThrow("outside an authenticated MCP request");
   });
@@ -254,7 +279,11 @@ describe("getProps", () => {
 
   it("throws when tokenExpiresAt is a string instead of a number", () => {
     authMock.context = {
-      props: { id: "user-1", accessToken: "token", tokenExpiresAt: "not-a-number" },
+      props: {
+        id: "user-1",
+        accessToken: "token",
+        tokenExpiresAt: "not-a-number",
+      },
     };
     expect(() => getProps()).toThrow("outside an authenticated MCP request");
   });
@@ -319,7 +348,9 @@ describe("safeResolveLocationId", () => {
   it("returns STORAGE_ERROR when storage read fails", async () => {
     const storage = {
       preferredLocation: {
-        get: vi.fn<() => Promise<unknown>>().mockRejectedValue(new Error("KV unavailable")),
+        get: vi
+          .fn<() => Promise<unknown>>()
+          .mockRejectedValue(new Error("KV unavailable")),
       },
     } as unknown as UserStorage;
     const result = await safeResolveLocationId(storage);
@@ -350,7 +381,9 @@ describe("safeStorage", () => {
     }, "read");
     expect(result._unsafeUnwrapErr()).toBe(failure);
     expect(toMcpError(result._unsafeUnwrapErr())).toMatchObject({
-      structuredContent: { error: { code: "AUTH_ERROR", recovery: "reconnect" } },
+      structuredContent: {
+        error: { code: "AUTH_ERROR", recovery: "reconnect" },
+      },
     });
   });
   it("returns Ok with value on success", async () => {
@@ -360,7 +393,10 @@ describe("safeStorage", () => {
   });
 
   it("returns STORAGE_ERROR including context and error message on failure", async () => {
-    const result = await safeStorage(() => Promise.reject(new Error("boom")), "test op");
+    const result = await safeStorage(
+      () => Promise.reject(new Error("boom")),
+      "test op",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");
@@ -369,7 +405,10 @@ describe("safeStorage", () => {
   });
 
   it("uses String() coercion in STORAGE_ERROR message when rejected value is not an Error instance", async () => {
-    const result = await safeStorage(() => Promise.reject("storage quota exceeded"), "save pantry");
+    const result = await safeStorage(
+      () => Promise.reject("storage quota exceeded"),
+      "save pantry",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");
@@ -378,7 +417,10 @@ describe("safeStorage", () => {
   });
 
   it("uses String() coercion for non-Error non-string rejection values", async () => {
-    const result = await safeStorage(() => Promise.reject(503), "write equipment");
+    const result = await safeStorage(
+      () => Promise.reject(503),
+      "write equipment",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");

@@ -43,27 +43,46 @@ export type ToolCall =
   | { name: "get_store"; arguments: { storeId: string } }
   | {
       name: "search_products";
-      arguments: { terms: string[]; storeId?: string; includeLocation?: boolean };
+      arguments: {
+        terms: string[];
+        storeId?: string;
+        includeLocation?: boolean;
+      };
     };
 
-export function callTool(app: App | null | undefined, call: ToolCall): Promise<CallToolResult> {
+export function callTool(
+  app: App | null | undefined,
+  call: ToolCall,
+): Promise<CallToolResult> {
   if (!app)
-    return Promise.reject(new Error("The shopping app is disconnected. Reopen it and try again."));
+    return Promise.reject(
+      new Error("The shopping app is disconnected. Reopen it and try again."),
+    );
   return app.callServerTool(call);
 }
 
 /** Open an external URL via the host. No-ops if the host doesn't support openLink. */
-export async function openExternalLink(app: App | null | undefined, url: string): Promise<void> {
+export async function openExternalLink(
+  app: App | null | undefined,
+  url: string,
+): Promise<void> {
   if (!app?.getHostCapabilities()?.openLinks) return;
   await app.openLink({ url });
 }
 
 /** Send a user-requested message; callers own visible pending and failure states. */
-export async function sendUserMessage(app: App | null | undefined, text: string): Promise<void> {
-  if (!app) throw new Error("The shopping app is disconnected. Reopen it and try again.");
+export async function sendUserMessage(
+  app: App | null | undefined,
+  text: string,
+): Promise<void> {
+  if (!app)
+    throw new Error(
+      "The shopping app is disconnected. Reopen it and try again.",
+    );
   const result = await app.sendMessage({
     role: "user",
     content: [{ type: "text", text }],
   });
-  if (result.isError) throw new Error("The assistant could not receive your request. Try again.");
+  if (result.isError)
+    throw new Error("The assistant could not receive your request. Try again.");
 }

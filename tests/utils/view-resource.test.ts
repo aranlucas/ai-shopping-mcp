@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolContext } from "../../src/tools/types.js";
 
-import { APP_VIEW_URI, registerViewResource } from "../../src/utils/view-resource.js";
+import {
+  APP_VIEW_URI,
+  registerViewResource,
+} from "../../src/utils/view-resource.js";
 import { stubCatalogRegistry } from "../catalog-stub.js";
 
 const EXPECTED_MIME_TYPE = "text/html;profile=mcp-app";
@@ -118,7 +121,8 @@ describe("registerViewResource", () => {
     it("returns HTML text from ASSETS when fetch succeeds with an ok response", async () => {
       const htmlContent = "<html><body>Shopping App</body></html>";
       const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) => new Response(htmlContent, { status: 200 }),
+        fetch: async (_req: Request) =>
+          new Response(htmlContent, { status: 200 }),
       };
       const env = makeFakeEnv(fakeAssets);
       const ctx = makeContext(env);
@@ -134,7 +138,8 @@ describe("registerViewResource", () => {
     it("wraps the HTML in contents[0] with the correct uri, mimeType, and text", async () => {
       const htmlContent = "<!DOCTYPE html><html></html>";
       const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) => new Response(htmlContent, { status: 200 }),
+        fetch: async (_req: Request) =>
+          new Response(htmlContent, { status: 200 }),
       };
       const env = makeFakeEnv(fakeAssets);
       const ctx = makeContext(env);
@@ -185,7 +190,8 @@ describe("registerViewResource", () => {
 
     it("returns ERROR_HTML fallback when ASSETS.fetch() returns a non-ok HTTP response", async () => {
       const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) => new Response("Not Found", { status: 404 }),
+        fetch: async (_req: Request) =>
+          new Response("Not Found", { status: 404 }),
       };
       const env = makeFakeEnv(fakeAssets);
       const ctx = makeContext(env);
@@ -228,7 +234,8 @@ describe("registerViewResource", () => {
 
     it("returns ERROR_HTML fallback when ASSETS.fetch() returns a 500 server error", async () => {
       const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) => new Response("Internal Server Error", { status: 500 }),
+        fetch: async (_req: Request) =>
+          new Response("Internal Server Error", { status: 500 }),
       };
       const env = makeFakeEnv(fakeAssets);
       const ctx = makeContext(env);

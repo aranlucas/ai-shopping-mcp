@@ -1,5 +1,9 @@
 import type { CallToolResult } from "@modelcontextprotocol/client";
-import { type AddShoppingListToCartArgs, type ToolCall, callTool } from "../shared/types.js";
+import {
+  type AddShoppingListToCartArgs,
+  type ToolCall,
+  callTool,
+} from "../shared/types.js";
 
 type ProductShoppingListInput = {
   listName?: string;
@@ -12,8 +16,14 @@ type ProductCartInput = ProductShoppingListInput & {
   modality?: AddShoppingListToCartArgs["modality"];
 };
 
-type CreateShoppingListCall = Extract<ToolCall, { name: "create_shopping_list" }>;
-type AddShoppingListToCartCall = Extract<ToolCall, { name: "add_shopping_list_to_cart" }>;
+type CreateShoppingListCall = Extract<
+  ToolCall,
+  { name: "create_shopping_list" }
+>;
+type AddShoppingListToCartCall = Extract<
+  ToolCall,
+  { name: "add_shopping_list_to_cart" }
+>;
 
 export function createProductShoppingListCall({
   listName,
@@ -43,7 +53,9 @@ export function addShoppingListToCartCall(
   };
 }
 
-export function shoppingListIdFromResult(result: CallToolResult | undefined): string {
+export function shoppingListIdFromResult(
+  result: CallToolResult | undefined,
+): string {
   const structuredContent = result?.structuredContent;
   if (!structuredContent || typeof structuredContent !== "object") {
     throw new Error("Shopping list id missing");
@@ -75,7 +87,9 @@ export async function saveProductToList(
 ): Promise<void> {
   const result = await callTool(app, createProductShoppingListCall(input));
   if (result?.isError) {
-    throw new Error(toolResultErrorMessage(result, "Failed to create shopping list"));
+    throw new Error(
+      toolResultErrorMessage(result, "Failed to create shopping list"),
+    );
   }
   shoppingListIdFromResult(result);
 }
@@ -86,11 +100,16 @@ export async function addProductToCart(
 ): Promise<void> {
   const listResult = await callTool(app, createProductShoppingListCall(input));
   if (listResult?.isError) {
-    throw new Error(toolResultErrorMessage(listResult, "Failed to create shopping list"));
+    throw new Error(
+      toolResultErrorMessage(listResult, "Failed to create shopping list"),
+    );
   }
   const shoppingListId = shoppingListIdFromResult(listResult);
 
-  const result = await callTool(app, addShoppingListToCartCall(shoppingListId, modality));
+  const result = await callTool(
+    app,
+    addShoppingListToCartCall(shoppingListId, modality),
+  );
   if (result?.isError) {
     throw new Error(toolResultErrorMessage(result, "Failed to add to cart"));
   }

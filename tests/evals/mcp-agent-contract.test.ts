@@ -26,7 +26,9 @@ type ToolConfig = {
     idempotentHint?: boolean;
     openWorldHint?: boolean;
   };
-  inputSchema?: { safeParse: (input: unknown) => { success: boolean; data?: unknown } };
+  inputSchema?: {
+    safeParse: (input: unknown) => { success: boolean; data?: unknown };
+  };
 };
 
 type CapturedTool = {
@@ -42,17 +44,30 @@ const testState: { capturedTools: CapturedTool[] } = {
 function makeContext(): ToolContext {
   return {
     server: {
-      registerTool: (name: string, config: ToolConfig, handler: ToolHandler) => {
+      registerTool: (
+        name: string,
+        config: ToolConfig,
+        handler: ToolHandler,
+      ) => {
         testState.capturedTools.push({ name, config, handler });
       },
       server: {
-        elicitInput: async () => ({ action: "accept", content: { confirm: true } }),
+        elicitInput: async () => ({
+          action: "accept",
+          content: { confirm: true },
+        }),
       },
     } as unknown as ToolContext["server"],
     clients: {
-      productClient: { GET: async () => ({ response: new Response(null, { status: 204 }) }) },
-      locationClient: { GET: async () => ({ response: new Response(null, { status: 204 }) }) },
-      cartClient: { PUT: async () => ({ response: new Response(null, { status: 204 }) }) },
+      productClient: {
+        GET: async () => ({ response: new Response(null, { status: 204 }) }),
+      },
+      locationClient: {
+        GET: async () => ({ response: new Response(null, { status: 204 }) }),
+      },
+      cartClient: {
+        PUT: async () => ({ response: new Response(null, { status: 204 }) }),
+      },
     } as unknown as ToolContext["clients"],
     productService: {
       getProduct: () => {
@@ -135,29 +150,38 @@ describe("MCP agent contract", () => {
   });
 
   it("publishes compatible MCP App resource metadata", () => {
-    const appTools = registerAllTools().filter((tool) => tool.config._meta?.ui?.resourceUri);
-    expect(appTools.length).toBeGreaterThan(0);
-    expect(appTools.map((tool) => tool.config._meta?.["ui/resourceUri"])).toEqual(
-      appTools.map((tool) => tool.config._meta?.ui?.resourceUri),
+    const appTools = registerAllTools().filter(
+      (tool) => tool.config._meta?.ui?.resourceUri,
     );
+    expect(appTools.length).toBeGreaterThan(0);
+    expect(
+      appTools.map((tool) => tool.config._meta?.["ui/resourceUri"]),
+    ).toEqual(appTools.map((tool) => tool.config._meta?.ui?.resourceUri));
   });
 
   it("gives every tool metadata and exact annotations", () => {
     const tools = registerAllTools();
     for (const tool of tools) {
       if (tool.name === "get_shopping_profile") continue; // plain registerTool, no app UI
-      expect(tool.config.title, `${tool.name} title`).toEqual(expect.any(String));
-      expect(tool.config.description, `${tool.name} description`).toEqual(expect.any(String));
-      expect(tool.config.description?.length, `${tool.name} description length`).toBeGreaterThan(
-        60,
+      expect(tool.config.title, `${tool.name} title`).toEqual(
+        expect.any(String),
       );
+      expect(tool.config.description, `${tool.name} description`).toEqual(
+        expect.any(String),
+      );
+      expect(
+        tool.config.description?.length,
+        `${tool.name} description length`,
+      ).toBeGreaterThan(60);
       expect(tool.config.inputSchema, `${tool.name} inputSchema`).toBeDefined();
-      expect(tool.config.annotations, `${tool.name} annotations`).toMatchObject({
-        readOnlyHint: expect.any(Boolean),
-        destructiveHint: expect.any(Boolean),
-        idempotentHint: expect.any(Boolean),
-        openWorldHint: expect.any(Boolean),
-      });
+      expect(tool.config.annotations, `${tool.name} annotations`).toMatchObject(
+        {
+          readOnlyHint: expect.any(Boolean),
+          destructiveHint: expect.any(Boolean),
+          idempotentHint: expect.any(Boolean),
+          openWorldHint: expect.any(Boolean),
+        },
+      );
     }
 
     for (const name of [
@@ -170,12 +194,16 @@ describe("MCP agent contract", () => {
       "search_stores",
       "view_cart",
     ]) {
-      expect(toolByName(tools, name).config.annotations?.readOnlyHint, `${name}`).toBe(true);
+      expect(
+        toolByName(tools, name).config.annotations?.readOnlyHint,
+        `${name}`,
+      ).toBe(true);
     }
 
-    expect(toolByName(tools, "remove_from_inventory").config.annotations?.destructiveHint).toBe(
-      true,
-    );
+    expect(
+      toolByName(tools, "remove_from_inventory").config.annotations
+        ?.destructiveHint,
+    ).toBe(true);
   });
 
   it("keeps UI resources paired with every app-backed tool", () => {
@@ -197,7 +225,9 @@ describe("MCP agent contract", () => {
 
     for (const name of appBackedTools) {
       const tool = toolByName(tools, name);
-      expect(tool.config._meta?.ui?.resourceUri, `${name} UI resource`).toBe(APP_VIEW_URI);
+      expect(tool.config._meta?.ui?.resourceUri, `${name} UI resource`).toBe(
+        APP_VIEW_URI,
+      );
     }
 
     const mealContext = toolByName(tools, "get_meal_planning_context");
@@ -226,7 +256,10 @@ describe("MCP agent contract", () => {
       }).success,
     ).toBe(false);
     expect(
-      createShoppingList.config.inputSchema?.safeParse({ name: "Empty", items: [] }).success,
+      createShoppingList.config.inputSchema?.safeParse({
+        name: "Empty",
+        items: [],
+      }).success,
     ).toBe(false);
     expect(
       createShoppingList.config.inputSchema?.safeParse({
@@ -234,8 +267,7 @@ describe("MCP agent contract", () => {
         items: [{ upc: "0001112223334", quantity: 1 }],
       }).success,
     ).toBe(true);
-    // An item without a Kroger UPC is valid — that is how Trader Joe's
-    // products and plain ingredients reach a list.
+    // Plain ingredients can reach a list without a Kroger UPC.
     expect(
       createShoppingList.config.inputSchema?.safeParse({
         name: "Dinner",

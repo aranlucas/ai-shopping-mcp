@@ -15,7 +15,9 @@ import { type ToolContext } from "./types.js";
 import { buildWeeklyDealsCacheKey, parseCacheEntry } from "./weekly-deals.js";
 
 /** Best-effort pantry fetch: any storage error yields an empty list, never a throw. */
-export async function getPantryForFlags(ctx: ToolContext): Promise<PantryItem[]> {
+export async function getPantryForFlags(
+  ctx: ToolContext,
+): Promise<PantryItem[]> {
   try {
     return await ctx.storage.pantry.getAll();
   } catch {
@@ -38,7 +40,11 @@ export async function getDealsForFlags(
     const kv = getUserDataKv(ctx.getEnv());
     if (!kv) return [];
 
-    const cacheKey = buildWeeklyDealsCacheKey({ locationId, limit: 50, pageLimit: 2 });
+    const cacheKey = buildWeeklyDealsCacheKey({
+      locationId,
+      limit: 50,
+      pageLimit: 2,
+    });
     const raw = await kv.get(cacheKey);
     const entry = parseCacheEntry(raw);
     if (!entry || Date.now() > entry.staleUntil) return [];
@@ -54,7 +60,10 @@ export async function getDealsForFlags(
  * requested item name and a pantry item's product name, e.g. "milk" matches
  * "Whole Milk".
  */
-export function pantryFlagLabel(requestedName: string, pantry: PantryItem[]): string | undefined {
+export function pantryFlagLabel(
+  requestedName: string,
+  pantry: PantryItem[],
+): string | undefined {
   const lower = requestedName.toLowerCase().trim();
   if (!lower) return undefined;
 
@@ -67,7 +76,10 @@ export function pantryFlagLabel(requestedName: string, pantry: PantryItem[]): st
 }
 
 /** Fuzzy-matches the requested name against deal titles; undefined when nothing matches. */
-export function dealFlagLabel(requestedName: string, deals: Deal[]): string | undefined {
+export function dealFlagLabel(
+  requestedName: string,
+  deals: Deal[],
+): string | undefined {
   const deal = findDealForItem(requestedName, deals);
   if (!deal) return undefined;
   return deal.price ? `on sale: ${deal.price}` : "on sale";

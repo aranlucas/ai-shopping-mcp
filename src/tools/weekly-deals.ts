@@ -7,14 +7,26 @@ import type { QfcDealsApiResponse } from "../services/qfc-weekly-deals.js";
 import type { KvLike } from "../utils/kv.js";
 import type { ToolContext } from "./types.js";
 
-import { AppErrorException, networkError, notFoundError, storageError } from "../errors.js";
+import {
+  AppErrorException,
+  networkError,
+  notFoundError,
+  storageError,
+} from "../errors.js";
 import { appResult } from "../app-results.js";
 import { getQfcWeeklyDeals } from "../services/qfc-weekly-deals.js";
-import { DEAL_CATEGORIES, classifyDealCategory } from "../utils/deal-category.js";
+import {
+  DEAL_CATEGORIES,
+  classifyDealCategory,
+} from "../utils/deal-category.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 import { safeJsonParseWithSchema } from "../utils/json.js";
 import { getUserDataKv } from "../utils/kv.js";
-import { fromApiResponse, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import {
+  fromApiResponse,
+  safeResolveLocationId,
+  toMcpError,
+} from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
 
@@ -83,7 +95,9 @@ export function buildWeeklyDealsCacheKey(params: {
   ].join("|");
 }
 
-export function parseCacheEntry(raw: string | null): WeeklyDealsCacheEntry | null {
+export function parseCacheEntry(
+  raw: string | null,
+): WeeklyDealsCacheEntry | null {
   if (!raw) return null;
   return safeJsonParseWithSchema(raw, weeklyDealsCacheEntrySchema).match(
     (entry) => entry,
@@ -99,7 +113,11 @@ function readWeeklyDealsCacheSafe(
 
   return ResultAsync.fromThrowable(
     () => kv.get(key),
-    (e) => storageError(`Failed to read cache: ${e instanceof Error ? e.message : String(e)}`, e),
+    (e) =>
+      storageError(
+        `Failed to read cache: ${e instanceof Error ? e.message : String(e)}`,
+        e,
+      ),
   )().map((raw) => {
     const entry = parseCacheEntry(raw);
     if (!entry) return { kind: "miss" as const };
@@ -111,8 +129,13 @@ function readWeeklyDealsCacheSafe(
   });
 }
 
-export function getLatestCircularEndTime(result: QfcDealsApiResponse): number | null {
-  const candidates = [result.shoppableCircular?.eventEndDate, result.printCircular?.eventEndDate]
+export function getLatestCircularEndTime(
+  result: QfcDealsApiResponse,
+): number | null {
+  const candidates = [
+    result.shoppableCircular?.eventEndDate,
+    result.printCircular?.eventEndDate,
+  ]
     .map((value) => (value ? Date.parse(value) : Number.NaN))
     .filter((value) => Number.isFinite(value));
 
@@ -140,14 +163,24 @@ function writeWeeklyDealsCache(
     data,
   };
 
-  const expiration = Math.max(Math.ceil(staleUntil / 1000), Math.ceil(now / 1000) + 60);
+  const expiration = Math.max(
+    Math.ceil(staleUntil / 1000),
+    Math.ceil(now / 1000) + 60,
+  );
   return ResultAsync.fromThrowable(
     () => kv.put(key, JSON.stringify(entry), { expiration }),
-    (e) => storageError(`Cache write failed: ${e instanceof Error ? e.message : String(e)}`, e),
+    (e) =>
+      storageError(
+        `Cache write failed: ${e instanceof Error ? e.message : String(e)}`,
+        e,
+      ),
   )();
 }
 
-export function addCacheWarning(result: QfcDealsApiResponse, message: string): QfcDealsApiResponse {
+export function addCacheWarning(
+  result: QfcDealsApiResponse,
+  message: string,
+): QfcDealsApiResponse {
   return {
     ...result,
     warnings: [...result.warnings, message],
@@ -205,7 +238,10 @@ export async function loadWeeklyDeals(
   const cached = cacheResult.isOk() ? cacheResult.value : null;
   if (cached) {
     if (cached.kind === "fresh") {
-      const result = addCacheWarning(cached.entry.data, "Served from KV cache.");
+      const result = addCacheWarning(
+        cached.entry.data,
+        "Served from KV cache.",
+      );
       return ok({ data: result, cacheState: "fresh" });
     }
     if (cached.kind === "stale") {
@@ -281,9 +317,16 @@ export async function loadWeeklyDeals(
     }
 
     if (degraded) {
-      liveData = addCacheWarning(liveData, "Live refresh was partial; results were not cached.");
+      liveData = addCacheWarning(
+        liveData,
+        "Live refresh was partial; results were not cached.",
+      );
     } else if (!cacheReadError) {
-      const cacheWriteResult = await writeWeeklyDealsCache(kv, cacheKey, liveData);
+      const cacheWriteResult = await writeWeeklyDealsCache(
+        kv,
+        cacheKey,
+        liveData,
+      );
       if (cacheWriteResult.isErr()) {
         liveData = addCacheWarning(
           liveData,
@@ -346,7 +389,10 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
     async ({ storeId, limit, pageLimit }) => {
       const result = await loadWeeklyDeals(ctx, { storeId, limit, pageLimit });
       if (result.isErr()) return toMcpError(result.error);
-      return formatWeeklyDealsToolResponse(result.value.data, result.value.cacheState);
+      return formatWeeklyDealsToolResponse(
+        result.value.data,
+        result.value.cacheState,
+      );
     },
   );
 }
@@ -374,13 +420,22 @@ export function formatWeeklyDealsToolResponse(
       validTill: deal.validTill,
       category: classifyDealCategory(deal.title),
     }))
-    .toSorted((a, b) => DEAL_CATEGORIES.indexOf(a.category) - DEAL_CATEGORIES.indexOf(b.category));
+    .toSorted(
+      (a, b) =>
+        DEAL_CATEGORIES.indexOf(a.category) -
+        DEAL_CATEGORIES.indexOf(b.category),
+    );
 
   return {
     content: [
       {
         type: "text" as const,
-        text: formatWeeklyDealsMarkdown(deals, validFrom, validTill, result.warnings),
+        text: formatWeeklyDealsMarkdown(
+          deals,
+          validFrom,
+          validTill,
+          result.warnings,
+        ),
       },
     ],
     ...appResult("get_weekly_deals", {

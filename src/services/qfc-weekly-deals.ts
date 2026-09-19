@@ -137,9 +137,13 @@ function safeErrorMessage(error: unknown): string {
   return String(error);
 }
 
-function formatPrice(value: number | null | undefined, uom?: string | null): string {
+function formatPrice(
+  value: number | null | undefined,
+  uom?: string | null,
+): string {
   if (typeof value !== "number" || Number.isNaN(value)) return "";
-  const price = value >= 1 ? `$${value.toFixed(2)}` : `${Math.round(value * 100)}¢`;
+  const price =
+    value >= 1 ? `$${value.toFixed(2)}` : `${Math.round(value * 100)}¢`;
   return uom ? `${price}/${uom}` : price;
 }
 
@@ -193,15 +197,24 @@ function selectCurrentCirculars(circulars: Circular[]) {
   const active = circulars.filter((c) => {
     const start = Date.parse(c.eventStartDate);
     const end = Date.parse(c.eventEndDate);
-    return Number.isFinite(start) && Number.isFinite(end) && start <= now && now <= end;
+    return (
+      Number.isFinite(start) &&
+      Number.isFinite(end) &&
+      start <= now &&
+      now <= end
+    );
   });
 
   const shoppable =
-    active.find((c) => c.circularType === "weeklyAd" && c.tags.includes("SHOPPABLE")) ||
+    active.find(
+      (c) => c.circularType === "weeklyAd" && c.tags.includes("SHOPPABLE"),
+    ) ||
     circulars.find((c) => c.circularType === "weeklyAd" && !c.previewCircular);
 
   const print =
-    active.find((c) => c.circularType === "print" && c.tags.includes("CLASSIC_VIEW")) ||
+    active.find(
+      (c) => c.circularType === "print" && c.tags.includes("CLASSIC_VIEW"),
+    ) ||
     circulars.find((c) => c.circularType === "print" && !c.previewCircular);
 
   return { shoppable, print };
@@ -251,9 +264,11 @@ function normalizeProductAsDeal(product: KrogerProduct): NormalizedWeeklyDeal {
   const department = product.categories?.[0];
   const title = product.description || "Unknown Product";
 
-  const defaultImage = product.images?.find((img) => img.default) || product.images?.[0];
+  const defaultImage =
+    product.images?.find((img) => img.default) || product.images?.[0];
   const imageUrl =
-    defaultImage?.sizes?.find((s) => s.size === "medium")?.url || defaultImage?.sizes?.[0]?.url;
+    defaultImage?.sizes?.find((s) => s.size === "medium")?.url ||
+    defaultImage?.sizes?.[0]?.url;
 
   return {
     id: product.productId || product.upc || Math.random().toString(36).slice(2),
@@ -281,19 +296,29 @@ async function fetchDealsBySearchApi(params: {
 
   const searchPromises = DEAL_SEARCH_TERMS.map((term) =>
     Promise.resolve()
-      .then(() => params.searchProducts(term, params.locationId, PRODUCTS_PER_TERM))
+      .then(() =>
+        params.searchProducts(term, params.locationId, PRODUCTS_PER_TERM),
+      )
       .then(
         (products) => ({ ok: true as const, products }),
-        (error: unknown) => ({ ok: false as const, products: [] as KrogerProduct[], error }),
+        (error: unknown) => ({
+          ok: false as const,
+          products: [] as KrogerProduct[],
+          error,
+        }),
       ),
   );
 
   const results = await Promise.all(searchPromises);
-  const failures = results.flatMap((result) => (result.ok ? [] : [result.error]));
+  const failures = results.flatMap((result) =>
+    result.ok ? [] : [result.error],
+  );
   if (failures.length === results.length) {
     const firstFailure = failures[0];
     if (firstFailure instanceof AppErrorException) throw firstFailure;
-    throw new Error(`All weekly deal searches failed: ${safeErrorMessage(firstFailure)}`);
+    throw new Error(
+      `All weekly deal searches failed: ${safeErrorMessage(firstFailure)}`,
+    );
   }
 
   const allProducts = results.flatMap((result) => result.products);
@@ -303,7 +328,11 @@ async function fetchDealsBySearchApi(params: {
     const item = product.items?.[0];
     const promo = item?.price?.promo;
     const regular = item?.price?.regular;
-    return typeof promo === "number" && typeof regular === "number" && promo < regular;
+    return (
+      typeof promo === "number" &&
+      typeof regular === "number" &&
+      promo < regular
+    );
   });
 
   // Deduplicate by productId / upc
@@ -357,7 +386,10 @@ async function fetchPrintAdPage(params: {
   locationId: string;
   signal?: AbortSignal;
 }): Promise<DacsPageResponse> {
-  const url = new URL(`/api/dacs/${params.eventId}/pages/${params.eventPageId}`, DACS_BASE);
+  const url = new URL(
+    `/api/dacs/${params.eventId}/pages/${params.eventPageId}`,
+    DACS_BASE,
+  );
   url.searchParams.set("location", params.locationId);
 
   const { data } = await fetchJson<DacsPageResponse>(url.toString(), {
@@ -407,12 +439,16 @@ async function fetchPrintAdOfferDetails(params: {
   return safeJsonParseWithSchema(text, dacsOfferDetailsSchema).match(
     (data) => data,
     (error) => {
-      throw new Error(`Invalid DACS offer response for ${url}: ${String(error)}`);
+      throw new Error(
+        `Invalid DACS offer response for ${url}: ${String(error)}`,
+      );
     },
   );
 }
 
-function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null {
+function parseDacsOfferFromMapConfig(
+  mapConfig: string,
+): ParsedDacsOffer | null {
   const parsed = safeJsonParseWithSchema(mapConfig, dacsMapConfigSchema).match(
     (value) => value,
     () => null,
@@ -424,9 +460,13 @@ function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null 
   if (!title) return null;
 
   const bodyCopy =
-    typeof content.bodyCopy === "string" && content.bodyCopy.trim() ? content.bodyCopy : undefined;
+    typeof content.bodyCopy === "string" && content.bodyCopy.trim()
+      ? content.bodyCopy
+      : undefined;
   const imageURL =
-    typeof content.imageURL === "string" && content.imageURL.trim() ? content.imageURL : undefined;
+    typeof content.imageURL === "string" && content.imageURL.trim()
+      ? content.imageURL
+      : undefined;
 
   return {
     id: String(content.id),
@@ -440,7 +480,9 @@ function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null 
   };
 }
 
-function normalizeDacsText(value: string | null | undefined): string | undefined {
+function normalizeDacsText(
+  value: string | null | undefined,
+): string | undefined {
   const normalized = value?.replace(/\s+/g, " ").trim();
   return normalized || undefined;
 }
@@ -451,7 +493,9 @@ function applyDacsOfferDetails(
 ): NormalizedWeeklyDeal {
   const bodyCopy = normalizeDacsText(offer.bodyCopy);
   const disclaimer = normalizeDacsText(offer.disclaimer);
-  const details = [bodyCopy, disclaimer].filter((value): value is string => Boolean(value));
+  const details = [bodyCopy, disclaimer].filter((value): value is string =>
+    Boolean(value),
+  );
   const pricingText = normalizeDacsText(offer.pricingText);
 
   return {
@@ -482,7 +526,11 @@ async function normalizePrintDeals(params: {
   pageLimit?: number;
   limit?: number;
   signal?: AbortSignal;
-}): Promise<{ deals: NormalizedWeeklyDeal[]; pageCount: number; failedPageCount: number }> {
+}): Promise<{
+  deals: NormalizedWeeklyDeal[];
+  pageCount: number;
+  failedPageCount: number;
+}> {
   const listing = await fetchPrintAdListing({
     eventId: params.printCircular.eventId,
     locationId: params.locationId,
@@ -511,10 +559,16 @@ async function normalizePrintDeals(params: {
     }),
   );
 
-  const failedPageCount = pageResponses.filter((page) => page.error !== undefined).length;
+  const failedPageCount = pageResponses.filter(
+    (page) => page.error !== undefined,
+  ).length;
   if (selectedPages.length > 0 && failedPageCount === selectedPages.length) {
-    const firstFailure = pageResponses.find((page) => page.error !== undefined)?.error;
-    throw new Error(`All print-ad pages failed: ${safeErrorMessage(firstFailure)}`);
+    const firstFailure = pageResponses.find(
+      (page) => page.error !== undefined,
+    )?.error;
+    throw new Error(
+      `All print-ad pages failed: ${safeErrorMessage(firstFailure)}`,
+    );
   }
 
   const parsedOffers: ParsedDacsOffer[] = [];
@@ -615,7 +669,9 @@ async function augmentPrintDealsWithSearchApi(
   });
 
   const augmented = await Promise.all(augmentPromises);
-  const augmentedCount = augmented.filter((d, i) => d.price !== deals[i].price).length;
+  const augmentedCount = augmented.filter(
+    (d, i) => d.price !== deals[i].price,
+  ).length;
 
   return { augmented, augmentedCount };
 }
@@ -643,7 +699,9 @@ export async function getQfcWeeklyDeals(
     shoppableCircular = selected.shoppable;
     printCircular = selected.print;
   } catch (error) {
-    warnings.push(`Unable to fetch weekly circulars for date context: ${safeErrorMessage(error)}`);
+    warnings.push(
+      `Unable to fetch weekly circulars for date context: ${safeErrorMessage(error)}`,
+    );
   }
 
   // Primary: print-ad parsing via DACS (no auth required)
@@ -670,7 +728,9 @@ export async function getQfcWeeklyDeals(
           finalDeals = result.augmented;
           augmentedCount = result.augmentedCount;
         } catch (error) {
-          warnings.push(`Search API pricing augmentation failed: ${safeErrorMessage(error)}`);
+          warnings.push(
+            `Search API pricing augmentation failed: ${safeErrorMessage(error)}`,
+          );
         }
       }
 
@@ -704,11 +764,12 @@ export async function getQfcWeeklyDeals(
   // Fallback: Kroger Product Search API (requires auth)
   if (options.searchProducts) {
     try {
-      const { deals, termCount, failedTermCount, failures } = await fetchDealsBySearchApi({
-        locationId,
-        searchProducts: options.searchProducts,
-        limit: options.limit,
-      });
+      const { deals, termCount, failedTermCount, failures } =
+        await fetchDealsBySearchApi({
+          locationId,
+          searchProducts: options.searchProducts,
+          limit: options.limit,
+        });
 
       if (failedTermCount > 0) {
         warnings.push(
@@ -728,12 +789,18 @@ export async function getQfcWeeklyDeals(
           termCount,
           ...(failedTermCount > 0 ? { degraded: true, failedTermCount } : {}),
           ...(failures.length > 0
-            ? { failureMessages: failures.map((failure) => safeErrorMessage(failure)).slice(0, 3) }
+            ? {
+                failureMessages: failures
+                  .map((failure) => safeErrorMessage(failure))
+                  .slice(0, 3),
+              }
             : {}),
         },
       };
     } catch (error) {
-      warnings.push(`Search API deal fetch also failed. (${safeErrorMessage(error)})`);
+      warnings.push(
+        `Search API deal fetch also failed. (${safeErrorMessage(error)})`,
+      );
       if (error instanceof AppErrorException) {
         const warningText = warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
         throw new AppErrorException({

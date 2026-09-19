@@ -29,7 +29,9 @@ describe("toonResource", () => {
       uri: "shopping://user/pantry",
       mimeType: "text/toon",
     });
-    expect(result.contents[0]?.text).toContain("items[2]{productName,quantity,addedAt,expiresAt}:");
+    expect(result.contents[0]?.text).toContain(
+      "items[2]{productName,quantity,addedAt,expiresAt}:",
+    );
     expect(result.contents[0]?.text).toContain(
       '  Milk,1,"2026-06-01T00:00:00.000Z","2026-06-08T00:00:00.000Z"',
     );

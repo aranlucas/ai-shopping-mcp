@@ -75,7 +75,9 @@ function makeMapConfig(
       headline,
       bodyCopy: bodyCopy ?? null,
       imageURL: imageURL ?? null,
-      ...(offerVersionProductGroupId === undefined ? {} : { offerVersionProductGroupId }),
+      ...(offerVersionProductGroupId === undefined
+        ? {}
+        : { offerVersionProductGroupId }),
     },
   });
 }
@@ -161,7 +163,9 @@ function setupFailedPrintAdFetchForSearchFallback() {
       return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
     }
     if (url.includes("przone.net")) {
-      return Promise.resolve(mockErrorResponse(503, { error: "Service Unavailable" }));
+      return Promise.resolve(
+        mockErrorResponse(503, { error: "Service Unavailable" }),
+      );
     }
     return Promise.reject(new Error(`Unmocked URL: ${url}`));
   });
@@ -298,14 +302,22 @@ describe("getQfcWeeklyDeals", () => {
               contents: [
                 {
                   contentType: "Offer",
-                  mapConfig: makeMapConfig(101, "Fresh Strawberries", "1 lb", null, 9002),
+                  mapConfig: makeMapConfig(
+                    101,
+                    "Fresh Strawberries",
+                    "1 lb",
+                    null,
+                    9002,
+                  ),
                 },
               ],
             }),
           );
         }
         if (url.includes("/api/dacs/evt-print-1/offers/9002")) {
-          return Promise.resolve(mockErrorResponse(503, { error: "Unavailable" }));
+          return Promise.resolve(
+            mockErrorResponse(503, { error: "Unavailable" }),
+          );
         }
         return Promise.reject(new Error(`Unmocked URL: ${url}`));
       });
@@ -402,7 +414,9 @@ describe("getQfcWeeklyDeals", () => {
         searchProducts,
       });
 
-      const strawberry = result.deals.find((d) => d.title === "Fresh Strawberries");
+      const strawberry = result.deals.find(
+        (d) => d.title === "Fresh Strawberries",
+      );
       expect(strawberry?.price).toBe("$1.99");
       expect(strawberry?.savings).toContain("Save");
       expect(strawberry?.savings).toContain("$2.00");
@@ -430,7 +444,9 @@ describe("getQfcWeeklyDeals", () => {
         searchProducts,
       });
 
-      const chicken = result.deals.find((d) => d.title === "Boneless Chicken Breast");
+      const chicken = result.deals.find(
+        (d) => d.title === "Boneless Chicken Breast",
+      );
       expect(chicken?.price).toBe("$5.99");
       expect(chicken?.savings).toBeUndefined();
     });
@@ -524,7 +540,9 @@ describe("getQfcWeeklyDeals", () => {
         searchProducts,
       });
 
-      const strawberry = result.deals.find((d) => d.title === "Fresh Strawberries");
+      const strawberry = result.deals.find(
+        (d) => d.title === "Fresh Strawberries",
+      );
       // Should use the promo-priced product, not the first one
       expect(strawberry?.price).toBe("$1.99");
       expect(strawberry?.savings).toBeDefined();
@@ -577,7 +595,9 @@ describe("getQfcWeeklyDeals", () => {
         }
         // DACS endpoints fail
         if (url.includes("przone.net")) {
-          return Promise.resolve(mockErrorResponse(503, { error: "Service Unavailable" }));
+          return Promise.resolve(
+            mockErrorResponse(503, { error: "Service Unavailable" }),
+          );
         }
         return Promise.reject(new Error(`Unmocked URL: ${url}`));
       });
@@ -616,20 +636,24 @@ describe("getQfcWeeklyDeals", () => {
     it("includes print-ad failure warning in response", async () => {
       setupFailedPrintAdFetchForSearchFallback();
 
-      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([
-        makeProduct({
-          productId: "0001111000001",
-          regular: 5.99,
-          promo: 3.99,
-        }),
-      ]);
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockResolvedValue([
+          makeProduct({
+            productId: "0001111000001",
+            regular: 5.99,
+            promo: 3.99,
+          }),
+        ]);
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
         searchProducts,
       });
 
-      expect(result.warnings.some((w) => w.includes("Print-ad parsing failed"))).toBe(true);
+      expect(
+        result.warnings.some((w) => w.includes("Print-ad parsing failed")),
+      ).toBe(true);
     });
 
     it("filters out search API products without promo pricing", async () => {
@@ -726,9 +750,9 @@ describe("getQfcWeeklyDeals", () => {
         return Promise.resolve(mockErrorResponse(503));
       });
 
-      await expect(getQfcWeeklyDeals({ locationId: "70500847" })).rejects.toThrow(
-        /Failed to fetch deals/,
-      );
+      await expect(
+        getQfcWeeklyDeals({ locationId: "70500847" }),
+      ).rejects.toThrow(/Failed to fetch deals/);
     });
 
     it("preserves an all-failed search refresh as an error", async () => {
@@ -742,7 +766,9 @@ describe("getQfcWeeklyDeals", () => {
 
       const searchProducts: ProductSearchFn = vi
         .fn<ProductSearchFn>()
-        .mockRejectedValue(new AppErrorException(authError("Kroger authentication expired.")));
+        .mockRejectedValue(
+          new AppErrorException(authError("Kroger authentication expired.")),
+        );
 
       await expect(
         getQfcWeeklyDeals({
@@ -761,17 +787,21 @@ describe("getQfcWeeklyDeals", () => {
         return Promise.resolve(mockErrorResponse(503));
       });
 
-      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockRejectedValue(undefined);
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockRejectedValue(undefined);
 
-      await expect(getQfcWeeklyDeals({ locationId: "70500847", searchProducts })).rejects.toThrow(
-        /Failed to fetch deals/,
-      );
+      await expect(
+        getQfcWeeklyDeals({ locationId: "70500847", searchProducts }),
+      ).rejects.toThrow(/Failed to fetch deals/);
     });
 
     it("keeps a legitimate empty search success distinct from failed searches", async () => {
       setupFailedPrintAdFetchForSearchFallback();
 
-      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([]);
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockResolvedValue([]);
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
@@ -780,7 +810,9 @@ describe("getQfcWeeklyDeals", () => {
 
       expect(result.sourceMode).toBe("search_api");
       expect(result.deals).toHaveLength(0);
-      expect(result.warnings.some((w) => w.includes("Print-ad parsing failed"))).toBe(true);
+      expect(
+        result.warnings.some((w) => w.includes("Print-ad parsing failed")),
+      ).toBe(true);
       expect(result.meta?.degraded).toBeUndefined();
     });
 
@@ -834,9 +866,9 @@ describe("getQfcWeeklyDeals", () => {
         return Promise.reject(new Error(`Unmocked URL: ${url}`));
       });
 
-      await expect(getQfcWeeklyDeals({ locationId: "70500847" })).rejects.toThrow(
-        /Failed to fetch deals/,
-      );
+      await expect(
+        getQfcWeeklyDeals({ locationId: "70500847" }),
+      ).rejects.toThrow(/Failed to fetch deals/);
     });
 
     it("adds warning but continues when circular fetch fails", async () => {
@@ -849,22 +881,26 @@ describe("getQfcWeeklyDeals", () => {
       });
 
       // With no circular, we have no printCircular → falls to searchProducts
-      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([
-        makeProduct({
-          productId: "0001111000001",
-          regular: 3.99,
-          promo: 1.99,
-        }),
-      ]);
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockResolvedValue([
+          makeProduct({
+            productId: "0001111000001",
+            regular: 3.99,
+            promo: 1.99,
+          }),
+        ]);
 
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
         searchProducts,
       });
 
-      expect(result.warnings.some((w) => w.includes("Unable to fetch weekly circulars"))).toBe(
-        true,
-      );
+      expect(
+        result.warnings.some((w) =>
+          w.includes("Unable to fetch weekly circulars"),
+        ),
+      ).toBe(true);
       expect(result.sourceMode).toBe("search_api");
     });
   });

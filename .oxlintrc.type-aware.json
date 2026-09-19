@@ -12,8 +12,16 @@
     "nursery": "off"
   },
   "rules": {
-    "typescript/no-floating-promises": ["error", { "checkThenables": true, "ignoreVoid": false }],
+    "typescript/no-floating-promises": [
+      "error",
+      { "checkThenables": true, "ignoreVoid": false }
+    ],
     "typescript/no-misused-promises": "error"
   },
-  "ignorePatterns": ["**/*.d.ts", "views/shared/ui/**", "dist/**", "coverage/**"]
+  "ignorePatterns": [
+    "**/*.d.ts",
+    "views/shared/ui/**",
+    "dist/**",
+    "coverage/**"
+  ]
 }

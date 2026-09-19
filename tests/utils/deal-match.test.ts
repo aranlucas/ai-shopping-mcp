@@ -18,7 +18,8 @@ describe("findDealForItem", () => {
     const deals = [
       makeDeal({
         id: "d1",
-        title: "Kroger Boneless Skinless Chicken Breasts, Value Pack, Family Size",
+        title:
+          "Kroger Boneless Skinless Chicken Breasts, Value Pack, Family Size",
       }),
     ];
 
@@ -26,7 +27,9 @@ describe("findDealForItem", () => {
   });
 
   it("is case-insensitive and strips punctuation", () => {
-    const deals = [makeDeal({ id: "d1", title: "GROUND BEEF, 80% Lean - Value Pack!" })];
+    const deals = [
+      makeDeal({ id: "d1", title: "GROUND BEEF, 80% Lean - Value Pack!" }),
+    ];
 
     expect(findDealForItem("Ground Beef", deals)?.id).toBe("d1");
   });
@@ -55,7 +58,10 @@ describe("findDealForItem", () => {
   });
 
   it("skips deals whose title has no usable tokens", () => {
-    const deals = [makeDeal({ title: "###" }), makeDeal({ id: "d2", title: "Whole Milk Gallon" })];
+    const deals = [
+      makeDeal({ title: "###" }),
+      makeDeal({ id: "d2", title: "Whole Milk Gallon" }),
+    ];
     expect(findDealForItem("milk", deals)?.id).toBe("d2");
   });
 

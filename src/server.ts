@@ -1,6 +1,13 @@
-import { GrantType, OAuthError, OAuthProvider } from "@cloudflare/workers-oauth-provider";
+import {
+  GrantType,
+  OAuthError,
+  OAuthProvider,
+} from "@cloudflare/workers-oauth-provider";
 import * as Sentry from "@sentry/cloudflare";
-import { McpServer, type McpRequestContext } from "@modelcontextprotocol/server";
+import {
+  McpServer,
+  type McpRequestContext,
+} from "@modelcontextprotocol/server";
 import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
@@ -28,8 +35,6 @@ import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { createKrogerCatalogProvider } from "./services/catalog/kroger-provider.js";
-import { createTraderJoesCatalogProvider } from "./services/catalog/trader-joes-provider.js";
-import { createTraderJoesClient } from "./services/traderjoes/client.js";
 import { getUserDataKv } from "./utils/kv.js";
 import { createGatewayShoppingStore } from "./utils/gateway-storage.js";
 import { getProps } from "./utils/result.js";
@@ -55,17 +60,24 @@ const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
   registerResources,
 ];
 
-const SERVER_INFO = { name: "grocery-shopping-assistant", version: "1.1.0" } as const;
+const SERVER_INFO = {
+  name: "grocery-shopping-assistant",
+  version: "1.1.0",
+} as const;
 const SERVER_OPTIONS = {
   instructions:
     "Grocery assistant with shared stores, pantry, equipment, orders, and lists. Golden path: shop_for_items for one-shot Kroger shopping, or search_products then create_shopping_list for any provider; pass its listId to add_shopping_list_to_cart only for Kroger productRefs. search_products searches all providers by default and returns productRef=<provider>:<id>; preserve exact refs on lists and orders. Edit lists with get_shopping_list, add_shopping_list_items, and edit_shopping_list_item. Store, cart, and deal tools are Kroger-backed. Use get_shopping_profile before personalized suggestions.",
 } as const;
 
-function requestBearerToken(requestContext: McpRequestContext): string | undefined {
+function requestBearerToken(
+  requestContext: McpRequestContext,
+): string | undefined {
   const validatedToken = requestContext.authInfo?.token?.trim();
   if (validatedToken) return validatedToken;
 
-  const header = requestContext.requestInfo?.headers.get("authorization")?.trim();
+  const header = requestContext.requestInfo?.headers
+    .get("authorization")
+    ?.trim();
   if (!header) return undefined;
   const match = /^Bearer[ \t]+([^ \t]+)$/i.exec(header);
   return match?.[1];
@@ -82,7 +94,10 @@ function requestBearerToken(requestContext: McpRequestContext): string | undefin
  * than MCP transport state, so the server remains stateless at the protocol
  * layer.
  */
-function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer {
+function buildServer(
+  env: AppEnv,
+  requestContext: McpRequestContext,
+): McpServer {
   const clientId = requestContext.authInfo?.clientId ?? getProps().id;
   const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
 
@@ -96,7 +111,10 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
       ) {
         return null;
       }
-      return { accessToken: props.accessToken, tokenExpiresAt: props.tokenExpiresAt };
+      return {
+        accessToken: props.accessToken,
+        tokenExpiresAt: props.tokenExpiresAt,
+      };
     },
     getUserDataKv(env),
     requestContext.requestInfo?.signal,
@@ -120,26 +138,17 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
       clientId,
     }),
     {
-      begin: (key, fingerprint) => journal.begin(JSON.stringify([clientId, key]), fingerprint),
-      complete: (key, attempt) => journal.complete(JSON.stringify([clientId, key]), attempt),
-      reject: (key, attempt) => journal.reject(JSON.stringify([clientId, key]), attempt),
+      begin: (key, fingerprint) =>
+        journal.begin(JSON.stringify([clientId, key]), fingerprint),
+      complete: (key, attempt) =>
+        journal.complete(JSON.stringify([clientId, key]), attempt),
+      reject: (key, attempt) =>
+        journal.reject(JSON.stringify([clientId, key]), attempt),
     },
   );
   const productService = new ProductService(clients.productClient);
   const catalogs = {
     kroger: createKrogerCatalogProvider(clients.productClient),
-    trader_joes: createTraderJoesCatalogProvider(
-      createTraderJoesClient({
-        ...(env.TRADER_JOES_GRAPHQL_URL === undefined
-          ? {}
-          : { endpoint: env.TRADER_JOES_GRAPHQL_URL }),
-        ...(env.TRADER_JOES_STORE_CODE === undefined
-          ? {}
-          : { storeCode: env.TRADER_JOES_STORE_CODE }),
-        kv: getUserDataKv(env),
-        signal: requestContext.requestInfo?.signal,
-      }),
-    ),
   } as const;
 
   const ctx: ToolContext = {
@@ -169,10 +178,17 @@ function buildServer(env: AppEnv, requestContext: McpRequestContext): McpServer 
  * the modern protocol and the built-in stateless legacy compatibility lane.
  */
 const mcpApiHandler = {
-  async fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
-    const handler = createMcpHandler((requestContext) => buildServer(env, requestContext), {
-      route: "/mcp",
-    });
+  async fetch(
+    request: Request,
+    env: AppEnv,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
+    const handler = createMcpHandler(
+      (requestContext) => buildServer(env, requestContext),
+      {
+        route: "/mcp",
+      },
+    );
 
     return handler(request, env, ctx);
   },
@@ -206,12 +222,19 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
   // CRITICAL: Kroger single-use refresh tokens — only refreshed here to persist to grant.
   tokenExchangeCallback: async ({ grantType, props }) => {
     // Destructure grant-only fields; rest is exactly the access token props (Props type)
-    const { refreshToken, krogerClientId, krogerClientSecret, ...accessTokenProps } =
-      props as GrantProps;
+    const {
+      refreshToken,
+      krogerClientId,
+      krogerClientSecret,
+      ...accessTokenProps
+    } = props as GrantProps;
 
     if (grantType === GrantType.AUTHORIZATION_CODE) {
       const ttl = accessTokenProps.tokenExpiresAt
-        ? Math.max(Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000), 60)
+        ? Math.max(
+            Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000),
+            60,
+          )
         : 1800;
       return { accessTokenProps, accessTokenTTL: ttl };
     }
@@ -220,12 +243,16 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
 
     if (!refreshToken || !krogerClientId || !krogerClientSecret) {
       throw new OAuthError("invalid_grant", {
-        description: "Kroger authorization is incomplete. Reconnect the MCP server.",
+        description:
+          "Kroger authorization is incomplete. Reconnect the MCP server.",
       });
     }
 
     if (!isKrogerTokenExpiring(accessTokenProps.tokenExpiresAt)) {
-      const ttl = Math.max(Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000), 60);
+      const ttl = Math.max(
+        Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000),
+        60,
+      );
       return { accessTokenProps, accessTokenTTL: ttl };
     }
 
@@ -247,22 +274,28 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
           ? error.detail.error
           : undefined;
 
-      if (upstreamCode === "invalid_grant" || upstreamCode === "invalid_client") {
+      if (
+        upstreamCode === "invalid_grant" ||
+        upstreamCode === "invalid_client"
+      ) {
         throw new OAuthError("invalid_grant", {
-          description: "Kroger authorization expired. Reconnect the MCP server.",
+          description:
+            "Kroger authorization expired. Reconnect the MCP server.",
         });
       }
 
       if (error.type === "API_ERROR" && error.status === 429) {
         throw new OAuthError("temporarily_unavailable", {
-          description: "Kroger rate limited the token refresh. Try again shortly.",
+          description:
+            "Kroger rate limited the token refresh. Try again shortly.",
           statusCode: 429,
           headers: { "Retry-After": "60" },
         });
       }
 
       throw new OAuthError("temporarily_unavailable", {
-        description: "Kroger token refresh is temporarily unavailable. Try again shortly.",
+        description:
+          "Kroger token refresh is temporarily unavailable. Try again shortly.",
         statusCode: 503,
         headers: { "Retry-After": "60" },
       });
@@ -270,9 +303,12 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
 
     const result = refreshResult.value;
     if (!result.refreshToken) {
-      console.error("Kroger refresh missing new refresh token (single-use). Re-auth required.");
+      console.error(
+        "Kroger refresh missing new refresh token (single-use). Re-auth required.",
+      );
       throw new OAuthError("invalid_grant", {
-        description: "Kroger did not rotate the refresh token. Reconnect the MCP server.",
+        description:
+          "Kroger did not rotate the refresh token. Reconnect the MCP server.",
       });
     }
 
@@ -303,7 +339,11 @@ export default Sentry.withSentry(
     enabled: Boolean(env.SENTRY_DSN),
   }),
   {
-    fetch(request: Request, env: AppEnv, ctx: ExecutionContext): Promise<Response> {
+    fetch(
+      request: Request,
+      env: AppEnv,
+      ctx: ExecutionContext,
+    ): Promise<Response> {
       return oauthProvider.fetch(request, env, ctx);
     },
     async scheduled(
@@ -311,7 +351,9 @@ export default Sentry.withSentry(
       env: AppEnv,
       _ctx: ExecutionContext,
     ): Promise<void> {
-      const result = await oauthProvider.purgeExpiredData(env, { batchSize: 100 });
+      const result = await oauthProvider.purgeExpiredData(env, {
+        batchSize: 100,
+      });
       console.log("OAuth KV cleanup complete:", result);
     },
   } satisfies ExportedHandler<AppEnv>,

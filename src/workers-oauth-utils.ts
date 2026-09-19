@@ -40,7 +40,9 @@ function normalizeScope(scope: unknown): string {
   return "";
 }
 
-function toApprovalRecord(request: ApprovalRequest): ApprovedClientRecord | null {
+function toApprovalRecord(
+  request: ApprovalRequest,
+): ApprovedClientRecord | null {
   if (!request.clientId || !request.redirectUri) return null;
 
   return {
@@ -63,8 +65,15 @@ function isApprovedClientRecord(value: unknown): value is ApprovedClientRecord {
   );
 }
 
-function approvalRecordsMatch(a: ApprovedClientRecord, b: ApprovedClientRecord): boolean {
-  return a.clientId === b.clientId && a.redirectUri === b.redirectUri && a.scope === b.scope;
+function approvalRecordsMatch(
+  a: ApprovedClientRecord,
+  b: ApprovedClientRecord,
+): boolean {
+  return (
+    a.clientId === b.clientId &&
+    a.redirectUri === b.redirectUri &&
+    a.scope === b.scope
+  );
 }
 
 /**
@@ -98,7 +107,11 @@ async function parseSignedCookieJson<T>(
     );
   }
 
-  const signedCookies = await parseSigned(cookieHeader, cookieSecret, cookieName);
+  const signedCookies = await parseSigned(
+    cookieHeader,
+    cookieSecret,
+    cookieName,
+  );
   const payload = signedCookies[cookieName];
   if (typeof payload !== "string") return null;
 
@@ -123,7 +136,11 @@ async function getApprovedClientsFromCookie(
 ): Promise<ApprovedClientRecord[] | null> {
   if (!cookieHeader) return null;
 
-  const approvedClients = await parseSignedCookieJson<unknown>(cookieHeader, COOKIE_NAME, secret);
+  const approvedClients = await parseSignedCookieJson<unknown>(
+    cookieHeader,
+    COOKIE_NAME,
+    secret,
+  );
 
   if (!Array.isArray(approvedClients)) {
     return null;
@@ -157,7 +174,10 @@ function validateCSRFToken(formData: FormData, request: Request) {
   const cookieHeader = request.headers.get("Cookie") || "";
   const tokenMatchesCookie = cookieHeader
     .split(";")
-    .some((cookie) => parse(cookie, CSRF_COOKIE_NAME)[CSRF_COOKIE_NAME] === tokenFromForm);
+    .some(
+      (cookie) =>
+        parse(cookie, CSRF_COOKIE_NAME)[CSRF_COOKIE_NAME] === tokenFromForm,
+    );
   if (!tokenMatchesCookie) {
     throw new Error("CSRF token mismatch.");
   }
@@ -191,10 +211,15 @@ export async function clientIdAlreadyApproved(
   if (!requestedApproval) return false;
 
   const cookieHeader = request.headers.get("Cookie");
-  const approvedClients = await getApprovedClientsFromCookie(cookieHeader, cookieSecret);
+  const approvedClients = await getApprovedClientsFromCookie(
+    cookieHeader,
+    cookieSecret,
+  );
 
   return (
-    approvedClients?.some((approved) => approvalRecordsMatch(approved, requestedApproval)) ?? false
+    approvedClients?.some((approved) =>
+      approvalRecordsMatch(approved, requestedApproval),
+    ) ?? false
   );
 }
 
@@ -217,7 +242,10 @@ export interface ApprovalDialogOptions {
  * @param options - Configuration for the approval dialog
  * @returns A Response containing the HTML approval dialog
  */
-export function renderApprovalDialog(request: Request, options: ApprovalDialogOptions): Response {
+export function renderApprovalDialog(
+  request: Request,
+  options: ApprovalDialogOptions,
+): Response {
   const { client, server, state } = options;
 
   // Encode state for form submission
@@ -226,23 +254,35 @@ export function renderApprovalDialog(request: Request, options: ApprovalDialogOp
 
   // Sanitize any untrusted content
   const serverName = sanitizeHtml(server.name);
-  const clientName = client?.clientName ? sanitizeHtml(client.clientName) : "Unknown MCP Client";
-  const serverDescription = server.description ? sanitizeHtml(server.description) : "";
+  const clientName = client?.clientName
+    ? sanitizeHtml(client.clientName)
+    : "Unknown MCP Client";
+  const serverDescription = server.description
+    ? sanitizeHtml(server.description)
+    : "";
 
   // Safe URLs
   const logoUrl = server.logo ? sanitizeHtml(sanitizeUrl(server.logo)) : "";
-  const clientUri = client?.clientUri ? sanitizeHtml(sanitizeUrl(client.clientUri)) : "";
-  const policyUri = client?.policyUri ? sanitizeHtml(sanitizeUrl(client.policyUri)) : "";
+  const clientUri = client?.clientUri
+    ? sanitizeHtml(sanitizeUrl(client.clientUri))
+    : "";
+  const policyUri = client?.policyUri
+    ? sanitizeHtml(sanitizeUrl(client.policyUri))
+    : "";
   const tosUri = client?.tosUri ? sanitizeHtml(sanitizeUrl(client.tosUri)) : "";
 
   // Client contacts
   const contacts =
-    client?.contacts && client.contacts.length > 0 ? sanitizeHtml(client.contacts.join(", ")) : "";
+    client?.contacts && client.contacts.length > 0
+      ? sanitizeHtml(client.contacts.join(", "))
+      : "";
 
   // Get redirect URIs
   const redirectUris =
     client?.redirectUris && client.redirectUris.length > 0
-      ? client.redirectUris.map((uri) => sanitizeHtml(sanitizeUrl(uri))).filter(Boolean)
+      ? client.redirectUris
+          .map((uri) => sanitizeHtml(sanitizeUrl(uri)))
+          .filter(Boolean)
       : [];
 
   // Generate HTML for the approval dialog
@@ -593,10 +633,14 @@ export async function parseRedirectApproval(
     }
 
     state = decodeState<DecodedState>(encodedState);
-    approvedClient = state.oauthReqInfo ? toApprovalRecord(state.oauthReqInfo) : null;
+    approvedClient = state.oauthReqInfo
+      ? toApprovalRecord(state.oauthReqInfo)
+      : null;
 
     if (!approvedClient) {
-      throw new Error("Could not extract client approval details from state object.");
+      throw new Error(
+        "Could not extract client approval details from state object.",
+      );
     }
   } catch (e) {
     console.error("Error processing form submission:", e);
@@ -623,13 +667,18 @@ export async function parseRedirectApproval(
   const headers = new Headers();
   headers.append(
     "Set-Cookie",
-    await generateSignedCookie(COOKIE_NAME, JSON.stringify(updatedApprovedClients), cookieSecret, {
-      httpOnly: true,
-      maxAge: ONE_YEAR_IN_SECONDS,
-      path: "/",
-      sameSite: "Lax",
-      secure: true,
-    }),
+    await generateSignedCookie(
+      COOKIE_NAME,
+      JSON.stringify(updatedApprovedClients),
+      cookieSecret,
+      {
+        httpOnly: true,
+        maxAge: ONE_YEAR_IN_SECONDS,
+        path: "/",
+        sameSite: "Lax",
+        secure: true,
+      },
+    ),
   );
   headers.append("Set-Cookie", clearCsrfCookie);
 

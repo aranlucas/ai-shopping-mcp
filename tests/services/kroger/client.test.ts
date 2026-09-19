@@ -64,18 +64,24 @@ describe("refreshKrogerToken", () => {
   });
 
   it("refreshes token successfully and returns parsed token data", async () => {
-    const mockFetch = vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          access_token: "new-access-token",
-          refresh_token: "new-refresh-token",
-          expires_in: 1800,
-        }),
-    });
+    const mockFetch = vi
+      .fn<(...args: unknown[]) => Promise<unknown>>()
+      .mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            access_token: "new-access-token",
+            refresh_token: "new-refresh-token",
+            expires_in: 1800,
+          }),
+      });
     vi.stubGlobal("fetch", mockFetch);
 
-    const result = await refreshKrogerToken("old-refresh-token", "client-id", "client-secret");
+    const result = await refreshKrogerToken(
+      "old-refresh-token",
+      "client-id",
+      "client-secret",
+    );
 
     expect(result.isOk()).toBe(true);
     const value = result._unsafeUnwrap();
@@ -107,7 +113,11 @@ describe("refreshKrogerToken", () => {
       }),
     );
 
-    const result = await refreshKrogerToken("bad-token", "client-id", "client-secret");
+    const result = await refreshKrogerToken(
+      "bad-token",
+      "client-id",
+      "client-secret",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("API_ERROR");
@@ -128,7 +138,11 @@ describe("refreshKrogerToken", () => {
       }),
     );
 
-    const result = await refreshKrogerToken("token", "client-id", "client-secret");
+    const result = await refreshKrogerToken(
+      "token",
+      "client-id",
+      "client-secret",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("API_ERROR");
@@ -147,7 +161,11 @@ describe("refreshKrogerToken", () => {
       }),
     );
 
-    const result = await refreshKrogerToken("token", "client-id", "client-secret");
+    const result = await refreshKrogerToken(
+      "token",
+      "client-id",
+      "client-secret",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("API_ERROR");
@@ -157,10 +175,16 @@ describe("refreshKrogerToken", () => {
   it("returns Err with NETWORK_ERROR when fetch itself throws (network failure)", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockRejectedValue(new Error("Network failure: connection refused")),
+      vi
+        .fn()
+        .mockRejectedValue(new Error("Network failure: connection refused")),
     );
 
-    const result = await refreshKrogerToken("token", "client-id", "client-secret");
+    const result = await refreshKrogerToken(
+      "token",
+      "client-id",
+      "client-secret",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
@@ -176,7 +200,11 @@ describe("refreshKrogerToken", () => {
       }),
     );
 
-    const result = await refreshKrogerToken("token", "client-id", "client-secret");
+    const result = await refreshKrogerToken(
+      "token",
+      "client-id",
+      "client-secret",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
@@ -192,10 +220,16 @@ describe("refreshKrogerToken", () => {
       }),
     );
 
-    const result = await refreshKrogerToken("token", "client-id", "client-secret");
+    const result = await refreshKrogerToken(
+      "token",
+      "client-id",
+      "client-secret",
+    );
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
-    expect(error.message).toContain("Invalid response from Kroger token refresh endpoint");
+    expect(error.message).toContain(
+      "Invalid response from Kroger token refresh endpoint",
+    );
   });
 
   it("defaults expires_in to 1800 when not provided in the response", async () => {
@@ -260,7 +294,9 @@ describe("createKrogerAuthMiddleware", () => {
     const middleware = createKrogerAuthMiddleware(() => null);
     const request = new Request("https://api.kroger.com/v1/products");
 
-    await expect(callOnRequest(middleware, request)).rejects.toThrow(KrogerTokenExpiredError);
+    await expect(callOnRequest(middleware, request)).rejects.toThrow(
+      KrogerTokenExpiredError,
+    );
   });
 
   it("adds Authorization Bearer header when token is valid", async () => {
@@ -272,7 +308,9 @@ describe("createKrogerAuthMiddleware", () => {
     const request = new Request("https://api.kroger.com/v1/products");
     const result = await callOnRequest(middleware, request);
 
-    expect((result as Request).headers.get("Authorization")).toBe("Bearer my-access-token");
+    expect((result as Request).headers.get("Authorization")).toBe(
+      "Bearer my-access-token",
+    );
   });
 
   it("throws KrogerTokenExpiredError when token expired more than 60 seconds ago", async () => {
@@ -283,7 +321,9 @@ describe("createKrogerAuthMiddleware", () => {
 
     const request = new Request("https://api.kroger.com/v1/products");
 
-    await expect(callOnRequest(middleware, request)).rejects.toThrow(KrogerTokenExpiredError);
+    await expect(callOnRequest(middleware, request)).rejects.toThrow(
+      KrogerTokenExpiredError,
+    );
   });
 
   it("does not throw for a token that expired less than 60 seconds ago (clock-skew grace period)", async () => {
@@ -297,7 +337,9 @@ describe("createKrogerAuthMiddleware", () => {
     const request = new Request("https://api.kroger.com/v1/products");
     const result = await callOnRequest(middleware, request);
 
-    expect((result as Request).headers.get("Authorization")).toBe("Bearer recent-token");
+    expect((result as Request).headers.get("Authorization")).toBe(
+      "Bearer recent-token",
+    );
   });
 
   it("throws KrogerTokenExpiredError on 401 response from Kroger", async () => {
@@ -320,7 +362,9 @@ describe("createKrogerAuthMiddleware", () => {
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
     }));
 
-    const response = new Response(JSON.stringify({ data: [] }), { status: 200 });
+    const response = new Response(JSON.stringify({ data: [] }), {
+      status: 200,
+    });
     const request = new Request("https://api.kroger.com/v1/products");
 
     const result = await callOnResponse(middleware, request, response);
@@ -349,7 +393,9 @@ describe("createKrogerClients", () => {
     // verifying one is sufficient — the middleware throw happens before fetch is called.
     const { cartClient } = createKrogerClients(() => null);
 
-    await expect(cartClient.PUT("/v1/cart/add", {})).rejects.toThrow(KrogerTokenExpiredError);
+    await expect(cartClient.PUT("/v1/cart/add", {})).rejects.toThrow(
+      KrogerTokenExpiredError,
+    );
   });
 });
 
@@ -361,10 +407,12 @@ function makeCacheMockKv(initialData: Record<string, string> = {}) {
     get: vi.fn<(key: string) => Promise<string | null>>((key: string) =>
       Promise.resolve(store.get(key) ?? null),
     ),
-    put: vi.fn<(key: string, value: string) => Promise<void>>((key: string, value: string) => {
-      store.set(key, value);
-      return Promise.resolve();
-    }),
+    put: vi.fn<(key: string, value: string) => Promise<void>>(
+      (key: string, value: string) => {
+        store.set(key, value);
+        return Promise.resolve();
+      },
+    ),
     store,
   } as unknown as KvLike & {
     get: ReturnType<typeof vi.fn>;
@@ -398,9 +446,13 @@ describe("createKrogerCacheMiddleware", () => {
   it("onRequest returns undefined on a cache miss", async () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
 
-    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
+    const result = await middleware.onRequest?.(
+      makeCacheRequestParams(request),
+    );
 
     expect(result).toBeUndefined();
     expect(kv.get).toHaveBeenCalledWith(
@@ -419,7 +471,9 @@ describe("createKrogerCacheMiddleware", () => {
     const middleware = createKrogerCacheMiddleware(kv, 600);
     const request = new Request(url);
 
-    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
+    const result = await middleware.onRequest?.(
+      makeCacheRequestParams(request),
+    );
 
     expect(result).toBeInstanceOf(Response);
     const response = result as Response;
@@ -430,9 +484,13 @@ describe("createKrogerCacheMiddleware", () => {
   it("onRequest never reads the cache for non-GET requests", async () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/cart/add", { method: "PUT" });
+    const request = new Request("https://api.kroger.com/v1/cart/add", {
+      method: "PUT",
+    });
 
-    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
+    const result = await middleware.onRequest?.(
+      makeCacheRequestParams(request),
+    );
 
     expect(result).toBeUndefined();
     expect(kv.get).not.toHaveBeenCalled();
@@ -440,9 +498,13 @@ describe("createKrogerCacheMiddleware", () => {
 
   it("onRequest is a no-op when kv is null", async () => {
     const middleware = createKrogerCacheMiddleware(null, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
 
-    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
+    const result = await middleware.onRequest?.(
+      makeCacheRequestParams(request),
+    );
 
     expect(result).toBeUndefined();
   });
@@ -450,26 +512,34 @@ describe("createKrogerCacheMiddleware", () => {
   it("onResponse caches a successful GET response", async () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
-    const response = new Response('{"data":{"upc":"0001111041700"}}', { status: 200 });
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
+    const response = new Response('{"data":{"upc":"0001111041700"}}', {
+      status: 200,
+    });
 
     await middleware.onResponse?.(makeCacheResponseParams(request, response));
 
     expect(kv.put).toHaveBeenCalledTimes(1);
-    const [key, value, options] = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      string,
-      string,
-      { expirationTtl: number },
-    ];
-    expect(key).toBe("kroger-cache|v1|https://api.kroger.com/v1/products/0001111041700");
-    expect(JSON.parse(value)).toEqual({ status: 200, body: '{"data":{"upc":"0001111041700"}}' });
+    const [key, value, options] = (kv.put as ReturnType<typeof vi.fn>).mock
+      .calls[0] as [string, string, { expirationTtl: number }];
+    expect(key).toBe(
+      "kroger-cache|v1|https://api.kroger.com/v1/products/0001111041700",
+    );
+    expect(JSON.parse(value)).toEqual({
+      status: 200,
+      body: '{"data":{"upc":"0001111041700"}}',
+    });
     expect(options.expirationTtl).toBe(600);
   });
 
   it("onResponse does not cache a non-GET response", async () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/cart/add", { method: "PUT" });
+    const request = new Request("https://api.kroger.com/v1/cart/add", {
+      method: "PUT",
+    });
     const response = new Response(null, { status: 204 });
 
     await middleware.onResponse?.(makeCacheResponseParams(request, response));
@@ -480,7 +550,9 @@ describe("createKrogerCacheMiddleware", () => {
   it("onResponse does not cache a non-ok GET response", async () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0009999999999");
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0009999999999",
+    );
     const response = new Response('{"error":"not found"}', { status: 500 });
 
     await middleware.onResponse?.(makeCacheResponseParams(request, response));
@@ -490,7 +562,9 @@ describe("createKrogerCacheMiddleware", () => {
 
   it("onResponse is a no-op when kv is null", async () => {
     const middleware = createKrogerCacheMiddleware(null, 600);
-    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
     const response = new Response('{"data":{}}', { status: 200 });
 
     // Should not throw even though there's no kv to write to.
@@ -501,11 +575,15 @@ describe("createKrogerCacheMiddleware", () => {
 
   it("a malformed cache entry is treated as a miss", async () => {
     const url = "https://api.kroger.com/v1/products/0001111041700";
-    const kv = makeCacheMockKv({ [`kroger-cache|v1|${url}`]: "{not-valid-json" });
+    const kv = makeCacheMockKv({
+      [`kroger-cache|v1|${url}`]: "{not-valid-json",
+    });
     const middleware = createKrogerCacheMiddleware(kv, 600);
     const request = new Request(url);
 
-    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
+    const result = await middleware.onRequest?.(
+      makeCacheRequestParams(request),
+    );
 
     expect(result).toBeUndefined();
   });
@@ -521,7 +599,9 @@ describe("createKrogerClients cache wiring", () => {
   it("defaults to no caching when kv is omitted", async () => {
     const mockFetch = vi
       .fn<(...args: unknown[]) => Promise<unknown>>()
-      .mockImplementation(async () => new Response('{"upc":"0001111041700"}', { status: 200 }));
+      .mockImplementation(
+        async () => new Response('{"upc":"0001111041700"}', { status: 200 }),
+      );
     vi.stubGlobal("fetch", mockFetch);
 
     const { productClient } = createKrogerClients(() => ({
@@ -529,8 +609,12 @@ describe("createKrogerClients cache wiring", () => {
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
     }));
 
-    await productClient.GET("/v1/products/{id}", { params: { path: { id: "0001111041700" } } });
-    await productClient.GET("/v1/products/{id}", { params: { path: { id: "0001111041700" } } });
+    await productClient.GET("/v1/products/{id}", {
+      params: { path: { id: "0001111041700" } },
+    });
+    await productClient.GET("/v1/products/{id}", {
+      params: { path: { id: "0001111041700" } },
+    });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
@@ -546,11 +630,16 @@ describe("createKrogerClients cache wiring", () => {
 
     const mockFetch = vi
       .fn<(...args: unknown[]) => Promise<unknown>>()
-      .mockImplementation(async () => new Response('{"upc":"0001111041700"}', { status: 200 }));
+      .mockImplementation(
+        async () => new Response('{"upc":"0001111041700"}', { status: 200 }),
+      );
     vi.stubGlobal("fetch", mockFetch);
 
     const { productClient } = createKrogerClients(
-      () => ({ accessToken: "token", tokenExpiresAt: Date.now() + 30 * 60 * 1000 }),
+      () => ({
+        accessToken: "token",
+        tokenExpiresAt: Date.now() + 30 * 60 * 1000,
+      }),
       kv,
     );
 
@@ -581,7 +670,10 @@ describe("createKrogerClients cache wiring", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const { cartClient } = createKrogerClients(
-      () => ({ accessToken: "token", tokenExpiresAt: Date.now() + 30 * 60 * 1000 }),
+      () => ({
+        accessToken: "token",
+        tokenExpiresAt: Date.now() + 30 * 60 * 1000,
+      }),
       kv,
     );
 

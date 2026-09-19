@@ -12,7 +12,7 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "eval:mcp": "vitest run tests/evals",
-    "test:reranker:live": "node scripts/test-reranker-live.mjs",
+    "test:selector:live": "node scripts/test-selector-live.mjs",
     "deploy": "pnpm build:views && wrangler deploy",
     "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
     "start": "wrangler dev",
@@ -28,7 +28,8 @@
     "generate:product": "pnpm dlx openapi-typescript@7.13.0 kroger/product.json -o src/services/kroger/product.d.ts",
     "generate:identity": "pnpm dlx openapi-typescript@7.13.0 kroger/identity.json -o src/services/kroger/identity.d.ts",
     "generate:gateway": "pnpm dlx openapi-typescript@7.13.0 openapi/grocery-gateway.yaml -o src/services/gateway/schema.d.ts",
-    "api:check": "pnpm generate:gateway && git diff --exit-code -- src/services/gateway/schema.d.ts"
+    "api:check": "pnpm generate:gateway && git diff --exit-code -- src/services/gateway/schema.d.ts",
+    "eval:selector:live": "node scripts/eval-selector-live.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -43,8 +44,6 @@
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.0",
     "embla-carousel-react": "^8.6.0",
-    "graphql": "^17.0.2",
-    "graphql-request": "^7.4.0",
     "hono": "^4.13.8",
     "lucide-react": "^1.46.0",
     "neverthrow": "^8.2.0",
@@ -73,7 +72,7 @@
     "vite": "^8.3.0",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.11",
-    "wrangler": "^4.133.0"
+    "wrangler": "^4.135.0"
   },
   "engines": {
     "node": ">=24.18.1"

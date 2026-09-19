@@ -15,10 +15,15 @@ export function registerResources(ctx: ToolContext) {
     async () => {
       getProps();
 
-      const result = await safeStorage(() => ctx.storage.pantry.getAll(), "fetch pantry");
+      const result = await safeStorage(
+        () => ctx.storage.pantry.getAll(),
+        "fetch pantry",
+      );
 
       if (result.isErr()) {
-        return toonResource("shopping://user/pantry", { error: "Failed to fetch pantry data" });
+        return toonResource("shopping://user/pantry", {
+          error: "Failed to fetch pantry data",
+        });
       }
       return toonResource("shopping://user/pantry", {
         itemCount: result.value.length,
@@ -39,7 +44,10 @@ export function registerResources(ctx: ToolContext) {
     async () => {
       getProps();
 
-      const result = await safeStorage(() => ctx.storage.equipment.getAll(), "fetch equipment");
+      const result = await safeStorage(
+        () => ctx.storage.equipment.getAll(),
+        "fetch equipment",
+      );
 
       if (result.isErr()) {
         return toonResource("shopping://user/kitchen-equipment", {
@@ -137,7 +145,10 @@ export function registerResources(ctx: ToolContext) {
           ordersResult.map((orders) => {
             for (const order of orders) {
               for (const item of order.items) {
-                const upc = item.product?.provider === "kroger" ? item.product.id : item.upc;
+                const upc =
+                  item.product?.provider === "kroger"
+                    ? item.product.id
+                    : item.upc;
                 if (upc && /^\d{13}$/.test(upc)) {
                   upcs.add(upc);
                 }
@@ -145,7 +156,9 @@ export function registerResources(ctx: ToolContext) {
             }
           });
 
-          const matches = [...upcs].filter((upc) => !prefix || upc.startsWith(prefix));
+          const matches = [...upcs].filter(
+            (upc) => !prefix || upc.startsWith(prefix),
+          );
           return matches.slice(0, 50);
         },
       },
@@ -159,7 +172,8 @@ export function registerResources(ctx: ToolContext) {
       const match = uri.href.match(/shopping:\/\/product\/([0-9]{13})/);
       if (!match) {
         return toonResource(uri.href, {
-          error: "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
+          error:
+            "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
         });
       }
 
@@ -170,15 +184,21 @@ export function registerResources(ctx: ToolContext) {
         () => ctx.storage.preferredLocation.get(),
         "fetch preferred location",
       );
-      const locationId = locationResult.isOk() ? locationResult.value?.locationId : undefined;
+      const locationId = locationResult.isOk()
+        ? locationResult.value?.locationId
+        : undefined;
 
       const result = await ctx.productService.getProduct(upc, locationId);
 
       if (result.isOk()) return toonResource(uri.href, result.value);
       if (result.error.type === "NOT_FOUND") {
-        return toonResource(uri.href, { error: `No product found with UPC: ${upc}` });
+        return toonResource(uri.href, {
+          error: `No product found with UPC: ${upc}`,
+        });
       }
-      return toonResource(uri.href, { error: `Failed to fetch product: ${result.error.message}` });
+      return toonResource(uri.href, {
+        error: `Failed to fetch product: ${result.error.message}`,
+      });
     },
   );
 }

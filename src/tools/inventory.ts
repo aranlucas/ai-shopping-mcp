@@ -14,13 +14,29 @@ import {
 } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { computeFrequentlyPurchasedItems, computeRestockSuggestions } from "./recipes.js";
+import {
+  computeFrequentlyPurchasedItems,
+  computeRestockSuggestions,
+} from "./recipes.js";
 
 const addInventoryItemSchema = z.object({
-  name: z.string().min(1).max(200).describe("Item name, e.g. 'Eggs' or 'Dutch oven'"),
-  quantity: z.coerce.number().min(1).max(999).optional().describe("Pantry only: quantity"),
+  name: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe("Item name, e.g. 'Eggs' or 'Dutch oven'"),
+  quantity: z.coerce
+    .number()
+    .min(1)
+    .max(999)
+    .optional()
+    .describe("Pantry only: quantity"),
   expiresAt: z.string().optional().describe("Pantry only: ISO expiry date"),
-  category: z.string().max(100).optional().describe("Equipment only: category, e.g. 'Baking'"),
+  category: z
+    .string()
+    .max(100)
+    .optional()
+    .describe("Equipment only: category, e.g. 'Baking'"),
 });
 
 export const addToInventoryInputSchema = z.object({
@@ -36,7 +52,9 @@ const removeInventoryItemSchema = z.object({
 });
 
 export const removeFromInventoryInputSchema = z.object({
-  inventory: z.enum(["pantry", "equipment"]).describe("Which inventory to remove from"),
+  inventory: z
+    .enum(["pantry", "equipment"])
+    .describe("Which inventory to remove from"),
   items: z
     .array(removeInventoryItemSchema)
     .optional()
@@ -47,7 +65,11 @@ export const removeFromInventoryInputSchema = z.object({
     .describe("Clear the entire inventory instead of removing specific items"),
 });
 
-function pantryResponse(text: string, items: PantryItem[], actionDetail: string) {
+function pantryResponse(
+  text: string,
+  items: PantryItem[],
+  actionDetail: string,
+) {
   return {
     content: [{ type: "text" as const, text }],
     ...appResult("pantry", {
@@ -57,7 +79,11 @@ function pantryResponse(text: string, items: PantryItem[], actionDetail: string)
   };
 }
 
-function equipmentResponse(text: string, items: EquipmentItem[], actionDetail: string) {
+function equipmentResponse(
+  text: string,
+  items: EquipmentItem[],
+  actionDetail: string,
+) {
   return {
     content: [{ type: "text" as const, text }],
     ...appResult("kitchen_equipment", {
@@ -86,7 +112,9 @@ export function registerInventoryTools(ctx: ToolContext) {
     },
     async ({ inventory, items }) => {
       if (!items || items.length === 0) {
-        return toMcpError(validationError("At least one item is required in 'items'."));
+        return toMcpError(
+          validationError("At least one item is required in 'items'."),
+        );
       }
 
       getProps();
@@ -166,8 +194,15 @@ export function registerInventoryTools(ctx: ToolContext) {
 
       if (inventory === "pantry") {
         if (all) {
-          const result = await safeStorage(() => ctx.storage.pantry.clear(), "clear pantry").map(
-            () => pantryResponse("Pantry cleared successfully.", [], "Pantry cleared"),
+          const result = await safeStorage(
+            () => ctx.storage.pantry.clear(),
+            "clear pantry",
+          ).map(() =>
+            pantryResponse(
+              "Pantry cleared successfully.",
+              [],
+              "Pantry cleared",
+            ),
           );
           return result.isOk() ? result.value : toMcpError(result.error);
         }
@@ -192,14 +227,19 @@ export function registerInventoryTools(ctx: ToolContext) {
           () => ctx.storage.equipment.clear(),
           "clear equipment",
         ).map(() =>
-          equipmentResponse("Equipment cleared successfully.", [], "Kitchen equipment cleared"),
+          equipmentResponse(
+            "Equipment cleared successfully.",
+            [],
+            "Kitchen equipment cleared",
+          ),
         );
         return result.isOk() ? result.value : toMcpError(result.error);
       }
 
       const removeItems = items ?? [];
       const result = await safeStorage(
-        () => ctx.storage.equipment.remove(removeItems.map((item) => item.name)),
+        () =>
+          ctx.storage.equipment.remove(removeItems.map((item) => item.name)),
         "remove equipment items",
       ).map((equipment) =>
         equipmentResponse(
@@ -231,13 +271,20 @@ export function registerInventoryTools(ctx: ToolContext) {
       getProps();
 
       const profileResult = await ResultAsync.combine([
-        safeStorage(() => ctx.storage.preferredLocation.get(), "fetch preferred store"),
+        safeStorage(
+          () => ctx.storage.preferredLocation.get(),
+          "fetch preferred store",
+        ),
         safeStorage(() => ctx.storage.pantry.getAll(), "fetch pantry"),
         safeStorage(() => ctx.storage.equipment.getAll(), "fetch equipment"),
-        safeStorage(() => ctx.storage.orderHistory.getRecent(50), "fetch order history"),
+        safeStorage(
+          () => ctx.storage.orderHistory.getRecent(50),
+          "fetch order history",
+        ),
       ]);
       if (profileResult.isErr()) return toMcpError(profileResult.error);
-      const [preferredStore, pantry, equipment, recentOrders] = profileResult.value;
+      const [preferredStore, pantry, equipment, recentOrders] =
+        profileResult.value;
       const parts: string[] = [];
 
       parts.push("## Preferred store");
@@ -256,9 +303,11 @@ export function registerInventoryTools(ctx: ToolContext) {
           let expiringNote = "";
           if (item.expiresAt) {
             const daysUntil = Math.floor(
-              (new Date(item.expiresAt).getTime() - now) / (1000 * 60 * 60 * 24),
+              (new Date(item.expiresAt).getTime() - now) /
+                (1000 * 60 * 60 * 24),
             );
-            if (!Number.isNaN(daysUntil) && daysUntil <= 3) expiringNote = " (expiring soon)";
+            if (!Number.isNaN(daysUntil) && daysUntil <= 3)
+              expiringNote = " (expiring soon)";
           }
           parts.push(`- ${item.productName} x${item.quantity}${expiringNote}`);
         }
@@ -269,7 +318,9 @@ export function registerInventoryTools(ctx: ToolContext) {
         parts.push("none");
       } else {
         for (const item of equipment) {
-          parts.push(`- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`);
+          parts.push(
+            `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
+          );
         }
       }
 
@@ -288,7 +339,11 @@ export function registerInventoryTools(ctx: ToolContext) {
       if (restockSuggestions.length === 0) {
         parts.push("no restock suggestions yet");
       } else {
-        for (const { name, daysSinceLast, medianIntervalDays } of restockSuggestions) {
+        for (const {
+          name,
+          daysSinceLast,
+          medianIntervalDays,
+        } of restockSuggestions) {
           parts.push(
             `- ${name} (last bought ${daysSinceLast}d ago, usually every ~${medianIntervalDays}d)`,
           );

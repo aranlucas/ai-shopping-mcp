@@ -6,7 +6,10 @@ import { loadWeeklyDeals } from "./weekly-deals.js";
 const MEAL_PLANNING_DEAL_LIMIT = 10;
 
 /** Optional context: a deal outage must not discard the shopper's pantry context. */
-export async function getMealPlanningDeals(ctx: ToolContext, storeId?: string): Promise<string> {
+export async function getMealPlanningDeals(
+  ctx: ToolContext,
+  storeId?: string,
+): Promise<string> {
   // Share the default get_weekly_deals cache and fetch limits; only the summary is smaller.
   const result = await loadWeeklyDeals(ctx, {
     storeId,
@@ -31,10 +34,13 @@ export async function getMealPlanningDeals(ctx: ToolContext, storeId?: string): 
   }
   for (const warning of data.warnings) parts.push(`Warning: ${warning}`);
   if (deals.length === 0)
-    parts.push("No weekly offers found. Plan from pantry and regular-price ingredients.");
+    parts.push(
+      "No weekly offers found. Plan from pantry and regular-price ingredients.",
+    );
 
   for (const deal of deals) {
-    const circular = deal.source === "print" ? data.printCircular : data.shoppableCircular;
+    const circular =
+      deal.source === "print" ? data.printCircular : data.shoppableCircular;
     const validFrom = deal.validFrom ?? circular?.eventStartDate;
     const validTill = deal.validTill ?? circular?.eventEndDate;
     const fields = [
@@ -49,6 +55,7 @@ export async function getMealPlanningDeals(ctx: ToolContext, storeId?: string): 
     ];
     parts.push(`- ${fields.filter(Boolean).join(" | ")}`);
   }
-  if (data.deals.length > deals.length) parts.push("Use get_weekly_deals for more offers.");
+  if (data.deals.length > deals.length)
+    parts.push("Use get_weekly_deals for more offers.");
   return parts.join("\n");
 }

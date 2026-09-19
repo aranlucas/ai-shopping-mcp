@@ -11,6 +11,11 @@ Gateway-backed tools forward the authenticated MCP bearer token. The gateway
 validates it against this Worker's `/userinfo` endpoint, so no additional
 Worker-to-gateway secret is required.
 
+Formatting uses Oxfmt with Prettier-style defaults: 80-column print width,
+two-space indentation, double quotes, semicolons, and trailing commas. Run
+`pnpm fmt` to apply formatting or `pnpm fmt:check` to check it. CI runs the
+format check alongside Oxlint, including the type-aware promise rules.
+
 ## Production resources
 
 Deploy from this repository with:
@@ -45,44 +50,42 @@ The server exposes 18 tools:
 
 ### Catalog providers
 
+`shop_for_items` uses TypeSafe Jev (`typesafe/jev-1.13`) by default through the existing
+Cloudflare `AI` binding and the `default` AI Gateway, using OpenRouter BYOK. It sends the entire list
+(up to 10 requested items) in one inference call, with one Choice question and
+up to 20 candidate products per item. Jev chooses one candidate or
+returns no match / needs review. Explicitly out-of-stock products are excluded;
+`addToCart: true` also requires a UPC and curbside fulfillment. Model errors,
+invalid responses, or a five-second timeout return a tool error before any list or
+cart write. There is no fallback model or heuristic picker.
+
+Store an OpenRouter key under alias `default` on the `default` gateway. The
+Worker binding authenticates automatically; no provider key is stored in the
+application. Jev uses OpenRouter's Decisions API through
+`AI.gateway("default").run()` with provider `openrouter` and endpoint
+`../alpha/decisions`. This resolves outside OpenRouter's usual `/api/v1` base
+to `/api/alpha/decisions`. Gateway retries are explicitly limited to one attempt.
+The live smoke test (`pnpm test:selector:live`) runs an ephemeral local Worker
+with a remote AI binding using Wrangler login or Cloudflare environment credentials.
+See the [Jev research and implementation note](docs/jev-model-research.md),
+[best-practices research](docs/jev-best-practices.md), and
+[live challenge-set results](docs/jev-evaluation.md). Run `pnpm eval:selector:live`
+for the 30-case live evaluation, or append an output path and `--holdout` for
+12 additional fixed cases. These use synthetic catalogs and never write a list or cart.
+
 `search_products` is provider-agnostic. It takes a `providers` array and
 searches each named catalog concurrently, returning one block per provider under
 each search term. A provider is anything implementing `CatalogProvider`
 (`src/services/catalog/types.ts`); adding one needs no tool changes.
 
-| provider      | cart | identifier       |
-| ------------- | ---- | ---------------- |
-| `kroger`      | yes  | UPC              |
-| `trader_joes` | no   | Trader Joe's SKU |
+Kroger is the only registered provider. It supports cart writes and uses UPCs
+as product identifiers.
 
 Products use provider-scoped `productRef=<provider>:<id>` tokens. Preserve these
 references on lists and orders. `capabilities.cart` indicates whether the provider
-supports cart writes; Trader Joe's product identifiers must never reach Kroger's cart.
+supports cart writes; only Kroger product identifiers may reach Kroger's cart.
 Omitting `providers` searches every registered provider. Search failures retain their
 error type and recovery guidance while successful providers remain usable.
-
-### Trader Joe's
-
-Trader Joe's publishes no partner API, and unlike Kroger it has **no cart or
-checkout API at all** — the storefront is browse-only. What it does expose is
-the unauthenticated Magento GraphQL endpoint the website itself calls
-(`https://www.traderjoes.com/api/graphql`), which answers catalog queries scoped
-to a store code. The client (`src/services/traderjoes/client.ts`) talks to it
-through `graphql-request` and reads nothing else.
-
-The endpoint is undocumented and unversioned, so responses are Zod-validated and
-schema drift surfaces as a normal tool error. It also sits behind Akamai bot
-management that rejects some server egress addresses with a 403 regardless of
-the query — that case is reported distinctly from a bad query. Two optional
-Worker vars exist for it:
-
-- `TRADER_JOES_GRAPHQL_URL` — point at an allowed egress proxy if Cloudflare's
-  addresses are blocked
-- `TRADER_JOES_STORE_CODE` — the store code prices are quoted against (default
-  `701`)
-
-Results are cached in `USER_DATA_KV` for 30 minutes, keyed by query, store, and
-limit. The catalog holds no user data, so entries are shared across shoppers.
 
 ### Editing a list by hand
 
@@ -167,7 +170,11 @@ For a client that still needs a local proxy:
   "mcpServers": {
     "kroger-shopping": {
       "command": "pnpm",
-      "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"]
+      "args": [
+        "dlx",
+        "mcp-remote",
+        "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"
+      ]
     }
   }
 }
@@ -200,10 +207,10 @@ callbacks fail lint and build. The focused configuration avoids enabling unrelat
 style rules across the repository. Synchronous `Result` consumption, including handling an
 `Err` after `await`, still requires review; see the remaining [roadmap](docs/ROADMAP.md).
 
-The live Workers AI reranker check is intentionally separate because it uses Cloudflare credentials and incurs usage:
+The live Jev selection check is separate because it uses Cloudflare credentials and incurs usage. It exercises the production selector with synthetic products, including a no-match case, without shopping-list or cart writes:
 
 ```bash
-pnpm test:reranker:live
+pnpm test:selector:live
 ```
 
 Locally it uses the active Wrangler login. In CI it requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.

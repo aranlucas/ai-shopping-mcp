@@ -2,7 +2,11 @@ import type { App } from "@modelcontextprotocol/ext-apps/react";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { type ToolCall, callTool, sendUserMessage } from "../../views/shared/types.js";
+import {
+  type ToolCall,
+  callTool,
+  sendUserMessage,
+} from "../../views/shared/types.js";
 
 import {
   addProductToCart,
@@ -14,7 +18,10 @@ import {
 } from "../../views/app/tool-calls.js";
 
 function makeToolCallingApp(
-  results: Array<{ isError?: true; structuredContent?: Record<string, unknown> }>,
+  results: Array<{
+    isError?: true;
+    structuredContent?: Record<string, unknown>;
+  }>,
 ) {
   const calls: ToolCall[] = [];
   const callServerTool = vi.fn<App["callServerTool"]>(async (call) => {
@@ -33,9 +40,9 @@ function makeMessageApp(result: Awaited<ReturnType<App["sendMessage"]>>) {
 
 describe("view tool call helpers", () => {
   it("rejects server-tool writes when the app is disconnected", async () => {
-    await expect(callTool(null, addShoppingListToCartCall("list_abc12345"))).rejects.toThrow(
-      "shopping app is disconnected",
-    );
+    await expect(
+      callTool(null, addShoppingListToCartCall("list_abc12345")),
+    ).rejects.toThrow("shopping app is disconnected");
   });
 
   it("rejects user messages when the app is disconnected", async () => {
@@ -55,7 +62,9 @@ describe("view tool call helpers", () => {
 
   it("preserves a rejected host message", async () => {
     const hostError = new Error("host disconnected");
-    const sendMessage = vi.fn<App["sendMessage"]>().mockRejectedValue(hostError);
+    const sendMessage = vi
+      .fn<App["sendMessage"]>()
+      .mockRejectedValue(hostError);
     const app = { sendMessage } as unknown as App;
 
     await expect(sendUserMessage(app, "Find milk")).rejects.toBe(hostError);
@@ -103,9 +112,9 @@ describe("view tool call helpers", () => {
   });
 
   it("throws when create_shopping_list did not return a listId", () => {
-    expect(() => shoppingListIdFromResult({ content: [], structuredContent: {} })).toThrow(
-      "Shopping list id missing",
-    );
+    expect(() =>
+      shoppingListIdFromResult({ content: [], structuredContent: {} }),
+    ).toThrow("Shopping list id missing");
   });
 
   it("formats text content from errored tool results", () => {
@@ -158,7 +167,9 @@ describe("view tool call helpers", () => {
   });
 
   it("saves a selected product by creating a shopping list without cart checkout", async () => {
-    const { app, calls } = makeToolCallingApp([{ structuredContent: { listId: "list_def67890" } }]);
+    const { app, calls } = makeToolCallingApp([
+      { structuredContent: { listId: "list_def67890" } },
+    ]);
 
     await saveProductToList(app, {
       productName: "Sourdough Bread",

@@ -160,7 +160,9 @@ describe("CartIdStorage", () => {
 
   it("set then get round-trips the cart id", async () => {
     await storage.set("user1", "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4");
-    expect(await storage.get("user1")).toBe("2b9b3963-5cac-42f8-9d28-7bebdec0b9e4");
+    expect(await storage.get("user1")).toBe(
+      "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4",
+    );
   });
 
   it("get returns null when no cart id is stored", async () => {
@@ -336,7 +338,16 @@ Add to the `view_cart tool` describe block (after the existing tests, before its
 ```typescript
 it("reads the live cart when an explicit cartId is passed and prints cartId= and upc=", async () => {
   const cartIdSetCalls: string[][] = [];
-  const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
+  const storage = makeStorage(
+    null,
+    null,
+    [],
+    null,
+    [],
+    [],
+    null,
+    cartIdSetCalls,
+  );
   const { context, getCalls } = makeContext(storage);
   registerCartTools(context);
 
@@ -355,13 +366,26 @@ it("reads the live cart when an explicit cartId is passed and prints cartId= and
 
 it("persists the cartId after a successful live read", async () => {
   const cartIdSetCalls: string[][] = [];
-  const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
+  const storage = makeStorage(
+    null,
+    null,
+    [],
+    null,
+    [],
+    [],
+    null,
+    cartIdSetCalls,
+  );
   const { context } = makeContext(storage);
   registerCartTools(context);
 
-  await getCapturedHandler("view_cart")({ cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4" });
+  await getCapturedHandler("view_cart")({
+    cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4",
+  });
 
-  expect(cartIdSetCalls).toEqual([[USER_ID, "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4"]]);
+  expect(cartIdSetCalls).toEqual([
+    [USER_ID, "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4"],
+  ]);
 });
 
 it("uses the stored cartId for a live read when no cartId is passed", async () => {
@@ -423,7 +447,9 @@ it("falls back to the mirror and names the failed cartId when the live read erro
   const { context } = makeContext(storage, { status: 204 }, { status: 404 });
   registerCartTools(context);
 
-  const result = await getCapturedHandler("view_cart")({ cartId: "stale-cart-id" });
+  const result = await getCapturedHandler("view_cart")({
+    cartId: "stale-cart-id",
+  });
 
   expect(isErrorResult(result)).toBe(false);
   const text = textFromResult(result);
@@ -490,26 +516,26 @@ function formatLiveCart(cart: LiveCart, cartId: string): string {
  * `note` (when set) explains why the live cart is not being shown.
  */
 function mirrorFallbackResult(ctx: ToolContext, userId: string, note?: string) {
-  return safeStorage(() => ctx.storage.cartMirror.getAll(userId), "fetch cart mirror").match(
-    (items) => {
-      const parts: string[] = note ? [note] : [];
-      if (items.length === 0) {
-        parts.push(
-          "No items added to your cart through this assistant yet. Use shop_for_items to search for items and add them to your Kroger cart.",
-        );
-      } else {
-        const lines = items.map(
-          (item) =>
-            `- ${item.productName ?? item.upc} x${item.quantity} | upc=${item.upc} | ${item.modality}`,
-        );
-        parts.push(
-          `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
-        );
-      }
-      return textResult(parts.join("\n\n"));
-    },
-    toMcpError,
-  );
+  return safeStorage(
+    () => ctx.storage.cartMirror.getAll(userId),
+    "fetch cart mirror",
+  ).match((items) => {
+    const parts: string[] = note ? [note] : [];
+    if (items.length === 0) {
+      parts.push(
+        "No items added to your cart through this assistant yet. Use shop_for_items to search for items and add them to your Kroger cart.",
+      );
+    } else {
+      const lines = items.map(
+        (item) =>
+          `- ${item.productName ?? item.upc} x${item.quantity} | upc=${item.upc} | ${item.modality}`,
+      );
+      parts.push(
+        `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
+      );
+    }
+    return textResult(parts.join("\n\n"));
+  }, toMcpError);
 }
 ```
 
@@ -535,7 +561,10 @@ ctx.server.registerTool(
 
     const resolvedId =
       cartId ??
-      (await safeStorage(() => ctx.storage.cartId.get(props.id), "read stored cart id").match(
+      (await safeStorage(
+        () => ctx.storage.cartId.get(props.id),
+        "read stored cart id",
+      ).match(
         (value) => value,
         () => null,
       ));
@@ -549,7 +578,9 @@ ctx.server.registerTool(
     }
 
     const liveResult = await fromApiResponse(
-      cartClient.GET("/v1/carts/{id}", { params: { path: { id: resolvedId } } }),
+      cartClient.GET("/v1/carts/{id}", {
+        params: { path: { id: resolvedId } },
+      }),
       "read live cart",
     );
 
@@ -558,7 +589,9 @@ ctx.server.registerTool(
         await safeStorage(
           () => ctx.storage.cartId.set(props.id, resolvedId),
           "store cart id",
-        ).orTee((error) => console.warn("Cart id store failed (non-fatal):", error.message));
+        ).orTee((error) =>
+          console.warn("Cart id store failed (non-fatal):", error.message),
+        );
         return textResult(formatLiveCart(payload.data ?? {}, resolvedId));
       },
       (error) =>

@@ -18,16 +18,24 @@ export default defineConfig({
           cloudflareTest({
             main: "./src/server.ts",
             remoteBindings: liveEval,
-            ...(liveEval ? { wrangler: { configPath: "./wrangler.jsonc" } } : {}),
+            ...(liveEval
+              ? { wrangler: { configPath: "./wrangler.jsonc" } }
+              : {}),
             miniflare: {
               ...(liveEval
                 ? {}
                 : {
                     compatibilityDate: "2025-03-10",
-                    compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
+                    compatibilityFlags: [
+                      "nodejs_compat",
+                      "global_fetch_strictly_public",
+                    ],
                     kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
                     durableObjects: {
-                      CART_OPERATIONS: { className: "CartOperations", useSQLite: true },
+                      CART_OPERATIONS: {
+                        className: "CartOperations",
+                        useSQLite: true,
+                      },
                     },
                   }),
               // Miniflare's WorkerOptions expose plain variables through
@@ -44,9 +52,15 @@ export default defineConfig({
                 // EVAL_LIVE selects the production Wrangler config so the
                 // live-model runner can reach its explicitly remote AI
                 // binding. Normal tests define only their local KV bindings.
-                ...(process.env.EVAL_LIVE ? { EVAL_LIVE: process.env.EVAL_LIVE } : {}),
-                ...(process.env.EVAL_MODEL ? { EVAL_MODEL: process.env.EVAL_MODEL } : {}),
-                ...(process.env.EVAL_LOG ? { EVAL_LOG: process.env.EVAL_LOG } : {}),
+                ...(process.env.EVAL_LIVE
+                  ? { EVAL_LIVE: process.env.EVAL_LIVE }
+                  : {}),
+                ...(process.env.EVAL_MODEL
+                  ? { EVAL_MODEL: process.env.EVAL_MODEL }
+                  : {}),
+                ...(process.env.EVAL_LOG
+                  ? { EVAL_LOG: process.env.EVAL_LOG }
+                  : {}),
               },
             },
           }),
