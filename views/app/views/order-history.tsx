@@ -6,7 +6,7 @@ import type { OrderHistoryContent } from "../../shared/types.js";
 import { SectionHeader } from "../../shared/components.js";
 
 const RECORDED_BADGE = (
-  <Badge variant="secondary" className="bg-emerald-50 text-emerald-700">
+  <Badge variant="secondary" tone="success">
     Recorded
   </Badge>
 );

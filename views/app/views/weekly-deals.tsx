@@ -136,7 +136,7 @@ function DealCard({
             {deal.price || "See ad"}
           </span>
           {deal.savings && (
-            <Badge variant="outline" className="bg-emerald-50 text-emerald-700">
+            <Badge variant="outline" tone="success">
               {deal.savings}
             </Badge>
           )}

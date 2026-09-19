@@ -65,14 +65,11 @@ export function AddToCartView({
       {items.length > 0 && (
         <>
           <div className="mb-3 flex flex-wrap gap-1.5">
-            <Badge
-              variant="secondary"
-              className="bg-emerald-50 text-emerald-700"
-            >
+            <Badge variant="secondary" tone="success">
               {items.length} added
             </Badge>
             {needsUpc.length > 0 && (
-              <Badge variant="outline" className="bg-amber-50 text-amber-700">
+              <Badge variant="outline" tone="warning">
                 {needsUpc.length} need UPC
               </Badge>
             )}

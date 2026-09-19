@@ -98,7 +98,7 @@ function KitchenEquipmentRow({
         </div>
         {item.category && (
           <div className="mt-0.5">
-            <Badge variant="secondary" className="bg-gray-100 text-gray-500">
+            <Badge variant="secondary" tone="muted">
               {item.category}
             </Badge>
           </div>
