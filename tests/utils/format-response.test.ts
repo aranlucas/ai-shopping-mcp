@@ -38,8 +38,7 @@ import {
 // formatPantryItem/formatPantryList, formatOrderRecord/
 // formatOrderHistory, formatEquipmentItem/formatEquipmentList,
 // formatShoppingList/formatShoppingListItem, and formatPreferredLocation were
-// removed as dead code (zero call sites in src/) — see
-// docs/small-model-efficiency-plan.md, "Code health".
+// removed as dead code (zero call sites in src/).
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 type Location = LocationComponents["schemas"]["locations.location"];

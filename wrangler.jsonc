@@ -8,9 +8,14 @@
   "main": "src/server.ts",
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "vars": {
-    "GATEWAY_URL": "https://agents-gateway.up.railway.app",
-  },
+  "d1_databases": [
+    {
+      "binding": "SHOPPING_DB",
+      "database_name": "ai-shopping-mcp",
+      "database_id": "7a03710e-48aa-445c-832d-fb14197e064b",
+      "migrations_dir": "migrations",
+    },
+  ],
   "build": {
     "command": "pnpm build:views",
   },

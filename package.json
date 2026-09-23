@@ -27,8 +27,9 @@
     "generate:location": "pnpm dlx openapi-typescript@7.13.0 kroger/location.json -o src/services/kroger/location.d.ts",
     "generate:product": "pnpm dlx openapi-typescript@7.13.0 kroger/product.json -o src/services/kroger/product.d.ts",
     "generate:identity": "pnpm dlx openapi-typescript@7.13.0 kroger/identity.json -o src/services/kroger/identity.d.ts",
-    "generate:gateway": "pnpm dlx openapi-typescript@7.13.0 openapi/grocery-gateway.yaml -o src/services/gateway/schema.d.ts",
-    "api:check": "pnpm generate:gateway && git diff --exit-code -- src/services/gateway/schema.d.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply SHOPPING_DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply SHOPPING_DB --remote",
     "eval:selector:live": "node scripts/eval-selector-live.mjs"
   },
   "dependencies": {
@@ -43,6 +44,7 @@
     "agents": "^0.23.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.0",
+    "drizzle-orm": "0.45.3",
     "embla-carousel-react": "^8.6.0",
     "hono": "^4.13.8",
     "lucide-react": "^1.46.0",
@@ -65,6 +67,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-istanbul": "^4.1.11",
     "concurrently": "^10.0.5",
+    "drizzle-kit": "0.31.11",
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
     "oxlint-tailwindcss": "1.12.0",

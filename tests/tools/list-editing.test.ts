@@ -159,31 +159,6 @@ describe("shopping list editing tools", () => {
     ]);
   });
 
-  it("normalizes a legacy Kroger productRef before the handler runs", async () => {
-    const addItems = vi.fn<
-      (
-        listId: string,
-        items: ShoppingListItem[],
-      ) => Promise<StoredShoppingListItem[]>
-    >(async (_listId, items) =>
-      items.map((item) => ({ ...item, checked: false, id: "item-1" })),
-    );
-    registerShoppingListTools(makeContext(makeListStorage({ addItems })));
-
-    await getCapturedHandler("add_shopping_list_items")({
-      listId: "list-a",
-      items: [{ productRef: "kroger:1", productName: "Milk" }],
-    });
-
-    expect(addItems).toHaveBeenCalledWith("list-a", [
-      {
-        upc: "0000000000001",
-        productName: "Milk",
-        quantity: 1,
-      },
-    ]);
-  });
-
   it("rejects an item with neither a UPC nor a name", () => {
     registerShoppingListTools(makeContext());
     const { config } = getCapturedTool("add_shopping_list_items");
@@ -194,6 +169,21 @@ describe("shopping list editing tools", () => {
     expect(
       inputSchema.safeParse({ listId: "list-a", items: [{ quantity: 1 }] })
         .success,
+    ).toBe(false);
+  });
+
+  it("rejects productRef instead of UPC", () => {
+    registerShoppingListTools(makeContext());
+    const { config } = getCapturedTool("add_shopping_list_items");
+    const { inputSchema } = config as {
+      inputSchema: { safeParse: (input: unknown) => { success: boolean } };
+    };
+
+    expect(
+      inputSchema.safeParse({
+        listId: "list-a",
+        items: [{ productRef: "kroger:1", productName: "Milk" }],
+      }).success,
     ).toBe(false);
   });
 

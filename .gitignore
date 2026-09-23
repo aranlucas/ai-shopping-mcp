@@ -27,6 +27,7 @@ Thumbs.db
 
 # Test coverage
 coverage/
+jev-evaluation-latest.json
 
 # Temporary files
 *.tmp

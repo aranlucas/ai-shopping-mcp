@@ -49,7 +49,7 @@ These suites pin down the implicit contract the server offers to weak models:
 
 If you change a response format and one of these fails, the format change
 broke small-model interop — fix the format or renegotiate the contract here
-(and in `docs/small-model-efficiency-plan.md`) explicitly.
+explicitly.
 
 ## Adding a scenario
 

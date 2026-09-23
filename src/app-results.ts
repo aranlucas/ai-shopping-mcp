@@ -1,9 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
-import {
-  normalizeProductIdentity,
-  productReferenceSchema,
-} from "./domain/product-identity.js";
 
 const APP_VIEW_META_KEY = "dev.aranlucas/view";
 const dealSchema = z.object({
@@ -34,7 +30,7 @@ const locationSchema = z.object({
     )
     .optional(),
 });
-const productFieldsSchema = z.object({
+const productSchema = z.object({
   upc: z.string().trim().min(1),
   name: z.string(),
   brand: z.string().optional(),
@@ -59,34 +55,6 @@ const productFieldsSchema = z.object({
     .optional(),
 });
 
-/**
- * Normalize persisted app payloads at the wire boundary. Product results used
- * to carry `{ product: { provider, id } }`; the app now exposes Kroger UPCs
- * directly. A legacy non-Kroger identity is terminal so a conflicting `upc`
- * cannot accidentally make that product cartable as Kroger.
- */
-const productSchema = z.preprocess((value) => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value;
-  }
-
-  const record = value as Record<string, unknown>;
-  if (!("product" in record)) return record;
-
-  const legacy = productReferenceSchema.safeParse(record.product);
-  if (!legacy.success || legacy.data.provider !== "kroger") {
-    return { ...record, upc: undefined };
-  }
-
-  const upc = normalizeProductIdentity({
-    product: legacy.data,
-    upc: typeof record.upc === "string" ? record.upc : undefined,
-  });
-  if (!upc) return { ...record, upc: undefined };
-
-  const { product: _product, ...withoutLegacyProduct } = record;
-  return { ...withoutLegacyProduct, upc };
-}, productFieldsSchema);
 const pantryItemSchema = z.object({
   productName: z.string(),
   quantity: z.number(),
@@ -98,32 +66,20 @@ const equipmentItemSchema = z.object({
   category: z.string().optional(),
   addedAt: z.string().optional(),
 });
-const shoppingListItemSchema = z
-  .object({
-    productName: z.string(),
-    product: productReferenceSchema.optional(),
-    upc: z.string().optional(),
-    quantity: z.number(),
-    notes: z.string().optional(),
-    id: z.string().optional(),
-    checked: z.boolean().optional(),
-  })
-  .transform(({ upc, product, ...item }) => {
-    const normalizedUpc = normalizeProductIdentity({ product, upc });
-    return { ...item, ...(normalizedUpc ? { upc: normalizedUpc } : {}) };
-  });
-const orderItemSchema = z
-  .object({
-    product: productReferenceSchema.optional(),
-    upc: z.string().optional(),
-    productName: z.string(),
-    quantity: z.number(),
-    price: z.number().optional(),
-  })
-  .transform(({ upc, product, ...item }) => {
-    const normalizedUpc = normalizeProductIdentity({ product, upc });
-    return { ...item, ...(normalizedUpc ? { upc: normalizedUpc } : {}) };
-  });
+const shoppingListItemSchema = z.object({
+  productName: z.string(),
+  upc: z.string().optional(),
+  quantity: z.number(),
+  notes: z.string().optional(),
+  id: z.string().optional(),
+  checked: z.boolean().optional(),
+});
+const orderItemSchema = z.object({
+  upc: z.string().optional(),
+  productName: z.string(),
+  quantity: z.number(),
+  price: z.number().optional(),
+});
 const cartResultSchema = z
   .object({
     outcome: z.enum(["added", "already_added", "needs_match"]),

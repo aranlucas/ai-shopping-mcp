@@ -7,7 +7,15 @@
  */
 import * as z from "zod/v4";
 
-export { upcSchema } from "../domain/product-identity.js";
+/** Normalize a Kroger UPC to its 13-digit form. */
+export const upcSchema = z
+  .string()
+  .trim()
+  .refine((value) => /^\d{1,13}$/.test(value), {
+    message:
+      "UPC must be up to 13 digits — copy the upc value from search_products output exactly, including leading zeros.",
+  })
+  .transform((value) => value.padStart(13, "0"));
 
 /**
  * A store ID field that trims whitespace and requires exactly 8 characters,

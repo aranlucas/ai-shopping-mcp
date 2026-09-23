@@ -801,33 +801,6 @@ describe("get_product", () => {
     expect(sc.product).not.toHaveProperty("allergensDescription");
   });
 
-  it("accepts a legacy Kroger productRef and routes it to the UPC endpoint", async () => {
-    const product = makeProduct();
-    const productGet = vi.fn<ProductGetFn>(async () =>
-      makeDetailResponse(product),
-    );
-    registerProductTools(makeContext(productGet));
-
-    const result = await getCapturedHandler("get_product")({
-      productRef: "kroger:0001111041700",
-    });
-
-    const sc = structuredContentOf(result) as { product: ProductData };
-    expect(isErrorResult(result)).toBe(false);
-    expect(sc.product).toMatchObject({
-      upc: "0001111041700",
-      name: "Test Milk",
-    });
-    expect(productGet).toHaveBeenCalledWith(
-      "/v1/products/{id}",
-      expect.objectContaining({
-        params: expect.objectContaining({
-          path: { id: "0001111041700" },
-        }),
-      }),
-    );
-  });
-
   it("returns MCP error when API response has no product data (data.data is undefined)", async () => {
     registerProductTools(
       makeContext(async () => makeDetailResponse(undefined)),
@@ -901,20 +874,7 @@ describe("get_product", () => {
     );
   });
 
-  it("accepts a legacy Kroger productRef", () => {
-    registerProductTools(
-      makeContext(async () => makeDetailResponse(undefined)),
-    );
-    const tool = getCapturedTool("get_product");
-    const config = tool.config as {
-      inputSchema: { parse: (value: unknown) => { upc: string } };
-    };
-    expect(
-      config.inputSchema.parse({ productRef: "kroger:0001111041700" }).upc,
-    ).toBe("0001111041700");
-  });
-
-  it("rejects a foreign provider productRef in the input schema", () => {
+  it("rejects productRef in the input schema", () => {
     registerProductTools(
       makeContext(async () => makeDetailResponse(undefined)),
     );
@@ -923,7 +883,7 @@ describe("get_product", () => {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
     expect(
-      config.inputSchema.safeParse({ productRef: "sample_catalog:076892" })
+      config.inputSchema.safeParse({ productRef: "kroger:0001111041700" })
         .success,
     ).toBe(false);
   });

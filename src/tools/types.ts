@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { ProductService } from "../services/kroger/product-service.js";
-import type { ShoppingStore } from "../utils/gateway-storage.js";
+import type { ShoppingStore } from "../utils/shopping-store.js";
 import type { CartStore } from "../utils/user-storage.js";
 
 // Props stored in the access token and exposed through the MCP auth context.

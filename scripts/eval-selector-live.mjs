@@ -17,7 +17,9 @@ const summarize = (rows) => ({
 });
 
 const cases = process.argv.includes("--holdout") ? holdoutCases : tuningCases;
-const outputPath = process.argv[2] ?? "docs/jev-evaluation-latest.json";
+const outputPath =
+  process.argv.slice(2).find((arg) => !arg.startsWith("--")) ??
+  "jev-evaluation-latest.json";
 const selectorSource = await readFile(
   new URL("../src/services/product-selector.ts", import.meta.url),
   "utf8",
