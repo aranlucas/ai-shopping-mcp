@@ -1,5 +1,5 @@
 import type { CartOperationStore } from "../cart-operations.js";
-/** Cart-only Cloudflare KV persistence. Shopping domain records live in domain/shopping. */
+/** Cart-only Cloudflare KV persistence. Shopping records live in D1. */
 import * as z from "zod/v4";
 
 import type { PersistenceKv } from "./kv.js";
@@ -134,7 +134,7 @@ async function readCollectionTolerant<TSchema extends z.ZodType>(
 
 /**
  * Cart-only persistence bound to one authenticated user and MCP session.
- * Shopping profile, inventory, lists, and order history live in agents-gateway.
+ * Shopping profile, inventory, lists, and order history live in D1.
  */
 export class CartPersistence implements CartStore {
   private readonly getIdentity: () => PersistenceIdentity;

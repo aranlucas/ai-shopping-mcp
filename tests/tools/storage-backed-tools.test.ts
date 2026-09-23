@@ -609,7 +609,7 @@ describe("storage-backed tools", () => {
     expect(second.text).toContain("already added to your Kroger cart");
   });
 
-  it("emits and subsequently looks up the gateway-created list id", async () => {
+  it("emits and subsequently looks up the storage-created list id", async () => {
     const gatewayListId = `list_${"a".repeat(32)}`;
     const lookups: string[] = [];
     const storage = makeStorage();

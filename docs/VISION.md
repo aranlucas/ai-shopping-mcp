@@ -27,20 +27,19 @@ every model invocation is free.
 - **The consuming interface:** presentation, user input, and approval UX. MCP Apps clients
   can render the supplied views; a separate web or messaging host can provide its own UI.
 
-Shared household data—preferred store, pantry, equipment, recorded orders, and shopping
-lists—is owned by agents-gateway/D1. The Worker accesses it through `/api/grocery/*`.
+Shopping data—preferred store, pantry, equipment, recorded orders, and shopping
+lists—is owned by this Worker in its D1 database, scoped to the authenticated shopper.
 KV holds caches and cart persistence; a Durable Object journal coordinates atomic cart
 operations. The MCP server is created per request and does not require persistent transport
 sessions. OAuth state and credentials remain managed by the OAuth integration.
 
-The checked-in gateway contract is [openapi/grocery-gateway.yaml](../openapi/grocery-gateway.yaml).
-Coordinate shared contract changes with the gateway repository and regenerate this Worker's
-client with `pnpm generate:gateway`; `pnpm api:check` checks generated-client drift.
+The D1 schema is defined in [src/db/schema.ts](../src/db/schema.ts). Drizzle Kit generates
+SQL migration files, which Wrangler applies to local or remote D1.
 
 This server supports Kroger/QFC only. Products are identified by UPC and store-scoped
 requests use a single Kroger `storeId`. Product search, detail, and cart operations call
 the concrete Kroger services directly. Older namespaced product references are normalized
-at input, gateway, and app-result boundaries; no provider registry or capability dispatch
+at input and app-result boundaries; no provider registry or capability dispatch
 is needed in the domain or views.
 
 ## Design principles

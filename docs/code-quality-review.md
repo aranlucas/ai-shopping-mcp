@@ -54,7 +54,7 @@ Remedy: define the normalized deal/result schema in the service layer, infer its
 
 **5. [P2] The shopping-store contract preserves obsolete ownership and erases read invariants.**
 
-Evidence: [shopping-list.ts:127](../src/tools/shopping-list.ts), [gateway-storage.ts:319](../src/utils/gateway-storage.ts), [gateway-storage.ts:484](../src/utils/gateway-storage.ts), [user-storage.ts:49](../src/utils/user-storage.ts).
+Historical evidence: [shopping-list.ts](../src/tools/shopping-list.ts), the removed `gateway-storage.ts` adapter, and [user-storage.ts](../src/utils/user-storage.ts). This finding predates the Worker-owned D1 migration.
 
 Every list create generates a requested ID and passes it through the storage interface; the only production implementation ignores it because the gateway owns identity. Tests still implement the caller-owned-ID model. The same `ShoppingListItem` type describes both drafts and persisted records, making `id` and `checked` optional even though the gateway requires and provides those facts on reads. Tool responses compensate with `itemId=unknown` fallbacks.
 

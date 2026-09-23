@@ -22,7 +22,7 @@ import {
   isKrogerTokenExpiring,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
-import { createGatewayClient } from "./services/gateway/client.js";
+import { createD1ShoppingStore } from "./utils/d1-shopping-storage.js";
 import { ProductService } from "./services/kroger/product-service.js";
 import { registerCartTools } from "./tools/cart.js";
 import { registerInventoryTools } from "./tools/inventory.js";
@@ -35,7 +35,6 @@ import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { getUserDataKv } from "./utils/kv.js";
-import { createGatewayShoppingStore } from "./utils/gateway-storage.js";
 import { getProps } from "./utils/result.js";
 import { isVerifiedShopperId } from "./utils/shopper-identity.js";
 import { createCartPersistence } from "./utils/user-storage.js";
@@ -68,20 +67,6 @@ const SERVER_OPTIONS = {
   instructions:
     "Kroger grocery assistant with stores, pantry, equipment, orders, and lists. Use shop_for_items for one-shot shopping, or search_products then create_shopping_list and pass its listId to add_shopping_list_to_cart. Copy exact UPCs from search results into lists and orders; storeId selects the Kroger store. Edit lists with get_shopping_list, add_shopping_list_items, and edit_shopping_list_item. Use get_shopping_profile before personalized suggestions.",
 } as const;
-
-function requestBearerToken(
-  requestContext: McpRequestContext,
-): string | undefined {
-  const validatedToken = requestContext.authInfo?.token?.trim();
-  if (validatedToken) return validatedToken;
-
-  const header = requestContext.requestInfo?.headers
-    .get("authorization")
-    ?.trim();
-  if (!header) return undefined;
-  const match = /^Bearer[ \t]+([^ \t]+)$/i.exec(header);
-  return match?.[1];
-}
 
 /**
  * Builds a fresh `McpServer` with all tools/resources/prompts registered.
@@ -120,16 +105,7 @@ function buildServer(
     requestContext.requestInfo?.signal,
   );
 
-  const gatewayToken = requestBearerToken(requestContext);
-  if (!gatewayToken) {
-    throw new Error("Authenticated MCP request is missing its bearer token");
-  }
-  const gatewayClient = createGatewayClient(
-    env.GATEWAY_URL,
-    gatewayToken,
-    requestContext.requestInfo?.signal,
-  );
-  const storage = createGatewayShoppingStore(gatewayClient);
+  const storage = createD1ShoppingStore(env.SHOPPING_DB, getProps().id);
   const journal = env.CART_OPERATIONS.getByName(getProps().id);
   const carts = createCartPersistence(
     env.USER_DATA_KV,

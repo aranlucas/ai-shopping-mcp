@@ -31,6 +31,7 @@ export default defineConfig({
                       "global_fetch_strictly_public",
                     ],
                     kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
+                    d1Databases: ["SHOPPING_DB"],
                     durableObjects: {
                       CART_OPERATIONS: {
                         className: "CartOperations",
@@ -47,7 +48,6 @@ export default defineConfig({
                 KROGER_CLIENT_ID: "test-kroger-client-id",
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
-                GATEWAY_URL: "https://gateway.example",
 
                 // EVAL_LIVE selects the production Wrangler config so the
                 // live-model runner can reach its explicitly remote AI

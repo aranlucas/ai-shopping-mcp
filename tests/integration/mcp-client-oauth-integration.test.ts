@@ -2,8 +2,11 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
-import { SELF, reset } from "cloudflare:test";
+import { SELF, env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { createD1ShoppingStore } from "../../src/utils/d1-shopping-storage.js";
+import { ensureShoppingSchema } from "../d1-schema.js";
 
 const CLIENT_REDIRECT_URI = "https://client.example/callback";
 const MCP_BASE_URL = "https://example.com";
@@ -253,7 +256,18 @@ async function createAuthorizedMcpClient(accessToken: string): Promise<Client> {
 }
 
 describe("MCP client over Worker OAuth integration", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await ensureShoppingSchema();
+    await createD1ShoppingStore(
+      env.SHOPPING_DB,
+      "real-oauth-user",
+    ).preferredLocation.set({
+      locationId: "70500847",
+      locationName: "QFC Test Store",
+      address: "1 Test St",
+      chain: "QFC",
+      setAt: "2026-01-01T00:00:00.000Z",
+    });
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -296,19 +310,6 @@ describe("MCP client over Worker OAuth integration", () => {
                 ],
               },
             ],
-          });
-        }
-
-        if (
-          url.href === "https://gateway.example/api/grocery/preferred-store"
-        ) {
-          return Response.json({
-            provider: "kroger",
-            location_id: "70500847",
-            name: "QFC Test Store",
-            address: "1 Test St",
-            chain: "QFC",
-            set_at: Math.floor(Date.parse("2026-01-01T00:00:00Z") / 1000),
           });
         }
 

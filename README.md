@@ -1,15 +1,20 @@
 # Grocery shopping MCP
 
-Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Product search, carts, stores, and weekly deals are Kroger/QFC-only. OAuth grants live in the existing `OAUTH_KV` namespace; atomic cart operations live in the `CART_OPERATIONS` Durable Object; legacy cart receipts, the assistant cart mirror, and product/location caches live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists are owned by agents-gateway/D1. The Worker also serves one bundled MCP App view shared by tool results.
+Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Product search, carts, stores, and weekly deals are Kroger/QFC-only. OAuth grants live in the existing `OAUTH_KV` namespace; atomic cart operations live in the `CART_OPERATIONS` Durable Object; legacy cart receipts, the assistant cart mirror, and product/location caches live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists live in the Worker's `SHOPPING_DB` D1 database. The Worker also serves one bundled MCP App view shared by tool results.
 
 ## Local development
 
 Keep local secrets in `.dev.vars`. `pnpm start` and `pnpm dev` load that file
 through Wrangler.
 
-Gateway-backed tools forward the authenticated MCP bearer token. The gateway
-validates it against this Worker's `/userinfo` endpoint, so no additional
-Worker-to-gateway secret is required.
+Shopping data is scoped to the authenticated Kroger shopper ID and stored directly
+in D1. No second service or bearer-token forwarding is involved.
+
+The schema is defined in `src/db/schema.ts`. Generate a SQL migration with
+`pnpm db:generate`, then apply it with `pnpm db:migrate:local` for local
+development or `pnpm db:migrate:remote` for the configured Cloudflare database.
+Wrangler reads the migration files from `migrations/` via `migrations_dir` in
+`wrangler.jsonc`. New D1 storage starts empty; gateway records are not imported.
 
 Formatting uses Oxfmt with Prettier-style defaults: 80-column print width,
 two-space indentation, double quotes, semicolons, and trailing commas. Run
@@ -30,6 +35,12 @@ Keep the Worker name, KV namespace IDs, and Durable Object migration history in 
 - `KROGER_CLIENT_ID`
 - `KROGER_CLIENT_SECRET`
 - `COOKIE_ENCRYPTION_KEY`
+
+Apply pending D1 migrations before deploying a Worker that uses the new schema:
+
+```bash
+pnpm db:migrate:remote
+```
 
 Register the exact production callback URL with Kroger:
 
@@ -85,7 +96,7 @@ match before they can be added to the cart.
 
 ### Editing a list by hand
 
-Lists live in agents-gateway/D1 and are edited through `get_shopping_list` (with
+Lists live in the Worker's D1 database and are edited through `get_shopping_list` (with
 no `listId` it returns every list and its id; with one it returns that list's
 items and their `itemId`s), then `add_shopping_list_items` and
 `edit_shopping_list_item`. List items accept `upc` values or plain `productName` entries for unmatched ingredients.
@@ -157,7 +168,7 @@ once as matched, not found, needing review, or failed, then consume that outcome
 The `v3` migration adds the SQLite-backed `CartOperations` class. Deploy the code,
 binding, and migration together. Retain the old `v1`/`v2` migration history.
 
-Gateway and Kroger requests have a 10-second deadline and inherit HTTP request
+Kroger requests have a 10-second deadline and inherit HTTP request
 cancellation. GET responses with 502/503/504 are retried once after 200ms within
 that same deadline, unless the server supplies `Retry-After`. Mutations are never
 automatically retried. MCP errors include `structuredContent.error` with `code`,

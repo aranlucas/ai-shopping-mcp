@@ -14,6 +14,7 @@ import {
 } from "@modelcontextprotocol/client";
 import { SELF, env } from "cloudflare:test";
 import { expect, vi } from "vitest";
+import { ensureShoppingSchema } from "../d1-schema.js";
 import { stubJevAi } from "../jev-stub.js";
 
 const CLIENT_REDIRECT_URI = "https://client.example/callback";
@@ -329,248 +330,11 @@ export function installKrogerFetchStub(): KrogerFetchStub {
       id === "default" ? jev.gateway(id) : originalAi.gateway(id),
   } as Ai;
   const cartPuts: Array<{ items: CapturedCartItem[] }> = [];
-  let preferredStore: Record<string, unknown> | null = null;
-  let pantry: Array<Record<string, unknown>> = [];
-  let equipment: Array<Record<string, unknown>> = [];
-  const orders: Array<Record<string, unknown>> = [];
-  const lists = new Map<string, Record<string, unknown>>();
-  let listCounter = 0;
-
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : null;
       const url = new URL(request ? request.url : input.toString());
-
-      if (
-        url.hostname === "gateway.example" ||
-        url.hostname === "agents-gateway.up.railway.app"
-      ) {
-        if (!request)
-          throw new Error("Gateway fixture requires a Request instance");
-        const method = request.method.toUpperCase();
-        const jsonBody = async () =>
-          (await request.clone().json()) as Record<string, unknown>;
-        const nowSeconds = 1_784_352_000;
-        const nowMilliseconds = nowSeconds * 1000;
-
-        if (url.pathname === "/api/grocery/preferred-store") {
-          if (method === "GET") {
-            return preferredStore
-              ? Response.json(preferredStore)
-              : Response.json({ error: "grocery_not_found" }, { status: 404 });
-          }
-          if (method === "PUT") {
-            const body = await jsonBody();
-            preferredStore = {
-              provider: body["provider"] ?? "kroger",
-              location_id: body["location_id"],
-              name: body["name"],
-              address: body["address"],
-              chain: body["chain"],
-              set_at: body["set_at"] ?? nowSeconds,
-            };
-            return Response.json(preferredStore);
-          }
-          if (method === "DELETE") {
-            preferredStore = null;
-            return new Response(null, { status: 204 });
-          }
-        }
-
-        if (url.pathname === "/api/grocery/pantry") {
-          if (method === "GET") return Response.json({ items: pantry });
-          if (method === "POST") {
-            const body = await jsonBody();
-            const inputs = Array.isArray(body["items"])
-              ? (body["items"] as Array<Record<string, unknown>>)
-              : [];
-            for (const item of inputs) {
-              const name = String(item["name"] ?? "");
-              const quantity = Number(item["quantity"] ?? 1);
-              const existing = pantry.find(
-                (candidate) =>
-                  String(candidate["name"]).toLowerCase() ===
-                  name.toLowerCase(),
-              );
-              if (existing) {
-                existing["quantity"] = Number(existing["quantity"]) + quantity;
-                existing["added_at"] = nowSeconds;
-                if (item["expires_at"] !== undefined) {
-                  existing["expires_at"] = item["expires_at"];
-                }
-              } else {
-                pantry.push({
-                  name,
-                  quantity,
-                  added_at: nowSeconds,
-                  ...(item["expires_at"] === undefined
-                    ? {}
-                    : { expires_at: item["expires_at"] }),
-                });
-              }
-            }
-            return Response.json({ items: pantry });
-          }
-        }
-
-        if (
-          url.pathname === "/api/grocery/pantry/remove" &&
-          method === "POST"
-        ) {
-          const body = await jsonBody();
-          if (body["all"] === true) {
-            pantry = [];
-          } else {
-            const names = new Set(
-              (Array.isArray(body["names"]) ? body["names"] : []).map((name) =>
-                String(name).toLowerCase(),
-              ),
-            );
-            pantry = pantry.filter(
-              (item) => !names.has(String(item["name"]).toLowerCase()),
-            );
-          }
-          return Response.json({ items: pantry });
-        }
-
-        if (
-          url.pathname === "/api/grocery/pantry/quantity" &&
-          method === "POST"
-        ) {
-          const body = await jsonBody();
-          const item = pantry.find(
-            (candidate) =>
-              String(candidate["name"]).toLowerCase() ===
-              String(body["name"] ?? "").toLowerCase(),
-          );
-          if (item) item["quantity"] = Number(body["quantity"]);
-          return Response.json({ items: pantry });
-        }
-
-        if (url.pathname === "/api/grocery/equipment") {
-          if (method === "GET") return Response.json({ items: equipment });
-          if (method === "POST") {
-            const body = await jsonBody();
-            const inputs = Array.isArray(body["items"])
-              ? (body["items"] as Array<Record<string, unknown>>)
-              : [];
-            for (const item of inputs) {
-              const name = String(item["name"] ?? "");
-              const existing = equipment.find(
-                (candidate) =>
-                  String(candidate["name"]).toLowerCase() ===
-                  name.toLowerCase(),
-              );
-              if (existing) {
-                existing["added_at"] = nowSeconds;
-                if (item["category"] !== undefined) {
-                  existing["category"] = item["category"];
-                }
-              } else {
-                equipment.push({
-                  name,
-                  added_at: nowSeconds,
-                  ...(item["category"] === undefined
-                    ? {}
-                    : { category: item["category"] }),
-                });
-              }
-            }
-            return Response.json({ items: equipment });
-          }
-        }
-
-        if (
-          url.pathname === "/api/grocery/equipment/remove" &&
-          method === "POST"
-        ) {
-          const body = await jsonBody();
-          if (body["all"] === true) {
-            equipment = [];
-          } else {
-            const names = new Set(
-              (Array.isArray(body["names"]) ? body["names"] : []).map((name) =>
-                String(name).toLowerCase(),
-              ),
-            );
-            equipment = equipment.filter(
-              (item) => !names.has(String(item["name"]).toLowerCase()),
-            );
-          }
-          return Response.json({ items: equipment });
-        }
-
-        if (url.pathname === "/api/grocery/orders") {
-          if (method === "GET") {
-            const limit = Number(
-              url.searchParams.get("limit") ?? orders.length,
-            );
-            return Response.json({ orders: orders.slice(0, limit) });
-          }
-          if (method === "POST") {
-            const body = await jsonBody();
-            const order = {
-              ...body,
-              id: body["id"] ?? `order_${orders.length + 1}`,
-            };
-            orders.unshift(order);
-            return Response.json(order, { status: 201 });
-          }
-        }
-
-        if (url.pathname === "/api/grocery/lists" && method === "POST") {
-          const body = await jsonBody();
-          listCounter++;
-          const id = `list_${listCounter.toString(16).padStart(32, "0")}`;
-          const inputs = Array.isArray(body["items"])
-            ? (body["items"] as Array<Record<string, unknown>>)
-            : [];
-          const list = {
-            id,
-            household_id: null,
-            owner_user_id: "eval-user",
-            title: String(body["title"] ?? ""),
-            status: "active",
-            created_at: nowMilliseconds,
-            updated_at: nowMilliseconds,
-            items: inputs.map((item, index) => {
-              const entry: Record<string, unknown> = {
-                id: `item_${index + 1}`,
-                list_id: id,
-                name: String(item["name"] ?? ""),
-                quantity: String(item["quantity"] ?? "1"),
-                note: item["note"] ?? null,
-                position: index,
-                added_by: "eval-user",
-                checked_by: null,
-                checked_at: null,
-                updated_at: nowMilliseconds,
-              };
-              if (item["product"] !== undefined)
-                entry["product"] = item["product"];
-              if (item["upc"] !== undefined) entry["upc"] = item["upc"];
-              return entry;
-            }),
-          };
-          lists.set(id, list);
-          return Response.json(list, { status: 201 });
-        }
-
-        const listMatch = url.pathname.match(
-          /^\/api\/grocery\/lists\/([^/]+)$/,
-        );
-        if (listMatch && method === "GET") {
-          const list = lists.get(listMatch[1]);
-          return list
-            ? Response.json(list)
-            : Response.json({ error: "grocery_not_found" }, { status: 404 });
-        }
-
-        throw new Error(
-          `Unexpected gateway fixture request: ${method} ${url.href}`,
-        );
-      }
 
       if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
         return Response.json({
@@ -803,6 +567,7 @@ async function exchangeCodeForToken(
  * be installed (the OAuth callback exchanges a Kroger token).
  */
 export async function createEvalMcpClient(): Promise<Client> {
+  await ensureShoppingSchema();
   const registered = await registerOAuthClient();
   const { authorizationCode, codeVerifier } =
     await authorizeOAuthClient(registered);

@@ -1,6 +1,6 @@
 import type { ProductSearchFn } from "../qfc-weekly-deals.js";
 import type { KrogerClients } from "../kroger/client.js";
-import type { ShoppingStore } from "../../utils/gateway-storage.js";
+import type { ShoppingStore } from "../../utils/shopping-store.js";
 import type { WeeklyDealsServiceDependencies } from "./service.js";
 
 import { AppErrorException } from "../../errors.js";

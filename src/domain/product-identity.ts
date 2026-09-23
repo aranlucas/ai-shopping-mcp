@@ -2,13 +2,13 @@ import * as z from "zod/v4";
 
 const providerPattern = /^[a-z][a-z0-9_]{0,63}$/u;
 
-/** Legacy gateway/catalog identity, retained only for wire compatibility. */
+/** Legacy product identity, retained only for wire compatibility. */
 export const productReferenceSchema = z.object({
   provider: z.string().regex(providerPattern),
   id: z.string().trim().min(1).max(255),
 });
 
-/** The canonical domain UPC form shared by tool and gateway compatibility code. */
+/** The canonical domain UPC form shared by tools and compatibility code. */
 export const upcSchema = z
   .string()
   .trim()
@@ -40,7 +40,7 @@ export const productReferenceInputSchema = z
   .pipe(upcSchema);
 
 /**
- * Convert gateway compatibility fields into the domain UPC.  An explicit
+ * Convert legacy compatibility fields into the domain UPC. An explicit
  * non-Kroger product is intentionally terminal: a legacy UPC next to it must
  * not accidentally make a named non-Kroger item cartable.
  */

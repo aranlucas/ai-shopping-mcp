@@ -13,7 +13,7 @@ Updated 2026-09-18. Jev is now the default and sole selector in `shop_for_items`
 - A single five-second deadline for the whole batch aborts the request and rejects even if a test binding ignores cancellation. Any model/validation failure returns an MCP error before creating a list or writing a cart. No fallback or application retry runs.
 - Wrangler was updated from 4.133.0 to 4.135.0 (latest at implementation time), and `worker-configuration.d.ts` was regenerated. No AI SDK dependency was added.
 
-The earlier baseline used Workers AI BGE (`@cf/baai/bge-reranker-base`) plus a pickup/in-store-first heuristic. That service, its tests, and its live-check script have been replaced. `GATEWAY_URL` in Wrangler still refers to the household-data service, not an inference router.
+The earlier baseline used Workers AI BGE (`@cf/baai/bge-reranker-base`) plus a pickup/in-store-first heuristic. That service, its tests, and its live-check script have been replaced. Shopping data now lives in the Worker's D1 database; Cloudflare AI Gateway remains the inference route.
 
 ## Cloudflare route and account setup
 

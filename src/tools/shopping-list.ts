@@ -114,7 +114,7 @@ export type CreateShoppingListResult = { listId: string; list: ShoppingList };
 
 /**
  * Persists a list and returns the storage-owned id shown to the model. The
- * gateway creates its own durable id, so the returned record is authoritative.
+ * storage creates the durable id, so the returned record is authoritative.
  */
 export function createShoppingListRecord(
   storage: UserStorage,

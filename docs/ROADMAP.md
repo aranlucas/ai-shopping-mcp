@@ -1,6 +1,6 @@
 # Roadmap
 
-Reviewed against the code on September 12, 2026. This is the single prioritized backlog for
+Reviewed against the code on September 23, 2026. This is the single prioritized backlog for
 the MCP server. [VISION.md](VISION.md) describes the architecture and host contract;
 [the efficiency plan](small-model-efficiency-plan.md) records earlier implementation work.
 
@@ -11,28 +11,13 @@ the MCP server. [VISION.md](VISION.md) describes the architecture and host contr
 - Support Kroger/QFC only. Use UPCs and one Kroger store ID throughout the domain;
   normalize old namespaced references at compatibility boundaries. Do not introduce
   provider registries or capability routing without a concrete supported integration.
-- Shared household data belongs in agents-gateway/D1. New persistent profile fields need a
-  gateway contract and migration, not another Worker KV storage class. KV remains appropriate
+- Shopping data belongs in the Worker's D1 database. New persistent profile fields need a
+  Drizzle schema change and migration, not another Worker KV storage class. KV remains appropriate
   for caches and cart state; atomic cart operations use the existing Durable Object journal.
 
 ## Next: MCP and error-handling correctness
 
-### 1. Resolve the gateway token boundary
-
-The [current gateway authentication design](GATEWAY_AUTH.md) forwards the incoming MCP OAuth
-bearer token to agents-gateway, which verifies it through the MCP `/userinfo` endpoint and
-resolves the canonical shopper. That design needs review against the
-[MCP authorization rules for token audience and upstream credentials](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization).
-
-Design the resource boundaries and a separate gateway credential or token-exchange flow with
-the gateway owner before changing either service. Preserve verified shopper resolution and
-fail-closed ownership checks; do not restore trusted caller-supplied user headers.
-
-**Done when:** the documented design addresses upstream token forwarding, and coordinated
-implementation/tests prove audience separation, user isolation, expired-token handling, and
-migration behavior. This is a cross-repository change, not a local auth-header patch.
-
-### 2. Enforce consumption of synchronous Results
+### 1. Enforce consumption of synchronous Results
 
 Promise handling is enforced by the regular lint/build path, including floated `ResultAsync`
 values. A Promise settling successfully does not prove its `Err` was handled: discarded
@@ -45,7 +30,7 @@ second legacy lint stack or a syntax-only rule that mistakes a returned error fo
 **Done when:** the normal lint command rejects discarded Results, while valid propagation and
 explicit recovery pass. Add a failing fixture to demonstrate the integration before adopting it.
 
-### 3. Validate structured tool outputs
+### 2. Validate structured tool outputs
 
 [App results](../src/app-results.ts) now have shared runtime schemas for all eleven views.
 TypeScript payload types are inferred from those schemas, and the UI validates incoming
@@ -95,9 +80,9 @@ estimate request must never mutate the cart.
 
 ### Persistent household preferences
 
-Persist dietary preferences, dislikes, and household size in agents-gateway/D1, then include
-them in meal context. Per-call `dietaryPreferences` already exists. The gateway API, migration,
-and shared-client updates are prerequisites; avoid a second Worker-only household profile.
+Persist dietary preferences, dislikes, and household size in the Worker's D1 database, then include
+them in meal context. Per-call `dietaryPreferences` already exists. A Drizzle migration and
+corresponding tool updates are prerequisites.
 Treat preferences as planning constraints, not verified product allergen or nutrition data.
 
 ## Deferred or outside scope
@@ -128,6 +113,5 @@ Each change needs focused behavior tests plus the applicable repository gates: `
 `pnpm test`, formatting, and `git diff --check`. Tool changes must preserve the
 [small-model contract](../tests/evals/README.md), including copyable identifiers, actionable
 errors, and bounded text and structured payloads. New workflow behavior needs a deterministic
-MCP eval; live-model runs remain opt-in. Gateway changes also require generated-client checks
-and verification in the gateway repository. Record deployment verification separately from
-implementation status.
+MCP eval; live-model runs remain opt-in. D1 schema changes require a generated migration and
+local migration check. Record deployment verification separately from implementation status.

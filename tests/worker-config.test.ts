@@ -18,14 +18,12 @@ describe("Worker configuration", () => {
     expect(serverSource).toContain("oauthProvider.purgeExpiredData");
   });
 
-  it("configures secretless bearer authentication for the gateway", () => {
-    expect(wranglerConfig).toContain(
-      '"GATEWAY_URL": "https://agents-gateway.up.railway.app"',
-    );
-    expect(generatedTypes).toContain("GATEWAY_URL");
-    expect(serverSource).toContain("createGatewayShoppingStore");
-    expect(serverSource).toContain("requestBearerToken(requestContext)");
-    expect(serverSource).not.toContain("SHOPPING_SERVICE_SECRET");
-    expect(wranglerConfig).not.toContain("SHOPPING_SERVICE_SECRET");
+  it("binds the Worker-owned D1 shopping database", () => {
+    expect(wranglerConfig).toContain('"binding": "SHOPPING_DB"');
+    expect(wranglerConfig).toContain('"migrations_dir": "migrations"');
+    expect(generatedTypes).toContain("SHOPPING_DB: D1Database");
+    expect(serverSource).toContain("createD1ShoppingStore");
+    expect(serverSource).not.toContain("createGatewayClient");
+    expect(wranglerConfig).not.toContain("GATEWAY_URL");
   });
 });
