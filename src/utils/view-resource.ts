@@ -18,7 +18,10 @@ import {
   registerAppResource,
   RESOURCE_MIME_TYPE,
 } from "@modelcontextprotocol/ext-apps/server";
-import type { McpServer } from "@modelcontextprotocol/server";
+import type {
+  McpServer,
+  RegisteredResource,
+} from "@modelcontextprotocol/server";
 
 /** Single resource URI shared by all app tools. */
 export const APP_VIEW_URI = "ui://shopping-app";
@@ -63,8 +66,8 @@ export function registerViewResource(
   getEnv: () => Env,
   resourceUri: string,
   filename: string,
-): void {
-  registerAppResource(
+): RegisteredResource {
+  return registerAppResource(
     server,
     resourceUri,
     resourceUri,
