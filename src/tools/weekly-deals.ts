@@ -83,7 +83,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
         storeId,
         limit,
         pageLimit,
-        signal: requestContext.signal,
+        signal: requestContext.mcpReq.signal,
       });
       if (result.isErr()) return toMcpError(result.error);
       return formatWeeklyDealsToolResponse(
