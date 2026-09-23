@@ -12,7 +12,12 @@ const EXPECTED_MIME_TYPE = "text/html;profile=mcp-app";
 
 // Type for the captured resource read callback (matches McpUiReadResourceCallback minus unused params)
 type ResourceReadCallback = () => Promise<{
-  contents: Array<{ uri: string; mimeType: string; text: string }>;
+  contents: Array<{
+    uri: string;
+    mimeType: string;
+    text: string;
+    _meta?: { ui?: { csp?: { resourceDomains?: string[] } } };
+  }>;
 }>;
 
 type CapturedResource = {
@@ -152,6 +157,9 @@ describe("registerViewResource", () => {
         uri: resourceUri,
         mimeType: EXPECTED_MIME_TYPE,
         text: htmlContent,
+        _meta: {
+          ui: { csp: { resourceDomains: ["https://www.kroger.com"] } },
+        },
       });
     });
 

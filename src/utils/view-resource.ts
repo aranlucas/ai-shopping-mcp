@@ -77,6 +77,13 @@ export function registerViewResource(
             uri: resourceUri,
             mimeType: RESOURCE_MIME_TYPE,
             text: html,
+            _meta: {
+              ui: {
+                csp: {
+                  resourceDomains: ["https://www.kroger.com"],
+                },
+              },
+            },
           },
         ],
       };
