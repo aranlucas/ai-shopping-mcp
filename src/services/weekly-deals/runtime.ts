@@ -1,49 +1,55 @@
 import type { ProductSearchFn } from "../qfc-weekly-deals.js";
 import type { KrogerClients } from "../kroger/client.js";
-import type { ShoppingStore } from "../../utils/shopping-store.js";
-import type { WeeklyDealsServiceDependencies } from "./service.js";
+import type { PreferredLocationStore } from "../../utils/shopping-store.js";
+import type {
+  WeeklyDealsLoader,
+  WeeklyDealsServiceDependencies,
+} from "./service.js";
+import type { WeeklyDealsCache } from "./cache.js";
 
 import { AppErrorException } from "../../errors.js";
 import { getQfcWeeklyDeals } from "../qfc-weekly-deals.js";
-import { getUserDataKv } from "../../utils/kv.js";
+import { loadWeeklyDeals } from "./service.js";
 import { fromApiResponse, safeResolveLocationId } from "../../utils/result.js";
 
-type WeeklyDealsToolDependencies = {
-  storage: ShoppingStore;
-  clients: Pick<KrogerClients, "productClient">;
-  getEnv: () => Env;
+export type WeeklyDealsLoaderDependencies = {
+  preferredLocation: PreferredLocationStore;
+  productClient: KrogerClients["productClient"];
+  weeklyDealsCache: WeeklyDealsCache;
 };
 
-/** Bridge MCP infrastructure to the tool-independent weekly-deals service. */
-export function createWeeklyDealsDependencies(
-  ctx: WeeklyDealsToolDependencies,
-): WeeklyDealsServiceDependencies {
-  return {
+/** Binds request-scoped MCP infrastructure to the weekly-deals service. */
+export function createWeeklyDealsLoader(
+  dependencies: WeeklyDealsLoaderDependencies,
+): WeeklyDealsLoader {
+  const serviceDependencies: WeeklyDealsServiceDependencies = {
     resolveLocationId: (storeId) =>
-      safeResolveLocationId(ctx.storage, storeId).map(
+      safeResolveLocationId(dependencies.preferredLocation, storeId).map(
         ({ locationId }) => locationId,
       ),
-    getCache: () => getUserDataKv(ctx.getEnv()),
+    weeklyDealsCache: dependencies.weeklyDealsCache,
     fetchLive: async ({ locationId, limit, pageLimit, signal }) => {
       return getQfcWeeklyDeals({
         locationId,
         limit,
         pageLimit,
         ...(signal ? { signal } : {}),
-        searchProducts: createProductSearch(ctx, signal),
+        searchProducts: createProductSearch(dependencies.productClient, signal),
       });
     },
   };
+
+  return (params) => loadWeeklyDeals(serviceDependencies, params);
 }
 
 function createProductSearch(
-  ctx: WeeklyDealsToolDependencies,
+  productClient: KrogerClients["productClient"],
   signal?: AbortSignal,
 ): ProductSearchFn {
   return async (term, locationId, limit) => {
     const apiResult = await fromApiResponse(
       () =>
-        ctx.clients.productClient.GET("/v1/products", {
+        productClient.GET("/v1/products", {
           ...(signal ? { signal } : {}),
           params: {
             query: {

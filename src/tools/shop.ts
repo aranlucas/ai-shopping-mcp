@@ -1,4 +1,5 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -8,17 +9,25 @@ import type { components as ProductComponents } from "../services/kroger/product
 import { appResult } from "../app-results.js";
 import { apiError, notFoundError } from "../errors.js";
 import { formatKrogerPrice } from "../services/kroger/price.js";
+import type { KrogerClients } from "../services/kroger/client.js";
 import {
   classifyShoppingItem,
   summarizeShoppingOutcomes,
 } from "../services/shopping-outcomes.js";
 import { selectProductMatches } from "../services/product-selector.js";
+import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
 import {
   getProps,
   safeResolveLocationId,
   toMcpError,
 } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import type {
+  PantryStore,
+  PreferredLocationStore,
+  ShoppingListStore,
+} from "../utils/shopping-store.js";
+import type { CartStore } from "../utils/user-storage.js";
 import { type LineItem, addLineItemsToCart } from "./cart.js";
 import {
   getDealsForFlags,
@@ -28,9 +37,19 @@ import {
 import { searchProductsForTerms } from "./product.js";
 import { coercedBooleanSchema } from "./schemas.js";
 import { createShoppingListRecord } from "./shopping-list.js";
-import { type ToolContext } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+
+export type ShopToolDependencies = {
+  carts: CartStore;
+  productClient: KrogerClients["productClient"];
+  cartClient: KrogerClients["cartClient"];
+  weeklyDealsCache: WeeklyDealsCache;
+  pantry: PantryStore;
+  preferredLocation: PreferredLocationStore;
+  shoppingList: ShoppingListStore;
+  ai: Env["AI"];
+};
 
 const shopItemSchema = z.object({
   name: z
@@ -98,7 +117,8 @@ function shoppingListResponse(
 }
 
 async function finishShopForItemsCart(
-  ctx: ToolContext,
+  carts: CartStore,
+  cartClient: KrogerClients["cartClient"],
   listId: string,
   responseText: string,
   list: ShoppingList,
@@ -106,8 +126,8 @@ async function finishShopForItemsCart(
 ) {
   const parts = [responseText];
   const addResult = await addLineItemsToCart(
-    ctx,
-    ctx.clients.cartClient,
+    carts,
+    cartClient,
     lineItems,
     "PICKUP",
     {
@@ -144,176 +164,185 @@ async function finishShopForItemsCart(
   return shoppingListResponse(listId, list, parts);
 }
 
-export function registerShopTools(ctx: ToolContext) {
-  const { productClient } = ctx.clients;
-
-  registerAppTool(
-    ctx.server,
-    "shop_for_items",
-    {
-      title: "Shop For Items",
-      description:
-        'One-shot shopping: resolves your preferred store, searches for each item name, picks the best match, and creates a shopping list. Set addToCart:true to also add the matches to your Kroger cart (PICKUP). Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
+export function createShopTools({
+  carts,
+  productClient,
+  cartClient,
+  weeklyDealsCache,
+  pantry,
+  preferredLocation,
+  shoppingList,
+  ai,
+}: ShopToolDependencies) {
+  return (server: McpServer) => {
+    registerAppTool(
+      server,
+      "shop_for_items",
+      {
+        title: "Shop For Items",
+        description:
+          'One-shot shopping: resolves your preferred store, searches for each item name, picks the best match, and creates a shopping list. Set addToCart:true to also add the matches to your Kroger cart (PICKUP). Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
+        _meta: { ui: { resourceUri: APP_VIEW_URI } },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
+        inputSchema: shopForItemsInputSchema,
       },
-      inputSchema: shopForItemsInputSchema,
-    },
-    async ({ items, addToCart }) => {
-      getProps();
-      const resolvedLocation = await safeResolveLocationId(
-        ctx.storage,
-        undefined,
-      );
-      if (resolvedLocation.isErr()) {
-        if (resolvedLocation.error.type !== "NOT_FOUND")
-          return toMcpError(resolvedLocation.error);
-        return toMcpError(
-          notFoundError(
-            "No preferred store set. Use search_stores to find a store, then set_preferred_store to save it, and try again.",
-          ),
+      async ({ items, addToCart }) => {
+        getProps();
+        const resolvedLocation = await safeResolveLocationId(
+          preferredLocation,
+          undefined,
         );
-      }
-      const { locationId } = resolvedLocation.value;
-
-      const requests = items.map((item, index) => ({
-        requestId: `item_${index}`,
-        name: item.name,
-        quantity: item.quantity,
-      }));
-      const searchResults = await searchProductsForTerms(
-        productClient,
-        requests.map(({ requestId, name }) => ({ requestId, term: name })),
-        { locationId, limitPerTerm: 20 },
-      );
-
-      const ai = ctx.getEnv().AI;
-      const selectionResult = await ResultAsync.fromPromise(
-        selectProductMatches({
-          ai,
-          items: searchResults
-            .filter((result) => result.status === "success")
-            .map((result) => ({
-              requestId: result.requestId,
-              query: result.term,
-              products: result.products,
-            })),
-          forPickup: addToCart,
-        }),
-        () =>
-          apiError(
-            "Jev product selection failed. No shopping list or cart changes were made. Check Cloudflare AI Gateway access and retry.",
-          ),
-      );
-      if (selectionResult.isErr()) return toMcpError(selectionResult.error);
-      const selectionsByRequestId = new Map(
-        selectionResult.value.map((selection) => [
-          selection.requestId,
-          selection,
-        ]),
-      );
-      const searchesByRequestId = new Map(
-        searchResults.map((search) => [search.requestId, search]),
-      );
-
-      const [pantry, deals] = await Promise.all([
-        getPantryForFlags(ctx),
-        getDealsForFlags(ctx, locationId),
-      ]);
-
-      const outcomes = requests.map((request) => {
-        const search = searchesByRequestId.get(request.requestId);
-        if (!search)
-          throw new Error(
-            `Missing search result for request ${request.requestId}`,
+        if (resolvedLocation.isErr()) {
+          if (resolvedLocation.error.type !== "NOT_FOUND")
+            return toMcpError(resolvedLocation.error);
+          return toMcpError(
+            notFoundError(
+              "No preferred store set. Use search_stores to find a store, then set_preferred_store to save it, and try again.",
+            ),
           );
-        return classifyShoppingItem(
-          request,
-          search,
-          selectionsByRequestId.get(request.requestId),
+        }
+        const { locationId } = resolvedLocation.value;
+
+        const requests = items.map((item, index) => ({
+          requestId: `item_${index}`,
+          name: item.name,
+          quantity: item.quantity,
+        }));
+        const searchResults = await searchProductsForTerms(
+          productClient,
+          requests.map(({ requestId, name }) => ({ requestId, term: name })),
+          { locationId, limitPerTerm: 20 },
         );
-      });
-      const summaryResult = summarizeShoppingOutcomes(outcomes);
-      if (summaryResult.isErr()) return toMcpError(summaryResult.error);
-      const summary = summaryResult.value;
-      const matched = summary.matched.map(({ request, product }) => ({
-        ...request,
-        product,
-        flags: itemFlagLabels(request.name, pantry, deals),
-      }));
 
-      const listItems: ShoppingListItem[] = matched.map((match) => ({
-        productName: match.product.description || match.name,
-        upc: match.product.upc,
-        quantity: match.quantity,
-      }));
+        const selectionResult = await ResultAsync.fromPromise(
+          selectProductMatches({
+            ai,
+            items: searchResults
+              .filter((result) => result.status === "success")
+              .map((result) => ({
+                requestId: result.requestId,
+                query: result.term,
+                products: result.products,
+              })),
+            forPickup: addToCart,
+          }),
+          () =>
+            apiError(
+              "Jev product selection failed. No shopping list or cart changes were made. Check Cloudflare AI Gateway access and retry.",
+            ),
+        );
+        if (selectionResult.isErr()) return toMcpError(selectionResult.error);
+        const selectionsByRequestId = new Map(
+          selectionResult.value.map((selection) => [
+            selection.requestId,
+            selection,
+          ]),
+        );
+        const searchesByRequestId = new Map(
+          searchResults.map((search) => [search.requestId, search]),
+        );
 
-      const listName = `Shopping list ${new Date().toISOString().slice(0, 10)}`;
+        const [pantryItems, deals] = await Promise.all([
+          getPantryForFlags(pantry),
+          getDealsForFlags(weeklyDealsCache, locationId),
+        ]);
 
-      const createResult = await createShoppingListRecord(
-        ctx.storage,
-        listName,
-        listItems,
-      );
-      if (createResult.isErr()) return toMcpError(createResult.error);
-      const { listId, list } = createResult.value;
+        const outcomes = requests.map((request) => {
+          const search = searchesByRequestId.get(request.requestId);
+          if (!search)
+            throw new Error(
+              `Missing search result for request ${request.requestId}`,
+            );
+          return classifyShoppingItem(
+            request,
+            search,
+            selectionsByRequestId.get(request.requestId),
+          );
+        });
+        const summaryResult = summarizeShoppingOutcomes(outcomes);
+        if (summaryResult.isErr()) return toMcpError(summaryResult.error);
+        const summary = summaryResult.value;
+        const matched = summary.matched.map(({ request, product }) => ({
+          ...request,
+          product,
+          flags: itemFlagLabels(request.name, pantryItems, deals),
+        }));
 
-      const parts: string[] = [
-        `Created shopping list "${listName}" (listId=${listId}) with ${matched.length} item(s).`,
-        "",
-        ...matched.map((match) =>
-          formatMatchLineMarkdown(
-            match.name,
-            match.quantity,
-            match.product,
-            match.flags,
+        const listItems: ShoppingListItem[] = matched.map((match) => ({
+          productName: match.product.description || match.name,
+          upc: match.product.upc,
+          quantity: match.quantity,
+        }));
+
+        const listName = `Shopping list ${new Date().toISOString().slice(0, 10)}`;
+
+        const createResult = await createShoppingListRecord(
+          shoppingList,
+          listName,
+          listItems,
+        );
+        if (createResult.isErr()) return toMcpError(createResult.error);
+        const { listId, list } = createResult.value;
+
+        const parts: string[] = [
+          `Created shopping list "${listName}" (listId=${listId}) with ${matched.length} item(s).`,
+          "",
+          ...matched.map((match) =>
+            formatMatchLineMarkdown(
+              match.name,
+              match.quantity,
+              match.product,
+              match.flags,
+            ),
           ),
-        ),
-      ];
+        ];
 
-      parts.push(...summary.warnings);
+        parts.push(...summary.warnings);
 
-      if (!addToCart) {
-        parts.push(
-          "",
-          `Review these matches, then call add_shopping_list_to_cart with listId "${listId}" to add them to the Kroger cart.`,
+        if (!addToCart) {
+          parts.push(
+            "",
+            `Review these matches, then call add_shopping_list_to_cart with listId "${listId}" to add them to the Kroger cart.`,
+          );
+          return shoppingListResponse(listId, list, parts);
+        }
+
+        // addToCart: reuse the same direct PUT path as
+        // add_shopping_list_to_cart.
+        const lineItems: LineItem[] = matched.flatMap((match) =>
+          match.product.upc
+            ? [
+                {
+                  upc: match.product.upc,
+                  quantity: match.quantity,
+                  productName: match.product.description || match.name,
+                },
+              ]
+            : [],
         );
-        return shoppingListResponse(listId, list, parts);
-      }
 
-      // addToCart: reuse the same direct PUT path as
-      // add_shopping_list_to_cart.
-      const lineItems: LineItem[] = matched.flatMap((match) =>
-        match.product.upc
-          ? [
-              {
-                upc: match.product.upc,
-                quantity: match.quantity,
-                productName: match.product.description || match.name,
-              },
-            ]
-          : [],
-      );
+        if (lineItems.length === 0) {
+          parts.push(
+            "",
+            `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${listId}"} once available.`,
+          );
+          return shoppingListResponse(listId, list, parts);
+        }
 
-      if (lineItems.length === 0) {
-        parts.push(
-          "",
-          `None of the matches had a upc to add to cart. Retry with add_shopping_list_to_cart {"listId":"${listId}"} once available.`,
+        return finishShopForItemsCart(
+          carts,
+          cartClient,
+          listId,
+          parts.join("\n"),
+          list,
+          lineItems,
         );
-        return shoppingListResponse(listId, list, parts);
-      }
-
-      return finishShopForItemsCart(
-        ctx,
-        listId,
-        parts.join("\n"),
-        list,
-        lineItems,
-      );
-    },
-  );
+      },
+    );
+  };
 }

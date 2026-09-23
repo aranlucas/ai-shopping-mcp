@@ -42,6 +42,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@toon-format/toon": "^4.1.1",
     "agents": "^0.23.0",
+    "awilix": "13.0.5",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.0",
     "drizzle-orm": "0.45.3",

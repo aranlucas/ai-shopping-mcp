@@ -429,6 +429,119 @@ describe("MCP client over Worker OAuth integration", () => {
     expect(pantryText).not.toContain("outside an authenticated MCP request");
   });
 
+  it("keeps dependencies scoped to concurrent authenticated shoppers", async () => {
+    const krogerFetch = vi.mocked(fetch).getMockImplementation();
+    if (!krogerFetch) throw new Error("Missing Kroger fetch stub");
+    let shopperId = "shopper-alice";
+    const productRequests: Array<{
+      term: string | null;
+      locationId: string | null;
+      authorization: string | null;
+    }> = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      const url = new URL(request.url);
+      if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
+        return Response.json({
+          access_token: `kroger-access-token-${shopperId}`,
+          refresh_token: `kroger-refresh-token-${shopperId}`,
+          expires_in: 1800,
+        });
+      }
+      if (url.href === "https://api.kroger.com/v1/identity/profile") {
+        return Response.json({ data: { id: shopperId } });
+      }
+      if (url.pathname === "/v1/products") {
+        productRequests.push({
+          term: url.searchParams.get("filter.term"),
+          locationId: url.searchParams.get("filter.locationId"),
+          authorization: request.headers.get("Authorization"),
+        });
+      }
+      return krogerFetch(input, init);
+    });
+
+    async function connectShopper(id: string, locationId: string) {
+      shopperId = id;
+      await createD1ShoppingStore(env.SHOPPING_DB, id).preferredLocation.set({
+        locationId,
+        locationName: `Store for ${id}`,
+        address: "1 Test St",
+        chain: "QFC",
+        setAt: new Date().toISOString(),
+      });
+      const registered = await registerClient();
+      const { authorizationCode, codeVerifier } =
+        await authorizeClient(registered);
+      const token = await exchangeCodeForToken(
+        registered,
+        authorizationCode,
+        codeVerifier,
+      );
+      return createAuthorizedMcpClient(token.access_token);
+    }
+
+    const alice = await connectShopper("shopper-alice", "70500847");
+    const bob = await connectShopper("shopper-bob", "70500034");
+    try {
+      const searches = await Promise.all([
+        alice.callTool({
+          name: "search_products",
+          arguments: { terms: ["alice-milk"] },
+        }),
+        bob.callTool({
+          name: "search_products",
+          arguments: { terms: ["bob-milk"] },
+        }),
+      ]);
+      for (const search of searches) expect(search.isError).toBeFalsy();
+      expect(productRequests).toHaveLength(2);
+      expect(productRequests).toEqual(
+        expect.arrayContaining([
+          {
+            term: "alice-milk",
+            locationId: "70500847",
+            authorization: "Bearer kroger-access-token-shopper-alice",
+          },
+          {
+            term: "bob-milk",
+            locationId: "70500034",
+            authorization: "Bearer kroger-access-token-shopper-bob",
+          },
+        ]),
+      );
+
+      const writes = await Promise.all([
+        alice.callTool({
+          name: "add_to_inventory",
+          arguments: {
+            inventory: "pantry",
+            items: [{ name: "Alice rice", quantity: 2 }],
+          },
+        }),
+        bob.callTool({
+          name: "add_to_inventory",
+          arguments: {
+            inventory: "pantry",
+            items: [{ name: "Bob beans", quantity: 3 }],
+          },
+        }),
+      ]);
+      for (const write of writes) expect(write.isError).toBeFalsy();
+
+      const [alicePantry, bobPantry] = await Promise.all([
+        alice.readResource({ uri: "shopping://user/pantry" }),
+        bob.readResource({ uri: "shopping://user/pantry" }),
+      ]);
+      expect(JSON.stringify(alicePantry.contents)).toContain("Alice rice");
+      expect(JSON.stringify(alicePantry.contents)).not.toContain("Bob beans");
+      expect(JSON.stringify(bobPantry.contents)).toContain("Bob beans");
+      expect(JSON.stringify(bobPantry.contents)).not.toContain("Alice rice");
+    } finally {
+      await Promise.all([alice.close(), bob.close()]);
+    }
+  });
+
   it("does not require persisted MCP session state", async () => {
     const registeredClient = await registerClient();
     const { authorizationCode, codeVerifier } =

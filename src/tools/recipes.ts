@@ -1,13 +1,20 @@
 import { ResultAsync } from "neverthrow";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../domain/shopping.js";
+import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+} from "../utils/shopping-store.js";
 
 import { classifyExpiry } from "../services/expiry.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { getMealPlanningDeals } from "./meal-planning-deals.js";
 import { coercedBooleanSchema, storeIdSchema } from "./schemas.js";
-import { type ToolContext, textResult } from "./types.js";
+import { textResult } from "./types.js";
 
 /**
  * Ranks item names by purchase frequency across recent orders. Shared by
@@ -142,168 +149,184 @@ const mealPlanningInputSchema = z.object({
     .describe("Deal store; defaults to preferred Kroger store"),
 });
 
-export function registerRecipeTools(ctx: ToolContext) {
-  ctx.server.registerTool(
-    "get_meal_planning_context",
-    {
-      title: "Get Meal Planning Context",
-      description:
-        "Returns pantry, expiry, equipment, and recent purchases for host-written meal plans. includeWeeklyDeals:true adds QFC/Kroger offers, even with an empty pantry.",
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
+export type RecipeToolDependencies = {
+  pantry: PantryStore;
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  loadWeeklyDeals: WeeklyDealsLoader;
+};
+
+export function createRecipeTools({
+  pantry,
+  equipment,
+  orderHistory,
+  loadWeeklyDeals,
+}: RecipeToolDependencies) {
+  return (server: McpServer) => {
+    server.registerTool(
+      "get_meal_planning_context",
+      {
+        title: "Get Meal Planning Context",
+        description:
+          "Returns pantry, expiry, equipment, and recent purchases for host-written meal plans. includeWeeklyDeals:true adds QFC/Kroger offers, even with an empty pantry.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
+        inputSchema: mealPlanningInputSchema,
       },
-      inputSchema: mealPlanningInputSchema,
-    },
-    async ({
-      numberOfMeals,
-      mealType,
-      dietaryPreferences,
-      prioritizeExpiring,
-      includeWeeklyDeals,
-      storeId,
-    }) => {
-      const { storage } = ctx;
-      getProps();
+      async ({
+        numberOfMeals,
+        mealType,
+        dietaryPreferences,
+        prioritizeExpiring,
+        includeWeeklyDeals,
+        storeId,
+      }) => {
+        getProps();
 
-      const [contextResult, weeklyDeals] = await Promise.all([
-        ResultAsync.combine([
-          safeStorage(() => storage.pantry.getAll(), "fetch pantry"),
-          safeStorage(() => storage.equipment.getAll(), "fetch equipment"),
-          safeStorage(
-            () => storage.orderHistory.getRecent(10),
-            "fetch order history",
-          ),
-        ]),
-        includeWeeklyDeals
-          ? getMealPlanningDeals(ctx, storeId)
-          : Promise.resolve(undefined),
-      ]);
-      if (contextResult.isErr()) return toMcpError(contextResult.error);
-      const [pantry, equipment, recentOrders] = contextResult.value;
-      if (pantry.length === 0 && !includeWeeklyDeals) {
-        return textResult(
-          'Your pantry is empty. Add items first using add_to_inventory, e.g. {"inventory":"pantry","items":[{"name":"Eggs"}]}, then try planning meals again.',
-        );
-      }
-
-      const now = Date.now();
-      const categorizedPantry = pantry.map((item) => {
-        const expiry = classifyExpiry(item.expiresAt, now);
-        if (expiry.status === "expired")
-          return Object.assign({}, item, {
-            urgency: "expired" as const,
-            daysUntil: expiry.daysUntil,
-          });
-        if (
-          expiry.status === "today" ||
-          (expiry.status === "soon" && expiry.daysUntil <= 1)
-        )
-          return Object.assign({}, item, {
-            urgency: "critical" as const,
-            daysUntil: expiry.daysUntil,
-          });
-        if (expiry.status === "soon")
-          return Object.assign({}, item, {
-            urgency: "warning" as const,
-            daysUntil: expiry.daysUntil,
-          });
-        const daysUntil =
-          expiry.status === "none" || expiry.status === "invalid"
-            ? undefined
-            : expiry.daysUntil;
-        return Object.assign({}, item, {
-          urgency:
-            expiry.status === "none" || expiry.status === "invalid"
-              ? ("none" as const)
-              : ("ok" as const),
-          daysUntil,
-        });
-      });
-
-      const expiringItems = categorizedPantry.filter(
-        (item) => item.urgency === "critical" || item.urgency === "warning",
-      );
-      const expiredItems = categorizedPantry.filter(
-        (item) => item.urgency === "expired",
-      );
-      const availableItems = categorizedPantry.filter(
-        (item) => item.urgency !== "expired",
-      );
-
-      const parts: string[] = [
-        `**Meal Plan** (${numberOfMeals} meal${numberOfMeals > 1 ? "s" : ""}${mealType !== "any" ? ` - ${mealType}` : ""})`,
-      ];
-
-      if (expiredItems.length > 0) {
-        parts.push(
-          `\n❌ ${expiredItems.length} expired item(s) excluded: ${expiredItems.map((i) => i.productName).join(", ")}`,
-        );
-      }
-
-      if (dietaryPreferences) {
-        parts.push(`\nDietary preferences: ${dietaryPreferences}`);
-      }
-
-      if (prioritizeExpiring && expiringItems.length > 0) {
-        parts.push("\n**⚠️ Expiring Soon (use first!):**");
-        for (const item of expiringItems) {
-          const urgency =
-            item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
-          parts.push(`- ${item.productName} x${item.quantity} (${urgency})`);
-        }
-      }
-
-      parts.push(`\n**Pantry (${availableItems.length} items):**`);
-      for (const item of availableItems) {
-        parts.push(`- ${item.productName} x${item.quantity}`);
-      }
-      if (pantry.length === 0) {
-        parts.push(
-          "Your pantry is empty. Treat all recipe ingredients as items to buy.",
-        );
-      }
-
-      if (weeklyDeals) parts.push(weeklyDeals);
-
-      if (equipment.length > 0) {
-        parts.push(`\n**Equipment (${equipment.length} items):**`);
-        for (const item of equipment) {
-          parts.push(
-            `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
+        const [contextResult, weeklyDeals] = await Promise.all([
+          ResultAsync.combine([
+            safeStorage(() => pantry.getAll(), "fetch pantry"),
+            safeStorage(() => equipment.getAll(), "fetch equipment"),
+            safeStorage(
+              () => orderHistory.getRecent(10),
+              "fetch order history",
+            ),
+          ]),
+          includeWeeklyDeals
+            ? getMealPlanningDeals(loadWeeklyDeals, storeId)
+            : Promise.resolve(undefined),
+        ]);
+        if (contextResult.isErr()) return toMcpError(contextResult.error);
+        const [pantryItems, equipmentItems, recentOrders] = contextResult.value;
+        if (pantryItems.length === 0 && !includeWeeklyDeals) {
+          return textResult(
+            'Your pantry is empty. Add items first using add_to_inventory, e.g. {"inventory":"pantry","items":[{"name":"Eggs"}]}, then try planning meals again.',
           );
         }
-      }
 
-      if (recentOrders.length > 0) {
-        const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
-        if (frequentItems.length > 0) {
-          parts.push("\n**Frequently Purchased (user preferences):**");
-          for (const { name, count } of frequentItems) {
-            parts.push(`- ${name} (ordered ${count}x)`);
+        const now = Date.now();
+        const categorizedPantry = pantryItems.map((item) => {
+          const expiry = classifyExpiry(item.expiresAt, now);
+          if (expiry.status === "expired")
+            return Object.assign({}, item, {
+              urgency: "expired" as const,
+              daysUntil: expiry.daysUntil,
+            });
+          if (
+            expiry.status === "today" ||
+            (expiry.status === "soon" && expiry.daysUntil <= 1)
+          )
+            return Object.assign({}, item, {
+              urgency: "critical" as const,
+              daysUntil: expiry.daysUntil,
+            });
+          if (expiry.status === "soon")
+            return Object.assign({}, item, {
+              urgency: "warning" as const,
+              daysUntil: expiry.daysUntil,
+            });
+          const daysUntil =
+            expiry.status === "none" || expiry.status === "invalid"
+              ? undefined
+              : expiry.daysUntil;
+          return Object.assign({}, item, {
+            urgency:
+              expiry.status === "none" || expiry.status === "invalid"
+                ? ("none" as const)
+                : ("ok" as const),
+            daysUntil,
+          });
+        });
+
+        const expiringItems = categorizedPantry.filter(
+          (item) => item.urgency === "critical" || item.urgency === "warning",
+        );
+        const expiredItems = categorizedPantry.filter(
+          (item) => item.urgency === "expired",
+        );
+        const availableItems = categorizedPantry.filter(
+          (item) => item.urgency !== "expired",
+        );
+
+        const parts: string[] = [
+          `**Meal Plan** (${numberOfMeals} meal${numberOfMeals > 1 ? "s" : ""}${mealType !== "any" ? ` - ${mealType}` : ""})`,
+        ];
+
+        if (expiredItems.length > 0) {
+          parts.push(
+            `\n❌ ${expiredItems.length} expired item(s) excluded: ${expiredItems.map((i) => i.productName).join(", ")}`,
+          );
+        }
+
+        if (dietaryPreferences) {
+          parts.push(`\nDietary preferences: ${dietaryPreferences}`);
+        }
+
+        if (prioritizeExpiring && expiringItems.length > 0) {
+          parts.push("\n**⚠️ Expiring Soon (use first!):**");
+          for (const item of expiringItems) {
+            const urgency =
+              item.urgency === "critical" ? "TODAY/TOMORROW" : "2-3 days";
+            parts.push(`- ${item.productName} x${item.quantity} (${urgency})`);
           }
         }
-      }
 
-      parts.push(
-        `\n---\n**Action Required:** Suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using ${includeWeeklyDeals ? "the available pantry items and any suitable weekly offers above" : "the pantry items above"}.`,
-        includeWeeklyDeals
-          ? "Respect dietary preferences and offer conditions; do not assume sale items are already in the pantry. Use search_products to confirm exact products and current prices before create_shopping_list."
-          : "",
-        "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
-        prioritizeExpiring
-          ? "Prioritize using expiring items first to reduce food waste."
-          : "",
-        "After suggesting meals, offer to add any missing ingredients to a shopping list using create_shopping_list.",
-      );
+        parts.push(`\n**Pantry (${availableItems.length} items):**`);
+        for (const item of availableItems) {
+          parts.push(`- ${item.productName} x${item.quantity}`);
+        }
+        if (pantryItems.length === 0) {
+          parts.push(
+            "Your pantry is empty. Treat all recipe ingredients as items to buy.",
+          );
+        }
 
-      return {
-        content: [
-          { type: "text" as const, text: parts.filter(Boolean).join("\n") },
-        ],
-      };
-    },
-  );
+        if (weeklyDeals) parts.push(weeklyDeals);
+
+        if (equipmentItems.length > 0) {
+          parts.push(`\n**Equipment (${equipmentItems.length} items):**`);
+          for (const item of equipmentItems) {
+            parts.push(
+              `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
+            );
+          }
+        }
+
+        if (recentOrders.length > 0) {
+          const frequentItems = computeFrequentlyPurchasedItems(
+            recentOrders,
+            10,
+          );
+          if (frequentItems.length > 0) {
+            parts.push("\n**Frequently Purchased (user preferences):**");
+            for (const { name, count } of frequentItems) {
+              parts.push(`- ${name} (ordered ${count}x)`);
+            }
+          }
+        }
+
+        parts.push(
+          `\n---\n**Action Required:** Suggest ${numberOfMeals} meal(s)${mealType !== "any" ? ` for ${mealType}` : ""} using ${includeWeeklyDeals ? "the available pantry items and any suitable weekly offers above" : "the pantry items above"}.`,
+          includeWeeklyDeals
+            ? "Respect dietary preferences and offer conditions; do not assume sale items are already in the pantry. Use search_products to confirm exact products and current prices before create_shopping_list."
+            : "",
+          "For each meal, include: name, description, pantry ingredients used (flag expiring ones), additional ingredients to buy, cooking steps, and estimated time.",
+          prioritizeExpiring
+            ? "Prioritize using expiring items first to reduce food waste."
+            : "",
+          "After suggesting meals, offer to add any missing ingredients to a shopping list using create_shopping_list.",
+        );
+
+        return {
+          content: [
+            { type: "text" as const, text: parts.filter(Boolean).join("\n") },
+          ],
+        };
+      },
+    );
+  };
 }

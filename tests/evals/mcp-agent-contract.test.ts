@@ -1,16 +1,27 @@
 import { describe, expect, it } from "vitest";
 
-import type { ToolContext } from "../../src/tools/types.js";
+import type { McpServer } from "@modelcontextprotocol/server";
+import type { KrogerClients } from "../../src/services/kroger/client.js";
+import type { ProductService } from "../../src/services/kroger/product-service.js";
+import type { WeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+  PreferredLocationStore,
+  ShoppingListStore,
+} from "../../src/utils/shopping-store.js";
+import type { CartStore } from "../../src/utils/user-storage.js";
 
-import { registerCartTools } from "../../src/tools/cart.js";
-import { registerInventoryTools } from "../../src/tools/inventory.js";
-import { registerLocationTools } from "../../src/tools/location.js";
-import { registerOrderTools } from "../../src/tools/orders.js";
-import { registerProductTools } from "../../src/tools/product.js";
-import { registerRecipeTools } from "../../src/tools/recipes.js";
-import { registerShopTools } from "../../src/tools/shop.js";
-import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
-import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
+import { createCartTools } from "../../src/tools/cart.js";
+import { createInventoryTools } from "../../src/tools/inventory.js";
+import { createLocationTools } from "../../src/tools/location.js";
+import { createOrderTools } from "../../src/tools/orders.js";
+import { createProductTools } from "../../src/tools/product.js";
+import { createRecipeTools } from "../../src/tools/recipes.js";
+import { createShopTools } from "../../src/tools/shop.js";
+import { createShoppingListTools } from "../../src/tools/shopping-list.js";
+import { createWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
@@ -40,7 +51,16 @@ const testState: { capturedTools: CapturedTool[] } = {
   capturedTools: [],
 };
 
-function makeContext(): ToolContext {
+function makeDependencies() {
+  const preferredLocation: PreferredLocationStore = {
+    get: async () => null,
+    set: async () => {},
+    delete: async () => {},
+  };
+  const pantry = {} as PantryStore;
+  const equipment = {} as EquipmentStore;
+  const orderHistory = {} as OrderHistoryStore;
+  const shoppingList = {} as ShoppingListStore;
   return {
     server: {
       registerTool: (
@@ -56,43 +76,52 @@ function makeContext(): ToolContext {
           content: { confirm: true },
         }),
       },
-    } as unknown as ToolContext["server"],
-    clients: {
-      productClient: {
-        GET: async () => ({ response: new Response(null, { status: 204 }) }),
-      },
-      locationClient: {
-        GET: async () => ({ response: new Response(null, { status: 204 }) }),
-      },
-      cartClient: {
-        PUT: async () => ({ response: new Response(null, { status: 204 }) }),
-      },
-    } as unknown as ToolContext["clients"],
+    } as unknown as McpServer,
+    productClient: {
+      GET: async () => ({ response: new Response(null, { status: 204 }) }),
+    } as unknown as KrogerClients["productClient"],
+    locationClient: {
+      GET: async () => ({ response: new Response(null, { status: 204 }) }),
+    } as unknown as KrogerClients["locationClient"],
+    cartClient: {
+      PUT: async () => ({ response: new Response(null, { status: 204 }) }),
+    } as unknown as KrogerClients["cartClient"],
     productService: {
       getProduct: () => {
         throw new Error("productService not used in this test");
       },
       enrichProductName: async () => null,
-    } as unknown as ToolContext["productService"],
-    storage: {} as ToolContext["storage"],
-    carts: {} as ToolContext["carts"],
-    getEnv: () => ({}) as Env,
+    } satisfies Pick<ProductService, "getProduct" | "enrichProductName">,
+    preferredLocation,
+    pantry,
+    equipment,
+    orderHistory,
+    shoppingList,
+    carts: {} as CartStore,
+    ai: {} as Env["AI"],
+    dealFlagReader: {
+      getDeals: async () => [],
+    },
+    weeklyDealsCache: {} as WeeklyDealsCache,
+    loadWeeklyDeals: async () => {
+      throw new Error("Weekly deals not used in registration tests");
+    },
   };
 }
 
 function registerAllTools() {
   testState.capturedTools.length = 0;
-  const ctx = makeContext();
+  const deps = makeDependencies();
 
-  registerCartTools(ctx);
-  registerLocationTools(ctx);
-  registerProductTools(ctx);
-  registerInventoryTools(ctx);
-  registerOrderTools(ctx);
-  registerRecipeTools(ctx);
-  registerShoppingListTools(ctx);
-  registerShopTools(ctx);
-  registerWeeklyDealsTools(ctx);
+  createCartTools(deps)(deps.server);
+  createLocationTools(deps)(deps.server);
+  createProductTools(deps)(deps.server);
+  createInventoryTools(deps)(deps.server);
+  createOrderTools(deps)(deps.server);
+  createRecipeTools(deps)(deps.server);
+  createShoppingListTools(deps)(deps.server);
+  createShopTools(deps)(deps.server);
+  createWeeklyDealsTools(deps)(deps.server);
 
   return testState.capturedTools;
 }

@@ -1,8 +1,8 @@
 import { ResultAsync, err, ok, type Result } from "neverthrow";
 
 import type { AppError } from "../../errors.js";
-import type { KvLike } from "../../utils/kv.js";
 import type { QfcDealsApiResponse, WeeklyDealsCacheEntry } from "./schema.js";
+import type { WeeklyDealsCache } from "./cache.js";
 
 import {
   AppErrorException,
@@ -12,8 +12,6 @@ import {
 import {
   addWeeklyDealsWarning as addWarning,
   buildWeeklyDealsCacheKey,
-  readWeeklyDealsCache,
-  writeWeeklyDealsCache,
 } from "./cache.js";
 import { weeklyDealWarning } from "./schema.js";
 
@@ -21,7 +19,7 @@ export type WeeklyDealsServiceDependencies = {
   resolveLocationId: (
     storeId: string | undefined,
   ) => ResultAsync<string, AppError>;
-  getCache: () => KvLike | null;
+  weeklyDealsCache: WeeklyDealsCache;
   fetchLive: (params: {
     locationId: string;
     limit: number;
@@ -41,6 +39,10 @@ export type WeeklyDealsLoadParams = {
   pageLimit: number;
   signal?: AbortSignal;
 };
+
+export type WeeklyDealsLoader = (
+  params: WeeklyDealsLoadParams,
+) => Promise<Result<LoadedWeeklyDeals, AppError>>;
 
 /**
  * Shared cache/live policy for weekly deals.  MCP tools provide dependencies
@@ -63,9 +65,8 @@ export async function loadWeeklyDeals(
   }
 
   const locationId = locationResult.value;
-  const kv = deps.getCache();
   const cacheKey = buildWeeklyDealsCacheKey({ locationId, limit, pageLimit });
-  const cacheResult = await readWeeklyDealsCache(kv, cacheKey);
+  const cacheResult = await deps.weeklyDealsCache.read(cacheKey);
   const cacheReadError = cacheResult.isErr() ? cacheResult.error : undefined;
 
   let staleEntry: WeeklyDealsCacheEntry | null = null;
@@ -139,8 +140,7 @@ export async function loadWeeklyDeals(
         }),
       );
     } else if (!cacheReadError) {
-      const cacheWriteResult = await writeWeeklyDealsCache(
-        kv,
+      const cacheWriteResult = await deps.weeklyDealsCache.write(
         cacheKey,
         liveData,
       );
@@ -178,11 +178,11 @@ export async function loadWeeklyDeals(
  * fetch or exposes cache/storage errors to a shopping tool.
  */
 export async function getCachedWeeklyDealsForFlags(
-  kv: KvLike | null,
+  weeklyDealsCache: WeeklyDealsCache,
   params: { locationId?: string; limit: number; pageLimit: number },
 ): Promise<QfcDealsApiResponse | null> {
   const key = buildWeeklyDealsCacheKey(params);
-  const result = await readWeeklyDealsCache(kv, key);
+  const result = await weeklyDealsCache.read(key);
   if (result.isErr()) return null;
   if (result.value.kind === "miss") return null;
   return result.value.entry.data;

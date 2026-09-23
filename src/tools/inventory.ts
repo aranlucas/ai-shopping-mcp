@@ -1,9 +1,15 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { EquipmentItem, PantryItem } from "../domain/shopping.js";
-import type { ToolContext } from "./types.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+  PreferredLocationStore,
+} from "../utils/shopping-store.js";
 
 import { validationError } from "../errors.js";
 import { appResult } from "../app-results.js";
@@ -94,115 +100,157 @@ function equipmentResponse(
   };
 }
 
-export function registerInventoryTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
-    "add_to_inventory",
-    {
-      title: "Add To Inventory",
-      description:
-        'Adds pantry or kitchen equipment items, merging duplicate names case-insensitively. Example: {"inventory":"pantry","items":[{"name":"Eggs","quantity":12}]}',
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: false,
+export type InventoryToolDependencies = {
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  pantry: PantryStore;
+  preferredLocation: PreferredLocationStore;
+};
+
+export function createInventoryTools({
+  equipment,
+  orderHistory,
+  pantry,
+  preferredLocation,
+}: InventoryToolDependencies) {
+  return (server: McpServer) => {
+    registerAppTool(
+      server,
+      "add_to_inventory",
+      {
+        title: "Add To Inventory",
+        description:
+          'Adds pantry or kitchen equipment items, merging duplicate names case-insensitively. Example: {"inventory":"pantry","items":[{"name":"Eggs","quantity":12}]}',
+        _meta: { ui: { resourceUri: APP_VIEW_URI } },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false,
+        },
+        inputSchema: addToInventoryInputSchema,
       },
-      inputSchema: addToInventoryInputSchema,
-    },
-    async ({ inventory, items }) => {
-      if (!items || items.length === 0) {
-        return toMcpError(
-          validationError("At least one item is required in 'items'."),
-        );
-      }
+      async ({ inventory, items }) => {
+        if (!items || items.length === 0) {
+          return toMcpError(
+            validationError("At least one item is required in 'items'."),
+          );
+        }
 
-      getProps();
-      const now = new Date().toISOString();
+        getProps();
+        const now = new Date().toISOString();
 
-      if (inventory === "pantry") {
+        if (inventory === "pantry") {
+          const result = await safeStorage(
+            () =>
+              pantry.add(
+                items.map((item): PantryItem => ({
+                  productName: item.name,
+                  quantity: item.quantity ?? 1,
+                  addedAt: now,
+                  expiresAt: item.expiresAt,
+                })),
+              ),
+            "add pantry items",
+          ).map((storedItems) =>
+            pantryResponse(
+              `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(storedItems)}`,
+              storedItems,
+              `Added ${items.length} item(s)`,
+            ),
+          );
+
+          return result.isOk() ? result.value : toMcpError(result.error);
+        }
+
         const result = await safeStorage(
           () =>
-            ctx.storage.pantry.add(
-              items.map((item): PantryItem => ({
-                productName: item.name,
-                quantity: item.quantity ?? 1,
+            equipment.add(
+              items.map((item): EquipmentItem => ({
+                equipmentName: item.name,
+                category: item.category,
                 addedAt: now,
-                expiresAt: item.expiresAt,
               })),
             ),
-          "add pantry items",
-        ).map((pantry) =>
-          pantryResponse(
-            `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-            pantry,
+          "add equipment items",
+        ).map((storedItems) =>
+          equipmentResponse(
+            `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(storedItems)}`,
+            storedItems,
             `Added ${items.length} item(s)`,
           ),
         );
 
         return result.isOk() ? result.value : toMcpError(result.error);
-      }
-
-      const result = await safeStorage(
-        () =>
-          ctx.storage.equipment.add(
-            items.map((item): EquipmentItem => ({
-              equipmentName: item.name,
-              category: item.category,
-              addedAt: now,
-            })),
-          ),
-        "add equipment items",
-      ).map((equipment) =>
-        equipmentResponse(
-          `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-          equipment,
-          `Added ${items.length} item(s)`,
-        ),
-      );
-
-      return result.isOk() ? result.value : toMcpError(result.error);
-    },
-  );
-
-  registerAppTool(
-    ctx.server,
-    "remove_from_inventory",
-    {
-      title: "Remove From Inventory",
-      description:
-        'Removes named items from the pantry or kitchen equipment inventory, or clears it entirely with all: true. Example: {"inventory":"pantry","items":[{"name":"Eggs"}]}',
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
       },
-      inputSchema: removeFromInventoryInputSchema,
-    },
-    async ({ inventory, items, all }) => {
-      getProps();
+    );
 
-      if (!all && (!items || items.length === 0)) {
-        return toMcpError(
-          validationError(
-            "Provide items to remove (by name) or set all: true to clear the whole inventory.",
-          ),
-        );
-      }
+    registerAppTool(
+      server,
+      "remove_from_inventory",
+      {
+        title: "Remove From Inventory",
+        description:
+          'Removes named items from the pantry or kitchen equipment inventory, or clears it entirely with all: true. Example: {"inventory":"pantry","items":[{"name":"Eggs"}]}',
+        _meta: { ui: { resourceUri: APP_VIEW_URI } },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        inputSchema: removeFromInventoryInputSchema,
+      },
+      async ({ inventory, items, all }) => {
+        getProps();
 
-      if (inventory === "pantry") {
+        if (!all && (!items || items.length === 0)) {
+          return toMcpError(
+            validationError(
+              "Provide items to remove (by name) or set all: true to clear the whole inventory.",
+            ),
+          );
+        }
+
+        if (inventory === "pantry") {
+          if (all) {
+            const result = await safeStorage(
+              () => pantry.clear(),
+              "clear pantry",
+            ).map(() =>
+              pantryResponse(
+                "Pantry cleared successfully.",
+                [],
+                "Pantry cleared",
+              ),
+            );
+            return result.isOk() ? result.value : toMcpError(result.error);
+          }
+
+          const removeItems = items ?? [];
+          const result = await safeStorage(
+            () => pantry.remove(removeItems.map((item) => item.name)),
+            "remove pantry items",
+          ).map((storedItems) =>
+            pantryResponse(
+              `Removed ${removeItems.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(storedItems)}`,
+              storedItems,
+              `Removed ${removeItems.length} item(s)`,
+            ),
+          );
+
+          return result.isOk() ? result.value : toMcpError(result.error);
+        }
+
         if (all) {
           const result = await safeStorage(
-            () => ctx.storage.pantry.clear(),
-            "clear pantry",
+            () => equipment.clear(),
+            "clear equipment",
           ).map(() =>
-            pantryResponse(
-              "Pantry cleared successfully.",
+            equipmentResponse(
+              "Equipment cleared successfully.",
               [],
-              "Pantry cleared",
+              "Kitchen equipment cleared",
             ),
           );
           return result.isOk() ? result.value : toMcpError(result.error);
@@ -210,146 +258,113 @@ export function registerInventoryTools(ctx: ToolContext) {
 
         const removeItems = items ?? [];
         const result = await safeStorage(
-          () => ctx.storage.pantry.remove(removeItems.map((item) => item.name)),
-          "remove pantry items",
-        ).map((pantry) =>
-          pantryResponse(
-            `Removed ${removeItems.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-            pantry,
+          () => equipment.remove(removeItems.map((item) => item.name)),
+          "remove equipment items",
+        ).map((storedItems) =>
+          equipmentResponse(
+            `Removed ${removeItems.length} item(s) from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(storedItems)}`,
+            storedItems,
             `Removed ${removeItems.length} item(s)`,
           ),
         );
 
         return result.isOk() ? result.value : toMcpError(result.error);
-      }
-
-      if (all) {
-        const result = await safeStorage(
-          () => ctx.storage.equipment.clear(),
-          "clear equipment",
-        ).map(() =>
-          equipmentResponse(
-            "Equipment cleared successfully.",
-            [],
-            "Kitchen equipment cleared",
-          ),
-        );
-        return result.isOk() ? result.value : toMcpError(result.error);
-      }
-
-      const removeItems = items ?? [];
-      const result = await safeStorage(
-        () =>
-          ctx.storage.equipment.remove(removeItems.map((item) => item.name)),
-        "remove equipment items",
-      ).map((equipment) =>
-        equipmentResponse(
-          `Removed ${removeItems.length} item(s) from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-          equipment,
-          `Removed ${removeItems.length} item(s)`,
-        ),
-      );
-
-      return result.isOk() ? result.value : toMcpError(result.error);
-    },
-  );
-
-  ctx.server.registerTool(
-    "get_shopping_profile",
-    {
-      title: "Get Shopping Profile",
-      description:
-        "Read the user's saved data: preferred store, pantry, kitchen equipment, and frequently purchased items. Call this before making personalized suggestions or answering questions like 'what's in my pantry?'.",
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: false,
       },
-      inputSchema: z.object({}),
-    },
-    async () => {
-      getProps();
+    );
 
-      const profileResult = await ResultAsync.combine([
-        safeStorage(
-          () => ctx.storage.preferredLocation.get(),
-          "fetch preferred store",
-        ),
-        safeStorage(() => ctx.storage.pantry.getAll(), "fetch pantry"),
-        safeStorage(() => ctx.storage.equipment.getAll(), "fetch equipment"),
-        safeStorage(
-          () => ctx.storage.orderHistory.getRecent(50),
-          "fetch order history",
-        ),
-      ]);
-      if (profileResult.isErr()) return toMcpError(profileResult.error);
-      const [preferredStore, pantry, equipment, recentOrders] =
-        profileResult.value;
-      const parts: string[] = [];
+    server.registerTool(
+      "get_shopping_profile",
+      {
+        title: "Get Shopping Profile",
+        description:
+          "Read the user's saved data: preferred store, pantry, kitchen equipment, and frequently purchased items. Call this before making personalized suggestions or answering questions like 'what's in my pantry?'.",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false,
+        },
+        inputSchema: z.object({}),
+      },
+      async () => {
+        getProps();
 
-      parts.push("## Preferred store");
-      parts.push(
-        preferredStore
-          ? formatPreferredLocationCompact(preferredStore)
-          : "none set — use search_stores + set_preferred_store",
-      );
+        const profileResult = await ResultAsync.combine([
+          safeStorage(() => preferredLocation.get(), "fetch preferred store"),
+          safeStorage(() => pantry.getAll(), "fetch pantry"),
+          safeStorage(() => equipment.getAll(), "fetch equipment"),
+          safeStorage(() => orderHistory.getRecent(50), "fetch order history"),
+        ]);
+        if (profileResult.isErr()) return toMcpError(profileResult.error);
+        const [preferredStore, pantryItems, equipmentItems, recentOrders] =
+          profileResult.value;
+        const parts: string[] = [];
 
-      parts.push("\n## Pantry");
-      if (pantry.length === 0) {
-        parts.push("empty");
-      } else {
-        const now = Date.now();
-        for (const item of pantry) {
-          const expiry = classifyExpiry(item.expiresAt, now);
-          const expiringNote =
-            expiry.status === "expired"
-              ? " (expired)"
-              : expiry.status === "today" || expiry.status === "soon"
-                ? " (expiring soon)"
-                : "";
-          parts.push(`- ${item.productName} x${item.quantity}${expiringNote}`);
+        parts.push("## Preferred store");
+        parts.push(
+          preferredStore
+            ? formatPreferredLocationCompact(preferredStore)
+            : "none set — use search_stores + set_preferred_store",
+        );
+
+        parts.push("\n## Pantry");
+        if (pantryItems.length === 0) {
+          parts.push("empty");
+        } else {
+          const now = Date.now();
+          for (const item of pantryItems) {
+            const expiry = classifyExpiry(item.expiresAt, now);
+            const expiringNote =
+              expiry.status === "expired"
+                ? " (expired)"
+                : expiry.status === "today" || expiry.status === "soon"
+                  ? " (expiring soon)"
+                  : "";
+            parts.push(
+              `- ${item.productName} x${item.quantity}${expiringNote}`,
+            );
+          }
         }
-      }
 
-      parts.push("\n## Kitchen equipment");
-      if (equipment.length === 0) {
-        parts.push("none");
-      } else {
-        for (const item of equipment) {
-          parts.push(
-            `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
-          );
+        parts.push("\n## Kitchen equipment");
+        if (equipmentItems.length === 0) {
+          parts.push("none");
+        } else {
+          for (const item of equipmentItems) {
+            parts.push(
+              `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
+            );
+          }
         }
-      }
 
-      const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
-      parts.push("\n## Frequently purchased");
-      if (frequentItems.length === 0) {
-        parts.push("no order history yet");
-      } else {
-        for (const { name, count } of frequentItems) {
-          parts.push(`- ${name} (ordered ${count}x)`);
+        const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
+        parts.push("\n## Frequently purchased");
+        if (frequentItems.length === 0) {
+          parts.push("no order history yet");
+        } else {
+          for (const { name, count } of frequentItems) {
+            parts.push(`- ${name} (ordered ${count}x)`);
+          }
         }
-      }
 
-      const restockSuggestions = computeRestockSuggestions(recentOrders);
-      parts.push("\n## Due to restock");
-      if (restockSuggestions.length === 0) {
-        parts.push("no restock suggestions yet");
-      } else {
-        for (const {
-          name,
-          daysSinceLast,
-          medianIntervalDays,
-        } of restockSuggestions) {
-          parts.push(
-            `- ${name} (last bought ${daysSinceLast}d ago, usually every ~${medianIntervalDays}d)`,
-          );
+        const restockSuggestions = computeRestockSuggestions(recentOrders);
+        parts.push("\n## Due to restock");
+        if (restockSuggestions.length === 0) {
+          parts.push("no restock suggestions yet");
+        } else {
+          for (const {
+            name,
+            daysSinceLast,
+            medianIntervalDays,
+          } of restockSuggestions) {
+            parts.push(
+              `- ${name} (last bought ${daysSinceLast}d ago, usually every ~${medianIntervalDays}d)`,
+            );
+          }
         }
-      }
 
-      return { content: [{ type: "text" as const, text: parts.join("\n") }] };
-    },
-  );
+        return { content: [{ type: "text" as const, text: parts.join("\n") }] };
+      },
+    );
+  };
 }

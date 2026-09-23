@@ -21,6 +21,38 @@ two-space indentation, double quotes, semicolons, and trailing commas. Run
 `pnpm fmt` to apply formatting or `pnpm fmt:check` to check it. CI runs the
 format check alongside Oxlint, including the type-aware promise rules.
 
+### Tool dependencies
+
+MCP dependencies are assembled in [`src/composition.ts`](src/composition.ts)
+with [Awilix](https://github.com/jeffijoe/awilix) in a fresh request container.
+Explicit factory registrations use `PROXY` injection
+and strict lifetime checking. The Worker imports `awilix/browser`, which omits
+the filesystem-based module loader.
+
+Tool factories receive named repositories and operations directly. Preferred-store
+access uses a `PreferredLocationStore`; pantry, equipment, orders, and lists have
+their own contracts. `ShoppingStore` groups those repositories for the persistence
+implementation, while tools depend on the individual repositories they use.
+
+Weekly-deal caching is an adapter with a domain-level interface. It owns the KV
+implementation and no-cache behavior, so tool dependencies do not contain nullable
+KV bindings. Weekly-deal lookup and cache-only item annotations share that adapter.
+
+For example, the weekly-deals loader declares the operations it needs:
+
+```ts
+type WeeklyDealsLoaderDependencies = {
+  preferredLocation: PreferredLocationStore;
+  productClient: KrogerClients["productClient"];
+  weeklyDealsCache: WeeklyDealsCache;
+};
+```
+
+Keep the container in the composition code. Tool implementations and tests use
+plain dependency objects, without looking up tokens from the container. Register
+shopper-specific storage, authenticated Kroger clients, and cart persistence with
+request-scoped lifetimes; do not promote them to global singletons.
+
 ## Production resources
 
 Deploy from this repository with:

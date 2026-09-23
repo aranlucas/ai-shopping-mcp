@@ -1,15 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ToolContext, UserStorage } from "../../src/tools/types.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type {
   EquipmentItem,
   OrderRecord,
   PantryItem,
 } from "../../src/domain/shopping.js";
+import type { WeeklyDealsLoader } from "../../src/services/weekly-deals/service.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+} from "../../src/utils/shopping-store.js";
 
 import {
+  createRecipeTools,
   computeRestockSuggestions,
-  registerRecipeTools,
 } from "../../src/tools/recipes.js";
 
 type AuthContext = {
@@ -62,6 +68,12 @@ function isErrorResult(result: unknown): boolean {
   return Boolean((result as { isError?: boolean }).isError);
 }
 
+type RecipeRepositories = {
+  pantry: PantryStore;
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+};
+
 function makeStorage(
   seed: {
     pantry?: PantryItem[];
@@ -70,7 +82,7 @@ function makeStorage(
     /** When set, pantry.getAll rejects with this error. */
     pantryError?: Error;
   } = {},
-): UserStorage {
+): RecipeRepositories {
   const pantryItems = seed.pantry ?? [];
   const equipmentItems = seed.equipment ?? [];
   const orders = seed.orders ?? [];
@@ -87,33 +99,45 @@ function makeStorage(
       getAll: async () => equipmentItems,
     },
     orderHistory: {
-      getRecent: async (_userId: string, limit = 10) => orders.slice(0, limit),
+      getRecent: async (limit = 10) => orders.slice(0, limit),
     },
-  } as unknown as UserStorage;
+  } as unknown as RecipeRepositories;
 }
 
-function makeContext(storage = makeStorage()): ToolContext {
+type RecipeContext = {
+  server: McpServer;
+  pantry: PantryStore;
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  loadWeeklyDeals: WeeklyDealsLoader;
+};
+
+function makeContext(repositories = makeStorage()): RecipeContext {
+  const server = {
+    registerTool: (
+      name: string,
+      config: CapturedTool["config"],
+      handler: ToolHandler,
+    ) => {
+      testState.capturedTools.push({ name, config, handler });
+    },
+  } as unknown as McpServer;
   return {
-    server: {
-      registerTool: (
-        name: string,
-        config: CapturedTool["config"],
-        handler: ToolHandler,
-      ) => {
-        testState.capturedTools.push({ name, config, handler });
-      },
-    } as unknown as ToolContext["server"],
-    clients: {} as unknown as ToolContext["clients"],
-    productService: {
-      getProduct: () => {
-        throw new Error("productService not used in this test");
-      },
-      enrichProductName: async () => null,
-    } as unknown as ToolContext["productService"],
-    storage,
-    carts: {} as ToolContext["carts"],
-    getEnv: () => ({}) as Env,
+    server,
+    ...repositories,
+    loadWeeklyDeals: async () => {
+      throw new Error("weekly deals not used in this test");
+    },
   };
+}
+
+function registerRecipesForTest(context: RecipeContext) {
+  createRecipeTools({
+    pantry: context.pantry,
+    equipment: context.equipment,
+    orderHistory: context.orderHistory,
+    loadWeeklyDeals: context.loadWeeklyDeals,
+  })(context.server);
 }
 
 function getCapturedHandler(name: string): ToolHandler {
@@ -145,7 +169,7 @@ describe("recipe tools", () => {
 
   describe("registration", () => {
     it("does not register the removed web recipe search tool", () => {
-      registerRecipeTools(makeContext());
+      registerRecipesForTest(makeContext());
 
       expect(testState.capturedTools.map((tool) => tool.name)).toEqual([
         "get_meal_planning_context",
@@ -153,7 +177,7 @@ describe("recipe tools", () => {
     });
 
     it("registers meal planning context as text-only without app UI metadata", () => {
-      registerRecipeTools(makeContext());
+      registerRecipesForTest(makeContext());
 
       expect(
         testState.capturedTools[0]?.config._meta?.ui?.resourceUri,
@@ -163,7 +187,7 @@ describe("recipe tools", () => {
 
   describe("get_meal_planning_context", () => {
     it("returns guidance when the pantry is empty", async () => {
-      registerRecipeTools(makeContext(makeStorage({ pantry: [] })));
+      registerRecipesForTest(makeContext(makeStorage({ pantry: [] })));
 
       const result = await getCapturedHandler("get_meal_planning_context")({});
 
@@ -225,7 +249,7 @@ describe("recipe tools", () => {
         ],
       });
 
-      registerRecipeTools(makeContext(storage));
+      registerRecipesForTest(makeContext(storage));
 
       const result = await getCapturedHandler("get_meal_planning_context")({
         numberOfMeals: 2,
@@ -264,7 +288,7 @@ describe("recipe tools", () => {
         ],
       });
 
-      registerRecipeTools(makeContext(storage));
+      registerRecipesForTest(makeContext(storage));
 
       const result = await getCapturedHandler("get_meal_planning_context")({
         numberOfMeals: 3,
@@ -283,7 +307,7 @@ describe("recipe tools", () => {
         pantryError: new Error("KV unavailable"),
       });
 
-      registerRecipeTools(makeContext(storage));
+      registerRecipesForTest(makeContext(storage));
 
       const result = await getCapturedHandler("get_meal_planning_context")({});
 
@@ -303,7 +327,7 @@ describe("recipe tools", () => {
         ],
       });
 
-      registerRecipeTools(makeContext(storage));
+      registerRecipesForTest(makeContext(storage));
 
       const result = await getCapturedHandler("get_meal_planning_context")({
         numberOfMeals: 2,
@@ -324,7 +348,7 @@ describe("recipe tools", () => {
         ],
       });
 
-      registerRecipeTools(makeContext(storage));
+      registerRecipesForTest(makeContext(storage));
 
       const result = await getCapturedHandler("get_meal_planning_context")({
         numberOfMeals: 1,
@@ -338,7 +362,7 @@ describe("recipe tools", () => {
 
     it("throws when planning meals outside an authenticated request", async () => {
       unauthenticate();
-      registerRecipeTools(makeContext());
+      registerRecipesForTest(makeContext());
 
       await expect(
         getCapturedHandler("get_meal_planning_context")({}),
