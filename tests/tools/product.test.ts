@@ -1,16 +1,17 @@
-import type { ServerContext } from "@modelcontextprotocol/server";
+import type { McpServer, ServerContext } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { KrogerClients } from "../../src/services/kroger/client.js";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 import type { ProductData } from "../../src/app-results.js";
-import type { ToolContext, UserStorage } from "../../src/tools/types.js";
 import type { PreferredLocation } from "../../src/domain/shopping.js";
+import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 
 import { AppErrorException, apiError, authError } from "../../src/errors.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import {
-  logProductSearchError,
   registerProductTools,
+  logProductSearchError,
 } from "../../src/tools/product.js";
 import {
   type TestToolHandler as ToolHandler,
@@ -69,47 +70,24 @@ type ProductGetFn = (
   opts: GetOpts,
 ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
 
-function makeStorage(preferredLocation?: PreferredLocation): UserStorage {
+function makeStorage(
+  preferredLocation?: PreferredLocation,
+): PreferredLocationStore {
   const stored = preferredLocation ?? null;
   return {
-    preferredLocation: {
-      set: async () => {},
-      get: async () => stored,
-    },
-    pantry: {
-      add: async () => {},
-      remove: async () => {},
-      clear: async () => {},
-      getAll: async () => [],
-    },
-    equipment: {
-      add: async () => {},
-      remove: async () => {},
-      clear: async () => {},
-      getAll: async () => [],
-    },
-    orderHistory: {
-      add: async () => {},
-      getAll: async () => [],
-    },
-    shoppingList: {
-      add: async () => {},
-      remove: async () => {},
-      updateItem: async () => {},
-      clear: async () => {},
-      getAll: async () => [],
-      getUnchecked: async () => [],
-    },
-  } as unknown as UserStorage;
+    set: async () => {},
+    get: async () => stored,
+    delete: async () => {},
+  };
 }
 
 function makeContext(
   productGet: ProductGetFn,
-  storage?: UserStorage,
-): ToolContext {
-  const clients = {
-    productClient: { GET: productGet },
-  } as unknown as ToolContext["clients"];
+  preferredLocation?: PreferredLocationStore,
+) {
+  const productClient = {
+    GET: productGet,
+  } as unknown as KrogerClients["productClient"];
   const server = {
     registerTool: (
       name: string,
@@ -124,16 +102,20 @@ function makeContext(
     },
   };
   return {
-    server: server as unknown as ToolContext["server"],
-    clients,
-    productService: new ProductService(clients.productClient),
-    storage: storage ?? makeStorage(),
-    carts: {} as ToolContext["carts"],
-    getEnv: () =>
-      ({
-        USER_DATA_KV: { get: async () => null, put: async () => {} },
-      }) as unknown as Env,
+    server: server as unknown as McpServer,
+    productClient,
+    productService: new ProductService(productClient),
+    preferredLocation: preferredLocation ?? makeStorage(),
   };
+}
+
+function registerProducts(
+  productGet: ProductGetFn,
+  preferredLocation?: PreferredLocationStore,
+) {
+  const fixture = makeContext(productGet, preferredLocation);
+  registerProductTools(fixture.server, fixture);
+  return fixture;
 }
 
 function makeProduct(overrides: Partial<Product> = {}): Product {
@@ -272,7 +254,7 @@ describe("search_products", () => {
   });
 
   it("defines one-call batching explicitly for small models", () => {
-    registerProductTools(makeContext(async () => makeSearchResponse([])));
+    registerProducts(async () => makeSearchResponse([]));
 
     const tool = getCapturedTool("search_products");
     const config = tool.config as { description: string };
@@ -281,7 +263,7 @@ describe("search_products", () => {
   });
 
   it("accepts only the Kroger search fields", () => {
-    registerProductTools(makeContext(async () => makeSearchResponse([])));
+    registerProducts(async () => makeSearchResponse([]));
 
     const tool = getCapturedTool("search_products");
     const config = tool.config as {
@@ -308,7 +290,7 @@ describe("search_products", () => {
   });
 
   it("describes shelf location output as opt-in for in-store grocery routes", () => {
-    registerProductTools(makeContext(async () => makeSearchResponse([])));
+    registerProducts(async () => makeSearchResponse([]));
 
     const tool = getCapturedTool("search_products");
     const config = tool.config as {
@@ -330,9 +312,7 @@ describe("search_products", () => {
 
   it("routes through result metadata and returns the compact search payload", async () => {
     const product = makeProduct();
-    registerProductTools(
-      makeContext(async () => makeSearchResponse([product])),
-    );
+    registerProducts(async () => makeSearchResponse([product]));
 
     const result = await getCapturedHandler("search_products")({
       terms: ["milk"],
@@ -358,7 +338,7 @@ describe("search_products", () => {
   });
 
   it("rejects more than 10 search terms", () => {
-    registerProductTools(makeContext(async () => makeSearchResponse([])));
+    registerProducts(async () => makeSearchResponse([]));
 
     const tool = getCapturedTool("search_products");
     const config = tool.config as {
@@ -378,7 +358,7 @@ describe("search_products", () => {
   });
 
   it("returns routeable structured content when all terms return empty results and no failures", async () => {
-    registerProductTools(makeContext(async () => makeSearchResponse([])));
+    registerProducts(async () => makeSearchResponse([]));
 
     const result = await getCapturedHandler("search_products")({
       terms: ["unknownitem"],
@@ -394,7 +374,7 @@ describe("search_products", () => {
   });
 
   it("preserves actionable errors when all searches fail", async () => {
-    registerProductTools(makeContext(async () => makeErrorResponse(500)));
+    registerProducts(async () => makeErrorResponse(500));
 
     const result = await getCapturedHandler("search_products")({
       terms: ["milk"],
@@ -410,13 +390,11 @@ describe("search_products", () => {
 
   it("includes successful results in structuredContent while failed terms appear with failed: true", async () => {
     const product = makeProduct();
-    registerProductTools(
-      makeContext(async (_path, opts) => {
-        const term = opts.params.query?.["filter.term"];
-        if (term === "milk") return makeSearchResponse([product]);
-        return makeErrorResponse(500);
-      }),
-    );
+    registerProducts(async (_path, opts) => {
+      const term = opts.params.query?.["filter.term"];
+      if (term === "milk") return makeSearchResponse([product]);
+      return makeErrorResponse(500);
+    });
 
     const result = await getCapturedHandler("search_products")({
       terms: ["milk", "bread"],
@@ -448,12 +426,10 @@ describe("search_products", () => {
 
   it("passes provided storeId as 'filter.locationId' in the API query params", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
-    registerProductTools(
-      makeContext(async (_path, opts) => {
-        if (opts.params.query) capturedQueries.push(opts.params.query);
-        return makeSearchResponse([]);
-      }),
-    );
+    registerProducts(async (_path, opts) => {
+      if (opts.params.query) capturedQueries.push(opts.params.query);
+      return makeSearchResponse([]);
+    });
 
     await getCapturedHandler("search_products")({
       terms: ["milk"],
@@ -465,12 +441,10 @@ describe("search_products", () => {
 
   it("respects a custom limitPerTerm in the 'filter.limit' query param", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
-    registerProductTools(
-      makeContext(async (_path, opts) => {
-        if (opts.params.query) capturedQueries.push(opts.params.query);
-        return makeSearchResponse([]);
-      }),
-    );
+    registerProducts(async (_path, opts) => {
+      if (opts.params.query) capturedQueries.push(opts.params.query);
+      return makeSearchResponse([]);
+    });
 
     await getCapturedHandler("search_products")({
       terms: ["milk"],
@@ -482,12 +456,10 @@ describe("search_products", () => {
 
   it("defaults limitPerTerm to 5 when omitted", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
-    registerProductTools(
-      makeContext(async (_path, opts) => {
-        if (opts.params.query) capturedQueries.push(opts.params.query);
-        return makeSearchResponse([]);
-      }),
-    );
+    registerProducts(async (_path, opts) => {
+      if (opts.params.query) capturedQueries.push(opts.params.query);
+      return makeSearchResponse([]);
+    });
 
     const tool = getCapturedTool("search_products");
     const config = tool.config as {
@@ -497,12 +469,12 @@ describe("search_products", () => {
   });
 
   it("preserves preferred-store failures and does not issue an unscoped search", async () => {
-    const storage = makeStorage();
-    storage.preferredLocation.get = () => {
+    const preferredLocation = makeStorage();
+    preferredLocation.get = () => {
       throw new AppErrorException(authError("Reconnect the grocery account."));
     };
     const productGet = vi.fn<ProductGetFn>(async () => makeSearchResponse([]));
-    registerProductTools(makeContext(productGet, storage));
+    registerProducts(productGet, preferredLocation);
 
     const result = await getCapturedHandler("search_products")({
       terms: ["milk"],
@@ -518,13 +490,13 @@ describe("search_products", () => {
   });
 
   it("uses an explicit store without reading a broken preferred-store backend", async () => {
-    const storage = makeStorage();
-    const readStore = vi.fn<typeof storage.preferredLocation.get>(() => {
+    const preferredLocation = makeStorage();
+    const readStore = vi.fn<typeof preferredLocation.get>(() => {
       throw new Error("storage is down");
     });
-    storage.preferredLocation.get = readStore;
+    preferredLocation.get = readStore;
     const productGet = vi.fn<ProductGetFn>(async () => makeSearchResponse([]));
-    registerProductTools(makeContext(productGet, storage));
+    registerProducts(productGet, preferredLocation);
 
     const result = await getCapturedHandler("search_products")({
       terms: ["milk"],
@@ -545,19 +517,17 @@ describe("search_products", () => {
 
   it("resolves preferred location from storage and uses it as 'filter.locationId' when no storeId arg is given", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
-    const storage = makeStorage({
+    const preferredLocation = makeStorage({
       locationId: "99887766",
       locationName: "QFC Store",
       address: "123 Main St",
       chain: "QFC",
       setAt: new Date().toISOString(),
     });
-    registerProductTools(
-      makeContext(async (_path, opts) => {
-        if (opts.params.query) capturedQueries.push(opts.params.query);
-        return makeSearchResponse([]);
-      }, storage),
-    );
+    registerProducts(async (_path, opts) => {
+      if (opts.params.query) capturedQueries.push(opts.params.query);
+      return makeSearchResponse([]);
+    }, preferredLocation);
 
     await getCapturedHandler("search_products")({ terms: ["eggs"] });
 
@@ -567,9 +537,7 @@ describe("search_products", () => {
   it("sends progress notifications (notifications/progress) for each completed search when progressToken is present", async () => {
     const product = makeProduct();
     const notifications: Array<{ method: string; params: unknown }> = [];
-    registerProductTools(
-      makeContext(async () => makeSearchResponse([product])),
-    );
+    registerProducts(async () => makeSearchResponse([product]));
 
     const sendNotification = vi.fn<
       (notification: { method: string; params: unknown }) => unknown
@@ -601,7 +569,7 @@ describe("search_products", () => {
     const context = makeContext(async () =>
       makeSearchResponse([makeProduct()]),
     );
-    registerProductTools(context);
+    registerProductTools(context.server, context);
     await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
       mcpReq: {
         _meta: { progressToken: 0 },
@@ -619,7 +587,7 @@ describe("search_products", () => {
   });
 
   it("reports reconnect guidance for expired authentication", async () => {
-    registerProductTools(makeContext(async () => makeErrorResponse(401)));
+    registerProducts(async () => makeErrorResponse(401));
     const result = await getCapturedHandler("search_products")({
       terms: ["milk"],
     });
@@ -645,9 +613,7 @@ describe("search_products", () => {
       description: "Pickup Product",
       items: [{ itemId: "i2", fulfillment: { curbside: true, instore: true } }],
     });
-    registerProductTools(
-      makeContext(async () => makeSearchResponse([noPickup, withPickup])),
-    );
+    registerProducts(async () => makeSearchResponse([noPickup, withPickup]));
 
     const result = await getCapturedHandler("search_products")({
       terms: ["item"],
@@ -665,9 +631,7 @@ describe("search_products", () => {
     const product = makeProduct();
     product.aliasProductIds = ["alias-upc"];
     product.allergensDescription = "Contains milk";
-    registerProductTools(
-      makeContext(async () => makeSearchResponse([product])),
-    );
+    registerProducts(async () => makeSearchResponse([product]));
 
     const result = await getCapturedHandler("search_products")({
       terms: ["milk"],
@@ -717,9 +681,7 @@ describe("search_products", () => {
         },
       ],
     });
-    registerProductTools(
-      makeContext(async () => makeSearchResponse([product])),
-    );
+    registerProducts(async () => makeSearchResponse([product]));
 
     const result = await getCapturedHandler("search_products")({
       terms: ["tortillas"],
@@ -751,9 +713,7 @@ describe("search_products", () => {
 
   it("markdown content reminds callers to preserve UPCs for create_shopping_list", async () => {
     const product = makeProduct();
-    registerProductTools(
-      makeContext(async () => makeSearchResponse([product])),
-    );
+    registerProducts(async () => makeSearchResponse([product]));
 
     const result = await getCapturedHandler("search_products")({
       terms: ["milk"],
@@ -779,7 +739,7 @@ describe("get_product", () => {
     const product = makeProduct();
     product.aliasProductIds = ["alias-upc"];
     product.allergensDescription = "Contains milk";
-    registerProductTools(makeContext(async () => makeDetailResponse(product)));
+    registerProducts(async () => makeDetailResponse(product));
 
     const result = await getCapturedHandler("get_product")({
       upc: "0001111041700",
@@ -802,9 +762,7 @@ describe("get_product", () => {
   });
 
   it("returns MCP error when API response has no product data (data.data is undefined)", async () => {
-    registerProductTools(
-      makeContext(async () => makeDetailResponse(undefined)),
-    );
+    registerProducts(async () => makeDetailResponse(undefined));
 
     const result = await getCapturedHandler("get_product")({
       upc: "0001111041700",
@@ -815,7 +773,7 @@ describe("get_product", () => {
   });
 
   it("returns MCP error when the Kroger API call itself fails (e.g. 401)", async () => {
-    registerProductTools(makeContext(async () => makeErrorResponse(401)));
+    registerProducts(async () => makeErrorResponse(401));
 
     const result = await getCapturedHandler("get_product")({
       upc: "0001111041700",
@@ -827,14 +785,12 @@ describe("get_product", () => {
   it("passes storeId as 'filter.locationId' query param when provided", async () => {
     const capturedQueries: Array<Record<string, string>> = [];
     const product = makeProduct();
-    registerProductTools(
-      makeContext(async (_path, opts) => {
-        if (opts.params.query) {
-          capturedQueries.push(opts.params.query as Record<string, string>);
-        }
-        return makeDetailResponse(product);
-      }),
-    );
+    registerProducts(async (_path, opts) => {
+      if (opts.params.query) {
+        capturedQueries.push(opts.params.query as Record<string, string>);
+      }
+      return makeDetailResponse(product);
+    });
 
     await getCapturedHandler("get_product")({
       upc: "0001111041700",
@@ -846,7 +802,7 @@ describe("get_product", () => {
 
   it("keeps one compact image in the detail view payload but strips it from model text", async () => {
     const product = makeProduct();
-    registerProductTools(makeContext(async () => makeDetailResponse(product)));
+    registerProducts(async () => makeDetailResponse(product));
 
     const result = await getCapturedHandler("get_product")({
       upc: "0001111041700",
@@ -862,9 +818,7 @@ describe("get_product", () => {
   });
 
   it("accepts a 10-digit upc and pads it to 13 digits via the schema", () => {
-    registerProductTools(
-      makeContext(async () => makeDetailResponse(undefined)),
-    );
+    registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { parse: (v: unknown) => { upc: string } };
@@ -875,9 +829,7 @@ describe("get_product", () => {
   });
 
   it("rejects productRef in the input schema", () => {
-    registerProductTools(
-      makeContext(async () => makeDetailResponse(undefined)),
-    );
+    registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
@@ -889,9 +841,7 @@ describe("get_product", () => {
   });
 
   it("rejects a upc containing letters", () => {
-    registerProductTools(
-      makeContext(async () => makeDetailResponse(undefined)),
-    );
+    registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
@@ -902,9 +852,7 @@ describe("get_product", () => {
   });
 
   it("rejects productId instead of upc", () => {
-    registerProductTools(
-      makeContext(async () => makeDetailResponse(undefined)),
-    );
+    registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
@@ -915,9 +863,7 @@ describe("get_product", () => {
   });
 
   it("rejects a call without upc", () => {
-    registerProductTools(
-      makeContext(async () => makeDetailResponse(undefined)),
-    );
+    registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("get_product");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };

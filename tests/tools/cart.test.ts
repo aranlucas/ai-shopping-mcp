@@ -1,7 +1,9 @@
 import { cartOperationStore } from "../cart-operation-store.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ToolContext, UserStorage } from "../../src/tools/types.js";
+import type { KrogerClients } from "../../src/services/kroger/client.js";
+import type { ShoppingStore } from "../../src/utils/shopping-store.js";
 import type {
   PreferredLocation,
   ShoppingList,
@@ -13,7 +15,7 @@ import type {
 
 import {
   addShoppingListToCartInputSchema,
-  registerCartTools,
+  registerCartTools as registerCartToolsImpl,
 } from "../../src/tools/cart.js";
 import {
   type TestToolHandler as ToolHandler,
@@ -21,15 +23,6 @@ import {
   type TestToolConfig,
 } from "../v2-tool-handler.js";
 import { AppErrorException, authError } from "../../src/errors.js";
-
-function stubProductService(): ToolContext["productService"] {
-  return {
-    getProduct: () => {
-      throw new Error("productService not used in this test");
-    },
-    enrichProductName: async () => null,
-  } as unknown as ToolContext["productService"];
-}
 
 type AuthContext = {
   props?: {
@@ -129,20 +122,20 @@ function makeStorage(
   mirrorItems: Array<CartSnapshotItem & { addedAt: string }> = [],
   storedCartId: string | null = null,
   cartIdSetCalls: string[][] = [],
-): UserStorage & CartStore {
+): ShoppingStore & CartStore {
   return {
-    pantry: {} as UserStorage["pantry"],
-    equipment: {} as UserStorage["equipment"],
-    orderHistory: {} as UserStorage["orderHistory"],
+    pantry: {} as ShoppingStore["pantry"],
+    equipment: {} as ShoppingStore["equipment"],
+    orderHistory: {} as ShoppingStore["orderHistory"],
     preferredLocation: {
       get: async () => storedLocation,
       set: async () => {},
-    } as unknown as UserStorage["preferredLocation"],
+    } as unknown as ShoppingStore["preferredLocation"],
     shoppingList: {
       get: async (id: string) => (id === SHORT_LIST_ID ? storedList : null),
       create: async () => storedList ?? listFixture(),
       clear: async () => {},
-    } as unknown as UserStorage["shoppingList"],
+    } as unknown as ShoppingStore["shoppingList"],
     operations: cartOperationStore(),
     cartSnapshot: {
       get: async () => existingSnapshot,
@@ -165,7 +158,7 @@ function makeStorage(
         cartIdSetCalls.push([cartId]);
       },
     } as unknown as CartStore["cartId"],
-  } as unknown as UserStorage & CartStore;
+  } as unknown as ShoppingStore & CartStore;
 }
 
 type GetCall = { path: string; options: unknown };
@@ -183,14 +176,19 @@ const LIVE_CART = {
 };
 
 function makeContext(
-  storage?: UserStorage & CartStore,
+  storage?: ShoppingStore & CartStore,
   putConfig: { status: number; throws?: boolean } = { status: 204 },
   getConfig: { status: number; cart?: typeof LIVE_CART } = {
     status: 200,
     cart: LIVE_CART,
   },
 ): {
-  context: ToolContext;
+  context: {
+    server: McpServer;
+    storage: ShoppingStore & CartStore;
+    carts: CartStore;
+    cartClient: KrogerClients["cartClient"];
+  };
   putCalls: PutCall[];
   snapshotSetCalls: unknown[][];
   getCalls: GetCall[];
@@ -214,41 +212,53 @@ function makeContext(
       });
     },
   };
-  const context: ToolContext = {
-    server: server as unknown as ToolContext["server"],
-    clients: {
-      cartClient: {
-        PUT: async (path: string, options: PutOptions) => {
-          putCalls.push({ path, options });
-          if (putConfig.throws === true) throw new Error("Network failure");
+  const context = {
+    server: server as unknown as McpServer,
+    cartClient: {
+      PUT: async (path: string, options: PutOptions) => {
+        putCalls.push({ path, options });
+        if (putConfig.throws === true) throw new Error("Network failure");
+        return {
+          data: undefined,
+          response: new Response(null, { status: putConfig.status }),
+        };
+      },
+      GET: async (path: string, options: unknown) => {
+        getCalls.push({ path, options });
+        if (getConfig.status !== 200) {
           return {
             data: undefined,
-            response: new Response(null, { status: putConfig.status }),
+            error: { reason: "cart not found" },
+            response: new Response("{}", { status: getConfig.status }),
           };
-        },
-        GET: async (path: string, options: unknown) => {
-          getCalls.push({ path, options });
-          if (getConfig.status !== 200) {
-            return {
-              data: undefined,
-              error: { reason: "cart not found" },
-              response: new Response("{}", { status: getConfig.status }),
-            };
-          }
-          return {
-            data: { data: getConfig.cart },
-            response: new Response(null, { status: 200 }),
-          };
-        },
+        }
+        return {
+          data: { data: getConfig.cart },
+          response: new Response(null, { status: 200 }),
+        };
       },
-    } as unknown as ToolContext["clients"],
-    productService: stubProductService(),
+    } as unknown as KrogerClients["cartClient"],
     storage: actualStorage,
     carts: actualStorage,
-    getEnv: () => ({}) as Env,
   };
 
   return { context, putCalls, snapshotSetCalls, getCalls };
+}
+
+function registerCartTools(
+  server: McpServer,
+  context: {
+    carts: CartStore;
+    cartClient: KrogerClients["cartClient"];
+    storage: ShoppingStore & CartStore;
+  },
+) {
+  registerCartToolsImpl(server, {
+    carts: context.carts,
+    cartClient: context.cartClient,
+    preferredLocation: context.storage.preferredLocation,
+    shoppingList: context.storage.shoppingList,
+  });
 }
 
 function getCapturedHandler(name: string): ToolHandler {
@@ -273,7 +283,7 @@ describe("add_shopping_list_to_cart tool", () => {
   describe("listId happy path", () => {
     it("adds items with a UPC from the shopping list and reports the list name", async () => {
       const { context, putCalls, snapshotSetCalls } = makeContext();
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
@@ -308,7 +318,7 @@ describe("add_shopping_list_to_cart tool", () => {
         throw new Error("KV unavailable");
       };
       const { context, putCalls } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
 
       const result = await getCapturedHandler("add_shopping_list_to_cart")({
         listId: SHORT_LIST_ID,
@@ -326,7 +336,7 @@ describe("add_shopping_list_to_cart tool", () => {
         throw new Error("KV unavailable");
       };
       const { context, putCalls } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
 
       const result = await getCapturedHandler("add_shopping_list_to_cart")({
         listId: SHORT_LIST_ID,
@@ -353,7 +363,7 @@ describe("add_shopping_list_to_cart tool", () => {
         throw new Error("corrupt legacy receipt");
       };
       const { context, putCalls } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       expect(
@@ -374,7 +384,7 @@ describe("add_shopping_list_to_cart tool", () => {
 
     it("submits only once for concurrent calls with the same list", async () => {
       const { context, putCalls } = makeContext();
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
       const results = await Promise.all(
         Array.from({ length: 5 }, () =>
@@ -397,7 +407,7 @@ describe("add_shopping_list_to_cart tool", () => {
         ],
       });
       const { context, putCalls } = makeContext(makeStorage(storedList));
-      registerCartTools(context);
+      registerCartTools(context.server, context);
 
       const result = await getCapturedHandler("add_shopping_list_to_cart")({
         listId: SHORT_LIST_ID,
@@ -416,7 +426,7 @@ describe("add_shopping_list_to_cart tool", () => {
 
     it("deduplicates inline operation ids and rejects changed payloads", async () => {
       const { context, putCalls } = makeContext();
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
       const args = {
         items: [{ upc: "0001111042578", quantity: 1 }],
@@ -439,7 +449,7 @@ describe("add_shopping_list_to_cart tool", () => {
         status: 204,
         throws: true,
       });
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
       const result = await handler({
         listId: SHORT_LIST_ID,
@@ -462,7 +472,7 @@ describe("add_shopping_list_to_cart tool", () => {
     it("allows a retry after a definitive upstream rejection", async () => {
       const config = { status: 429 };
       const { context, putCalls } = makeContext(undefined, config);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
       expect(
         isErrorResult(
@@ -490,7 +500,7 @@ describe("add_shopping_list_to_cart tool", () => {
           throw new Error("journal unavailable");
         },
       };
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
       const result = await handler({
         listId: SHORT_LIST_ID,
@@ -515,7 +525,7 @@ describe("add_shopping_list_to_cart tool", () => {
         [],
       );
       const { context } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({ listId: SHORT_LIST_ID });
@@ -526,7 +536,7 @@ describe("add_shopping_list_to_cart tool", () => {
 
     it("forwards DELIVERY modality to the cart API body", async () => {
       const { context, putCalls } = makeContext();
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       await handler({
@@ -548,7 +558,7 @@ describe("add_shopping_list_to_cart tool", () => {
 
     it("accepts lowercase modality via the case-insensitive schema", async () => {
       const { context, putCalls } = makeContext();
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const parsed = addShoppingListToCartInputSchema.parse({
@@ -571,7 +581,7 @@ describe("add_shopping_list_to_cart tool", () => {
 
     it("defaults to PICKUP modality when modality is omitted", async () => {
       const { context, putCalls } = makeContext();
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const parsed = addShoppingListToCartInputSchema.parse({
@@ -591,7 +601,7 @@ describe("add_shopping_list_to_cart tool", () => {
 
     it("lists items without a UPC in needsUpc rather than adding them", async () => {
       const { context, putCalls } = makeContext();
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
@@ -622,7 +632,7 @@ describe("add_shopping_list_to_cart tool", () => {
       ];
       const storage = makeStorage(listFixture(), null, [], existingSnapshot);
       const { context, putCalls } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
@@ -649,7 +659,7 @@ describe("add_shopping_list_to_cart tool", () => {
         setAt: new Date().toISOString(),
       });
       const { context, putCalls } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const parsed = addShoppingListToCartInputSchema.parse({
@@ -695,7 +705,7 @@ describe("add_shopping_list_to_cart tool", () => {
         mirrorAppendCalls,
       );
       const { context } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       await handler({
@@ -731,7 +741,7 @@ describe("add_shopping_list_to_cart tool", () => {
         mirrorAppendCalls,
       );
       const { context } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const parsed = addShoppingListToCartInputSchema.parse({
@@ -768,7 +778,7 @@ describe("add_shopping_list_to_cart tool", () => {
         mirrorAppendCalls,
       );
       const { context } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
@@ -781,7 +791,7 @@ describe("add_shopping_list_to_cart tool", () => {
     it("returns an error when the shopping list is not found for the listId", async () => {
       const storage = makeStorage(null);
       const { context } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({ listId: SHORT_LIST_ID });
@@ -795,7 +805,7 @@ describe("add_shopping_list_to_cart tool", () => {
     it("returns a not-found error when no storeId is provided and no preferred location is set", async () => {
       const storage = makeStorage(listFixture(), null);
       const { context } = makeContext(storage);
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({ listId: SHORT_LIST_ID });
@@ -808,7 +818,7 @@ describe("add_shopping_list_to_cart tool", () => {
   describe("API errors", () => {
     it("returns an API error when cartClient.PUT returns a 400 response", async () => {
       const { context } = makeContext(undefined, { status: 400 });
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
@@ -822,7 +832,7 @@ describe("add_shopping_list_to_cart tool", () => {
 
     it("returns an unknown mutation outcome when cartClient.PUT throws", async () => {
       const { context } = makeContext(undefined, { status: 204, throws: true });
-      registerCartTools(context);
+      registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       const result = await handler({
@@ -839,7 +849,7 @@ describe("add_shopping_list_to_cart tool", () => {
     it("throws when the tool handler is called outside an authenticated MCP request", async () => {
       unauthenticate();
       const { context } = makeContext();
-      registerCartTools(context);
+      registerCartTools(context.server, context);
 
       await expect(
         getCapturedHandler("add_shopping_list_to_cart")({
@@ -875,7 +885,7 @@ describe("view_cart tool", () => {
       ],
     );
     const { context } = makeContext(storage);
-    registerCartTools(context);
+    registerCartTools(context.server, context);
     const handler = getCapturedHandler("view_cart");
 
     const result = await handler({});
@@ -905,7 +915,7 @@ describe("view_cart tool", () => {
       ],
     );
     const { context } = makeContext(storage);
-    registerCartTools(context);
+    registerCartTools(context.server, context);
     const handler = getCapturedHandler("view_cart");
 
     const result = await handler({});
@@ -915,7 +925,7 @@ describe("view_cart tool", () => {
 
   it("names shop_for_items as the next step when the mirror is empty", async () => {
     const { context } = makeContext(makeStorage());
-    registerCartTools(context);
+    registerCartTools(context.server, context);
     const handler = getCapturedHandler("view_cart");
 
     const result = await handler({});
@@ -927,7 +937,7 @@ describe("view_cart tool", () => {
   it("throws when called outside an authenticated MCP request", async () => {
     unauthenticate();
     const { context } = makeContext();
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     await expect(getCapturedHandler("view_cart")({})).rejects.toThrow(
       "outside an authenticated MCP request",
@@ -947,7 +957,7 @@ describe("view_cart tool", () => {
       cartIdSetCalls,
     );
     const { context, getCalls } = makeContext(storage);
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     const result = await getCapturedHandler("view_cart")({
       cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4",
@@ -975,7 +985,7 @@ describe("view_cart tool", () => {
       cartIdSetCalls,
     );
     const { context } = makeContext(storage);
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     await getCapturedHandler("view_cart")({
       cartId: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4",
@@ -991,7 +1001,7 @@ describe("view_cart tool", () => {
     };
     const readMirror = vi.spyOn(storage.cartMirror, "getAll");
     const { context, getCalls } = makeContext(storage);
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     const result = await getCapturedHandler("view_cart")({});
 
@@ -1012,7 +1022,7 @@ describe("view_cart tool", () => {
     });
     storage.cartId.get = readId;
     const { context, getCalls } = makeContext(storage);
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     const result = await getCapturedHandler("view_cart")({
       cartId: "explicit-cart-id",
@@ -1029,7 +1039,7 @@ describe("view_cart tool", () => {
       { status: 204 },
       { status: 401 },
     );
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     const result = await getCapturedHandler("view_cart")({
       cartId: "known-cart-id",
@@ -1046,7 +1056,7 @@ describe("view_cart tool", () => {
   it("uses the stored cartId for a live read when no cartId is passed", async () => {
     const storage = makeStorage(null, null, [], null, [], [], "stored-cart-id");
     const { context, getCalls } = makeContext(storage);
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     const result = await getCapturedHandler("view_cart")({});
 
@@ -1072,7 +1082,7 @@ describe("view_cart tool", () => {
       ],
     );
     const { context, getCalls } = makeContext(storage);
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     const result = await getCapturedHandler("view_cart")({});
 
@@ -1100,7 +1110,7 @@ describe("view_cart tool", () => {
       ],
     );
     const { context } = makeContext(storage, { status: 204 }, { status: 404 });
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     const result = await getCapturedHandler("view_cart")({
       cartId: "stale-cart-id",
@@ -1132,7 +1142,7 @@ describe("view_cart tool", () => {
       "stored-cart-id",
     );
     const { context } = makeContext(storage, { status: 204 }, { status: 404 });
-    registerCartTools(context);
+    registerCartTools(context.server, context);
 
     const result = await getCapturedHandler("view_cart")({});
 
@@ -1146,7 +1156,7 @@ describe("view_cart tool", () => {
 
   it("declares openWorldHint true now that it can call the Kroger API", () => {
     const { context } = makeContext(makeStorage());
-    registerCartTools(context);
+    registerCartTools(context.server, context);
     const tool = testState.capturedTools.find((t) => t.name === "view_cart");
     const config = tool?.config as {
       annotations?: { openWorldHint?: boolean };

@@ -1,17 +1,20 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import { appResult } from "../app-results.js";
+import type { KrogerClients } from "../services/kroger/client.js";
 import { toProductData } from "../services/kroger/product-data.js";
+import type { ProductService } from "../services/kroger/product-service.js";
 import { searchProductsForTerms } from "../services/kroger/search.js";
 import {
   formatProductDetails,
   formatProductSearchMarkdown,
 } from "../utils/format-response.js";
 import { safeStorage, toMcpError } from "../utils/result.js";
+import type { PreferredLocationStore } from "../utils/shopping-store.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
-import type { ToolContext } from "./types.js";
 
 export {
   type ProductSearchResult,
@@ -26,9 +29,18 @@ const getProductInputSchema = z.strictObject({
     .describe("Kroger store ID for pricing and availability"),
 });
 
-export function registerProductTools(ctx: ToolContext) {
+export type ProductToolDependencies = {
+  productClient: KrogerClients["productClient"];
+  productService: Pick<ProductService, "getProduct">;
+  preferredLocation: PreferredLocationStore;
+};
+
+export function registerProductTools(
+  server: McpServer,
+  { productClient, productService, preferredLocation }: ProductToolDependencies,
+): void {
   registerAppTool(
-    ctx.server,
+    server,
     "search_products",
     {
       title: "Search Products",
@@ -70,7 +82,7 @@ export function registerProductTools(ctx: ToolContext) {
       let locationId = storeId;
       if (!locationId) {
         const preferred = await safeStorage(
-          () => ctx.storage.preferredLocation.get(),
+          () => preferredLocation.get(),
           "fetch preferred location",
         );
         if (preferred.isErr()) return toMcpError(preferred.error);
@@ -82,7 +94,7 @@ export function registerProductTools(ctx: ToolContext) {
       }));
       const progressToken = requestContext.mcpReq._meta?.progressToken;
       const results = await searchProductsForTerms(
-        ctx.clients.productClient,
+        productClient,
         requests,
         { locationId, limitPerTerm },
         async (completed, total) => {
@@ -135,7 +147,7 @@ export function registerProductTools(ctx: ToolContext) {
   );
 
   registerAppTool(
-    ctx.server,
+    server,
     "get_product",
     {
       title: "Get Product Details",
@@ -151,7 +163,7 @@ export function registerProductTools(ctx: ToolContext) {
       inputSchema: getProductInputSchema,
     },
     async ({ upc, storeId }) => {
-      const result = await ctx.productService.getProduct(upc, storeId);
+      const result = await productService.getProduct(upc, storeId);
       if (result.isErr()) return toMcpError(result.error);
       const product = toProductData(result.value, true, upc);
       return {

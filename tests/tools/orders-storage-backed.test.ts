@@ -2,8 +2,8 @@
 // tool-test-harness installs module mocks before the tool module is imported.
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { UserStorage } from "../../src/tools/types.js";
 import type { OrderRecord } from "../../src/domain/shopping.js";
+import type { OrderHistoryStore } from "../../src/utils/shopping-store.js";
 
 import {
   getCapturedHandler,
@@ -13,9 +13,13 @@ import {
   resetToolTestHarness,
 } from "./tool-test-harness.js";
 import {
-  recordOrderInputSchema,
   registerOrderTools,
+  recordOrderInputSchema,
 } from "../../src/tools/orders.js";
+
+function registerOrders(context: ReturnType<typeof makeContext>) {
+  registerOrderTools(context.server, { orderHistory: context.orderHistory });
+}
 
 describe("order storage-backed tools", () => {
   beforeEach(() => {
@@ -30,9 +34,10 @@ describe("order storage-backed tools", () => {
           storedOrders.push(order);
         },
         getAll: async () => storedOrders,
-      } as unknown as UserStorage["orderHistory"],
+      } as unknown as OrderHistoryStore,
     });
-    registerOrderTools(makeContext(storage));
+    const fixture = makeContext(storage);
+    registerOrders(fixture);
 
     const result = await getCapturedHandler("record_order")({
       items: [
@@ -60,7 +65,8 @@ describe("order storage-backed tools", () => {
   });
 
   it("returns routed structured content with all order fields", async () => {
-    registerOrderTools(makeContext());
+    const fixture = makeContext();
+    registerOrders(fixture);
 
     const result = await getCapturedHandler("record_order")({
       items: [
@@ -100,7 +106,8 @@ describe("order storage-backed tools", () => {
   });
 
   it("sets estimatedTotal to undefined when no items carry a price", async () => {
-    registerOrderTools(makeContext());
+    const fixture = makeContext();
+    registerOrders(fixture);
 
     const result = await getCapturedHandler("record_order")({
       items: [
@@ -123,7 +130,8 @@ describe("order storage-backed tools", () => {
   });
 
   it("rejects record_order items without upc at the schema level", () => {
-    registerOrderTools(makeContext());
+    const fixture = makeContext();
+    registerOrders(fixture);
 
     const tool = getCapturedTool("record_order");
     const config = tool.config as {

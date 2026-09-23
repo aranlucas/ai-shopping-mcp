@@ -1,16 +1,15 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { QfcDealsApiResponse } from "../services/weekly-deals/schema.js";
-import type { ToolContext } from "./types.js";
+import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 
 import { appResult } from "../app-results.js";
 import {
   formatWeeklyDealAppWarnings,
   formatWeeklyDealWarnings,
 } from "../services/weekly-deals/format.js";
-import { loadWeeklyDeals as loadWeeklyDealsService } from "../services/weekly-deals/service.js";
-import { createWeeklyDealsDependencies } from "../services/weekly-deals/runtime.js";
 import {
   DEAL_CATEGORIES,
   classifyDealCategory,
@@ -20,7 +19,10 @@ import { toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
 
-export type { LoadedWeeklyDeals } from "../services/weekly-deals/service.js";
+export type {
+  LoadedWeeklyDeals,
+  WeeklyDealsLoader,
+} from "../services/weekly-deals/service.js";
 export type { WeeklyDealsCacheEntry } from "../services/weekly-deals/schema.js";
 export {
   addWeeklyDealsWarning as addCacheWarning,
@@ -29,19 +31,16 @@ export {
   parseWeeklyDealsCacheEntry as parseCacheEntry,
 } from "../services/weekly-deals/cache.js";
 
-/** Compatibility wrapper for callers that have a full tool context. */
-export function loadWeeklyDeals(
-  ctx: ToolContext,
-  params: Parameters<typeof loadWeeklyDealsService>[1],
-) {
-  return loadWeeklyDealsService(createWeeklyDealsDependencies(ctx), params);
-}
+export type WeeklyDealsToolDependencies = {
+  loadWeeklyDeals: WeeklyDealsLoader;
+};
 
-export const loadWeeklyDealsForTool = loadWeeklyDeals;
-
-export function registerWeeklyDealsTools(ctx: ToolContext) {
+export function registerWeeklyDealsTools(
+  server: McpServer,
+  { loadWeeklyDeals }: WeeklyDealsToolDependencies,
+): void {
   registerAppTool(
-    ctx.server,
+    server,
     "get_weekly_deals",
     {
       title: "Get Weekly Deals",
@@ -79,7 +78,7 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
       }),
     },
     async ({ storeId, limit, pageLimit }, requestContext) => {
-      const result = await loadWeeklyDeals(ctx, {
+      const result = await loadWeeklyDeals({
         storeId,
         limit,
         pageLimit,

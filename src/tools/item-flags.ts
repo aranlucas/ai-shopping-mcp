@@ -7,18 +7,20 @@
  */
 import type { Deal } from "../utils/deal-match.js";
 import type { PantryItem } from "../domain/shopping.js";
+import type { PantryStore } from "../utils/shopping-store.js";
 
+import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
 import { getCachedWeeklyDealsForFlags } from "../services/weekly-deals/service.js";
 import { findDealForItem } from "../utils/deal-match.js";
-import { getUserDataKv } from "../utils/kv.js";
-import { type ToolContext } from "./types.js";
+
+type PantryReader = Pick<PantryStore, "getAll">;
 
 /** Best-effort pantry fetch: any storage error yields an empty list, never a throw. */
 export async function getPantryForFlags(
-  ctx: ToolContext,
+  pantry: PantryReader,
 ): Promise<PantryItem[]> {
   try {
-    return await ctx.storage.pantry.getAll();
+    return await pantry.getAll();
   } catch {
     return [];
   }
@@ -32,14 +34,11 @@ export async function getPantryForFlags(
  * window, or corrupted.
  */
 export async function getDealsForFlags(
-  ctx: ToolContext,
+  weeklyDealsCache: WeeklyDealsCache,
   locationId: string | undefined,
 ): Promise<Deal[]> {
   try {
-    const kv = getUserDataKv(ctx.getEnv());
-    if (!kv) return [];
-
-    const cached = await getCachedWeeklyDealsForFlags(kv, {
+    const cached = await getCachedWeeklyDealsForFlags(weeklyDealsCache, {
       locationId,
       limit: 50,
       pageLimit: 2,

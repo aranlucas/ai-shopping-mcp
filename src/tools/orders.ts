@@ -1,8 +1,9 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../domain/shopping.js";
-import type { ToolContext } from "./types.js";
+import type { OrderHistoryStore } from "../utils/shopping-store.js";
 
 import { appResult } from "../app-results.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
@@ -28,9 +29,16 @@ export const recordOrderInputSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
-export function registerOrderTools(ctx: ToolContext) {
+export type OrderToolDependencies = {
+  orderHistory: OrderHistoryStore;
+};
+
+export function registerOrderTools(
+  server: McpServer,
+  { orderHistory }: OrderToolDependencies,
+): void {
   registerAppTool(
-    ctx.server,
+    server,
     "record_order",
     {
       title: "Record Completed Order",
@@ -65,7 +73,7 @@ export function registerOrderTools(ctx: ToolContext) {
       };
 
       const result = await safeStorage(
-        () => ctx.storage.orderHistory.add(order),
+        () => orderHistory.add(order),
         "record order",
       ).map(() =>
         Object.assign(

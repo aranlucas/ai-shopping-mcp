@@ -4,151 +4,21 @@ import {
   OAuthProvider,
 } from "@cloudflare/workers-oauth-provider";
 import * as Sentry from "@sentry/cloudflare";
-import {
-  McpServer,
-  type McpRequestContext,
-} from "@modelcontextprotocol/server";
-import { createMcpHandler, getMcpAuthContext } from "agents/mcp/server";
+import { createMcpHandler } from "agents/mcp/server";
 import { WorkerEntrypoint } from "cloudflare:workers";
 
 import type { AppEnv } from "./env.js";
-import type { KrogerTokenInfo } from "./services/kroger/client.js";
-import type { GrantProps, Props, ToolContext } from "./tools/types.js";
+import type { GrantProps, Props } from "./tools/types.js";
 
+import { buildServer } from "./composition.js";
 import { KrogerWorker } from "./kroger-handler.js";
-import { registerPrompts } from "./prompts.js";
 import {
-  createKrogerClients,
   isKrogerTokenExpiring,
   refreshKrogerToken,
 } from "./services/kroger/client.js";
-import { createD1ShoppingStore } from "./utils/d1-shopping-storage.js";
-import { ProductService } from "./services/kroger/product-service.js";
-import { registerCartTools } from "./tools/cart.js";
-import { registerInventoryTools } from "./tools/inventory.js";
-import { registerLocationTools } from "./tools/location.js";
-import { registerOrderTools } from "./tools/orders.js";
-import { registerProductTools } from "./tools/product.js";
-import { registerRecipeTools } from "./tools/recipes.js";
-import { registerResources } from "./tools/resources.js";
-import { registerShopTools } from "./tools/shop.js";
-import { registerShoppingListTools } from "./tools/shopping-list.js";
-import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
-import { getUserDataKv } from "./utils/kv.js";
-import { getProps } from "./utils/result.js";
 import { isVerifiedShopperId } from "./utils/shopper-identity.js";
-import { createCartPersistence } from "./utils/user-storage.js";
-import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
 export { CartOperations } from "./cart-operations.js";
-
-/**
- * Tool/resource registrars, each invoked with the shared ToolContext.
- * Add a new tool module here — registration order is not significant.
- */
-const TOOL_REGISTRARS: Array<(ctx: ToolContext) => void> = [
-  registerCartTools,
-  registerLocationTools,
-  registerProductTools,
-  registerInventoryTools,
-  registerOrderTools,
-  registerRecipeTools,
-  registerShoppingListTools,
-  registerShopTools,
-  registerWeeklyDealsTools,
-  registerResources,
-];
-
-const SERVER_INFO = {
-  name: "grocery-shopping-assistant",
-  version: "1.1.0",
-} as const;
-const SERVER_OPTIONS = {
-  instructions:
-    "Kroger grocery assistant with stores, pantry, equipment, orders, and lists. Use shop_for_items for one-shot shopping, or search_products then create_shopping_list and pass its listId to add_shopping_list_to_cart. Copy exact UPCs from search results into lists and orders; storeId selects the Kroger store. Edit lists with get_shopping_list, add_shopping_list_items, and edit_shopping_list_item. Use get_shopping_profile before personalized suggestions.",
-} as const;
-
-/**
- * Builds a fresh `McpServer` with all tools/resources/prompts registered.
- *
- * `createMcpHandler` is stateless: a new server is created per request so
- * responses cannot leak between clients. Auth `Props` are read lazily from
- * `getMcpAuthContext()` (populated by `OAuthProvider` and wrapped in the
- * handler's AsyncLocalStorage), so registration itself needs no auth context.
- * Cart retry receipts are scoped by the authenticated OAuth client rather
- * than MCP transport state, so the server remains stateless at the protocol
- * layer.
- */
-function buildServer(
-  env: AppEnv,
-  requestContext: McpRequestContext,
-): McpServer {
-  const clientId = requestContext.authInfo?.clientId ?? getProps().id;
-  const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
-
-  const clients = createKrogerClients(
-    (): KrogerTokenInfo | null => {
-      const props = getMcpAuthContext()?.props;
-      if (
-        !props ||
-        typeof props.accessToken !== "string" ||
-        typeof props.tokenExpiresAt !== "number"
-      ) {
-        return null;
-      }
-      return {
-        accessToken: props.accessToken,
-        tokenExpiresAt: props.tokenExpiresAt,
-      };
-    },
-    getUserDataKv(env),
-    requestContext.requestInfo?.signal,
-  );
-
-  const storage = createD1ShoppingStore(env.SHOPPING_DB, getProps().id);
-  const journal = env.CART_OPERATIONS.getByName(getProps().id);
-  const carts = createCartPersistence(
-    env.USER_DATA_KV,
-    () => ({
-      userId: getProps().id,
-      clientId,
-    }),
-    {
-      begin: (key, fingerprint) =>
-        journal.begin(JSON.stringify([clientId, key]), fingerprint),
-      reconcileLegacy: (key, attempt, fingerprint, legacyFingerprint) =>
-        journal.reconcileLegacy(
-          JSON.stringify([clientId, key]),
-          attempt,
-          fingerprint,
-          legacyFingerprint,
-        ),
-      complete: (key, attempt) =>
-        journal.complete(JSON.stringify([clientId, key]), attempt),
-      reject: (key, attempt) =>
-        journal.reject(JSON.stringify([clientId, key]), attempt),
-    },
-  );
-  const productService = new ProductService(clients.productClient);
-
-  const ctx: ToolContext = {
-    server,
-    clients,
-    productService,
-    storage,
-    carts,
-    getEnv: () => env,
-  };
-
-  // Register the single unified View resource (all app tools share this one UI)
-  registerViewResource(server, ctx.getEnv, APP_VIEW_URI, "mcp-app.html");
-
-  // Register all MCP features
-  registerPrompts(server);
-  for (const register of TOOL_REGISTRARS) register(ctx);
-
-  return server;
-}
 
 /**
  * Stateless MCP API handler.

@@ -1,9 +1,3 @@
-import type { McpServer } from "@modelcontextprotocol/server";
-import type { KrogerClients } from "../services/kroger/client.js";
-import type { ProductService } from "../services/kroger/product-service.js";
-import type { ShoppingStore } from "../utils/shopping-store.js";
-import type { CartStore } from "../utils/user-storage.js";
-
 // Props stored in the access token and exposed through the MCP auth context.
 // Only contains what's needed for runtime API calls — no refresh credentials.
 export type Props = {
@@ -18,20 +12,6 @@ export type GrantProps = Props & {
   refreshToken?: string;
   krogerClientId: string;
   krogerClientSecret: string;
-};
-
-/** @deprecated Use ShoppingStore for non-cart shopping data. */
-export type UserStorage = ShoppingStore;
-
-// Shared context passed to all tool registration functions.
-// Infrastructure dependencies only. Auth is accessed via getMcpAuthContext() from agents/mcp.
-export type ToolContext = {
-  server: McpServer;
-  clients: KrogerClients;
-  productService: ProductService;
-  storage: ShoppingStore;
-  carts: CartStore;
-  getEnv: () => Env;
 };
 
 // --- Response helpers ---

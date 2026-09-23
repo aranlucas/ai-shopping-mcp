@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { McpServer } from "@modelcontextprotocol/server";
+
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
+import type { KrogerClients } from "../../src/services/kroger/client.js";
+import type { WeeklyDealsLoader } from "../../src/services/weekly-deals/service.js";
+import type { WeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
 import { type WeeklyDealWarning } from "../../src/services/weekly-deals/schema.js";
-import type { ToolContext } from "../../src/tools/types.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
 import type { PreferredLocation } from "../../src/domain/shopping.js";
+import type { KvLike } from "../../src/utils/kv.js";
+import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 
 import { AppErrorException, authError } from "../../src/errors.js";
 import {
@@ -15,6 +21,8 @@ import {
   parseCacheEntry,
   registerWeeklyDealsTools,
 } from "../../src/tools/weekly-deals.js";
+import { createWeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
+import { createWeeklyDealsLoader } from "../../src/services/weekly-deals/runtime.js";
 import {
   type TestToolConfig,
   type TestToolHandler as ToolHandler,
@@ -635,45 +643,50 @@ const DEFAULT_PREFERRED_LOCATION: PreferredLocation = {
 };
 
 function makeWeeklyDealsContext(
-  kv: KVNamespace | null = null,
+  kv: KvLike | null = null,
   preferredLocation: PreferredLocation | null = DEFAULT_PREFERRED_LOCATION,
-): ToolContext {
+): {
+  server: McpServer;
+  preferredLocation: PreferredLocationStore;
+  productClient: KrogerClients["productClient"];
+  weeklyDealsCache: WeeklyDealsCache;
+  loadWeeklyDeals: WeeklyDealsLoader;
+} {
+  const server = {
+    registerTool: (
+      name: string,
+      config: TestToolConfig,
+      handler: Parameters<typeof wrapV2ToolHandler>[0],
+    ) => {
+      capturedWeeklyDealsTools.push({
+        name,
+        config,
+        handler: wrapV2ToolHandler(handler, config),
+      });
+    },
+  } as unknown as McpServer;
+  const productClient = {
+    GET: vi.fn<() => unknown>(async () => ({
+      data: { data: [] },
+      response: new Response(null, { status: 200 }),
+    })),
+  } as unknown as KrogerClients["productClient"];
+  const preferredLocationStore: PreferredLocationStore = {
+    get: async () => preferredLocation,
+    set: async () => {},
+    delete: async () => {},
+  };
+  const weeklyDealsCache = createWeeklyDealsCache(kv);
   return {
-    server: {
-      registerTool: (
-        name: string,
-        config: TestToolConfig,
-        handler: Parameters<typeof wrapV2ToolHandler>[0],
-      ) => {
-        capturedWeeklyDealsTools.push({
-          name,
-          config,
-          handler: wrapV2ToolHandler(handler, config),
-        });
-      },
-    } as unknown as ToolContext["server"],
-    clients: {
-      productClient: {
-        GET: vi.fn<() => unknown>(async () => ({
-          data: { data: [] },
-          response: new Response(null, { status: 200 }),
-        })),
-      },
-    } as unknown as ToolContext["clients"],
-    productService: {
-      getProduct: () => {
-        throw new Error("productService not used in this test");
-      },
-      enrichProductName: async () => null,
-    } as unknown as ToolContext["productService"],
-    storage: {
-      preferredLocation: {
-        get: async () => preferredLocation,
-        set: async () => {},
-      },
-    } as unknown as ToolContext["storage"],
-    carts: {} as ToolContext["carts"],
-    getEnv: () => (kv ? { USER_DATA_KV: kv } : {}) as Env,
+    server,
+    preferredLocation: preferredLocationStore,
+    productClient,
+    weeklyDealsCache,
+    loadWeeklyDeals: createWeeklyDealsLoader({
+      preferredLocation: preferredLocationStore,
+      productClient,
+      weeklyDealsCache,
+    }),
   };
 }
 
@@ -683,6 +696,14 @@ function getWeeklyDealsHandler(): ToolHandler {
   );
   if (!tool) throw new Error("get_weekly_deals not captured");
   return tool.handler;
+}
+
+function registerWeeklyDealsForTest(
+  context: ReturnType<typeof makeWeeklyDealsContext>,
+) {
+  registerWeeklyDealsTools(context.server, {
+    loadWeeklyDeals: context.loadWeeklyDeals,
+  });
 }
 
 function textFromResult(result: unknown): string {
@@ -726,7 +747,7 @@ describe("get_weekly_deals handler", () => {
     const cacheKey = buildWeeklyDealsCacheKey(CACHE_KEY_PARAMS);
     store.set(cacheKey, JSON.stringify(makeFreshCacheEntry(cachedData)));
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -740,7 +761,7 @@ describe("get_weekly_deals handler", () => {
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv, store } = makeKV();
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -759,7 +780,7 @@ describe("get_weekly_deals handler", () => {
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv, store } = makeKV();
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -791,7 +812,7 @@ describe("get_weekly_deals handler", () => {
 
     mockGetQfcWeeklyDeals.mockRejectedValue(new Error("network timeout"));
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -826,7 +847,7 @@ describe("get_weekly_deals handler", () => {
       }),
     );
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -841,7 +862,7 @@ describe("get_weekly_deals handler", () => {
     mockGetQfcWeeklyDeals.mockRejectedValue(new Error("connection refused"));
     const { kv } = makeKV();
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -854,7 +875,7 @@ describe("get_weekly_deals handler", () => {
     );
     const { kv } = makeKV();
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
     const structured = result as {
@@ -877,7 +898,7 @@ describe("get_weekly_deals handler", () => {
       throw new Error("KV read unavailable");
     });
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -894,7 +915,7 @@ describe("get_weekly_deals handler", () => {
       throw new Error("KV write unavailable");
     });
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -907,7 +928,7 @@ describe("get_weekly_deals handler", () => {
     const liveData = makeMinimalDealsResponse();
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(null));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(null));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -921,7 +942,7 @@ describe("get_weekly_deals handler", () => {
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv, store } = makeKV();
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     await getWeeklyDealsHandler()({
       storeId: "12345678",
@@ -940,7 +961,7 @@ describe("get_weekly_deals handler", () => {
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv } = makeKV();
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
@@ -957,7 +978,7 @@ describe("get_weekly_deals handler", () => {
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv, store } = makeKV();
 
-    registerWeeklyDealsTools(
+    registerWeeklyDealsForTest(
       makeWeeklyDealsContext(kv, DEFAULT_PREFERRED_LOCATION),
     );
 
@@ -976,7 +997,7 @@ describe("get_weekly_deals handler", () => {
   it("returns a prescriptive error when storeId is omitted and no preferred store is set", async () => {
     const { kv } = makeKV();
 
-    registerWeeklyDealsTools(makeWeeklyDealsContext(kv, null));
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv, null));
 
     const result = await getWeeklyDealsHandler()({ limit: 50, pageLimit: 2 });
 

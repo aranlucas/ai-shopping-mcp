@@ -21,6 +21,38 @@ two-space indentation, double quotes, semicolons, and trailing commas. Run
 `pnpm fmt` to apply formatting or `pnpm fmt:check` to check it. CI runs the
 format check alongside Oxlint, including the type-aware promise rules.
 
+### Tool dependencies
+
+MCP dependencies are assembled in [`src/composition.ts`](src/composition.ts)
+with ordinary TypeScript function calls. Each request constructs its own
+authenticated clients, shopper-specific storage, and MCP server. Each tool
+registration receives the server and an explicit dependency object checked by
+TypeScript.
+
+Tool registrations receive named repositories and operations directly. Preferred-store
+access uses a `PreferredLocationStore`; pantry, equipment, orders, and lists have
+their own contracts. `ShoppingStore` groups those repositories for the persistence
+implementation, while tools depend on the individual repositories they use.
+
+Weekly-deal caching is an adapter with a domain-level interface. It owns the KV
+implementation and no-cache behavior, so tool dependencies do not contain nullable
+KV bindings. Weekly-deal lookup and cache-only item annotations share that adapter.
+
+For example, the weekly-deals loader declares the operations it needs:
+
+```ts
+type WeeklyDealsLoaderDependencies = {
+  preferredLocation: PreferredLocationStore;
+  productClient: KrogerClients["productClient"];
+  weeklyDealsCache: WeeklyDealsCache;
+};
+```
+
+Wire dependencies in the composition code and pass only the operations each
+module uses. Tool tests call the same registration functions with plain dependency
+objects. Keep shopper-specific storage, authenticated Kroger clients, and cart
+persistence local to each request.
+
 ## Production resources
 
 Deploy from this repository with:

@@ -22,7 +22,6 @@ describe("Worker configuration", () => {
     expect(wranglerConfig).toContain('"binding": "SHOPPING_DB"');
     expect(wranglerConfig).toContain('"migrations_dir": "migrations"');
     expect(generatedTypes).toContain("SHOPPING_DB: D1Database");
-    expect(serverSource).toContain("createD1ShoppingStore");
     expect(serverSource).not.toContain("createGatewayClient");
     expect(wranglerConfig).not.toContain("GATEWAY_URL");
   });
