@@ -45,9 +45,14 @@ export function cartResultError(result: CallToolResult): CartActionError {
 export function needsCartCheck(error: unknown): boolean {
   return (
     error instanceof CartActionError &&
+    error.recovery !== "check_list" &&
     (error.code === "MUTATION_OUTCOME_UNKNOWN" ||
       error.recovery === "check_cart")
   );
+}
+
+export function needsListCheck(error: unknown): boolean {
+  return error instanceof CartActionError && error.recovery === "check_list";
 }
 
 /** Validate the structured cart payload before a UI state transition. */
@@ -134,13 +139,37 @@ export async function createProductList(
   app: Parameters<typeof callTool>[0],
   input: ProductShoppingListInput,
 ): Promise<string> {
-  const result = await callTool(app, createProductShoppingListCall(input));
+  if (!app)
+    throw new Error(
+      "The shopping app is disconnected. Reopen it and try again.",
+    );
+
+  let result: CallToolResult;
+  try {
+    result = await callTool(app, createProductShoppingListCall(input));
+  } catch {
+    throw new CartActionError(
+      "The shopping list response was lost. Check your Kroger saved lists before trying again.",
+      "MUTATION_OUTCOME_UNKNOWN",
+      "check_list",
+    );
+  }
+
   if (result?.isError) {
     throw new Error(
       toolResultErrorMessage(result, "Failed to create shopping list"),
     );
   }
-  return shoppingListIdFromResult(result);
+
+  try {
+    return shoppingListIdFromResult(result);
+  } catch {
+    throw new CartActionError(
+      "Shopping list creation could not be confirmed. Check your Kroger saved lists before trying again.",
+      "MUTATION_OUTCOME_UNKNOWN",
+      "check_list",
+    );
+  }
 }
 
 export async function saveProductToList(
