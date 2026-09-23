@@ -20,7 +20,7 @@ const testState = vi.hoisted(() => ({
   capturedResources: [] as CapturedResource[],
 }));
 
-function makeFakeServer(): Pick<McpServer, "registerResource"> {
+function makeFakeServer(): McpServer {
   return {
     registerResource: (
       name: string,
@@ -31,7 +31,7 @@ function makeFakeServer(): Pick<McpServer, "registerResource"> {
       testState.capturedResources.push({ name, uri, config, callback });
       return {};
     },
-  } as unknown as Pick<McpServer, "registerResource">;
+  } as unknown as McpServer;
 }
 
 // A minimal fake Fetcher that allows controlling fetch responses in tests

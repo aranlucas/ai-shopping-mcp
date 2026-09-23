@@ -59,7 +59,7 @@ async function loadViewHtml(env: Env, htmlPath: string): Promise<string> {
  * registration time), so the Env is resolved lazily via getEnv().
  */
 export function registerViewResource(
-  server: Pick<McpServer, "registerResource">,
+  server: McpServer,
   getEnv: () => Env,
   resourceUri: string,
   filename: string,
