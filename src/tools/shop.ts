@@ -1,4 +1,5 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -8,17 +9,25 @@ import type { components as ProductComponents } from "../services/kroger/product
 import { appResult } from "../app-results.js";
 import { apiError, notFoundError } from "../errors.js";
 import { formatKrogerPrice } from "../services/kroger/price.js";
+import type { KrogerClients } from "../services/kroger/client.js";
 import {
   classifyShoppingItem,
   summarizeShoppingOutcomes,
 } from "../services/shopping-outcomes.js";
 import { selectProductMatches } from "../services/product-selector.js";
+import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
 import {
   getProps,
   safeResolveLocationId,
   toMcpError,
 } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
+import type {
+  PantryStore,
+  PreferredLocationStore,
+  ShoppingListStore,
+} from "../utils/shopping-store.js";
+import type { CartStore } from "../utils/user-storage.js";
 import { type LineItem, addLineItemsToCart } from "./cart.js";
 import {
   getDealsForFlags,
@@ -28,9 +37,19 @@ import {
 import { searchProductsForTerms } from "./product.js";
 import { coercedBooleanSchema } from "./schemas.js";
 import { createShoppingListRecord } from "./shopping-list.js";
-import { type ToolContext } from "./types.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+
+export type ShopToolDependencies = {
+  carts: CartStore;
+  productClient: KrogerClients["productClient"];
+  cartClient: KrogerClients["cartClient"];
+  weeklyDealsCache: WeeklyDealsCache;
+  pantry: PantryStore;
+  preferredLocation: PreferredLocationStore;
+  shoppingList: ShoppingListStore;
+  ai: Env["AI"];
+};
 
 const shopItemSchema = z.object({
   name: z
@@ -98,7 +117,8 @@ function shoppingListResponse(
 }
 
 async function finishShopForItemsCart(
-  ctx: ToolContext,
+  carts: CartStore,
+  cartClient: KrogerClients["cartClient"],
   listId: string,
   responseText: string,
   list: ShoppingList,
@@ -106,8 +126,8 @@ async function finishShopForItemsCart(
 ) {
   const parts = [responseText];
   const addResult = await addLineItemsToCart(
-    ctx,
-    ctx.clients.cartClient,
+    carts,
+    cartClient,
     lineItems,
     "PICKUP",
     {
@@ -144,11 +164,21 @@ async function finishShopForItemsCart(
   return shoppingListResponse(listId, list, parts);
 }
 
-export function registerShopTools(ctx: ToolContext) {
-  const { productClient } = ctx.clients;
-
+export function registerShopTools(
+  server: McpServer,
+  {
+    carts,
+    productClient,
+    cartClient,
+    weeklyDealsCache,
+    pantry,
+    preferredLocation,
+    shoppingList,
+    ai,
+  }: ShopToolDependencies,
+): void {
   registerAppTool(
-    ctx.server,
+    server,
     "shop_for_items",
     {
       title: "Shop For Items",
@@ -166,7 +196,7 @@ export function registerShopTools(ctx: ToolContext) {
     async ({ items, addToCart }) => {
       getProps();
       const resolvedLocation = await safeResolveLocationId(
-        ctx.storage,
+        preferredLocation,
         undefined,
       );
       if (resolvedLocation.isErr()) {
@@ -191,7 +221,6 @@ export function registerShopTools(ctx: ToolContext) {
         { locationId, limitPerTerm: 20 },
       );
 
-      const ai = ctx.getEnv().AI;
       const selectionResult = await ResultAsync.fromPromise(
         selectProductMatches({
           ai,
@@ -220,9 +249,9 @@ export function registerShopTools(ctx: ToolContext) {
         searchResults.map((search) => [search.requestId, search]),
       );
 
-      const [pantry, deals] = await Promise.all([
-        getPantryForFlags(ctx),
-        getDealsForFlags(ctx, locationId),
+      const [pantryItems, deals] = await Promise.all([
+        getPantryForFlags(pantry),
+        getDealsForFlags(weeklyDealsCache, locationId),
       ]);
 
       const outcomes = requests.map((request) => {
@@ -243,7 +272,7 @@ export function registerShopTools(ctx: ToolContext) {
       const matched = summary.matched.map(({ request, product }) => ({
         ...request,
         product,
-        flags: itemFlagLabels(request.name, pantry, deals),
+        flags: itemFlagLabels(request.name, pantryItems, deals),
       }));
 
       const listItems: ShoppingListItem[] = matched.map((match) => ({
@@ -255,7 +284,7 @@ export function registerShopTools(ctx: ToolContext) {
       const listName = `Shopping list ${new Date().toISOString().slice(0, 10)}`;
 
       const createResult = await createShoppingListRecord(
-        ctx.storage,
+        shoppingList,
         listName,
         listItems,
       );
@@ -308,7 +337,8 @@ export function registerShopTools(ctx: ToolContext) {
       }
 
       return finishShopForItemsCart(
-        ctx,
+        carts,
+        cartClient,
         listId,
         parts.join("\n"),
         list,

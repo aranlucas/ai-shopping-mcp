@@ -1,11 +1,13 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { err, ok } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { PreferredLocation } from "../domain/shopping.js";
-import type { ToolContext } from "./types.js";
+import type { KrogerClients } from "../services/kroger/client.js";
 import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { LocationData } from "../app-results.js";
+import type { PreferredLocationStore } from "../utils/shopping-store.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError } from "../errors.js";
@@ -41,11 +43,20 @@ function compactLocation(location: Location): LocationData {
   };
 }
 
-export function registerLocationTools(ctx: ToolContext) {
-  const { locationClient } = ctx.clients;
+export type LocationToolDependencies = {
+  locationClient: KrogerClients["locationClient"];
+  preferredLocation: PreferredLocationStore;
+};
 
+export function registerLocationTools(
+  server: McpServer,
+  {
+    locationClient,
+    preferredLocation: preferredLocationStore,
+  }: LocationToolDependencies,
+): void {
   registerAppTool(
-    ctx.server,
+    server,
     "search_stores",
     {
       title: "Search Store Locations",
@@ -102,13 +113,15 @@ export function registerLocationTools(ctx: ToolContext) {
         content: [
           { type: "text" as const, text: formatStoreListMarkdown(stores) },
         ],
-        ...appResult("search_stores", { stores: stores.map(compactLocation) }),
+        ...appResult("search_stores", {
+          stores: stores.map(compactLocation),
+        }),
       };
     },
   );
 
   registerAppTool(
-    ctx.server,
+    server,
     "get_store",
     {
       title: "Get Store Details",
@@ -148,7 +161,10 @@ export function registerLocationTools(ctx: ToolContext) {
       const location = result.value;
       return {
         content: [
-          { type: "text" as const, text: formatStoreDetailMarkdown(location) },
+          {
+            type: "text" as const,
+            text: formatStoreDetailMarkdown(location),
+          },
         ],
         ...appResult("get_store", { store: compactLocation(location) }),
       };
@@ -156,7 +172,7 @@ export function registerLocationTools(ctx: ToolContext) {
   );
 
   registerAppTool(
-    ctx.server,
+    server,
     "set_preferred_store",
     {
       title: "Set Preferred Store",
@@ -200,7 +216,7 @@ export function registerLocationTools(ctx: ToolContext) {
         };
 
         return safeStorage(
-          () => ctx.storage.preferredLocation.set(preferredLocation),
+          () => preferredLocationStore.set(preferredLocation),
           "save preferred location",
         ).map(() =>
           Object.assign(

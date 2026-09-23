@@ -1,8 +1,14 @@
 import { decode } from "@toon-format/toon";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { KrogerClients } from "../../src/services/kroger/client.js";
-import type { ToolContext, UserStorage } from "../../src/tools/types.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+  PreferredLocationStore,
+} from "../../src/utils/shopping-store.js";
 
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
@@ -67,7 +73,7 @@ function makeServer() {
     ) => {
       testState.capturedResources.push({ name, uriOrTemplate, handler });
     },
-  } as unknown as ToolContext["server"];
+  } as unknown as McpServer;
 }
 
 type StorageSeed = {
@@ -85,7 +91,14 @@ function storageFailure(): Promise<never> {
   return Promise.reject(new Error("storage failure"));
 }
 
-function makeStorage(seed: StorageSeed = {}): UserStorage {
+type ResourceRepositories = {
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  pantry: PantryStore;
+  preferredLocation: PreferredLocationStore;
+};
+
+function makeStorage(seed: StorageSeed = {}): ResourceRepositories {
   return {
     pantry: {
       getAll: seed.pantryThrows
@@ -107,23 +120,29 @@ function makeStorage(seed: StorageSeed = {}): UserStorage {
         ? storageFailure
         : async () => seed.orders ?? [],
     },
-  } as unknown as UserStorage;
+  } as unknown as ResourceRepositories;
 }
 
 function makeContext(
-  storage: UserStorage,
+  repositories: ResourceRepositories,
   productClient: unknown = {},
-): ToolContext {
+) {
+  const productClientTyped = productClient as KrogerClients["productClient"];
   return {
     server: makeServer(),
-    clients: { productClient } as unknown as ToolContext["clients"],
-    productService: new ProductService(
-      productClient as KrogerClients["productClient"],
-    ),
-    storage,
-    carts: {} as ToolContext["carts"],
-    getEnv: () => ({}) as Env,
+    productService: new ProductService(productClientTyped),
+    ...repositories,
   };
+}
+
+function registerTestResources(fixture: ReturnType<typeof makeContext>) {
+  registerResources(fixture.server, {
+    equipment: fixture.equipment,
+    orderHistory: fixture.orderHistory,
+    pantry: fixture.pantry,
+    preferredLocation: fixture.preferredLocation,
+    productService: fixture.productService,
+  });
 }
 
 function getResource(name: string): CapturedResource {
@@ -185,7 +204,7 @@ describe("registerResources", () => {
   });
 
   it("returns pantry inventory for an authenticated user", async () => {
-    registerResources(
+    registerTestResources(
       makeContext(
         makeStorage({
           pantry: [
@@ -205,7 +224,7 @@ describe("registerResources", () => {
 
   it("throws when reading pantry outside an authenticated request", async () => {
     unauthenticate();
-    registerResources(makeContext(makeStorage()));
+    registerTestResources(makeContext(makeStorage()));
 
     await expect(callResource("Pantry Inventory")).rejects.toThrow(
       "outside an authenticated MCP request",
@@ -213,14 +232,14 @@ describe("registerResources", () => {
   });
 
   it("returns a fetch error when pantry storage throws", async () => {
-    registerResources(makeContext(makeStorage({ pantryThrows: true })));
+    registerTestResources(makeContext(makeStorage({ pantryThrows: true })));
 
     const decoded = decodeResource(await callResource("Pantry Inventory"));
     expect(decoded.error).toContain("Failed to fetch pantry data");
   });
 
   it("returns kitchen equipment and handles storage failures", async () => {
-    registerResources(
+    registerTestResources(
       makeContext(
         makeStorage({ equipment: [{ equipmentName: "Oven", addedAt: "x" }] }),
       ),
@@ -230,21 +249,21 @@ describe("registerResources", () => {
     ).toBe(1);
 
     testState.capturedResources.length = 0;
-    registerResources(makeContext(makeStorage({ equipmentThrows: true })));
+    registerTestResources(makeContext(makeStorage({ equipmentThrows: true })));
     expect(
       decodeResource(await callResource("Kitchen Equipment")).error,
     ).toContain("Failed to fetch equipment data");
 
     testState.capturedResources.length = 0;
     unauthenticate();
-    registerResources(makeContext(makeStorage()));
+    registerTestResources(makeContext(makeStorage()));
     await expect(callResource("Kitchen Equipment")).rejects.toThrow(
       "outside an authenticated MCP request",
     );
   });
 
   it("returns the preferred store, a prompt when unset, and errors", async () => {
-    registerResources(
+    registerTestResources(
       makeContext(
         makeStorage({
           location: {
@@ -262,7 +281,7 @@ describe("registerResources", () => {
     ).toBe("QFC");
 
     testState.capturedResources.length = 0;
-    registerResources(makeContext(makeStorage({ location: null })));
+    registerTestResources(makeContext(makeStorage({ location: null })));
     const unset = decodeResource(await callResource("Preferred Store"));
     expect(unset.message).toContain("No preferred store set");
     expect(unset.instruction).toContain("search_stores");
@@ -271,21 +290,21 @@ describe("registerResources", () => {
     expect(unset.instruction).not.toContain("set_preferred_location");
 
     testState.capturedResources.length = 0;
-    registerResources(makeContext(makeStorage({ locationThrows: true })));
+    registerTestResources(makeContext(makeStorage({ locationThrows: true })));
     expect(
       decodeResource(await callResource("Preferred Store")).error,
     ).toContain("Failed to fetch preferred store data");
 
     testState.capturedResources.length = 0;
     unauthenticate();
-    registerResources(makeContext(makeStorage()));
+    registerTestResources(makeContext(makeStorage()));
     await expect(callResource("Preferred Store")).rejects.toThrow(
       "outside an authenticated MCP request",
     );
   });
 
   it("returns order history and handles failures", async () => {
-    registerResources(
+    registerTestResources(
       makeContext(
         makeStorage({
           orders: [{ orderId: "o1", items: [], totalItems: 0, placedAt: "x" }],
@@ -297,21 +316,21 @@ describe("registerResources", () => {
     );
 
     testState.capturedResources.length = 0;
-    registerResources(makeContext(makeStorage({ ordersThrows: true })));
+    registerTestResources(makeContext(makeStorage({ ordersThrows: true })));
     expect(decodeResource(await callResource("Order History")).error).toContain(
       "Failed to fetch order data",
     );
 
     testState.capturedResources.length = 0;
     unauthenticate();
-    registerResources(makeContext(makeStorage()));
+    registerTestResources(makeContext(makeStorage()));
     await expect(callResource("Order History")).rejects.toThrow(
       "outside an authenticated MCP request",
     );
   });
 
   it("does not register a session shopping list resource", () => {
-    registerResources(makeContext(makeStorage()));
+    registerTestResources(makeContext(makeStorage()));
 
     expect(
       testState.capturedResources.map((resource) => resource.name),
@@ -328,7 +347,7 @@ describe("registerResources", () => {
   });
 
   it("registers workflow-first resource URIs", () => {
-    registerResources(makeContext(makeStorage()));
+    registerTestResources(makeContext(makeStorage()));
 
     expect(
       testState.capturedResources.map((resource) => resource.uriOrTemplate),
@@ -354,7 +373,7 @@ describe("registerResources", () => {
 
   describe("Product Details template", () => {
     it("rejects an invalid product URI", async () => {
-      registerResources(makeContext(makeStorage(), makeProductClient()));
+      registerTestResources(makeContext(makeStorage(), makeProductClient()));
 
       const decoded = decodeResource(
         await callResource("Product Details", "shopping://product/abc"),
@@ -363,7 +382,7 @@ describe("registerResources", () => {
     });
 
     it("fetches product details using the preferred location filter", async () => {
-      registerResources(
+      registerTestResources(
         makeContext(
           makeStorage({
             location: {
@@ -391,7 +410,7 @@ describe("registerResources", () => {
 
     it("returns product data when no preferred location is configured", async () => {
       // When location is null the API call should still succeed without filter.locationId.
-      registerResources(
+      registerTestResources(
         makeContext(
           makeStorage({ location: null }),
           makeProductClient({
@@ -411,7 +430,7 @@ describe("registerResources", () => {
     });
 
     it("returns a not-found message when the product is missing", async () => {
-      registerResources(
+      registerTestResources(
         makeContext(makeStorage(), makeProductClient({ product: null })),
       );
 
@@ -425,7 +444,7 @@ describe("registerResources", () => {
     });
 
     it("returns an error when the product API fails", async () => {
-      registerResources(
+      registerTestResources(
         makeContext(makeStorage(), makeProductClient({ error: true })),
       );
 
@@ -439,7 +458,7 @@ describe("registerResources", () => {
     });
 
     it("suggests UPC completions from recent orders", async () => {
-      registerResources(
+      registerTestResources(
         makeContext(
           makeStorage({
             orders: [
@@ -480,7 +499,7 @@ describe("registerResources", () => {
     });
 
     it("deduplicates UPCs that appear more than once in order history", async () => {
-      registerResources(
+      registerTestResources(
         makeContext(
           makeStorage({
             orders: [
@@ -520,7 +539,7 @@ describe("registerResources", () => {
     });
 
     it("returns empty completions when order history storage fails", async () => {
-      registerResources(
+      registerTestResources(
         makeContext(
           makeStorage({
             ordersThrows: true,
@@ -534,7 +553,7 @@ describe("registerResources", () => {
     });
 
     it("throws when completing outside an authenticated request", async () => {
-      registerResources(makeContext(makeStorage()));
+      registerTestResources(makeContext(makeStorage()));
       unauthenticate();
 
       const complete = getCompleteFn("Product Details", "upc");

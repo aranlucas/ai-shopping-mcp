@@ -21,6 +21,18 @@ export type CacheReadResult =
   | { kind: "fresh"; entry: WeeklyDealsCacheEntry }
   | { kind: "stale"; entry: WeeklyDealsCacheEntry };
 
+/**
+ * Weekly-deals cache contract used by services and tools.
+ *
+ * The Worker binding is optional in some deployments. That infrastructure
+ * detail is handled once by `createWeeklyDealsCache`; consumers always get a
+ * cache object whose missing-binding behavior is a normal cache miss.
+ */
+export interface WeeklyDealsCache {
+  read(key: string): ResultAsync<CacheReadResult, AppError>;
+  write(key: string, data: QfcDealsApiResponse): ResultAsync<void, AppError>;
+}
+
 export function buildWeeklyDealsCacheKey(params: {
   locationId?: string;
   limit: number;
@@ -49,11 +61,9 @@ export function parseWeeklyDealsCacheEntry(
 }
 
 export function readWeeklyDealsCache(
-  kv: KvLike | null,
+  kv: KvLike,
   key: string,
 ): ResultAsync<CacheReadResult, AppError> {
-  if (!kv) return okAsync({ kind: "miss" as const });
-
   return ResultAsync.fromThrowable(
     () => kv.get(key),
     (error) =>
@@ -86,12 +96,10 @@ export function getLatestCircularEndTime(
 }
 
 export function writeWeeklyDealsCache(
-  kv: KvLike | null,
+  kv: KvLike,
   key: string,
   data: QfcDealsApiResponse,
 ): ResultAsync<void, AppError> {
-  if (!kv) return okAsync(undefined);
-
   const now = Date.now();
   const eventEnd = getLatestCircularEndTime(data);
   const freshUntil = eventEnd ?? now + FALLBACK_FRESH_CACHE_MS;
@@ -116,6 +124,21 @@ export function writeWeeklyDealsCache(
         error,
       ),
   )();
+}
+
+/** Adapt the optional Worker KV binding to the non-null service contract. */
+export function createWeeklyDealsCache(kv: KvLike | null): WeeklyDealsCache {
+  if (!kv) {
+    return {
+      read: () => okAsync({ kind: "miss" as const }),
+      write: () => okAsync(undefined),
+    };
+  }
+
+  return {
+    read: (key) => readWeeklyDealsCache(kv, key),
+    write: (key, data) => writeWeeklyDealsCache(kv, key, data),
+  };
 }
 
 export function addWeeklyDealsWarning(

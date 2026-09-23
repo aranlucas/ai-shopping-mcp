@@ -1,19 +1,17 @@
-import type { ToolContext } from "./types.js";
+import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 
 import { formatWeeklyDealWarnings } from "../services/weekly-deals/format.js";
-import { loadWeeklyDeals } from "../services/weekly-deals/service.js";
-import { createWeeklyDealsDependencies } from "../services/weekly-deals/runtime.js";
 import { REQUEST_TIMEOUT_MS } from "../utils/request-timeout.js";
 
 const MEAL_PLANNING_DEAL_LIMIT = 10;
 
 /** Optional context: a deal outage must not discard the shopper's pantry context. */
 export async function getMealPlanningDeals(
-  ctx: ToolContext,
+  loadWeeklyDeals: WeeklyDealsLoader,
   storeId?: string,
 ): Promise<string> {
   // Share the default get_weekly_deals cache and fetch limits; only the summary is smaller.
-  const result = await loadWeeklyDeals(createWeeklyDealsDependencies(ctx), {
+  const result = await loadWeeklyDeals({
     storeId,
     limit: 50,
     pageLimit: 2,

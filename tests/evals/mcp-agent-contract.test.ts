@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { ToolContext } from "../../src/tools/types.js";
+import type { McpServer } from "@modelcontextprotocol/server";
+import type { KrogerClients } from "../../src/services/kroger/client.js";
+import type { ProductService } from "../../src/services/kroger/product-service.js";
+import type { WeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+  PreferredLocationStore,
+  ShoppingListStore,
+} from "../../src/utils/shopping-store.js";
+import type { CartStore } from "../../src/utils/user-storage.js";
 
 import { registerCartTools } from "../../src/tools/cart.js";
 import { registerInventoryTools } from "../../src/tools/inventory.js";
@@ -40,7 +51,16 @@ const testState: { capturedTools: CapturedTool[] } = {
   capturedTools: [],
 };
 
-function makeContext(): ToolContext {
+function makeDependencies() {
+  const preferredLocation: PreferredLocationStore = {
+    get: async () => null,
+    set: async () => {},
+    delete: async () => {},
+  };
+  const pantry = {} as PantryStore;
+  const equipment = {} as EquipmentStore;
+  const orderHistory = {} as OrderHistoryStore;
+  const shoppingList = {} as ShoppingListStore;
   return {
     server: {
       registerTool: (
@@ -56,43 +76,49 @@ function makeContext(): ToolContext {
           content: { confirm: true },
         }),
       },
-    } as unknown as ToolContext["server"],
-    clients: {
-      productClient: {
-        GET: async () => ({ response: new Response(null, { status: 204 }) }),
-      },
-      locationClient: {
-        GET: async () => ({ response: new Response(null, { status: 204 }) }),
-      },
-      cartClient: {
-        PUT: async () => ({ response: new Response(null, { status: 204 }) }),
-      },
-    } as unknown as ToolContext["clients"],
+    } as unknown as McpServer,
+    productClient: {
+      GET: async () => ({ response: new Response(null, { status: 204 }) }),
+    } as unknown as KrogerClients["productClient"],
+    locationClient: {
+      GET: async () => ({ response: new Response(null, { status: 204 }) }),
+    } as unknown as KrogerClients["locationClient"],
+    cartClient: {
+      PUT: async () => ({ response: new Response(null, { status: 204 }) }),
+    } as unknown as KrogerClients["cartClient"],
     productService: {
       getProduct: () => {
         throw new Error("productService not used in this test");
       },
       enrichProductName: async () => null,
-    } as unknown as ToolContext["productService"],
-    storage: {} as ToolContext["storage"],
-    carts: {} as ToolContext["carts"],
-    getEnv: () => ({}) as Env,
+    } satisfies Pick<ProductService, "getProduct" | "enrichProductName">,
+    preferredLocation,
+    pantry,
+    equipment,
+    orderHistory,
+    shoppingList,
+    carts: {} as CartStore,
+    ai: {} as Env["AI"],
+    weeklyDealsCache: {} as WeeklyDealsCache,
+    loadWeeklyDeals: async () => {
+      throw new Error("Weekly deals not used in registration tests");
+    },
   };
 }
 
 function registerAllTools() {
   testState.capturedTools.length = 0;
-  const ctx = makeContext();
+  const deps = makeDependencies();
 
-  registerCartTools(ctx);
-  registerLocationTools(ctx);
-  registerProductTools(ctx);
-  registerInventoryTools(ctx);
-  registerOrderTools(ctx);
-  registerRecipeTools(ctx);
-  registerShoppingListTools(ctx);
-  registerShopTools(ctx);
-  registerWeeklyDealsTools(ctx);
+  registerCartTools(deps.server, deps);
+  registerLocationTools(deps.server, deps);
+  registerProductTools(deps.server, deps);
+  registerInventoryTools(deps.server, deps);
+  registerOrderTools(deps.server, deps);
+  registerRecipeTools(deps.server, deps);
+  registerShoppingListTools(deps.server, deps);
+  registerShopTools(deps.server, deps);
+  registerWeeklyDealsTools(deps.server, deps);
 
   return testState.capturedTools;
 }

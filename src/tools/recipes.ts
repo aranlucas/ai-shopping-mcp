@@ -1,13 +1,20 @@
 import { ResultAsync } from "neverthrow";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../domain/shopping.js";
+import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+} from "../utils/shopping-store.js";
 
 import { classifyExpiry } from "../services/expiry.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { getMealPlanningDeals } from "./meal-planning-deals.js";
 import { coercedBooleanSchema, storeIdSchema } from "./schemas.js";
-import { type ToolContext, textResult } from "./types.js";
+import { textResult } from "./types.js";
 
 /**
  * Ranks item names by purchase frequency across recent orders. Shared by
@@ -142,8 +149,18 @@ const mealPlanningInputSchema = z.object({
     .describe("Deal store; defaults to preferred Kroger store"),
 });
 
-export function registerRecipeTools(ctx: ToolContext) {
-  ctx.server.registerTool(
+export type RecipeToolDependencies = {
+  pantry: PantryStore;
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  loadWeeklyDeals: WeeklyDealsLoader;
+};
+
+export function registerRecipeTools(
+  server: McpServer,
+  { pantry, equipment, orderHistory, loadWeeklyDeals }: RecipeToolDependencies,
+): void {
+  server.registerTool(
     "get_meal_planning_context",
     {
       title: "Get Meal Planning Context",
@@ -165,32 +182,28 @@ export function registerRecipeTools(ctx: ToolContext) {
       includeWeeklyDeals,
       storeId,
     }) => {
-      const { storage } = ctx;
       getProps();
 
       const [contextResult, weeklyDeals] = await Promise.all([
         ResultAsync.combine([
-          safeStorage(() => storage.pantry.getAll(), "fetch pantry"),
-          safeStorage(() => storage.equipment.getAll(), "fetch equipment"),
-          safeStorage(
-            () => storage.orderHistory.getRecent(10),
-            "fetch order history",
-          ),
+          safeStorage(() => pantry.getAll(), "fetch pantry"),
+          safeStorage(() => equipment.getAll(), "fetch equipment"),
+          safeStorage(() => orderHistory.getRecent(10), "fetch order history"),
         ]),
         includeWeeklyDeals
-          ? getMealPlanningDeals(ctx, storeId)
+          ? getMealPlanningDeals(loadWeeklyDeals, storeId)
           : Promise.resolve(undefined),
       ]);
       if (contextResult.isErr()) return toMcpError(contextResult.error);
-      const [pantry, equipment, recentOrders] = contextResult.value;
-      if (pantry.length === 0 && !includeWeeklyDeals) {
+      const [pantryItems, equipmentItems, recentOrders] = contextResult.value;
+      if (pantryItems.length === 0 && !includeWeeklyDeals) {
         return textResult(
           'Your pantry is empty. Add items first using add_to_inventory, e.g. {"inventory":"pantry","items":[{"name":"Eggs"}]}, then try planning meals again.',
         );
       }
 
       const now = Date.now();
-      const categorizedPantry = pantry.map((item) => {
+      const categorizedPantry = pantryItems.map((item) => {
         const expiry = classifyExpiry(item.expiresAt, now);
         if (expiry.status === "expired")
           return Object.assign({}, item, {
@@ -260,7 +273,7 @@ export function registerRecipeTools(ctx: ToolContext) {
       for (const item of availableItems) {
         parts.push(`- ${item.productName} x${item.quantity}`);
       }
-      if (pantry.length === 0) {
+      if (pantryItems.length === 0) {
         parts.push(
           "Your pantry is empty. Treat all recipe ingredients as items to buy.",
         );
@@ -268,9 +281,9 @@ export function registerRecipeTools(ctx: ToolContext) {
 
       if (weeklyDeals) parts.push(weeklyDeals);
 
-      if (equipment.length > 0) {
-        parts.push(`\n**Equipment (${equipment.length} items):**`);
-        for (const item of equipment) {
+      if (equipmentItems.length > 0) {
+        parts.push(`\n**Equipment (${equipmentItems.length} items):**`);
+        for (const item of equipmentItems) {
           parts.push(
             `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
           );

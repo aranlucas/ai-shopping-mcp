@@ -1,10 +1,33 @@
-import { ResourceTemplate } from "@modelcontextprotocol/server";
+import { ResourceTemplate, type McpServer } from "@modelcontextprotocol/server";
+import type { ProductService } from "../services/kroger/product-service.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+  PreferredLocationStore,
+} from "../utils/shopping-store.js";
 import { getProps, safeStorage } from "../utils/result.js";
 import { toonResource } from "../utils/toon.js";
-import { type ToolContext } from "./types.js";
 
-export function registerResources(ctx: ToolContext) {
-  ctx.server.registerResource(
+export type ResourceDependencies = {
+  productService: Pick<ProductService, "getProduct">;
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  pantry: PantryStore;
+  preferredLocation: PreferredLocationStore;
+};
+
+export function registerResources(
+  server: McpServer,
+  {
+    productService,
+    equipment,
+    orderHistory,
+    pantry,
+    preferredLocation,
+  }: ResourceDependencies,
+): void {
+  server.registerResource(
     "Pantry Inventory",
     "shopping://user/pantry",
     {
@@ -15,10 +38,7 @@ export function registerResources(ctx: ToolContext) {
     async () => {
       getProps();
 
-      const result = await safeStorage(
-        () => ctx.storage.pantry.getAll(),
-        "fetch pantry",
-      );
+      const result = await safeStorage(() => pantry.getAll(), "fetch pantry");
 
       if (result.isErr()) {
         return toonResource("shopping://user/pantry", {
@@ -33,7 +53,7 @@ export function registerResources(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerResource(
+  server.registerResource(
     "Kitchen Equipment",
     "shopping://user/kitchen-equipment",
     {
@@ -45,7 +65,7 @@ export function registerResources(ctx: ToolContext) {
       getProps();
 
       const result = await safeStorage(
-        () => ctx.storage.equipment.getAll(),
+        () => equipment.getAll(),
         "fetch equipment",
       );
 
@@ -62,7 +82,7 @@ export function registerResources(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerResource(
+  server.registerResource(
     "Preferred Store",
     "shopping://user/preferred-store",
     {
@@ -74,7 +94,7 @@ export function registerResources(ctx: ToolContext) {
       getProps();
 
       const result = await safeStorage(
-        () => ctx.storage.preferredLocation.get(),
+        () => preferredLocation.get(),
         "fetch preferred location",
       );
 
@@ -94,7 +114,7 @@ export function registerResources(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerResource(
+  server.registerResource(
     "Order History",
     "shopping://user/order-history",
     {
@@ -106,7 +126,7 @@ export function registerResources(ctx: ToolContext) {
       getProps();
 
       const result = await safeStorage(
-        () => ctx.storage.orderHistory.getRecent(10),
+        () => orderHistory.getRecent(10),
         "fetch order history",
       );
 
@@ -123,7 +143,7 @@ export function registerResources(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerResource(
+  server.registerResource(
     "Product Details",
     new ResourceTemplate("shopping://product/{upc}", {
       list: undefined,
@@ -137,7 +157,7 @@ export function registerResources(ctx: ToolContext) {
           const prefix = value.trim();
 
           const ordersResult = await safeStorage(
-            () => ctx.storage.orderHistory.getRecent(20),
+            () => orderHistory.getRecent(20),
             "fetch orders for completion",
           );
 
@@ -178,14 +198,14 @@ export function registerResources(ctx: ToolContext) {
 
       getProps();
       const locationResult = await safeStorage(
-        () => ctx.storage.preferredLocation.get(),
+        () => preferredLocation.get(),
         "fetch preferred location",
       );
       const locationId = locationResult.isOk()
         ? locationResult.value?.locationId
         : undefined;
 
-      const result = await ctx.productService.getProduct(upc, locationId);
+      const result = await productService.getProduct(upc, locationId);
 
       if (result.isOk()) return toonResource(uri.href, result.value);
       if (result.error.type === "NOT_FOUND") {

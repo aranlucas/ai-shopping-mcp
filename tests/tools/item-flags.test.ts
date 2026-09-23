@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
-import type { ToolContext } from "../../src/tools/types.js";
+import type { WeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
+import { createWeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
 import type { PantryItem } from "../../src/domain/shopping.js";
+import type { KvLike } from "../../src/utils/kv.js";
 
 import {
   dealFlagLabel,
@@ -50,34 +52,16 @@ function makeCacheEntry(
   };
 }
 
-function makeKvContext(store: Map<string, string> | null): ToolContext {
-  return {
-    server: {} as ToolContext["server"],
-    clients: {} as ToolContext["clients"],
-    productService: {
-      getProduct: () => {
-        throw new Error("productService not used in this test");
-      },
-      enrichProductName: async () => null,
-    } as unknown as ToolContext["productService"],
-    storage: {} as ToolContext["storage"],
-    carts: {} as ToolContext["carts"],
-    getEnv: () =>
-      (store
-        ? {
-            USER_DATA_KV: {
-              get: vi.fn<(key: string) => unknown>(
-                async (key: string) => store.get(key) ?? null,
-              ),
-              put: vi.fn<(key: string, value: string) => unknown>(
-                async (key: string, value: string) => {
-                  store.set(key, value);
-                },
-              ),
-            },
-          }
-        : {}) as unknown as Env,
-  };
+function makeCacheContext(store: Map<string, string> | null): WeeklyDealsCache {
+  const kv = store
+    ? ({
+        get: async (key: string) => store.get(key) ?? null,
+        put: async (key: string, value: string) => {
+          store.set(key, value);
+        },
+      } as unknown as KvLike)
+    : null;
+  return createWeeklyDealsCache(kv);
 }
 
 // ---------------------------------------------------------------------------
@@ -177,25 +161,19 @@ describe("itemFlagLabels", () => {
 describe("getPantryForFlags", () => {
   it("returns the pantry list on success", async () => {
     const pantry = [makePantryItem()];
-    const ctx = {
-      storage: { pantry: { getAll: async () => pantry } },
-    } as unknown as ToolContext;
+    const pantryStore = { getAll: async () => pantry };
 
-    expect(await getPantryForFlags(ctx)).toEqual(pantry);
+    expect(await getPantryForFlags(pantryStore)).toEqual(pantry);
   });
 
   it("returns an empty list when storage throws", async () => {
-    const ctx = {
-      storage: {
-        pantry: {
-          getAll: async () => {
-            throw new Error("KV unavailable");
-          },
-        },
+    const pantryStore = {
+      getAll: async () => {
+        throw new Error("KV unavailable");
       },
-    } as unknown as ToolContext;
+    };
 
-    expect(await getPantryForFlags(ctx)).toEqual([]);
+    expect(await getPantryForFlags(pantryStore)).toEqual([]);
   });
 });
 
@@ -224,9 +202,9 @@ describe("getDealsForFlags", () => {
       JSON.stringify(makeCacheEntry({ data: makeDealsResponse({ deals }) })),
     );
 
-    const ctx = makeKvContext(store);
+    const cache = makeCacheContext(store);
 
-    expect(await getDealsForFlags(ctx, "70500847")).toEqual(deals);
+    expect(await getDealsForFlags(cache, "70500847")).toEqual(deals);
   });
 
   it("returns deals from a stale-but-within-grace cache entry", async () => {
@@ -256,14 +234,14 @@ describe("getDealsForFlags", () => {
       ),
     );
 
-    const ctx = makeKvContext(store);
+    const cache = makeCacheContext(store);
 
-    expect(await getDealsForFlags(ctx, "70500847")).toEqual(deals);
+    expect(await getDealsForFlags(cache, "70500847")).toEqual(deals);
   });
 
   it("returns an empty list on a cold cache (no KV entry)", async () => {
-    const ctx = makeKvContext(new Map());
-    expect(await getDealsForFlags(ctx, "70500847")).toEqual([]);
+    const cache = makeCacheContext(new Map());
+    expect(await getDealsForFlags(cache, "70500847")).toEqual([]);
   });
 
   it("returns an empty list when the cache entry is past its stale grace window", async () => {
@@ -281,9 +259,9 @@ describe("getDealsForFlags", () => {
       ),
     );
 
-    const ctx = makeKvContext(store);
+    const cache = makeCacheContext(store);
 
-    expect(await getDealsForFlags(ctx, "70500847")).toEqual([]);
+    expect(await getDealsForFlags(cache, "70500847")).toEqual([]);
   });
 
   it("returns an empty list, not a throw, for a corrupted cache entry", async () => {
@@ -295,20 +273,20 @@ describe("getDealsForFlags", () => {
     });
     store.set(cacheKey, "{not-valid-json");
 
-    const ctx = makeKvContext(store);
+    const cache = makeCacheContext(store);
 
-    await expect(getDealsForFlags(ctx, "70500847")).resolves.toEqual([]);
+    await expect(getDealsForFlags(cache, "70500847")).resolves.toEqual([]);
   });
 
   it("returns an empty list when there is no USER_DATA_KV binding", async () => {
-    const ctx = makeKvContext(null);
-    expect(await getDealsForFlags(ctx, "70500847")).toEqual([]);
+    const cache = makeCacheContext(null);
+    expect(await getDealsForFlags(cache, "70500847")).toEqual([]);
   });
 
   it("never fetches the circular directly (no fetch/product-search call site)", async () => {
     // getDealsForFlags only reads KV — this is a structural guarantee, not a
     // spy assertion: the function signature has no clients/fetch dependency.
-    const ctx = makeKvContext(new Map());
-    await expect(getDealsForFlags(ctx, undefined)).resolves.toEqual([]);
+    const cache = makeCacheContext(new Map());
+    await expect(getDealsForFlags(cache, undefined)).resolves.toEqual([]);
   });
 });

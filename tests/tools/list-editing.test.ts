@@ -5,14 +5,15 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ToolContext } from "../../src/tools/types.js";
+import type { ProductService } from "../../src/services/kroger/product-service.js";
 import type {
   ShoppingListItem,
   StoredShoppingListItem,
   ShoppingListItemPatch,
 } from "../../src/domain/shopping.js";
+import type { ShoppingStore } from "../../src/utils/shopping-store.js";
 
-import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
+import { registerShoppingListTools as registerShoppingListToolsImpl } from "../../src/tools/shopping-list.js";
 import {
   getCapturedHandler,
   getCapturedTool,
@@ -21,7 +22,17 @@ import {
   resetToolTestHarness,
 } from "./tool-test-harness.js";
 
-type ListStore = ToolContext["storage"]["shoppingList"];
+type ListStore = ShoppingStore["shoppingList"];
+
+function registerShoppingListTools(
+  serverOrFixture: ReturnType<typeof makeContext> | unknown,
+  maybeFixture?: ReturnType<typeof makeContext>,
+) {
+  const fixture = (maybeFixture ?? serverOrFixture) as ReturnType<
+    typeof makeContext
+  >;
+  registerShoppingListToolsImpl(fixture.server, fixture);
+}
 
 function makeListStorage(overrides: Partial<ListStore>) {
   const storage = makeStorage();
@@ -57,7 +68,8 @@ describe("shopping list editing tools", () => {
         },
       ],
     });
-    registerShoppingListTools(makeContext(storage));
+    const fixture = makeContext(storage);
+    registerShoppingListTools(fixture.server, fixture);
 
     const result = await getCapturedHandler("get_shopping_list")({});
 
@@ -77,7 +89,8 @@ describe("shopping list editing tools", () => {
         createdAt: "2026-08-01T00:00:00Z",
       }),
     });
-    registerShoppingListTools(makeContext(storage));
+    const fixture = makeContext(storage);
+    registerShoppingListTools(fixture.server, fixture);
 
     const result = await getCapturedHandler("get_shopping_list")({
       listId: "list-a",
@@ -89,7 +102,8 @@ describe("shopping list editing tools", () => {
 
   it("points at the index when the listId does not exist", async () => {
     const storage = makeListStorage({ get: async () => null });
-    registerShoppingListTools(makeContext(storage));
+    const fixture = makeContext(storage);
+    registerShoppingListTools(fixture.server, fixture);
 
     const result = await getCapturedHandler("get_shopping_list")({
       listId: "missing",
@@ -112,7 +126,8 @@ describe("shopping list editing tools", () => {
         id: `item-${index + 1}`,
       })),
     );
-    registerShoppingListTools(makeContext(makeListStorage({ addItems })));
+    const fixture = makeContext(makeListStorage({ addItems }));
+    registerShoppingListTools(fixture.server, fixture);
 
     const result = await getCapturedHandler("add_shopping_list_items")({
       listId: "list-a",
@@ -141,9 +156,12 @@ describe("shopping list editing tools", () => {
     );
     const ctx = makeContext(makeListStorage({ addItems }));
     ctx.productService = {
+      getProduct: () => {
+        throw new Error("productService not used in this test");
+      },
       enrichProductName: async () => "Whole Milk",
-    } as unknown as ToolContext["productService"];
-    registerShoppingListTools(ctx);
+    } as unknown as Pick<ProductService, "getProduct" | "enrichProductName">;
+    registerShoppingListTools(ctx.server, ctx);
 
     await getCapturedHandler("add_shopping_list_items")({
       listId: "list-a",
@@ -160,7 +178,8 @@ describe("shopping list editing tools", () => {
   });
 
   it("rejects an item with neither a UPC nor a name", () => {
-    registerShoppingListTools(makeContext());
+    const fixture = makeContext();
+    registerShoppingListTools(fixture.server, fixture);
     const { config } = getCapturedTool("add_shopping_list_items");
     const { inputSchema } = config as {
       inputSchema: { safeParse: (input: unknown) => { success: boolean } };
@@ -173,7 +192,8 @@ describe("shopping list editing tools", () => {
   });
 
   it("rejects productRef instead of UPC", () => {
-    registerShoppingListTools(makeContext());
+    const fixture = makeContext();
+    registerShoppingListTools(fixture.server, fixture);
     const { config } = getCapturedTool("add_shopping_list_items");
     const { inputSchema } = config as {
       inputSchema: { safeParse: (input: unknown) => { success: boolean } };
@@ -195,7 +215,8 @@ describe("shopping list editing tools", () => {
         patch: ShoppingListItemPatch,
       ) => Promise<StoredShoppingListItem>
     >(async () => storedItem({ quantity: 3 }));
-    registerShoppingListTools(makeContext(makeListStorage({ updateItem })));
+    const fixture = makeContext(makeListStorage({ updateItem }));
+    registerShoppingListTools(fixture.server, fixture);
 
     const result = await getCapturedHandler("edit_shopping_list_item")({
       listId: "list-a",
@@ -220,9 +241,8 @@ describe("shopping list editing tools", () => {
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},
     );
-    registerShoppingListTools(
-      makeContext(makeListStorage({ updateItem, removeItem })),
-    );
+    const fixture = makeContext(makeListStorage({ updateItem, removeItem }));
+    registerShoppingListTools(fixture.server, fixture);
 
     const result = await getCapturedHandler("edit_shopping_list_item")({
       listId: "list-a",
@@ -248,9 +268,8 @@ describe("shopping list editing tools", () => {
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},
     );
-    registerShoppingListTools(
-      makeContext(makeListStorage({ updateItem, removeItem })),
-    );
+    const fixture = makeContext(makeListStorage({ updateItem, removeItem }));
+    registerShoppingListTools(fixture.server, fixture);
 
     const result = await getCapturedHandler("edit_shopping_list_item")({
       listId: "list-a",
@@ -264,7 +283,8 @@ describe("shopping list editing tools", () => {
   });
 
   it("asks for a field rather than silently doing nothing", async () => {
-    registerShoppingListTools(makeContext(makeListStorage({})));
+    const fixture = makeContext(makeListStorage({}));
+    registerShoppingListTools(fixture.server, fixture);
 
     const result = await getCapturedHandler("edit_shopping_list_item")({
       listId: "list-a",

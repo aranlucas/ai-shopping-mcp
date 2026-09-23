@@ -2,7 +2,8 @@
 // tool-test-harness installs module mocks before the tool modules are imported.
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { UserStorage } from "../../src/tools/types.js";
+import type { ShoppingStore } from "../../src/utils/shopping-store.js";
+import type { KvLike } from "../../src/utils/kv.js";
 
 import {
   getCapturedHandler,
@@ -14,10 +15,24 @@ import {
   resetToolTestHarness,
   unauthenticate,
 } from "./tool-test-harness.js";
-import { registerCartTools } from "../../src/tools/cart.js";
-import { registerInventoryTools } from "../../src/tools/inventory.js";
-import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
+import { registerCartTools as registerCartToolsImpl } from "../../src/tools/cart.js";
+import { registerInventoryTools as registerInventoryToolsImpl } from "../../src/tools/inventory.js";
+import { registerShoppingListTools as registerShoppingListToolsImpl } from "../../src/tools/shopping-list.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
+
+type TestContext = ReturnType<typeof makeContext>;
+
+function registerCartTools(fixture: TestContext) {
+  registerCartToolsImpl(fixture.server, fixture);
+}
+
+function registerInventoryTools(fixture: TestContext) {
+  registerInventoryToolsImpl(fixture.server, fixture);
+}
+
+function registerShoppingListTools(fixture: TestContext) {
+  registerShoppingListToolsImpl(fixture.server, fixture);
+}
 
 describe("storage-backed tools", () => {
   beforeEach(() => {
@@ -215,7 +230,7 @@ describe("storage-backed tools", () => {
               placedAt: daysAgoIso(50),
             },
           ],
-        } as unknown as UserStorage["orderHistory"],
+        } as unknown as ShoppingStore["orderHistory"],
       });
       registerInventoryTools(makeContext(storage));
 
@@ -238,7 +253,7 @@ describe("storage-backed tools", () => {
             setAt: new Date().toISOString(),
           }),
           set: async () => {},
-        } as unknown as UserStorage["preferredLocation"],
+        } as unknown as ShoppingStore["preferredLocation"],
         pantry: {
           getAll: async () => [
             {
@@ -261,12 +276,12 @@ describe("storage-backed tools", () => {
               ).toISOString(),
             },
           ],
-        } as unknown as UserStorage["pantry"],
+        } as unknown as ShoppingStore["pantry"],
         equipment: {
           getAll: async () => [
             { equipmentName: "Dutch oven", category: "Cooking", addedAt: "" },
           ],
-        } as unknown as UserStorage["equipment"],
+        } as unknown as ShoppingStore["equipment"],
         orderHistory: {
           getRecent: async () => [
             {
@@ -278,7 +293,7 @@ describe("storage-backed tools", () => {
               placedAt: new Date().toISOString(),
             },
           ],
-        } as unknown as UserStorage["orderHistory"],
+        } as unknown as ShoppingStore["orderHistory"],
       });
       registerInventoryTools(makeContext(storage));
 
@@ -392,7 +407,7 @@ describe("storage-backed tools", () => {
               addedAt: new Date().toISOString(),
             },
           ],
-        } as unknown as UserStorage["pantry"],
+        } as unknown as ShoppingStore["pantry"],
       });
       registerShoppingListTools(
         makeContext(storage, makeProductService({ "0001111000001": "Milk" })),
@@ -417,7 +432,7 @@ describe("storage-backed tools", () => {
               addedAt: new Date().toISOString(),
             },
           ],
-        } as unknown as UserStorage["pantry"],
+        } as unknown as ShoppingStore["pantry"],
       });
       registerShoppingListTools(
         makeContext(storage, makeProductService({ "0001111000001": "Milk" })),
@@ -467,15 +482,12 @@ describe("storage-backed tools", () => {
         undefined,
         makeProductService({ "0001111000001": "Whole Milk" }),
       );
-      context.getEnv = () =>
-        ({
-          USER_DATA_KV: {
-            get: async (key: string) => store.get(key) ?? null,
-            put: async (key: string, value: string) => {
-              store.set(key, value);
-            },
-          },
-        }) as unknown as Env;
+      context.cache = {
+        get: async (key: string) => store.get(key) ?? null,
+        put: async (key: string, value: string) => {
+          store.set(key, value);
+        },
+      } as unknown as KvLike;
       registerShoppingListTools(context);
 
       const result = await getCapturedHandler("create_shopping_list")({
@@ -500,15 +512,12 @@ describe("storage-backed tools", () => {
         undefined,
         makeProductService({ "0001111000001": "Whole Milk" }),
       );
-      context.getEnv = () =>
-        ({
-          USER_DATA_KV: {
-            get: async (key: string) => store.get(key) ?? null,
-            put: async (key: string, value: string) => {
-              store.set(key, value);
-            },
-          },
-        }) as unknown as Env;
+      context.cache = {
+        get: async (key: string) => store.get(key) ?? null,
+        put: async (key: string, value: string) => {
+          store.set(key, value);
+        },
+      } as unknown as KvLike;
       registerShoppingListTools(context);
 
       const result = await getCapturedHandler("create_shopping_list")({
@@ -532,7 +541,7 @@ describe("storage-backed tools", () => {
         setAt: new Date().toISOString(),
       }),
       set: async () => {},
-    } as unknown as UserStorage["preferredLocation"];
+    } as unknown as ShoppingStore["preferredLocation"];
 
     const ctx = makeCartContext(storage, 204);
 
@@ -573,7 +582,7 @@ describe("storage-backed tools", () => {
         setAt: new Date().toISOString(),
       }),
       set: async () => {},
-    } as unknown as UserStorage["preferredLocation"];
+    } as unknown as ShoppingStore["preferredLocation"];
 
     const ctx = makeCartContext(storage, 204);
 
@@ -590,14 +599,10 @@ describe("storage-backed tools", () => {
       .structuredContent.listId;
 
     const putCalls: unknown[] = [];
-    (
-      ctx.clients as unknown as {
-        cartClient: { PUT: (...args: unknown[]) => Promise<unknown> };
-      }
-    ).cartClient.PUT = async (...args: unknown[]) => {
+    ctx.cartClient.PUT = (async (...args: unknown[]) => {
       putCalls.push(args);
       return { data: undefined, response: new Response(null, { status: 204 }) };
-    };
+    }) as typeof ctx.cartClient.PUT;
 
     const first = await addHandler({ listId });
     expect(first.isError).toBe(false);
@@ -678,7 +683,7 @@ describe("storage-backed tools", () => {
     storage.preferredLocation = {
       get: async () => null,
       set: async () => {},
-    } as unknown as UserStorage["preferredLocation"];
+    } as unknown as ShoppingStore["preferredLocation"];
 
     const ctx = makeCartContext(storage);
     registerCartTools(ctx);
@@ -724,7 +729,7 @@ describe("storage-backed tools", () => {
         setAt: new Date().toISOString(),
       }),
       set: async () => {},
-    } as unknown as UserStorage["preferredLocation"];
+    } as unknown as ShoppingStore["preferredLocation"];
 
     const ctx = makeCartContext(storage, 204);
     registerCartTools(ctx);

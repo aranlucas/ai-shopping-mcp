@@ -1,4 +1,5 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
@@ -7,7 +8,14 @@ import type { ShoppingList, ShoppingListItem } from "../domain/shopping.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
+import type { ProductService } from "../services/kroger/product-service.js";
+import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
+import type {
+  PantryStore,
+  PreferredLocationStore,
+  ShoppingListStore,
+} from "../utils/shopping-store.js";
 import {
   getProps,
   safeResolveLocationId,
@@ -21,7 +29,7 @@ import {
   itemFlagLabels,
 } from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
-import { type ToolContext, type UserStorage, textResult } from "./types.js";
+import { textResult } from "./types.js";
 
 /**
  * One item to write to a list. Exact matches use a normalized UPC.
@@ -75,12 +83,25 @@ export const getShoppingListInputSchema = z.object({
 
 type ShoppingListItemInput = z.output<typeof shoppingListItemInputSchema>;
 
+export type ShoppingListProductService = Pick<
+  ProductService,
+  "enrichProductName"
+>;
+
+export type ShoppingListToolDependencies = {
+  weeklyDealsCache: WeeklyDealsCache;
+  pantry: PantryStore;
+  preferredLocation: PreferredLocationStore;
+  productService: ShoppingListProductService;
+  shoppingList: ShoppingListStore;
+};
+
 /**
  * Resolves each input item to the domain model and enriches a UPC when the
  * caller omitted a name.
  */
 async function toStoredItems(
-  ctx: ToolContext,
+  productService: ShoppingListProductService,
   items: ShoppingListItemInput[],
 ): Promise<ShoppingListItem[]> {
   return Promise.all(
@@ -88,7 +109,7 @@ async function toStoredItems(
       const productName =
         item.productName ??
         (item.upc
-          ? ((await ctx.productService.enrichProductName(item.upc)) ?? item.upc)
+          ? ((await productService.enrichProductName(item.upc)) ?? item.upc)
           : "");
       return {
         productName,
@@ -107,19 +128,28 @@ export type CreateShoppingListResult = { listId: string; list: ShoppingList };
  * storage creates the durable id, so the returned record is authoritative.
  */
 export function createShoppingListRecord(
-  storage: UserStorage,
+  shoppingList: ShoppingListStore,
   name: string,
   items: ShoppingListItem[],
 ): ResultAsync<CreateShoppingListResult, AppError> {
   return safeStorage(
-    () => storage.shoppingList.create({ name, items }),
+    () => shoppingList.create({ name, items }),
     "create shopping list",
   ).map((list) => ({ listId: list.id, list }));
 }
 
-export function registerShoppingListTools(ctx: ToolContext) {
+export function registerShoppingListTools(
+  server: McpServer,
+  {
+    weeklyDealsCache,
+    pantry: pantryStore,
+    preferredLocation,
+    productService,
+    shoppingList,
+  }: ShoppingListToolDependencies,
+): void {
   registerAppTool(
-    ctx.server,
+    server,
     "create_shopping_list",
     {
       title: "Create Shopping List",
@@ -137,24 +167,24 @@ export function registerShoppingListTools(ctx: ToolContext) {
     async ({ name: listName, items }) => {
       getProps();
 
-      const enrichedItems = await toStoredItems(ctx, items);
+      const enrichedItems = await toStoredItems(productService, items);
 
       // Best-effort pantry/deal flags (see item-flags.ts): a storage/cache
       // miss or error yields no flag, never a failed tool call. Location is
       // resolved best-effort too — no preferred store just means no deal
       // flags, not an error for this tool.
-      const [pantry, resolvedLocation] = await Promise.all([
-        getPantryForFlags(ctx),
-        safeResolveLocationId(ctx.storage, undefined),
+      const [pantryItems, resolvedLocation] = await Promise.all([
+        getPantryForFlags(pantryStore),
+        safeResolveLocationId(preferredLocation, undefined),
       ]);
       const locationId = resolvedLocation.isOk()
         ? resolvedLocation.value.locationId
         : undefined;
-      const deals = await getDealsForFlags(ctx, locationId);
+      const deals = await getDealsForFlags(weeklyDealsCache, locationId);
 
       const lines = enrichedItems
         .map((item, index) => {
-          const flags = itemFlagLabels(item.productName, pantry, deals);
+          const flags = itemFlagLabels(item.productName, pantryItems, deals);
           const base = formatShoppingListItemCompact(item);
           const suffixed =
             flags.length > 0 ? `${base} | ${flags.join(" | ")}` : base;
@@ -163,7 +193,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
         .join("\n");
 
       const result = await createShoppingListRecord(
-        ctx.storage,
+        shoppingList,
         listName,
         enrichedItems,
       );
@@ -185,7 +215,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  server.registerTool(
     "get_shopping_list",
     {
       title: "Get Shopping List",
@@ -202,7 +232,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     async ({ listId }) => {
       if (!listId) {
         const result = await safeStorage(
-          () => ctx.storage.shoppingList.list(),
+          () => shoppingList.list(),
           "read shopping lists",
         );
         if (result.isErr()) return toMcpError(result.error);
@@ -223,7 +253,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const result = await safeStorage(
-        () => ctx.storage.shoppingList.get(listId),
+        () => shoppingList.get(listId),
         "read shopping list",
       );
       if (result.isErr()) return toMcpError(result.error);
@@ -253,7 +283,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  server.registerTool(
     "add_shopping_list_items",
     {
       title: "Add Shopping List Items",
@@ -268,9 +298,9 @@ export function registerShoppingListTools(ctx: ToolContext) {
       inputSchema: addShoppingListItemsInputSchema,
     },
     async ({ listId, items }) => {
-      const storedItems = await toStoredItems(ctx, items);
+      const storedItems = await toStoredItems(productService, items);
       const result = await safeStorage(
-        () => ctx.storage.shoppingList.addItems(listId, storedItems),
+        () => shoppingList.addItems(listId, storedItems),
         "add shopping list items",
       );
       if (result.isErr()) return toMcpError(result.error);
@@ -288,7 +318,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  server.registerTool(
     "edit_shopping_list_item",
     {
       title: "Edit Shopping List Item",
@@ -314,7 +344,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
     }) => {
       if (remove) {
         const removed = await safeStorage(
-          () => ctx.storage.shoppingList.removeItem(listId, itemId),
+          () => shoppingList.removeItem(listId, itemId),
           "remove shopping list item",
         );
         if (removed.isErr()) return toMcpError(removed.error);
@@ -336,7 +366,7 @@ export function registerShoppingListTools(ctx: ToolContext) {
       }
 
       const result = await safeStorage(
-        () => ctx.storage.shoppingList.updateItem(listId, itemId, patch),
+        () => shoppingList.updateItem(listId, itemId, patch),
         "update shopping list item",
       );
       if (result.isErr()) return toMcpError(result.error);

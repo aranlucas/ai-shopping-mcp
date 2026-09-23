@@ -1,9 +1,15 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { EquipmentItem, PantryItem } from "../domain/shopping.js";
-import type { ToolContext } from "./types.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+  PreferredLocationStore,
+} from "../utils/shopping-store.js";
 
 import { validationError } from "../errors.js";
 import { appResult } from "../app-results.js";
@@ -94,9 +100,24 @@ function equipmentResponse(
   };
 }
 
-export function registerInventoryTools(ctx: ToolContext) {
+export type InventoryToolDependencies = {
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  pantry: PantryStore;
+  preferredLocation: PreferredLocationStore;
+};
+
+export function registerInventoryTools(
+  server: McpServer,
+  {
+    equipment,
+    orderHistory,
+    pantry,
+    preferredLocation,
+  }: InventoryToolDependencies,
+): void {
   registerAppTool(
-    ctx.server,
+    server,
     "add_to_inventory",
     {
       title: "Add To Inventory",
@@ -124,7 +145,7 @@ export function registerInventoryTools(ctx: ToolContext) {
       if (inventory === "pantry") {
         const result = await safeStorage(
           () =>
-            ctx.storage.pantry.add(
+            pantry.add(
               items.map((item): PantryItem => ({
                 productName: item.name,
                 quantity: item.quantity ?? 1,
@@ -133,10 +154,10 @@ export function registerInventoryTools(ctx: ToolContext) {
               })),
             ),
           "add pantry items",
-        ).map((pantry) =>
+        ).map((storedItems) =>
           pantryResponse(
-            `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-            pantry,
+            `Added ${items.length} item(s) to pantry.\n\nYour pantry:\n\n${formatPantryListCompact(storedItems)}`,
+            storedItems,
             `Added ${items.length} item(s)`,
           ),
         );
@@ -146,7 +167,7 @@ export function registerInventoryTools(ctx: ToolContext) {
 
       const result = await safeStorage(
         () =>
-          ctx.storage.equipment.add(
+          equipment.add(
             items.map((item): EquipmentItem => ({
               equipmentName: item.name,
               category: item.category,
@@ -154,10 +175,10 @@ export function registerInventoryTools(ctx: ToolContext) {
             })),
           ),
         "add equipment items",
-      ).map((equipment) =>
+      ).map((storedItems) =>
         equipmentResponse(
-          `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-          equipment,
+          `Added ${items.length} item(s) to equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(storedItems)}`,
+          storedItems,
           `Added ${items.length} item(s)`,
         ),
       );
@@ -167,7 +188,7 @@ export function registerInventoryTools(ctx: ToolContext) {
   );
 
   registerAppTool(
-    ctx.server,
+    server,
     "remove_from_inventory",
     {
       title: "Remove From Inventory",
@@ -196,7 +217,7 @@ export function registerInventoryTools(ctx: ToolContext) {
       if (inventory === "pantry") {
         if (all) {
           const result = await safeStorage(
-            () => ctx.storage.pantry.clear(),
+            () => pantry.clear(),
             "clear pantry",
           ).map(() =>
             pantryResponse(
@@ -210,12 +231,12 @@ export function registerInventoryTools(ctx: ToolContext) {
 
         const removeItems = items ?? [];
         const result = await safeStorage(
-          () => ctx.storage.pantry.remove(removeItems.map((item) => item.name)),
+          () => pantry.remove(removeItems.map((item) => item.name)),
           "remove pantry items",
-        ).map((pantry) =>
+        ).map((storedItems) =>
           pantryResponse(
-            `Removed ${removeItems.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(pantry)}`,
-            pantry,
+            `Removed ${removeItems.length} item(s) from pantry.\n\nYour pantry:\n\n${formatPantryListCompact(storedItems)}`,
+            storedItems,
             `Removed ${removeItems.length} item(s)`,
           ),
         );
@@ -225,7 +246,7 @@ export function registerInventoryTools(ctx: ToolContext) {
 
       if (all) {
         const result = await safeStorage(
-          () => ctx.storage.equipment.clear(),
+          () => equipment.clear(),
           "clear equipment",
         ).map(() =>
           equipmentResponse(
@@ -239,13 +260,12 @@ export function registerInventoryTools(ctx: ToolContext) {
 
       const removeItems = items ?? [];
       const result = await safeStorage(
-        () =>
-          ctx.storage.equipment.remove(removeItems.map((item) => item.name)),
+        () => equipment.remove(removeItems.map((item) => item.name)),
         "remove equipment items",
-      ).map((equipment) =>
+      ).map((storedItems) =>
         equipmentResponse(
-          `Removed ${removeItems.length} item(s) from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(equipment)}`,
-          equipment,
+          `Removed ${removeItems.length} item(s) from equipment.\n\nYour equipment:\n\n${formatEquipmentListCompact(storedItems)}`,
+          storedItems,
           `Removed ${removeItems.length} item(s)`,
         ),
       );
@@ -254,7 +274,7 @@ export function registerInventoryTools(ctx: ToolContext) {
     },
   );
 
-  ctx.server.registerTool(
+  server.registerTool(
     "get_shopping_profile",
     {
       title: "Get Shopping Profile",
@@ -272,19 +292,13 @@ export function registerInventoryTools(ctx: ToolContext) {
       getProps();
 
       const profileResult = await ResultAsync.combine([
-        safeStorage(
-          () => ctx.storage.preferredLocation.get(),
-          "fetch preferred store",
-        ),
-        safeStorage(() => ctx.storage.pantry.getAll(), "fetch pantry"),
-        safeStorage(() => ctx.storage.equipment.getAll(), "fetch equipment"),
-        safeStorage(
-          () => ctx.storage.orderHistory.getRecent(50),
-          "fetch order history",
-        ),
+        safeStorage(() => preferredLocation.get(), "fetch preferred store"),
+        safeStorage(() => pantry.getAll(), "fetch pantry"),
+        safeStorage(() => equipment.getAll(), "fetch equipment"),
+        safeStorage(() => orderHistory.getRecent(50), "fetch order history"),
       ]);
       if (profileResult.isErr()) return toMcpError(profileResult.error);
-      const [preferredStore, pantry, equipment, recentOrders] =
+      const [preferredStore, pantryItems, equipmentItems, recentOrders] =
         profileResult.value;
       const parts: string[] = [];
 
@@ -296,11 +310,11 @@ export function registerInventoryTools(ctx: ToolContext) {
       );
 
       parts.push("\n## Pantry");
-      if (pantry.length === 0) {
+      if (pantryItems.length === 0) {
         parts.push("empty");
       } else {
         const now = Date.now();
-        for (const item of pantry) {
+        for (const item of pantryItems) {
           const expiry = classifyExpiry(item.expiresAt, now);
           const expiringNote =
             expiry.status === "expired"
@@ -313,10 +327,10 @@ export function registerInventoryTools(ctx: ToolContext) {
       }
 
       parts.push("\n## Kitchen equipment");
-      if (equipment.length === 0) {
+      if (equipmentItems.length === 0) {
         parts.push("none");
       } else {
-        for (const item of equipment) {
+        for (const item of equipmentItems) {
           parts.push(
             `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
           );
