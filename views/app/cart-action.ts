@@ -4,6 +4,7 @@ import {
   addListToCart,
   createProductList,
   needsCartCheck,
+  needsListCheck,
   type ProductShoppingListInput,
 } from "./tool-calls.js";
 
@@ -27,7 +28,8 @@ export type CartState =
       message: string;
     }
   | { status: "retryable"; request: CartRequest; message: string }
-  | { status: "check_cart"; request: CartRequest; message: string };
+  | { status: "check_cart"; request: CartRequest; message: string }
+  | { status: "check_list"; request: CartRequest; message: string };
 
 /** One action owns its state and the checkpoint from which a safe retry resumes. */
 export function createCartAction(input: CartRequest) {
@@ -68,8 +70,13 @@ export function createCartAction(input: CartRequest) {
         transition({ status: "added", request });
       }
     } catch (error) {
+      const status = needsListCheck(error)
+        ? "check_list"
+        : needsCartCheck(error)
+          ? "check_cart"
+          : "retryable";
       transition({
-        status: needsCartCheck(error) ? "check_cart" : "retryable",
+        status,
         request,
         message:
           error instanceof Error ? error.message : "Failed to add to cart",

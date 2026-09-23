@@ -12,6 +12,7 @@ import {
   addListToCart,
   cartResultContent,
   needsCartCheck,
+  needsListCheck,
   addShoppingListToCartCall,
   createProductShoppingListCall,
   saveProductToList,
@@ -185,7 +186,7 @@ describe("view tool call helpers", () => {
     ]);
   });
 
-  it("fails list saves when create_shopping_list does not return a listId", async () => {
+  it("marks list creation as uncertain when no listId is returned", async () => {
     const { app } = makeToolCallingApp([{ structuredContent: {} }]);
 
     await expect(
@@ -194,7 +195,7 @@ describe("view tool call helpers", () => {
         quantity: 1,
         upc: "0001111041717",
       }),
-    ).rejects.toThrow("Shopping list id missing");
+    ).rejects.toSatisfy(needsListCheck);
   });
   it("preserves recovery for saved-list cart actions too", async () => {
     const { app } = makeToolCallingApp([

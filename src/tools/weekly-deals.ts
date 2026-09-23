@@ -78,11 +78,12 @@ export function registerWeeklyDealsTools(ctx: ToolContext) {
           .describe("Print-ad fallback only: number of ad pages to parse"),
       }),
     },
-    async ({ storeId, limit, pageLimit }) => {
+    async ({ storeId, limit, pageLimit }, requestContext) => {
       const result = await loadWeeklyDeals(ctx, {
         storeId,
         limit,
         pageLimit,
+        signal: requestContext.mcpReq.signal,
       });
       if (result.isErr()) return toMcpError(result.error);
       return formatWeeklyDealsToolResponse(

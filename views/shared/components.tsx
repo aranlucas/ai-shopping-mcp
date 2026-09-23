@@ -329,6 +329,16 @@ export function CartActionControl({
     );
   }
 
+  if (state.status === "check_list") {
+    return (
+      <div>
+        <p role="alert" className="mt-2 text-sm text-red-600">
+          {state.message}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       {state.status === "check_cart" ? (

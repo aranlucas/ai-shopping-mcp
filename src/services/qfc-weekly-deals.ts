@@ -10,6 +10,7 @@ import type {
 
 import { AppErrorException } from "../errors.js";
 import { safeJsonParse } from "../utils/json.js";
+import { REQUEST_TIMEOUT_MS } from "../utils/request-timeout.js";
 import {
   circularsResponseSchema,
   dacsListingResponseSchema,
@@ -108,7 +109,11 @@ async function fetchJson<TSchema extends z.ZodType>(
   schema: TSchema,
   init?: RequestInit,
 ): Promise<{ data: z.output<TSchema>; response: Response }> {
-  const response = await fetch(url, init);
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, timeoutSignal])
+    : timeoutSignal;
+  const response = await fetch(url, { ...init, signal });
   const text = await response.text();
   const parsed = text
     ? safeJsonParse(text).match(

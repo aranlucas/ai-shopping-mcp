@@ -216,23 +216,19 @@ describe("cart action state transitions", () => {
     });
   });
 
-  it("retries list creation when it failed before a cart request", async () => {
+  it("blocks retry when the list creation response is uncertain", async () => {
     const { app, callServerTool } = makeApp([
       new Error("list service unavailable"),
-      listCreated,
-      success,
     ]);
     const action = createCartAction(productRequest);
     await action.submit(app);
     expect(action.getSnapshot()).toMatchObject({
-      status: "retryable",
+      status: "check_list",
       request: productRequest,
     });
     await action.submit(app);
     expect(callServerTool.mock.calls.map(([call]) => call.name)).toEqual([
       "create_shopping_list",
-      "create_shopping_list",
-      "add_shopping_list_to_cart",
     ]);
   });
 

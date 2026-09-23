@@ -39,11 +39,14 @@ function toImageUrl(product: Product): string | undefined {
 export function toProductData(
   product: Product,
   includeLocation = false,
+  fallbackUpc?: string,
 ): ProductData {
   const item = product.items?.[0];
+  const upc = product.upc?.trim() || fallbackUpc?.trim();
+  if (!upc) throw new Error("Kroger product response is missing a UPC");
 
   return {
-    upc: product.upc ?? "",
+    upc,
     name: product.description ?? "Unknown product",
     brand: product.brand,
     ...normalizeKrogerPrice(item?.price),

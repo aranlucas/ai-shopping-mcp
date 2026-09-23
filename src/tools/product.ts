@@ -153,7 +153,7 @@ export function registerProductTools(ctx: ToolContext) {
     async ({ upc, storeId }) => {
       const result = await ctx.productService.getProduct(upc, storeId);
       if (result.isErr()) return toMcpError(result.error);
-      const product = toProductData(result.value, true);
+      const product = toProductData(result.value, true, upc);
       return {
         content: [
           { type: "text" as const, text: formatProductDetails(product) },
