@@ -3,8 +3,7 @@
  * `create_shopping_list`: a short " | in pantry" / " | on sale: $X" suffix
  * per line, saving the model a separate `get_shopping_profile` or
  * `get_weekly_deals` call. Both flags are best-effort — any storage or cache
- * error yields no flag, never a failed tool call. See
- * docs/small-model-efficiency-plan.md Phase 3 item 6.
+ * error yields no flag, never a failed tool call.
  */
 import type { Deal } from "../utils/deal-match.js";
 import type { PantryItem } from "../domain/shopping.js";

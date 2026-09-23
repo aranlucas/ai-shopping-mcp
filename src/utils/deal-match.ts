@@ -3,8 +3,7 @@
  * breast") and scraped QFC/Kroger deal titles (e.g. "Kroger Boneless
  * Skinless Chicken Breasts, Value Pack, Family Pack"). Deal titles are messy
  * free text, so this uses normalized token overlap rather than substring or
- * exact matching. See docs/small-model-efficiency-plan.md, "Server-side AI"
- * item 9.
+ * exact matching.
  */
 import type { NormalizedWeeklyDeal } from "../services/qfc-weekly-deals.js";
 

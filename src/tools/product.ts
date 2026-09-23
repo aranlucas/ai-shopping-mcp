@@ -2,7 +2,6 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import * as z from "zod/v4";
 
 import { appResult } from "../app-results.js";
-import { productReferenceInputSchema } from "../domain/product-identity.js";
 import { toProductData } from "../services/kroger/product-data.js";
 import { searchProductsForTerms } from "../services/kroger/search.js";
 import {
@@ -20,24 +19,12 @@ export {
   searchProductsForTerms,
 } from "../services/kroger/search.js";
 
-const getProductInputSchema = z
-  .strictObject({
-    upc: upcSchema.optional().describe("UPC from search_products"),
-    productRef: productReferenceInputSchema
-      .optional()
-      .describe("Legacy kroger:<UPC> reference"),
-    storeId: storeIdSchema
-      .optional()
-      .describe("Kroger store ID for pricing and availability"),
-  })
-  .refine(({ upc, productRef }) => Boolean(upc) !== Boolean(productRef), {
-    message: "Provide one UPC (or a legacy Kroger productRef).",
-  })
-  .transform(({ upc, productRef, ...params }) => ({
-    ...params,
-    upc: upc ?? productRef,
-  }))
-  .pipe(z.object({ upc: upcSchema, storeId: storeIdSchema.optional() }));
+const getProductInputSchema = z.strictObject({
+  upc: upcSchema.describe("UPC from search_products"),
+  storeId: storeIdSchema
+    .optional()
+    .describe("Kroger store ID for pricing and availability"),
+});
 
 export function registerProductTools(ctx: ToolContext) {
   registerAppTool(

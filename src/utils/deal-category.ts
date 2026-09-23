@@ -3,7 +3,6 @@
  * planning categories. Neither deal source carries reliable category data:
  * the primary DACS print-ad path has no department field at all, and the
  * Product Search fallback's `categories` field is dropped before this point.
- * See docs/superpowers/specs/2026-07-12-weekly-deals-category-ordering-design.md.
  */
 
 export const DEAL_CATEGORIES = [

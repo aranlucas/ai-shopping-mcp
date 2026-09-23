@@ -41,6 +41,10 @@ describe("upcSchema", () => {
   it("rejects an empty string", () => {
     expect(upcSchema.safeParse("").success).toBe(false);
   });
+
+  it("rejects provider-prefixed references", () => {
+    expect(upcSchema.safeParse("kroger:1").success).toBe(false);
+  });
 });
 
 describe("storeIdSchema", () => {

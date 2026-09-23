@@ -52,7 +52,7 @@ function median(values: number[]): number {
  * purchases in order history, computes the median interval between
  * consecutive purchases and flags items overdue relative to that interval —
  * i.e. `now - lastPurchase > medianInterval`. Sorted most-overdue first,
- * capped at 5. See docs/small-model-efficiency-plan.md Phase 3 item 7.
+ * capped at 5.
  */
 export function computeRestockSuggestions(
   orders: OrderRecord[],

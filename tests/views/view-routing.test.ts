@@ -214,99 +214,15 @@ describe("MCP App view routing", () => {
     },
   );
 
-  it("normalizes a persisted Kroger product reference to its UPC", () => {
+  it("requires a UPC in product payloads", () => {
     expect(
       parseAppResult({
         content: [],
         _meta: { "dev.aranlucas/view": "get_product" },
         structuredContent: {
-          product: {
-            product: { provider: "kroger", id: "1" },
-            name: "Milk",
-            available: true,
-          },
-        },
-      }),
-    ).toEqual({
-      view: "get_product",
-      product: { upc: "0000000000001", name: "Milk", available: true },
-    });
-  });
-
-  it("rejects a non-Kroger legacy identity even with a conflicting UPC", () => {
-    expect(
-      parseAppResult({
-        content: [],
-        _meta: { "dev.aranlucas/view": "get_product" },
-        structuredContent: {
-          product: {
-            product: { provider: "other_store", id: "milk" },
-            upc: "0000000000001",
-            name: "Milk",
-            available: true,
-          },
+          product: { name: "Milk", available: true },
         },
       }),
     ).toBeNull();
-  });
-
-  it("normalizes legacy list and order product references to optional UPCs", () => {
-    const list = parseAppResult({
-      content: [],
-      _meta: { "dev.aranlucas/view": "create_shopping_list" },
-      structuredContent: {
-        listId: "1",
-        name: "Groceries",
-        items: [
-          {
-            productName: "Milk",
-            product: { provider: "kroger", id: "1" },
-            quantity: 1,
-          },
-        ],
-      },
-    });
-    expect(list).toMatchObject({ items: [{ upc: "0000000000001" }] });
-
-    const order = parseAppResult({
-      content: [],
-      _meta: { "dev.aranlucas/view": "record_order" },
-      structuredContent: {
-        orderId: "1",
-        items: [
-          {
-            productName: "Milk",
-            product: { provider: "kroger", id: "1" },
-            quantity: 1,
-          },
-        ],
-        totalItems: 1,
-        placedAt: "2026-09-18",
-      },
-    });
-    expect(order).toMatchObject({ items: [{ upc: "0000000000001" }] });
-
-    const foreignList = parseAppResult({
-      content: [],
-      _meta: { "dev.aranlucas/view": "create_shopping_list" },
-      structuredContent: {
-        listId: "2",
-        name: "Review",
-        items: [
-          {
-            productName: "Milk",
-            product: { provider: "other_store", id: "milk" },
-            upc: "0000000000001",
-            quantity: 1,
-          },
-        ],
-      },
-    });
-    expect(foreignList).toMatchObject({
-      items: [{ productName: "Milk", quantity: 1 }],
-    });
-    expect(foreignList).not.toMatchObject({
-      items: [{ upc: "0000000000001" }],
-    });
   });
 });

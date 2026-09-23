@@ -68,14 +68,6 @@ describe("input forgiveness", () => {
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
-    it("accepts a legacy Kroger productRef", async () => {
-      const result = await call("get_product", {
-        productRef: "kroger:0001111041700",
-      });
-      expect(result.isError, `${contentText(result)}`).toBeFalsy();
-      expect(contentText(result)).toContain("0001111041700");
-    });
-
     it("accepts record_order items keyed by upc", async () => {
       const result = await call("record_order", {
         items: [{ upc: "0001111041700", productName: "Milk", quantity: 1 }],
@@ -143,9 +135,9 @@ describe("input forgiveness", () => {
       expect(result.isError).toBe(true);
     });
 
-    it("rejects a foreign provider productRef", async () => {
+    it("rejects productRef instead of upc", async () => {
       const result = await call("get_product", {
-        productRef: "sample_catalog:076892",
+        productRef: "kroger:0001111041700",
       });
       expect(result.isError).toBe(true);
     });

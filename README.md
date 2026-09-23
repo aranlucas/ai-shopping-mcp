@@ -78,10 +78,7 @@ application. Jev uses OpenRouter's Decisions API through
 to `/api/alpha/decisions`. Gateway retries are explicitly limited to one attempt.
 The live smoke test (`pnpm test:selector:live`) runs an ephemeral local Worker
 with a remote AI binding using Wrangler login or Cloudflare environment credentials.
-See the [Jev research and implementation note](docs/jev-model-research.md),
-[best-practices research](docs/jev-best-practices.md), and
-[live challenge-set results](docs/jev-evaluation.md). Run `pnpm eval:selector:live`
-for the 30-case live evaluation, or append an output path and `--holdout` for
+Run `pnpm eval:selector:live` for the 30-case live evaluation, or append an output path and `--holdout` for
 12 additional fixed cases. These use synthetic catalogs and never write a list or cart.
 
 `search_products` searches Kroger directly using one optional `storeId`, defaulting
@@ -89,8 +86,7 @@ to the preferred Kroger store. Terms run concurrently; a failed term retains its
 error type and recovery guidance while successful terms remain usable.
 
 Products use UPCs throughout the tools, domain model, and app. Copy `upc` from
-search results into lists and orders. Existing `kroger:<UPC>` inputs and saved
-Kroger product references are normalized at compatibility boundaries. There is no
+search results into lists and orders. There is no
 provider registry or capability dispatch. Name-only list items still need a Kroger
 match before they can be added to the cart.
 
@@ -100,7 +96,6 @@ Lists live in the Worker's D1 database and are edited through `get_shopping_list
 no `listId` it returns every list and its id; with one it returns that list's
 items and their `itemId`s), then `add_shopping_list_items` and
 `edit_shopping_list_item`. List items accept `upc` values or plain `productName` entries for unmatched ingredients.
-Legacy Kroger `productRef` inputs remain readable for existing clients.
 
 It exposes four workflow prompts:
 
@@ -225,7 +220,7 @@ pnpm cf-typegen
 Floating Promises (including `void` expressions and `ResultAsync` thenables) and misused async
 callbacks fail lint and build. The focused configuration avoids enabling unrelated type-aware
 style rules across the repository. Synchronous `Result` consumption, including handling an
-`Err` after `await`, still requires review; see the remaining [roadmap](docs/ROADMAP.md).
+`Err` after `await`, still requires review.
 
 The same command runs [`@shadcn/lint`](https://github.com/shadcn-ui/lint) on the
 React views. `.oxlintrc.json` enables `no-restyle`, `require-static-classes`, and
