@@ -141,7 +141,7 @@ function buildServer(
   };
 
   // Register the single unified View resource (all app tools share this one UI)
-  registerViewResource(ctx, APP_VIEW_URI, "mcp-app.html");
+  registerViewResource(server, ctx.getEnv, APP_VIEW_URI, "mcp-app.html");
 
   // Register all MCP features
   registerPrompts(server);

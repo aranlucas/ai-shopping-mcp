@@ -18,8 +18,7 @@ import {
   registerAppResource,
   RESOURCE_MIME_TYPE,
 } from "@modelcontextprotocol/ext-apps/server";
-
-import type { ToolContext } from "../tools/types.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 
 /** Single resource URI shared by all app tools. */
 export const APP_VIEW_URI = "ui://shopping-app";
@@ -57,20 +56,21 @@ async function loadViewHtml(env: Env, htmlPath: string): Promise<string> {
  * Register an MCP Apps resource that serves a Vite-built View HTML file.
  *
  * The HTML is loaded from the ASSETS binding at request time (not at
- * registration time), so the Env is resolved lazily via ctx.getEnv().
+ * registration time), so the Env is resolved lazily via getEnv().
  */
 export function registerViewResource(
-  ctx: ToolContext,
+  server: Pick<McpServer, "registerResource">,
+  getEnv: () => Env,
   resourceUri: string,
   filename: string,
 ): void {
   registerAppResource(
-    ctx.server,
+    server,
     resourceUri,
     resourceUri,
     { mimeType: RESOURCE_MIME_TYPE },
     async () => {
-      const html = await loadViewHtml(ctx.getEnv(), `/${filename}`);
+      const html = await loadViewHtml(getEnv(), `/${filename}`);
       return {
         contents: [
           {
