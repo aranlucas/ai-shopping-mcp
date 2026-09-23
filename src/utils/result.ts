@@ -6,7 +6,8 @@ import { getMcpAuthContext } from "agents/mcp";
 import { ResultAsync, err, ok, okAsync } from "neverthrow";
 import { isVerifiedShopperId } from "./shopper-identity.js";
 
-import type { Props, UserStorage } from "../tools/types.js";
+import type { Props } from "../tools/types.js";
+import type { PreferredLocationStore } from "./shopping-store.js";
 
 import {
   type AppError,
@@ -141,7 +142,7 @@ export function getProps(): Props {
  * Returns Ok with resolved location info or Err with validation error.
  */
 export function safeResolveLocationId(
-  storage: UserStorage,
+  preferredLocation: PreferredLocationStore,
   locationId?: string,
 ): ResultAsync<{ locationId: string; locationName?: string }, AppError> {
   if (locationId) {
@@ -151,10 +152,10 @@ export function safeResolveLocationId(
   }
 
   return safeStorage(
-    () => storage.preferredLocation.get(),
+    () => preferredLocation.get(),
     "fetch preferred location",
-  ).andThen((preferredLocation) => {
-    if (!preferredLocation) {
+  ).andThen((location) => {
+    if (!location) {
       return err(
         notFoundError(
           "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
@@ -162,8 +163,8 @@ export function safeResolveLocationId(
       );
     }
     return ok({
-      locationId: preferredLocation.locationId,
-      locationName: preferredLocation.locationName,
+      locationId: location.locationId,
+      locationName: location.locationName,
     });
   });
 }

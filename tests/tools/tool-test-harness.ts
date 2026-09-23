@@ -2,7 +2,24 @@ import { cartOperationStore } from "../cart-operation-store.js";
 import { vi } from "vitest";
 
 import type { ProductService } from "../../src/services/kroger/product-service.js";
-import type { ToolContext, UserStorage } from "../../src/tools/types.js";
+import type { McpServer } from "@modelcontextprotocol/server";
+import type { KrogerClients } from "../../src/services/kroger/client.js";
+import type {
+  WeeklyDealsLoadParams,
+  WeeklyDealsLoader,
+} from "../../src/services/weekly-deals/service.js";
+import type { WeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
+import { createWeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
+import { createWeeklyDealsLoader } from "../../src/services/weekly-deals/runtime.js";
+import type { KvLike } from "../../src/utils/kv.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+  PreferredLocationStore,
+  ShoppingListStore,
+  ShoppingStore,
+} from "../../src/utils/shopping-store.js";
 import type {
   CartStore,
   CartSnapshotItem,
@@ -71,8 +88,8 @@ export function resetToolTestHarness() {
 }
 
 export function makeStorage(
-  overrides: Partial<UserStorage & CartStore> = {},
-): UserStorage & CartStore {
+  overrides: Partial<ShoppingStore & CartStore> = {},
+): ShoppingStore & CartStore {
   const pantryItems: PantryItem[] = [];
   const equipmentItems: EquipmentItem[] = [];
   const orders: OrderRecord[] = [];
@@ -85,7 +102,7 @@ export function makeStorage(
     if (!list) throw new Error(`Missing list ${id}`);
     return list;
   };
-  const storage: UserStorage & CartStore = {
+  const storage: ShoppingStore & CartStore = {
     pantry: {
       add: async (items: PantryItem | PantryItem[]) => {
         pantryItems.push(...(Array.isArray(items) ? items : [items]));
@@ -233,7 +250,7 @@ export function makeStorage(
  */
 export function makeProductService(
   nameByUpc: Record<string, string> = {},
-): ProductService {
+): Pick<ProductService, "getProduct" | "enrichProductName"> {
   return {
     getProduct: () => {
       throw new Error(
@@ -241,13 +258,34 @@ export function makeProductService(
       );
     },
     enrichProductName: async (upc: string) => nameByUpc[upc] ?? null,
-  } as unknown as ProductService;
+  };
 }
 
+export type ToolTestContext = {
+  server: McpServer;
+  cartClient: KrogerClients["cartClient"];
+  productClient: KrogerClients["productClient"];
+  locationClient: KrogerClients["locationClient"];
+  productService: Pick<ProductService, "getProduct" | "enrichProductName">;
+  storage: ShoppingStore & CartStore;
+  carts: CartStore;
+  preferredLocation: PreferredLocationStore;
+  pantry: PantryStore;
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  shoppingList: ShoppingListStore;
+  /** Optional raw binding retained for cache fixture setup. */
+  cache: KvLike | null;
+  weeklyDealsCache: WeeklyDealsCache;
+  ai: Env["AI"];
+  loadWeeklyDeals(params: WeeklyDealsLoadParams): ReturnType<WeeklyDealsLoader>;
+};
+
+/** Shared fixture for integration-style tool tests; each registrar picks its own inputs. */
 export function makeContext(
   storage = makeStorage(),
-  productService: ProductService = makeProductService(),
-): ToolContext {
+  productService = makeProductService(),
+) {
   const server = {
     registerTool: (
       name: string,
@@ -261,56 +299,72 @@ export function makeContext(
       });
     },
   };
-  return {
-    server: server as unknown as ToolContext["server"],
-    clients: {
-      cartClient: {
-        PUT: async () => ({
-          data: undefined,
-          response: new Response(null, { status: 204 }),
-        }),
-      },
-    } as unknown as ToolContext["clients"],
+  const context: ToolTestContext = {
+    server: server as unknown as McpServer,
+    cartClient: {
+      PUT: async () => ({
+        data: undefined,
+        response: new Response(null, { status: 204 }),
+      }),
+    } as unknown as KrogerClients["cartClient"],
+    productClient: {
+      GET: async () => ({
+        data: { data: [] },
+        response: new Response(null, { status: 200 }),
+      }),
+    } as unknown as KrogerClients["productClient"],
+    locationClient: {} as KrogerClients["locationClient"],
     productService,
     storage,
-    carts: storage,
-    getEnv: () => ({}) as Env,
+    get carts() {
+      return context.storage;
+    },
+    get preferredLocation() {
+      return context.storage.preferredLocation;
+    },
+    get pantry() {
+      return context.storage.pantry;
+    },
+    get equipment() {
+      return context.storage.equipment;
+    },
+    get orderHistory() {
+      return context.storage.orderHistory;
+    },
+    get shoppingList() {
+      return context.storage.shoppingList;
+    },
+    cache: null as KvLike | null,
+    get weeklyDealsCache() {
+      return createWeeklyDealsCache(context.cache);
+    },
+    ai: {} as Env["AI"],
+    loadWeeklyDeals(
+      params: WeeklyDealsLoadParams,
+    ): ReturnType<WeeklyDealsLoader> {
+      return createWeeklyDealsLoader({
+        preferredLocation: context.preferredLocation,
+        productClient: context.productClient,
+        weeklyDealsCache: context.weeklyDealsCache,
+      })(params);
+    },
   };
+  return context;
 }
 
 export function makeCartContext(
-  storage: UserStorage & CartStore,
+  storage: ShoppingStore & CartStore,
   cartStatus = 204,
-  productService: ProductService = makeProductService(),
-): ToolContext {
-  const server = {
-    registerTool: (
-      name: string,
-      config: TestToolConfig,
-      handler: ToolHandler,
-    ) => {
-      testState.capturedTools.push({
-        name,
-        config,
-        handler: wrapV2ToolHandler(handler, config),
-      });
-    },
-  };
-  return {
-    server: server as unknown as ToolContext["server"],
-    clients: {
-      cartClient: {
-        PUT: async () => ({
-          data: undefined,
-          response: new Response(null, { status: cartStatus }),
-        }),
-      },
-    } as unknown as ToolContext["clients"],
-    productService,
-    storage,
-    carts: storage,
-    getEnv: () => ({}) as Env,
-  };
+  productService = makeProductService(),
+) {
+  const context = makeContext(storage, productService);
+  context.cartClient = {
+    PUT: async () => ({
+      data: undefined,
+      response: new Response(null, { status: cartStatus }),
+    }),
+  } as unknown as KrogerClients["cartClient"];
+  return context;
 }
 
 export function getCapturedHandler(name: string): ToolHandler {

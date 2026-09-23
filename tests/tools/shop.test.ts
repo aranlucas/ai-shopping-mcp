@@ -1,17 +1,24 @@
 import { cartOperationStore } from "../cart-operation-store.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { KrogerClients } from "../../src/services/kroger/client.js";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
-import type { ToolContext, UserStorage } from "../../src/tools/types.js";
+import { createWeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
 import type {
   PreferredLocation,
   ShoppingList,
   ShoppingListItem,
 } from "../../src/domain/shopping.js";
-import type { CartStore } from "../../src/utils/user-storage.js";
+import type { KvLike } from "../../src/utils/kv.js";
+import type { ShoppingStore } from "../../src/utils/shopping-store.js";
+import type {
+  CartSnapshotItem,
+  CartStore,
+} from "../../src/utils/user-storage.js";
 
 import {
-  registerShopTools,
+  createShopTools,
   shopForItemsInputSchema,
 } from "../../src/tools/shop.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
@@ -23,15 +30,6 @@ import {
 import { stubJevAi, type JevRun } from "../jev-stub.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
-
-function stubProductService(): ToolContext["productService"] {
-  return {
-    getProduct: () => {
-      throw new Error("productService not used in this test");
-    },
-    enrichProductName: async () => null,
-  } as unknown as ToolContext["productService"];
-}
 
 type AuthContext = {
   props?: { id: string; accessToken: string; tokenExpiresAt: number };
@@ -94,8 +92,11 @@ function makeStubAi() {
   return stubJevAi("Whole Milk");
 }
 
-function makeMinimalKv() {
-  return { get: async () => null, put: async () => {} };
+function makeMinimalKv(): KvLike {
+  return {
+    get: async () => null,
+    put: async () => {},
+  } as unknown as KvLike;
 }
 
 type ProductGetFn = (
@@ -105,6 +106,29 @@ type ProductGetFn = (
 
 type CartPutOptions = { body: unknown; headers: Record<string, string> };
 type CartPutCall = { path: string; options: CartPutOptions };
+
+type ShopFixture = {
+  server: McpServer;
+  storage: ShoppingStore & CartStore;
+  carts: CartStore;
+  productClient: KrogerClients["productClient"];
+  cartClient: KrogerClients["cartClient"];
+  cache: KvLike | null;
+  ai: Env["AI"];
+};
+
+function registerShopTools(fixture: ShopFixture) {
+  createShopTools({
+    carts: fixture.carts,
+    productClient: fixture.productClient,
+    cartClient: fixture.cartClient,
+    weeklyDealsCache: createWeeklyDealsCache(fixture.cache),
+    pantry: fixture.storage.pantry,
+    preferredLocation: fixture.storage.preferredLocation,
+    shoppingList: fixture.storage.shoppingList,
+    ai: fixture.ai,
+  })(fixture.server);
+}
 
 function makeContext(
   productGet: ProductGetFn,
@@ -116,7 +140,7 @@ function makeContext(
     snapshotSetCalls?: unknown[][];
     mirrorAppendCalls?: unknown[][];
   } = {},
-): ToolContext {
+): ShopFixture {
   const createdLists: ShoppingList[] = [];
   const cartPutCalls = cartOptions.cartPutCalls ?? [];
   const snapshotSetCalls = cartOptions.snapshotSetCalls ?? [];
@@ -126,6 +150,7 @@ function makeContext(
     preferredLocation: {
       get: async () => preferredLocation,
       set: async () => {},
+      delete: async () => {},
     },
     shoppingList: {
       create: async ({
@@ -162,16 +187,18 @@ function makeContext(
     },
     cartMirror: {
       getAll: async () => [],
-      append: async (userId: string, items: unknown[], addedAt: string) => {
-        mirrorAppendCalls.push([userId, items, addedAt]);
-        return items;
+      append: async (items: CartSnapshotItem[], addedAt: string) => {
+        mirrorAppendCalls.push([items, addedAt]);
+        return items.map((item) => ({ ...item, addedAt }));
       },
       clear: async () => {},
     },
-    pantry: {} as UserStorage["pantry"],
-    equipment: {} as UserStorage["equipment"],
-    orderHistory: {} as UserStorage["orderHistory"],
-  } as unknown as UserStorage & CartStore;
+    pantry: {
+      getAll: async () => [],
+    } as unknown as ShoppingStore["pantry"],
+    equipment: {} as ShoppingStore["equipment"],
+    orderHistory: {} as ShoppingStore["orderHistory"],
+  } as unknown as ShoppingStore & CartStore;
 
   const server = {
     registerTool: (
@@ -186,29 +213,26 @@ function makeContext(
       });
     },
   };
+  const cartClient = {
+    PUT: async (path: string, options: CartPutOptions) => {
+      cartPutCalls.push({ path, options });
+      if (cartOptions.throws) throw new Error("Network failure");
+      return {
+        data: undefined,
+        response: new Response(null, { status: cartOptions.status ?? 204 }),
+      };
+    },
+  } as unknown as KrogerClients["cartClient"];
   return {
-    server: server as unknown as ToolContext["server"],
-    clients: {
-      productClient: { GET: productGet },
-      cartClient: {
-        PUT: async (path: string, options: CartPutOptions) => {
-          cartPutCalls.push({ path, options });
-          if (cartOptions.throws) throw new Error("Network failure");
-          return {
-            data: undefined,
-            response: new Response(null, { status: cartOptions.status ?? 204 }),
-          };
-        },
-      },
-    } as unknown as ToolContext["clients"],
-    productService: stubProductService(),
+    server: server as unknown as McpServer,
+    productClient: {
+      GET: productGet,
+    } as unknown as KrogerClients["productClient"],
+    cartClient,
     storage,
     carts: storage,
-    getEnv: () =>
-      ({
-        AI: stubJevAi(),
-        USER_DATA_KV: { get: async () => null, put: async () => {} },
-      }) as unknown as Env,
+    cache: makeMinimalKv(),
+    ai: stubJevAi() as unknown as Env["AI"],
   };
 }
 
@@ -547,8 +571,7 @@ describe("shop_for_items", () => {
         PREFERRED_LOCATION,
       );
       const run = vi.fn<JevRun>(stubJevAi().gateway("default").run);
-      ctx.getEnv = () =>
-        ({ AI: { gateway: () => ({ run }) } }) as unknown as Env;
+      ctx.ai = { gateway: () => ({ run }) } as unknown as Env["AI"];
       registerShopTools(ctx);
       const result = await getCapturedHandler("shop_for_items")({
         items: [
@@ -581,7 +604,7 @@ describe("shop_for_items", () => {
         expect(options.params.query?.["filter.limit"]).toBe(20);
         return makeSearchResponse(products);
       }, PREFERRED_LOCATION);
-      ctx.getEnv = () => ({ AI: stubJevAi("Milk 20") }) as unknown as Env;
+      ctx.ai = stubJevAi("Milk 20") as unknown as Env["AI"];
       registerShopTools(ctx);
       const result = await getCapturedHandler("shop_for_items")({
         items: [{ name: "milk" }],
@@ -605,16 +628,13 @@ describe("shop_for_items", () => {
         },
       );
       const create = vi.spyOn(ctx.storage.shoppingList, "create");
-      ctx.getEnv = () =>
-        ({
-          AI: {
-            gateway: () => ({
-              run: async () => {
-                throw new Error("offline");
-              },
-            }),
+      ctx.ai = {
+        gateway: () => ({
+          run: async () => {
+            throw new Error("offline");
           },
-        }) as unknown as Env;
+        }),
+      } as unknown as Env["AI"];
       registerShopTools(ctx);
       const result = await getCapturedHandler("shop_for_items")({
         items: [{ name: "milk" }],
@@ -636,29 +656,26 @@ describe("shop_for_items", () => {
         },
       );
       const create = vi.spyOn(ctx.storage.shoppingList, "create");
-      ctx.getEnv = () =>
-        ({
-          AI: {
-            gateway: () => ({
-              run: async () =>
-                Response.json({
-                  model: "jev-test",
-                  answers: {
-                    item_0: {
-                      type: "choice",
-                      choice: "no_match",
-                      confidence: 1,
-                      probabilities: {
-                        candidate_0: 0,
-                        no_match: 1,
-                        needs_review: 0,
-                      },
-                    },
+      ctx.ai = {
+        gateway: () => ({
+          run: async () =>
+            Response.json({
+              model: "jev-test",
+              answers: {
+                item_0: {
+                  type: "choice",
+                  choice: "no_match",
+                  confidence: 1,
+                  probabilities: {
+                    candidate_0: 0,
+                    no_match: 1,
+                    needs_review: 0,
                   },
-                }),
+                },
+              },
             }),
-          },
-        }) as unknown as Env;
+        }),
+      } as unknown as Env["AI"];
       registerShopTools(ctx);
       const result = await getCapturedHandler("shop_for_items")({
         items: [{ name: "milk" }],
@@ -693,8 +710,7 @@ describe("shop_for_items", () => {
         async () => makeSearchResponse([wrongMatch, rightMatch]),
         PREFERRED_LOCATION,
       );
-      ctx.getEnv = () =>
-        ({ AI: makeStubAi(), USER_DATA_KV: makeMinimalKv() }) as unknown as Env;
+      ctx.ai = makeStubAi() as unknown as Env["AI"];
 
       registerShopTools(ctx);
       const result = await getCapturedHandler("shop_for_items")({
@@ -724,7 +740,7 @@ describe("shop_for_items", () => {
               addedAt: new Date().toISOString(),
             },
           ],
-        } as unknown as UserStorage["pantry"],
+        } as unknown as ShoppingStore["pantry"],
       };
 
       registerShopTools(ctx);
@@ -750,7 +766,7 @@ describe("shop_for_items", () => {
               addedAt: new Date().toISOString(),
             },
           ],
-        } as unknown as UserStorage["pantry"],
+        } as unknown as ShoppingStore["pantry"],
       };
 
       registerShopTools(ctx);
@@ -797,16 +813,13 @@ describe("shop_for_items", () => {
         async () => makeSearchResponse([makeProduct()]),
         PREFERRED_LOCATION,
       );
-      ctx.getEnv = () =>
-        ({
-          AI: stubJevAi(),
-          USER_DATA_KV: {
-            get: async (key: string) => store.get(key) ?? null,
-            put: async (key: string, value: string) => {
-              store.set(key, value);
-            },
-          },
-        }) as unknown as Env;
+      ctx.ai = stubJevAi() as unknown as Env["AI"];
+      ctx.cache = {
+        get: async (key: string) => store.get(key) ?? null,
+        put: async (key: string, value: string) => {
+          store.set(key, value);
+        },
+      } as unknown as KvLike;
 
       registerShopTools(ctx);
       const result = await getCapturedHandler("shop_for_items")({

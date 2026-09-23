@@ -2,8 +2,9 @@
 // tool-test-harness installs module mocks before the tool module is imported.
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { ToolContext, UserStorage } from "../../src/tools/types.js";
+import type { KrogerClients } from "../../src/services/kroger/client.js";
 import type { PreferredLocation } from "../../src/domain/shopping.js";
+import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 
 import {
   getCapturedHandler,
@@ -12,7 +13,14 @@ import {
   makeStorage,
   resetToolTestHarness,
 } from "./tool-test-harness.js";
-import { registerLocationTools } from "../../src/tools/location.js";
+import { createLocationTools } from "../../src/tools/location.js";
+
+function registerLocation(context: ReturnType<typeof makeContext>) {
+  createLocationTools({
+    locationClient: context.locationClient,
+    preferredLocation: context.preferredLocation,
+  })(context.server);
+}
 
 describe("location storage-backed tools", () => {
   beforeEach(() => {
@@ -35,18 +43,16 @@ describe("location storage-backed tools", () => {
       hours: { timezone: "America/Los_Angeles" },
     };
     const context = makeContext();
-    context.clients = {
-      locationClient: {
-        GET: async (_path: string, request: unknown) => {
-          getCalls.push(request);
-          return {
-            data: { data: [location] },
-            response: new Response(null, { status: 200 }),
-          };
-        },
+    context.locationClient = {
+      GET: async (_path: string, request: unknown) => {
+        getCalls.push(request);
+        return {
+          data: { data: [location] },
+          response: new Response(null, { status: 200 }),
+        };
       },
-    } as unknown as ToolContext["clients"];
-    registerLocationTools(context);
+    } as unknown as KrogerClients["locationClient"];
+    registerLocation(context);
 
     const result = await getCapturedHandler("search_stores")({
       zipCodeNear: "98122",
@@ -81,7 +87,7 @@ describe("location storage-backed tools", () => {
 
   it("requires zipCodeNear on search_stores (no default) and defaults limit to 5", () => {
     const context = makeContext();
-    registerLocationTools(context);
+    registerLocation(context);
     const tool = getCapturedTool("search_stores");
     const config = tool.config as {
       inputSchema: {
@@ -115,15 +121,13 @@ describe("location storage-backed tools", () => {
       geolocation: { latitude: 47.6, longitude: -122.3 },
     };
     const context = makeContext();
-    context.clients = {
-      locationClient: {
-        GET: async () => ({
-          data: { data: location },
-          response: new Response(null, { status: 200 }),
-        }),
-      },
-    } as unknown as ToolContext["clients"];
-    registerLocationTools(context);
+    context.locationClient = {
+      GET: async () => ({
+        data: { data: location },
+        response: new Response(null, { status: 200 }),
+      }),
+    } as unknown as KrogerClients["locationClient"];
+    registerLocation(context);
 
     const result = await getCapturedHandler("get_store")({
       storeId: "70500847",
@@ -150,15 +154,13 @@ describe("location storage-backed tools", () => {
 
   it("returns an error when location details are missing", async () => {
     const context = makeContext();
-    context.clients = {
-      locationClient: {
-        GET: async () => ({
-          data: {},
-          response: new Response(null, { status: 200 }),
-        }),
-      },
-    } as unknown as ToolContext["clients"];
-    registerLocationTools(context);
+    context.locationClient = {
+      GET: async () => ({
+        data: {},
+        response: new Response(null, { status: 200 }),
+      }),
+    } as unknown as KrogerClients["locationClient"];
+    registerLocation(context);
 
     const result = await getCapturedHandler("get_store")({
       storeId: "70500847",
@@ -179,30 +181,28 @@ describe("location storage-backed tools", () => {
             savedLocations.push(location);
           },
           get: async () => savedLocations.at(-1) ?? null,
-        } as unknown as UserStorage["preferredLocation"],
+        } as unknown as PreferredLocationStore,
       }),
     );
-    context.clients = {
-      locationClient: {
-        GET: async () => ({
+    context.locationClient = {
+      GET: async () => ({
+        data: {
           data: {
-            data: {
-              locationId: "70500847",
-              name: "QFC Broadway",
-              chain: "QFC",
-              address: {
-                addressLine1: "500 Broadway E",
-                city: "Seattle",
-                state: "WA",
-                zipCode: "98102",
-              },
+            locationId: "70500847",
+            name: "QFC Broadway",
+            chain: "QFC",
+            address: {
+              addressLine1: "500 Broadway E",
+              city: "Seattle",
+              state: "WA",
+              zipCode: "98102",
             },
           },
-          response: new Response(null, { status: 200 }),
-        }),
-      },
-    } as unknown as ToolContext["clients"];
-    registerLocationTools(context);
+        },
+        response: new Response(null, { status: 200 }),
+      }),
+    } as unknown as KrogerClients["locationClient"];
+    registerLocation(context);
 
     const result = await getCapturedHandler("set_preferred_store")({
       storeId: "70500847",
@@ -230,15 +230,13 @@ describe("location storage-backed tools", () => {
 
   it("returns an error when the API returns no data for the given storeId", async () => {
     const context = makeContext();
-    context.clients = {
-      locationClient: {
-        GET: async () => ({
-          data: {},
-          response: new Response(null, { status: 200 }),
-        }),
-      },
-    } as unknown as ToolContext["clients"];
-    registerLocationTools(context);
+    context.locationClient = {
+      GET: async () => ({
+        data: {},
+        response: new Response(null, { status: 200 }),
+      }),
+    } as unknown as KrogerClients["locationClient"];
+    registerLocation(context);
 
     const result = await getCapturedHandler("set_preferred_store")({
       storeId: "70500847",

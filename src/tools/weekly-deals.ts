@@ -1,16 +1,15 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { QfcDealsApiResponse } from "../services/weekly-deals/schema.js";
-import type { ToolContext } from "./types.js";
+import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 
 import { appResult } from "../app-results.js";
 import {
   formatWeeklyDealAppWarnings,
   formatWeeklyDealWarnings,
 } from "../services/weekly-deals/format.js";
-import { loadWeeklyDeals as loadWeeklyDealsService } from "../services/weekly-deals/service.js";
-import { createWeeklyDealsDependencies } from "../services/weekly-deals/runtime.js";
 import {
   DEAL_CATEGORIES,
   classifyDealCategory,
@@ -20,7 +19,10 @@ import { toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
 
-export type { LoadedWeeklyDeals } from "../services/weekly-deals/service.js";
+export type {
+  LoadedWeeklyDeals,
+  WeeklyDealsLoader,
+} from "../services/weekly-deals/service.js";
 export type { WeeklyDealsCacheEntry } from "../services/weekly-deals/schema.js";
 export {
   addWeeklyDealsWarning as addCacheWarning,
@@ -29,69 +31,67 @@ export {
   parseWeeklyDealsCacheEntry as parseCacheEntry,
 } from "../services/weekly-deals/cache.js";
 
-/** Compatibility wrapper for callers that have a full tool context. */
-export function loadWeeklyDeals(
-  ctx: ToolContext,
-  params: Parameters<typeof loadWeeklyDealsService>[1],
-) {
-  return loadWeeklyDealsService(createWeeklyDealsDependencies(ctx), params);
-}
+export type WeeklyDealsToolDependencies = {
+  loadWeeklyDeals: WeeklyDealsLoader;
+};
 
-export const loadWeeklyDealsForTool = loadWeeklyDeals;
-
-export function registerWeeklyDealsTools(ctx: ToolContext) {
-  registerAppTool(
-    ctx.server,
-    "get_weekly_deals",
-    {
-      title: "Get Weekly Deals",
-      description:
-        "Fetches this week's QFC/Kroger sale items and promotions. Returns deal titles, prices, and savings. Use this when the user wants to know what's on sale or wants to plan meals around current discounts.",
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
+export function createWeeklyDealsTools({
+  loadWeeklyDeals,
+}: WeeklyDealsToolDependencies) {
+  return (server: McpServer) => {
+    registerAppTool(
+      server,
+      "get_weekly_deals",
+      {
+        title: "Get Weekly Deals",
+        description:
+          "Fetches this week's QFC/Kroger sale items and promotions. Returns deal titles, prices, and savings. Use this when the user wants to know what's on sale or wants to plan meals around current discounts.",
+        _meta: { ui: { resourceUri: APP_VIEW_URI } },
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+        inputSchema: z.object({
+          storeId: storeIdSchema
+            .optional()
+            .describe(
+              "8-character storeId from search_stores. Uses your preferred store if omitted.",
+            ),
+          limit: z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(200)
+            .optional()
+            .default(50)
+            .describe("Maximum number of deals to return"),
+          pageLimit: z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(10)
+            .optional()
+            .default(2)
+            .describe("Print-ad fallback only: number of ad pages to parse"),
+        }),
       },
-      inputSchema: z.object({
-        storeId: storeIdSchema
-          .optional()
-          .describe(
-            "8-character storeId from search_stores. Uses your preferred store if omitted.",
-          ),
-        limit: z.coerce
-          .number()
-          .int()
-          .min(1)
-          .max(200)
-          .optional()
-          .default(50)
-          .describe("Maximum number of deals to return"),
-        pageLimit: z.coerce
-          .number()
-          .int()
-          .min(1)
-          .max(10)
-          .optional()
-          .default(2)
-          .describe("Print-ad fallback only: number of ad pages to parse"),
-      }),
-    },
-    async ({ storeId, limit, pageLimit }, requestContext) => {
-      const result = await loadWeeklyDeals(ctx, {
-        storeId,
-        limit,
-        pageLimit,
-        signal: requestContext.mcpReq.signal,
-      });
-      if (result.isErr()) return toMcpError(result.error);
-      return formatWeeklyDealsToolResponse(
-        result.value.data,
-        result.value.cacheState,
-      );
-    },
-  );
+      async ({ storeId, limit, pageLimit }, requestContext) => {
+        const result = await loadWeeklyDeals({
+          storeId,
+          limit,
+          pageLimit,
+          signal: requestContext.mcpReq.signal,
+        });
+        if (result.isErr()) return toMcpError(result.error);
+        return formatWeeklyDealsToolResponse(
+          result.value.data,
+          result.value.cacheState,
+        );
+      },
+    );
+  };
 }
 
 export function formatWeeklyDealsToolResponse(

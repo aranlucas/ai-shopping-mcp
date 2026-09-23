@@ -4,6 +4,7 @@ import type * as z from "zod/v4";
 import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
 import type { WeeklyDealWarning } from "../../src/services/weekly-deals/schema.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
+import type { KvLike } from "../../src/utils/kv.js";
 
 // Install the auth mock before loading tool modules.
 import {
@@ -14,7 +15,7 @@ import {
   resetToolTestHarness,
 } from "./tool-test-harness.js";
 import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
-import { registerRecipeTools } from "../../src/tools/recipes.js";
+import { createRecipeTools } from "../../src/tools/recipes.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 
 vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
@@ -79,26 +80,28 @@ describe("meal planning with weekly deals", () => {
     resetToolTestHarness();
     vi.mocked(getQfcWeeklyDeals).mockReset().mockResolvedValue(dealsResponse());
     context = makeContext(makeStorage());
-    await context.storage.pantry.add({
+    await context.pantry.add({
       productName: "Rice",
       quantity: 2,
       addedAt: new Date().toISOString(),
     });
-    await context.storage.preferredLocation.set(PREFERRED_STORE);
+    await context.preferredLocation.set(PREFERRED_STORE);
     cache = new Map();
     readCache = vi.fn<(key: string) => Promise<string | null>>(
       async (key) => cache.get(key) ?? null,
     );
-    context.getEnv = () =>
-      ({
-        USER_DATA_KV: {
-          get: readCache,
-          put: async (key: string, value: string) => {
-            cache.set(key, value);
-          },
-        },
-      }) as unknown as Env;
-    registerRecipeTools(context);
+    context.cache = {
+      get: readCache,
+      put: async (key: string, value: string) => {
+        cache.set(key, value);
+      },
+    } as unknown as KvLike;
+    createRecipeTools({
+      pantry: context.pantry,
+      equipment: context.equipment,
+      orderHistory: context.orderHistory,
+      loadWeeklyDeals: context.loadWeeklyDeals,
+    })(context.server);
   });
 
   afterEach(() => {
@@ -166,18 +169,18 @@ describe("meal planning with weekly deals", () => {
   });
 
   it("honors an explicit Kroger store without changing the preferred store", async () => {
-    await context.storage.preferredLocation.set(OTHER_STORE);
+    await context.preferredLocation.set(OTHER_STORE);
     await call({ includeWeeklyDeals: true, storeId: ` ${STORE_ID} ` });
     expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
       expect.objectContaining({ locationId: STORE_ID }),
     );
-    expect(await context.storage.preferredLocation.get()).toMatchObject({
+    expect(await context.preferredLocation.get()).toMatchObject({
       locationId: "70500123",
     });
   });
 
   it("preserves pantry context and store recovery guidance without a preferred store", async () => {
-    context.storage.preferredLocation.get = async () => null;
+    context.preferredLocation.get = async () => null;
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("Weekly Deals Unavailable");
@@ -188,7 +191,7 @@ describe("meal planning with weekly deals", () => {
   });
 
   it("supports planning from deals with an empty pantry", async () => {
-    await context.storage.pantry.clear();
+    await context.pantry.clear();
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain(

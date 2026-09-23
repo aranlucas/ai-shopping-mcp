@@ -1,4 +1,3 @@
-import { cartOperationStore } from "../cart-operation-store.js";
 /**
  * Response size regression tests.
  *
@@ -12,12 +11,12 @@ import { cartOperationStore } from "../cart-operation-store.js";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ToolContext } from "../../src/tools/types.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 
 import { createKrogerClients } from "../../src/services/kroger/client.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
-import { registerProductTools } from "../../src/tools/product.js";
-import { createCartPersistence } from "../../src/utils/user-storage.js";
+import { createProductTools } from "../../src/tools/product.js";
+import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 import {
   type TestToolHandler as ToolHandler,
   wrapV2ToolHandler,
@@ -57,33 +56,6 @@ function getTool(name: string): ToolHandler {
   const tool = testState.capturedTools.find((t) => t.name === name);
   if (!tool) throw new Error(`Tool ${name} not registered`);
   return tool.handler;
-}
-
-/**
- * Minimal in-memory KV stub — same pattern as tests/utils/user-storage.test.ts.
- * KVNamespace has ~10 method signatures; the stub implements only what these
- * tests exercise, and `as unknown as KVNamespace` is the established project
- * idiom for partial KV mocks.
- */
-function createMockKV(): KVNamespace {
-  const store = new Map<string, string>();
-  return {
-    get: vi.fn<(key: string) => unknown>((key: string) =>
-      Promise.resolve(store.get(key) ?? null),
-    ),
-    put: vi.fn<(key: string, value: string) => unknown>(
-      (key: string, value: string) => {
-        store.set(key, value);
-        return Promise.resolve();
-      },
-    ),
-    delete: vi.fn<(key: string) => unknown>((key: string) => {
-      store.delete(key);
-      return Promise.resolve();
-    }),
-    list: vi.fn<(...args: unknown[]) => unknown>(),
-    getWithMetadata: vi.fn<(...args: unknown[]) => unknown>(),
-  } as unknown as KVNamespace;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,14 +168,6 @@ describe("search_products content size", () => {
       },
     );
 
-    const carts = createCartPersistence(
-      createMockKV(),
-      {
-        userId: "response-size-user",
-        clientId: "client-size",
-      },
-      cartOperationStore(),
-    );
     const server = {
       registerTool: (
         name: string,
@@ -216,19 +180,16 @@ describe("search_products content size", () => {
         });
       },
     };
-    registerProductTools({
-      server: server as unknown as ToolContext["server"],
-      clients,
+    const preferredLocation: PreferredLocationStore = {
+      get: async () => null,
+      set: async () => {},
+      delete: async () => {},
+    };
+    createProductTools({
+      productClient: clients.productClient,
       productService: new ProductService(clients.productClient),
-      storage: {
-        preferredLocation: { get: async () => null },
-      } as unknown as ToolContext["storage"],
-      carts,
-      getEnv: () =>
-        ({
-          USER_DATA_KV: { get: async () => null, put: async () => {} },
-        }) as unknown as Env,
-    });
+      preferredLocation,
+    })(server as unknown as McpServer);
 
     return getTool("search_products")({ terms, limitPerTerm: productsPerTerm });
   }
