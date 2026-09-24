@@ -4,11 +4,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: thursday
     open-pull-requests-limit: 5
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+      day: thursday
     open-pull-requests-limit: 5
     # @cloudflare/vitest-pool-workers only supports vitest 4; ignore
     # vitest 5+ until the pool adds support, or `pnpm test` breaks.
