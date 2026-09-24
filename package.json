@@ -69,7 +69,7 @@
     "concurrently": "^10.0.5",
     "drizzle-kit": "0.31.11",
     "oxfmt": "^0.69.0",
-    "oxlint": "^1.83.0",
+    "oxlint": "^1.85.0",
     "oxlint-tailwindcss": "1.12.0",
     "oxlint-tsgolint": "^7.0.2002",
     "typescript": "^7.0.2",
