@@ -141,58 +141,58 @@ function makeProduct(upc: string, term: string) {
 // search_products: worst-case bulk search
 // ---------------------------------------------------------------------------
 
+async function runSearch(terms: string[], productsPerTerm: number) {
+  testState.capturedTools.length = 0;
+
+  const clients = createKrogerClients(() => null);
+  vi.spyOn(clients.productClient, "GET").mockImplementation(
+    async (_path, options) => {
+      const query = (
+        options as { params?: { query?: Record<string, unknown> } }
+      )?.params?.query;
+      const term = String(query?.["filter.term"] ?? "");
+      const data = Array.from({ length: productsPerTerm }, (_, i) =>
+        makeProduct(String(10000000000000 + i).slice(0, 13), term),
+      );
+      return {
+        data: { data },
+        error: undefined,
+        response: new Response("", { status: 200 }),
+      } as Awaited<ReturnType<typeof clients.productClient.GET>>;
+    },
+  );
+
+  const server = {
+    registerTool: (
+      name: string,
+      config: TestToolConfig,
+      handler: ToolHandler,
+    ) => {
+      testState.capturedTools.push({
+        name,
+        handler: wrapV2ToolHandler(handler, config),
+      });
+    },
+  };
+  const preferredLocation: PreferredLocationStore = {
+    get: async () => null,
+    set: async () => {},
+    delete: async () => {},
+  };
+  registerProductTools(server as unknown as McpServer, {
+    productClient: clients.productClient,
+    productService: new ProductService(clients.productClient),
+    preferredLocation,
+  });
+
+  return getTool("search_products")({ terms, limitPerTerm: productsPerTerm });
+}
+
 describe("search_products content size", () => {
   beforeEach(() => {
     testState.capturedTools.length = 0;
     authenticate();
   });
-
-  async function runSearch(terms: string[], productsPerTerm: number) {
-    testState.capturedTools.length = 0;
-
-    const clients = createKrogerClients(() => null);
-    vi.spyOn(clients.productClient, "GET").mockImplementation(
-      async (_path, options) => {
-        const query = (
-          options as { params?: { query?: Record<string, unknown> } }
-        )?.params?.query;
-        const term = String(query?.["filter.term"] ?? "");
-        const data = Array.from({ length: productsPerTerm }, (_, i) =>
-          makeProduct(String(10000000000000 + i).slice(0, 13), term),
-        );
-        return {
-          data: { data },
-          error: undefined,
-          response: new Response("", { status: 200 }),
-        } as Awaited<ReturnType<typeof clients.productClient.GET>>;
-      },
-    );
-
-    const server = {
-      registerTool: (
-        name: string,
-        config: TestToolConfig,
-        handler: ToolHandler,
-      ) => {
-        testState.capturedTools.push({
-          name,
-          handler: wrapV2ToolHandler(handler, config),
-        });
-      },
-    };
-    const preferredLocation: PreferredLocationStore = {
-      get: async () => null,
-      set: async () => {},
-      delete: async () => {},
-    };
-    registerProductTools(server as unknown as McpServer, {
-      productClient: clients.productClient,
-      productService: new ProductService(clients.productClient),
-      preferredLocation,
-    });
-
-    return getTool("search_products")({ terms, limitPerTerm: productsPerTerm });
-  }
 
   it("stays under 15 KB for 5 terms × 10 products", async () => {
     const terms = ["milk", "eggs", "bread", "butter", "cheese"];

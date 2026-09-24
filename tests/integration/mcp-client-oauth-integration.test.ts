@@ -9,7 +9,7 @@ import { createD1ShoppingStore } from "../../src/utils/d1-shopping-storage.js";
 import { ensureShoppingSchema } from "../d1-schema.js";
 
 const CLIENT_REDIRECT_URI = "https://client.example/callback";
-const MCP_BASE_URL = "https://example.com";
+const MCP_BASE_URL = env.MCP_RESOURCE_URL;
 const MCP_URL = `${MCP_BASE_URL}/mcp`;
 const SCOPES = "profile.compact cart.basic:write product.compact";
 

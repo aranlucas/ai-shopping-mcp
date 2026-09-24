@@ -58,6 +58,10 @@
   "observability": {
     "enabled": true,
   },
+  "vars": {
+    // Canonical OAuth resource (origin, so /mcp and /userinfo are covered).
+    "MCP_RESOURCE_URL": "https://ai-meal-planner-mcp.aranlucas.workers.dev",
+  },
   "triggers": {
     "crons": ["0 2 * * *"],
   },

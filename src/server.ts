@@ -5,7 +5,7 @@ import {
 } from "@cloudflare/workers-oauth-provider";
 import * as Sentry from "@sentry/cloudflare";
 import { createMcpHandler } from "agents/mcp/server";
-import { WorkerEntrypoint } from "cloudflare:workers";
+import { WorkerEntrypoint, env as workerEnv } from "cloudflare:workers";
 
 import type { AppEnv } from "./env.js";
 import type { GrantProps, Props } from "./tools/types.js";
@@ -56,6 +56,7 @@ class UserInfoHandler extends WorkerEntrypoint<AppEnv, Props> {
 }
 
 export const oauthProvider = new OAuthProvider<AppEnv>({
+  resourceMetadata: { resource: workerEnv.MCP_RESOURCE_URL },
   apiHandlers: {
     "/mcp": mcpApiHandler,
     "/userinfo": UserInfoHandler,

@@ -48,25 +48,31 @@ function getCookieHeader(response: Response): string {
     .join("; ");
 }
 
-/** Go through the full consent-form approval flow and return the 302 redirect response. */
-async function approveClient(
-  env: ReturnType<typeof makeEnv>,
-): Promise<Response> {
+/** Get a valid CSRF token + state value from the consent page. */
+async function getConsentFormData(env: ReturnType<typeof makeEnv>) {
   const consentResponse = await KrogerHandler.request(
     `${BASE_URL}/authorize?client_id=mcp-client`,
     undefined,
     env,
   );
   const consentHtml = await consentResponse.text();
+  return {
+    csrfToken: extractHiddenInput(consentHtml, "csrf_token"),
+    state: extractHiddenInput(consentHtml, "state"),
+    csrfCookieValue: getCookieHeader(consentResponse),
+  };
+}
 
+/** Go through the full consent-form approval flow and return the 302 redirect response. */
+async function approveClient(
+  env: ReturnType<typeof makeEnv>,
+): Promise<Response> {
+  const { csrfToken, state, csrfCookieValue } = await getConsentFormData(env);
   return KrogerHandler.request(
     `${BASE_URL}/authorize`,
     {
-      body: new URLSearchParams({
-        csrf_token: extractHiddenInput(consentHtml, "csrf_token"),
-        state: extractHiddenInput(consentHtml, "state"),
-      }),
-      headers: { Cookie: getCookieHeader(consentResponse) },
+      body: new URLSearchParams({ csrf_token: csrfToken, state }),
+      headers: { Cookie: csrfCookieValue },
       method: "POST",
     },
     env,
@@ -355,21 +361,6 @@ describe("Kroger OAuth handler", () => {
   // -------------------------------------------------------------------------
 
   describe("redirectToKroger", () => {
-    /** Get a valid CSRF token + state value from the consent page. */
-    async function getConsentFormData(env: ReturnType<typeof makeEnv>) {
-      const consentResponse = await KrogerHandler.request(
-        `${BASE_URL}/authorize?client_id=mcp-client`,
-        undefined,
-        env,
-      );
-      const consentHtml = await consentResponse.text();
-      return {
-        csrfToken: extractHiddenInput(consentHtml, "csrf_token"),
-        state: extractHiddenInput(consentHtml, "state"),
-        csrfCookieValue: getCookieHeader(consentResponse),
-      };
-    }
-
     it("returns 500 when KROGER_CLIENT_ID is missing from env", async () => {
       const env = makeEnv();
       env.KROGER_CLIENT_ID = "";

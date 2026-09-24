@@ -270,26 +270,26 @@ function makeResponseParams(request: Request, response: Response) {
   };
 }
 
+function callOnRequest(
+  middleware: ReturnType<typeof createKrogerAuthMiddleware>,
+  request: Request,
+) {
+  const onRequest = middleware.onRequest;
+  if (!onRequest) throw new Error("onRequest not defined");
+  return onRequest(makeRequestParams(request));
+}
+
+function callOnResponse(
+  middleware: ReturnType<typeof createKrogerAuthMiddleware>,
+  request: Request,
+  response: Response,
+) {
+  const onResponse = middleware.onResponse;
+  if (!onResponse) throw new Error("onResponse not defined");
+  return onResponse(makeResponseParams(request, response));
+}
+
 describe("createKrogerAuthMiddleware", () => {
-  function callOnRequest(
-    middleware: ReturnType<typeof createKrogerAuthMiddleware>,
-    request: Request,
-  ) {
-    const onRequest = middleware.onRequest;
-    if (!onRequest) throw new Error("onRequest not defined");
-    return onRequest(makeRequestParams(request));
-  }
-
-  function callOnResponse(
-    middleware: ReturnType<typeof createKrogerAuthMiddleware>,
-    request: Request,
-    response: Response,
-  ) {
-    const onResponse = middleware.onResponse;
-    if (!onResponse) throw new Error("onResponse not defined");
-    return onResponse(makeResponseParams(request, response));
-  }
-
   it("throws KrogerTokenExpiredError when no token info available", async () => {
     const middleware = createKrogerAuthMiddleware(() => null);
     const request = new Request("https://api.kroger.com/v1/products");
