@@ -182,6 +182,7 @@ export function ActionButton({
   failLabel,
   variant = "primary",
   labelContext,
+  iconOnly = false,
 }: {
   state: "idle" | "loading" | "done" | "error";
   onClick: () => void | Promise<void>;
@@ -193,6 +194,8 @@ export function ActionButton({
   failLabel?: string;
   variant?: "primary" | "secondary";
   labelContext?: string;
+  /** Show only the icon; the state label stays available to screen readers. */
+  iconOnly?: boolean;
 }) {
   const handleClick = useCallback(() => {
     // Callers own their visible loading/error state. This event boundary also
@@ -251,7 +254,9 @@ export function ActionButton({
           />
         </svg>
       )}
-      <span aria-live="polite">{label}</span>
+      <span aria-live="polite" className={iconOnly ? "sr-only" : undefined}>
+        {label}
+      </span>
     </Button>
   );
 }

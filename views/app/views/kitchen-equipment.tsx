@@ -16,7 +16,7 @@ import {
 
 const REMOVE_ICON = (
   <svg
-    aria-label="Remove"
+    aria-hidden="true"
     className="size-3"
     fill="none"
     viewBox="0 0 24 24"
@@ -108,10 +108,12 @@ function KitchenEquipmentRow({
         state={removeState}
         onClick={handleRemove}
         disabled={!canCallTools}
-        idleLabel=""
-        loadingLabel=""
-        doneLabel=""
-        failLabel=""
+        idleLabel="Remove"
+        loadingLabel="Removing"
+        doneLabel="Removed"
+        failLabel="Remove failed"
+        labelContext={item.equipmentName}
+        iconOnly
         variant="secondary"
         icon={REMOVE_ICON}
       />
