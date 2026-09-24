@@ -126,7 +126,7 @@ importers:
         version: 2.0.0
       '@sentry/cloudflare':
         specifier: ^10.75.0
-        version: 10.75.0(wrangler@4.136.0(@types/node@26.5.1))
+        version: 10.75.0(wrangler@4.136.1(@types/node@26.5.1))
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
@@ -234,8 +234,8 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.5.1)(@vitest/coverage-istanbul@4.1.11)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
       wrangler:
-        specifier: ^4.136.0
-        version: 4.136.0(@types/node@26.5.1)
+        specifier: ^4.136.1
+        version: 4.136.1(@types/node@26.5.1)
 
 packages:
 
@@ -557,6 +557,15 @@ packages:
 
   '@cloudflare/unenv-preset@2.16.1':
     resolution: {integrity: sha512-ECxObrMfyTl5bhQf/lZCXwo5G6xX9IAUo+nDMKK4SZ8m4Jvvxp52vilxyySSWh2YTZz8+HQ07qGH/2rEom1vDw==}
+    peerDependencies:
+      unenv: 2.0.0-rc.24
+      workerd: '>1.20260305.0 <2.0.0-0'
+    peerDependenciesMeta:
+      workerd:
+        optional: true
+
+  '@cloudflare/unenv-preset@2.16.2':
+    resolution: {integrity: sha512-JBP1+Z7ZSNG/d4mRP+y8VC5dka3tZVMLEZRvS+rzQ4DGV1EoxRFQckcJTTkXbHSQiTj0DtNI01Zwb/V2fX0mvQ==}
     peerDependencies:
       unenv: 2.0.0-rc.24
       workerd: '>1.20260305.0 <2.0.0-0'
@@ -4760,8 +4769,8 @@ packages:
       '@cloudflare/workers-types':
         optional: true
 
-  wrangler@4.136.0:
-    resolution: {integrity: sha512-CjSe3/k8UEWqbky218Z3f4gsDAe3QuKylkeZAXatfsM9SH+MGRH6kxaOGT1fgM/5kr8zpI1A5o6k6jvqB/CImA==}
+  wrangler@4.136.1:
+    resolution: {integrity: sha512-xGdBeGMbdFJ7KgndpFyXsncg+kSQ46pD378LTFvyEGUnVvHGAF5ka1shqMpQIrg8n5AFmqajoTxi4E7w7FfEwQ==}
     engines: {node: '>=22.0.0'}
     hasBin: true
     peerDependencies:
@@ -5279,7 +5288,7 @@ snapshots:
     optionalDependencies:
       workerd: 1.20260815.1
 
-  '@cloudflare/unenv-preset@2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260921.1)':
+  '@cloudflare/unenv-preset@2.16.2(unenv@2.0.0-rc.24)(workerd@1.20260921.1)':
     dependencies:
       unenv: 2.0.0-rc.24
     optionalDependencies:
@@ -6312,14 +6321,14 @@ snapshots:
 
   '@sec-ant/readable-stream@0.4.1': {}
 
-  '@sentry/cloudflare@10.75.0(wrangler@4.136.0(@types/node@26.5.1))':
+  '@sentry/cloudflare@10.75.0(wrangler@4.136.1(@types/node@26.5.1))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@sentry/core': 10.75.0
       '@sentry/server-utils': 10.75.0
       magic-string: 0.30.21
     optionalDependencies:
-      wrangler: 4.136.0(@types/node@26.5.1)
+      wrangler: 4.136.1(@types/node@26.5.1)
 
   '@sentry/conventions@0.16.0': {}
 
@@ -8873,10 +8882,10 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  wrangler@4.136.0(@types/node@26.5.1):
+  wrangler@4.136.1(@types/node@26.5.1):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
-      '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260921.1)
+      '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20260921.1)
       blake3-wasm: 2.1.5
       esbuild: 0.28.1
       miniflare: 5.20260921.0-alpha(@types/node@26.5.1)
