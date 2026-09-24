@@ -4,13 +4,20 @@ import type { ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
-import type { ShoppingList, ShoppingListItem } from "../domain/shopping.js";
+import type {
+  ShoppingList,
+  ShoppingListItem,
+  ShoppingListSummary,
+} from "../domain/shopping.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
 import type { ProductService } from "../services/kroger/product-service.js";
 import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
-import { formatShoppingListItemCompact } from "../utils/format-response.js";
+import {
+  formatListSize,
+  formatShoppingListItemCompact,
+} from "../utils/format-response.js";
 import type {
   PantryStore,
   PreferredLocationStore,
@@ -41,6 +48,12 @@ export const shoppingListItemInputSchema = z
     productName: z.string().trim().min(1).max(200).optional(),
     quantity: z.coerce.number().min(1).max(999).default(1),
     notes: z.string().max(500).optional(),
+    price: z.coerce
+      .number()
+      .min(0)
+      .max(10_000)
+      .optional()
+      .describe("Unit price, if known"),
   })
   .refine((item) => Boolean(item.upc ?? item.productName), {
     message: "Each item needs a UPC or a productName.",
@@ -79,6 +92,13 @@ export const editShoppingListItemInputSchema = z.object({
 
 export const getShoppingListInputSchema = z.object({
   listId: listIdSchema.optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe("List name, instead of listId"),
 });
 
 type ShoppingListItemInput = z.output<typeof shoppingListItemInputSchema>;
@@ -116,6 +136,7 @@ async function toStoredItems(
         ...(item.upc === undefined ? {} : { upc: item.upc }),
         quantity: item.quantity,
         ...(item.notes === undefined ? {} : { notes: item.notes }),
+        ...(item.price === undefined ? {} : { price: item.price }),
       } satisfies ShoppingListItem;
     }),
   );
@@ -136,6 +157,64 @@ export function createShoppingListRecord(
     () => shoppingList.create({ name, items }),
     "create shopping list",
   ).map((list) => ({ listId: list.id, list }));
+}
+
+/** Text plus the editable shopping-list app view for one list. */
+export function shoppingListViewResult(list: ShoppingList, text: string) {
+  return {
+    content: [{ type: "text" as const, text }],
+    ...appResult("create_shopping_list", {
+      listId: list.id,
+      name: list.name,
+      items: list.items,
+    }),
+  };
+}
+
+function listItemLines(list: ShoppingList): string {
+  return list.items
+    .map(
+      (item, index) =>
+        `${index + 1}. itemId=${item.id} ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
+    )
+    .join("\n");
+}
+
+function describeList(list: ShoppingList): string {
+  if (list.items.length === 0) {
+    return `Shopping list "${list.name}" (listId=${list.id}) is empty. Add items with add_shopping_list_items.`;
+  }
+  return `Shopping list "${list.name}" (listId=${list.id}) has ${formatListSize(list.items)}.\n\n${listItemLines(list)}`;
+}
+
+function listSummaryLines(lists: ShoppingListSummary[]): string {
+  return lists
+    .map(
+      (list, index) =>
+        `${index + 1}. listId=${list.id} "${list.name}" (${list.itemCount} items)`,
+    )
+    .join("\n");
+}
+
+function shoppingListsViewResult(lists: ShoppingListSummary[], text: string) {
+  return {
+    content: [{ type: "text" as const, text }],
+    ...appResult("shopping_lists", { lists }),
+  };
+}
+
+/**
+ * Exact case-insensitive name matches win; otherwise every list whose name
+ * contains the query. Summaries arrive most recently updated first.
+ */
+export function matchListsByName(
+  lists: ShoppingListSummary[],
+  name: string,
+): ShoppingListSummary[] {
+  const query = name.trim().toLowerCase();
+  const exact = lists.filter((list) => list.name.toLowerCase() === query);
+  if (exact.length > 0) return exact;
+  return lists.filter((list) => list.name.toLowerCase().includes(query));
 }
 
 export function registerShoppingListTools(
@@ -203,7 +282,7 @@ export function registerShoppingListTools(
         content: [
           {
             type: "text" as const,
-            text: `Created shopping list "${listName}" with ${enrichedItems.length} item(s). listId=${listId}\n\n${lines}`,
+            text: `Created shopping list "${listName}" with ${formatListSize(enrichedItems)}. listId=${listId}\n\n${lines}`,
           },
         ],
         ...appResult("create_shopping_list", {
@@ -215,12 +294,14 @@ export function registerShoppingListTools(
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "get_shopping_list",
     {
       title: "Get Shopping List",
       description:
-        "With a listId, reads that list's items and their `itemId`s. Without one, lists every saved list and its `listId`. Only this tool returns those ids.",
+        "With listId or name, reads that list's items and `itemId`s. With neither, lists every saved list and its `listId`.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -229,8 +310,9 @@ export function registerShoppingListTools(
       },
       inputSchema: getShoppingListInputSchema,
     },
-    async ({ listId }) => {
-      if (!listId) {
+    async ({ listId, name }) => {
+      let resolvedId = listId;
+      if (!resolvedId) {
         const result = await safeStorage(
           () => shoppingList.list(),
           "read shopping lists",
@@ -238,22 +320,40 @@ export function registerShoppingListTools(
         if (result.isErr()) return toMcpError(result.error);
 
         const lists = result.value;
-        if (lists.length === 0) {
-          return textResult(
-            "No saved lists yet. Create one with create_shopping_list.",
+        if (!name) {
+          if (lists.length === 0) {
+            return shoppingListsViewResult(
+              [],
+              "No saved lists yet. Create one with create_shopping_list.",
+            );
+          }
+          return shoppingListsViewResult(
+            lists,
+            `${lists.length} shopping list(s).\n\n${listSummaryLines(lists)}`,
           );
         }
-        const lines = lists
-          .map(
-            (list, index) =>
-              `${index + 1}. listId=${list.id} "${list.name}" (${list.itemCount} items)`,
-          )
-          .join("\n");
-        return textResult(`${lists.length} shopping list(s).\n\n${lines}`);
+
+        const matches = matchListsByName(lists, name);
+        if (matches.length === 0) {
+          return toMcpError(
+            notFoundError(
+              `No list named "${name}". Call get_shopping_list with no arguments to see every list.`,
+            ),
+          );
+        }
+        const exact = matches[0].name.toLowerCase() === name.toLowerCase();
+        if (matches.length > 1 && !exact) {
+          return shoppingListsViewResult(
+            matches,
+            `${matches.length} lists match "${name}". Pass the listId you want.\n\n${listSummaryLines(matches)}`,
+          );
+        }
+        resolvedId = matches[0].id;
       }
 
+      const listIdToRead = resolvedId;
       const result = await safeStorage(
-        () => shoppingList.get(listId),
+        () => shoppingList.get(listIdToRead),
         "read shopping list",
       );
       if (result.isErr()) return toMcpError(result.error);
@@ -262,33 +362,22 @@ export function registerShoppingListTools(
       if (!list) {
         return toMcpError(
           notFoundError(
-            `No list with listId=${listId}. Call get_shopping_list with no listId.`,
+            `No list with listId=${listIdToRead}. Call get_shopping_list with no listId.`,
           ),
         );
       }
-      if (list.items.length === 0) {
-        return textResult(
-          `Shopping list "${list.name}" (listId=${listId}) is empty. Add items with add_shopping_list_items.`,
-        );
-      }
-      const lines = list.items
-        .map(
-          (item, index) =>
-            `${index + 1}. itemId=${item.id} ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
-        )
-        .join("\n");
-      return textResult(
-        `Shopping list "${list.name}" (listId=${listId}) has ${list.items.length} item(s).\n\n${lines}`,
-      );
+      return shoppingListViewResult(list, describeList(list));
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "add_shopping_list_items",
     {
       title: "Add Shopping List Items",
       description:
         "Appends items to an existing list, keeping what is already on it. Use upc for exact Kroger matches, or productName for free text.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -312,18 +401,19 @@ export function registerShoppingListTools(
             `${index + 1}. itemId=${item.id} ${formatShoppingListItemCompact(item)}`,
         )
         .join("\n");
-      return textResult(
-        `Added ${added.length} item(s) to listId=${listId}.\n\n${lines}`,
-      );
+      const text = `Added ${added.length} item(s) to listId=${listId}.\n\n${lines}`;
+      return withUpdatedList(listId, text);
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "edit_shopping_list_item",
     {
       title: "Edit Shopping List Item",
       description:
         "Changes one item on a list: rename it, set quantity or notes, check it off with checked=true, or delete it with remove=true. Only the fields you pass change.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
         // remove=true deletes the item, so this tool can destroy data.
@@ -348,7 +438,10 @@ export function registerShoppingListTools(
           "remove shopping list item",
         );
         if (removed.isErr()) return toMcpError(removed.error);
-        return textResult(`Removed itemId=${itemId} from listId=${listId}.`);
+        return withUpdatedList(
+          listId,
+          `Removed itemId=${itemId} from listId=${listId}.`,
+        );
       }
 
       const patch = {
@@ -372,9 +465,27 @@ export function registerShoppingListTools(
       if (result.isErr()) return toMcpError(result.error);
 
       const item = result.value;
-      return textResult(
+      return withUpdatedList(
+        listId,
         `Updated itemId=${itemId} on listId=${listId}: ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
       );
     },
   );
+
+  /**
+   * Re-reads the list after a successful edit so the app can show it. The
+   * edit already committed, so a failed read only drops the view.
+   */
+  async function withUpdatedList(listId: string, text: string) {
+    const listResult = await safeStorage(
+      () => shoppingList.get(listId),
+      "read updated shopping list",
+    );
+    const list = listResult.isOk() ? listResult.value : null;
+    if (!list) return textResult(text);
+    return shoppingListViewResult(
+      list,
+      `${text}\n\nList now has ${formatListSize(list.items)}.`,
+    );
+  }
 }

@@ -1,3 +1,9 @@
+import { parseAppResult as parseAppPayload } from "../../src/app-results.js";
+
+/** Test results carry an untyped `_meta`; parse it as the host would. */
+function parseAppResult(result: unknown) {
+  return parseAppPayload(result as Parameters<typeof parseAppPayload>[0]);
+}
 import { cartOperationStore } from "../cart-operation-store.js";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,7 +49,7 @@ const testState = vi.hoisted(() => ({
   capturedTools: [] as CapturedTool[],
 }));
 
-vi.mock("agents/mcp", () => ({
+vi.mock("agents/mcp/server", () => ({
   getMcpAuthContext: () => testState.authContext,
 }));
 
@@ -896,6 +902,17 @@ describe("view_cart tool", () => {
     expect(text).toContain("upc=0001111042578");
     expect(text).toContain("PICKUP");
     expect(text).toContain("in-store/app changes are not shown");
+    expect(parseAppResult(result)).toMatchObject({
+      view: "view_cart",
+      source: "assistant",
+      items: [
+        {
+          upc: "0001111042578",
+          productName: "Organic Whole Milk",
+          quantity: 2,
+        },
+      ],
+    });
   });
 
   it("falls back to the upc when productName is missing", async () => {

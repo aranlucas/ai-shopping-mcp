@@ -4,9 +4,11 @@ import { useCallback } from "react";
 
 import {
   Badge,
+  ExternalLink,
   FulfillmentTags,
   PriceDisplay,
   ProductActions,
+  type SaveProductToList,
 } from "../../shared/components.js";
 import { type ProductDetailContent } from "../../shared/types.js";
 import { saveProductToList } from "../tool-calls.js";
@@ -25,14 +27,8 @@ export function ProductDetailView({
   const brand = product.brand;
   const upc = product.upc;
 
-  const handleAddToList = useCallback(
-    async (productName: string, selectedUpc: string) => {
-      await saveProductToList(app, {
-        productName,
-        quantity: 1,
-        upc: selectedUpc,
-      });
-    },
+  const handleAddToList = useCallback<SaveProductToList>(
+    (item, listId) => saveProductToList(app, item, listId),
     [app],
   );
 
@@ -58,10 +54,18 @@ export function ProductDetailView({
             upc={upc}
             cartDisabled={!product.available}
             name={name}
+            price={product.price}
             disabled={!canCallTools}
             onAddToList={handleAddToList}
           />
         </div>
+        {product.url && (
+          <div className="border-b border-border px-4 py-3">
+            <ExternalLink app={app} href={product.url}>
+              Open in Kroger
+            </ExternalLink>
+          </div>
+        )}
 
         {/* Details */}
         <div className="flex flex-col gap-3.5 px-4 py-3">

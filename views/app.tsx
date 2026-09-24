@@ -8,6 +8,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { AddToCartView } from "./app/views/add-to-cart.js";
+import { CartView } from "./app/views/cart.js";
 import { KitchenEquipmentView } from "./app/views/kitchen-equipment.js";
 import { LocationDetailView } from "./app/views/location-detail.js";
 import { LocationResultsView } from "./app/views/location-results.js";
@@ -17,6 +18,7 @@ import { PreferredStoreView } from "./app/views/preferred-store.js";
 import { ProductDetailView } from "./app/views/product-detail.js";
 import { ProductSearchView } from "./app/views/product-search.js";
 import { ShoppingListView } from "./app/views/shopping-list.js";
+import { ShoppingListsView } from "./app/views/shopping-lists.js";
 import { WeeklyDealsView } from "./app/views/weekly-deals.js";
 import { toolResultErrorMessage } from "./app/tool-calls.js";
 import { useResettableState } from "./shared/hooks.js";
@@ -128,6 +130,13 @@ function getPartialLoadingMessage(
       return "Creating shopping list…";
     case "add_shopping_list_to_cart":
       return "Adding to cart…";
+    case "get_shopping_list":
+      return "Loading shopping list…";
+    case "add_shopping_list_items":
+    case "edit_shopping_list_item":
+      return "Updating shopping list…";
+    case "view_cart":
+      return "Loading cart…";
     case "shop_for_items":
       return "Shopping for items…";
     case "add_to_inventory":
@@ -174,6 +183,10 @@ function ShoppingAppInner({
         case "get_weekly_deals":
           return <WeeklyDealsSkeleton />;
         case "create_shopping_list":
+        case "get_shopping_list":
+        case "add_shopping_list_items":
+        case "edit_shopping_list_item":
+        case "view_cart":
         case "shop_for_items":
         case "add_to_inventory":
         case "remove_from_inventory":
@@ -224,10 +237,26 @@ function ShoppingAppInner({
       return <PreferredStoreView data={data} />;
     case "create_shopping_list":
       return (
-        <ShoppingListView data={data} app={app} canCallTools={canCallTools} />
+        <ShoppingListView
+          data={data}
+          setData={setData}
+          app={app}
+          canCallTools={canCallTools}
+        />
+      );
+    case "shopping_lists":
+      return (
+        <ShoppingListsView
+          data={data}
+          setData={setData}
+          app={app}
+          canCallTools={canCallTools}
+        />
       );
     case "add_shopping_list_to_cart":
       return <AddToCartView data={data} />;
+    case "view_cart":
+      return <CartView data={data} app={app} />;
     case "pantry":
       return (
         <PantryView

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { components as ProductComponents } from "../../../src/services/kroger/product.js";
 
-import { toProductData } from "../../../src/services/kroger/product-data.js";
+import {
+  toProductData,
+  toProductPageUrl,
+} from "../../../src/services/kroger/product-data.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 type Inventory =
@@ -154,5 +157,26 @@ describe("toProductData", () => {
       available: true,
       pickup: false,
     });
+  });
+
+  it("builds a kroger.com product link without tracking parameters", () => {
+    expect(
+      toProductData({
+        upc: "0001111041700",
+        productPageURI:
+          "/p/kroger-2-reduced-fat-milk/0001111041700?cid=dis.api.tpi",
+      }).url,
+    ).toBe("https://www.kroger.com/p/kroger-2-reduced-fat-milk/0001111041700");
+  });
+
+  it.each([
+    undefined,
+    "",
+    "p/relative",
+    "//evil.example/p/x",
+    "https://evil.example/p/x",
+    "javascript:alert(1)",
+  ])("rejects a product page path that leaves kroger.com: %s", (path) => {
+    expect(toProductPageUrl(path)).toBeUndefined();
   });
 });

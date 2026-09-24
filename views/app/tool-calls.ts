@@ -2,6 +2,10 @@ import type { CallToolResult } from "@modelcontextprotocol/client";
 import {
   type AddShoppingListToCartContent,
   type AddShoppingListToCartArgs,
+  type AppData,
+  type ShoppingListContent,
+  type ShoppingListItemData,
+  type ShoppingListSummaryData,
   type ToolCall,
   callTool,
   parseToolResult,
@@ -12,6 +16,7 @@ export type ProductShoppingListInput = {
   productName: string;
   quantity: number;
   upc: string;
+  price?: number;
 };
 
 export class CartActionError extends Error {
@@ -84,12 +89,13 @@ export function createProductShoppingListCall({
   productName,
   quantity,
   upc,
+  price,
 }: ProductShoppingListInput): CreateShoppingListCall {
   return {
     name: "create_shopping_list",
     arguments: {
       name: listName ?? productName,
-      items: [{ upc, productName, quantity }],
+      items: [{ upc, productName, quantity, price }],
     },
   };
 }
@@ -172,11 +178,116 @@ export async function createProductList(
   }
 }
 
+/**
+ * Saves a product to an existing list, or to a new list named after the
+ * product when no list is chosen.
+ */
 export async function saveProductToList(
   app: Parameters<typeof callTool>[0],
   input: ProductShoppingListInput,
+  listId?: string,
 ): Promise<void> {
-  await createProductList(app, input);
+  if (!listId) {
+    await createProductList(app, input);
+    return;
+  }
+  await callForView(
+    app,
+    {
+      name: "add_shopping_list_items",
+      arguments: {
+        listId,
+        items: [
+          {
+            upc: input.upc,
+            productName: input.productName,
+            quantity: input.quantity,
+            price: input.price,
+          },
+        ],
+      },
+    },
+    "Failed to save to list",
+  );
+}
+
+/** Call a tool whose result renders an app view, and return that view data. */
+export async function callForView(
+  app: Parameters<typeof callTool>[0],
+  call: ToolCall,
+  fallback: string,
+): Promise<AppData> {
+  const result = await callTool(app, call);
+  if (result.isError) throw new Error(toolResultErrorMessage(result, fallback));
+  const data = parseToolResult(result);
+  if (!data) throw new Error(fallback);
+  return data;
+}
+
+export async function loadShoppingLists(
+  app: Parameters<typeof callTool>[0],
+): Promise<ShoppingListSummaryData[]> {
+  const data = await callForView(
+    app,
+    { name: "get_shopping_list", arguments: {} },
+    "Could not load your lists",
+  );
+  return data.view === "shopping_lists" ? data.lists : [];
+}
+
+export async function openShoppingList(
+  app: Parameters<typeof callTool>[0],
+  listId: string,
+): Promise<ShoppingListContent> {
+  const data = await callForView(
+    app,
+    { name: "get_shopping_list", arguments: { listId } },
+    "Could not open that list",
+  );
+  if (data.view !== "create_shopping_list")
+    throw new Error("Could not open that list");
+  return data;
+}
+
+/** Edit one list item and return the whole updated list. */
+export async function editShoppingListItem(
+  app: Parameters<typeof callTool>[0],
+  args: Extract<ToolCall, { name: "edit_shopping_list_item" }>["arguments"],
+): Promise<ShoppingListContent> {
+  const data = await callForView(
+    app,
+    { name: "edit_shopping_list_item", arguments: args },
+    "Could not update the list",
+  );
+  if (data.view !== "create_shopping_list")
+    throw new Error("Could not update the list");
+  return data;
+}
+
+/** Record list items as purchased in order history. */
+export async function recordPurchase(
+  app: Parameters<typeof callTool>[0],
+  items: ShoppingListItemData[],
+): Promise<void> {
+  const purchased = items.flatMap((item) =>
+    item.upc
+      ? [
+          {
+            upc: item.upc,
+            productName: item.productName,
+            quantity: Math.max(1, Math.round(item.quantity)),
+            price: item.price,
+          },
+        ]
+      : [],
+  );
+  if (purchased.length === 0)
+    throw new Error("No Kroger items to record as purchased");
+  await callForView(
+    app,
+    { name: "record_order", arguments: { items: purchased } },
+    "Could not record the purchase",
+  );
 }
 
 /** Shared error semantics for product and saved-list cart actions. */

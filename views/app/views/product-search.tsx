@@ -17,6 +17,7 @@ import {
   Badge,
   DisplayModeToggle,
   ProductCard,
+  type SaveProductToList,
   SectionHeader,
 } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
@@ -53,7 +54,7 @@ function ProductCarousel({
 }: {
   app: App | null;
   products: ProductData[];
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToList: SaveProductToList;
   canCallTools: boolean;
 }) {
   return (
@@ -96,14 +97,8 @@ export function ProductSearchView({
 }) {
   const { results, totalProducts } = data;
 
-  const handleAddToList = useCallback(
-    async (name: string, upc: string) => {
-      await saveProductToList(app, {
-        productName: name,
-        quantity: 1,
-        upc,
-      });
-    },
+  const handleAddToList = useCallback<SaveProductToList>(
+    (product, listId) => saveProductToList(app, product, listId),
     [app],
   );
 

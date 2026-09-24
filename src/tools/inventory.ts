@@ -56,6 +56,12 @@ export const addToInventoryInputSchema = z.object({
 
 const removeInventoryItemSchema = z.object({
   name: z.string().min(1).max(200).describe("Item name to remove"),
+  quantity: z.coerce
+    .number()
+    .min(1)
+    .max(999)
+    .optional()
+    .describe("Pantry only: amount used; omit to remove"),
 });
 
 export const removeFromInventoryInputSchema = z.object({
@@ -71,6 +77,44 @@ export const removeFromInventoryInputSchema = z.object({
     .optional()
     .describe("Clear the entire inventory instead of removing specific items"),
 });
+
+/**
+ * Removes whole pantry items, or subtracts a quantity and removes the item
+ * once none is left. Names match case-insensitively, like storage.
+ */
+async function consumePantryItems(
+  pantry: PantryStore,
+  items: Array<{ name: string; quantity?: number }>,
+): Promise<PantryItem[]> {
+  const partial = items.filter((item) => item.quantity !== undefined);
+  const removeNames = items
+    .filter((item) => item.quantity === undefined)
+    .map((item) => item.name);
+
+  if (partial.length > 0) {
+    const current = new Map(
+      (await pantry.getAll()).map((item) => [
+        item.productName.trim().toLowerCase(),
+        item,
+      ]),
+    );
+    const updates: Array<{ name: string; quantity: number }> = [];
+    for (const item of partial) {
+      const stored = current.get(item.name.trim().toLowerCase());
+      if (!stored) continue;
+      const remaining = stored.quantity - (item.quantity ?? 0);
+      if (remaining > 0) updates.push({ name: item.name, quantity: remaining });
+      else removeNames.push(item.name);
+    }
+    await Promise.all(
+      updates.map((update) =>
+        pantry.updateQuantity(update.name, update.quantity),
+      ),
+    );
+  }
+
+  return removeNames.length > 0 ? pantry.remove(removeNames) : pantry.getAll();
+}
 
 function pantryResponse(
   text: string,
@@ -231,7 +275,7 @@ export function registerInventoryTools(
 
         const removeItems = items ?? [];
         const result = await safeStorage(
-          () => pantry.remove(removeItems.map((item) => item.name)),
+          () => consumePantryItems(pantry, removeItems),
           "remove pantry items",
         ).map((storedItems) =>
           pantryResponse(

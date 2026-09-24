@@ -493,7 +493,41 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
       `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
     );
   }
-  return textResult(parts.join("\n\n"));
+  return {
+    ...textResult(parts.join("\n\n")),
+    ...appResult("view_cart", {
+      source: "assistant",
+      items: mirrorResult.value.map((item) => ({
+        upc: item.upc,
+        productName: item.productName,
+        quantity: item.quantity,
+        modality: item.modality,
+      })),
+      ...(note ? { note } : {}),
+    }),
+  };
+}
+
+function liveCartResult(cart: LiveCart, cartId: string) {
+  return {
+    ...textResult(formatLiveCart(cart, cartId)),
+    ...appResult("view_cart", {
+      source: "live",
+      cartId,
+      items: (cart.items ?? []).flatMap((item) =>
+        item.upc
+          ? [
+              {
+                upc: item.upc,
+                productName: item.description,
+                quantity: item.quantity ?? 1,
+                modality: item.modality,
+              },
+            ]
+          : [],
+      ),
+    }),
+  };
 }
 
 export function registerCartTools(
@@ -550,12 +584,14 @@ export function registerCartTools(
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "view_cart",
     {
       title: "View Cart",
       description:
         "Read the live Kroger cart using a remembered cartId, or show the assistant-only mirror when no id is known.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -607,9 +643,7 @@ export function registerCartTools(
       ).orTee((error) =>
         console.warn("Cart id store failed (non-fatal):", error.message),
       );
-      return textResult(
-        formatLiveCart(liveResult.value.data ?? {}, resolvedId),
-      );
+      return liveCartResult(liveResult.value.data ?? {}, resolvedId);
     },
   );
 }
