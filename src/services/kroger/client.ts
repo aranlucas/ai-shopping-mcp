@@ -176,20 +176,28 @@ const krogerCacheEntrySchema = z.object({
   body: z.string(),
 });
 
+/** Sort query parameters so equivalent searches share one cache entry. */
 function krogerCacheKeyFor(url: string): string {
-  return `kroger-cache|v1|${url}`;
+  const parsed = new URL(url);
+  parsed.searchParams.sort();
+  return `kroger-cache|v1|${parsed.href}`;
 }
+
+/** Defers background work past the response, like `ExecutionContext.waitUntil`. */
+export type WaitUntil = (promise: Promise<unknown>) => void;
 
 /**
  * Generic KV-cache middleware for Kroger GET responses, structured like
  * `createKrogerAuthMiddleware`. Only GET requests are ever read from or
  * written to cache; only 2xx responses are cached. KV read/write failures
  * are non-fatal — a read failure falls through to a live request, a write
- * failure is logged and swallowed.
+ * failure is logged and swallowed. With `waitUntil`, the write runs after the
+ * response is returned instead of delaying the tool call.
  */
 export function createKrogerCacheMiddleware(
   kv: KvLike | null,
   ttlSeconds: number,
+  waitUntil?: WaitUntil,
 ): Middleware {
   return {
     async onRequest({ request }) {
@@ -219,18 +227,21 @@ export function createKrogerCacheMiddleware(
       if (!kv || request.method !== "GET" || !response.ok) return;
 
       const key = krogerCacheKeyFor(request.url);
-      const body = await response.clone().text();
-      const entry: KrogerCacheEntry = { status: response.status, body };
-
-      await safeStorage(
-        () => kv.put(key, JSON.stringify(entry), { expirationTtl: ttlSeconds }),
-        "write Kroger response cache",
-      ).orTee((error) =>
+      const copy = response.clone();
+      const { status } = response;
+      const write = safeStorage(async () => {
+        const entry: KrogerCacheEntry = { status, body: await copy.text() };
+        await kv.put(key, JSON.stringify(entry), {
+          expirationTtl: ttlSeconds,
+        });
+      }, "write Kroger response cache").orTee((error) =>
         console.warn(
           "Kroger response cache write failed (non-fatal):",
           error.message,
         ),
       );
+      if (waitUntil) waitUntil(Promise.resolve(write));
+      else await write;
     },
   };
 }
@@ -249,11 +260,13 @@ export function createKrogerClients(
   getTokenInfo: () => KrogerTokenInfo | null,
   kv: KvLike | null = null,
   signal?: AbortSignal,
+  waitUntil?: WaitUntil,
 ) {
   const authMiddleware = createKrogerAuthMiddleware(getTokenInfo);
   const cacheMiddleware = createKrogerCacheMiddleware(
     kv,
     KROGER_CACHE_TTL_SECONDS,
+    waitUntil,
   );
   const base = { baseUrl: "https://api.kroger.com", fetch: fetchWithReadRetry };
 

@@ -10,7 +10,7 @@ as of `b11bf22`. I read the code and ran every repository check:
 | `pnpm typecheck`                    | clean                                                    |
 | `pnpm coverage`                     | 817 passed / 3 skipped; 93.4% statements, 82.4% branches |
 | `pnpm audit --prod`                 | 9 advisories (6 high, 2 moderate, 1 low), all transitive |
-| `wrangler deploy --dry-run`         | 4.36 MiB upload / 830 KiB gzip                           |
+| `wrangler deploy --dry-run`         | 4.36 MiB upload / 830 KiB gzip (now 1.95 MiB / 392 KiB)  |
 | `vite build` (views)                | 635 kB single-file HTML / 179 kB gzip                    |
 
 Severity: **High** means fix soon, **Medium** means schedule it, **Low** is hygiene.
@@ -31,7 +31,7 @@ coverage is high. The main gaps:
    unbounded rows into D1 and the Durable Object.
 2. **Storage grows forever.** Cart-operation journal entries, order history, and
    shopping lists are never pruned, and users have no way to delete their data.
-3. **Automation gaps.** The Tailwind lint config is never run and is misconfigured.
+3. **Automation gaps.**
    CI has no migration-drift check or dependency audit, and there is no deploy
    pipeline.
 4. **The token-refresh code is the least-tested security path** (`server.ts`
@@ -62,17 +62,15 @@ for `shop_for_items`. Return a normal `API_ERROR` with status 429 so
 (`src/tools/orders.ts:22`), and `add_to_inventory.items` /
 `remove_from_inventory.items` (`src/tools/inventory.ts:51,65`). The consequences:
 
-- Pantry and equipment writes issue **one D1 statement per item in a loop**
-  (`src/utils/d1-shopping-storage.ts:197,261`). A large array can hit the
-  per-invocation D1 query or CPU limits partway through and leave a
-  partial write, because the loop is not atomic.
+- ✅ Pantry and equipment writes issued one D1 statement per item in a loop,
+  which was not atomic. They now run as one `db.batch` (see P3). A very large
+  array can still exceed D1's per-batch limits, so the cap is still needed.
 - A list stores its items as one JSON blob, and each edit rewrites the whole blob,
   so a huge list approaches D1's 2 MB row limit and makes every later edit slow.
 - `listId`/`itemId` strings have no length cap.
 
 _Fix:_ cap arrays (for example 100 list items per call, 500 per list, 100 order
-lines, 100 inventory items). Switch the loops to a single `db.batch([...])`
-so each call is atomic and takes one round trip.
+lines, 100 inventory items).
 
 ### Medium
 
@@ -147,32 +145,39 @@ _Fix:_ log the detail server-side and give the model the message plus
 
 ## 2. Performance
 
-- **P1. Worker bundle is 4.36 MiB (830 KiB gzip).** The largest contributors by
-  source size are `@modelcontextprotocol/core-internal` (~1.1 MB), `agents` (~1.0 MB),
-  `@sentry/conventions` (~0.8 MB), `zod`, `@sentry/core`, and
-  `@modelcontextprotocol/client` (~440 KB, although the Worker never acts as a
-  client). Two MCP SDK generations are installed: v2 directly, and
-  `@modelcontextprotocol/sdk@1.30` through `agents`. This affects cold-start
-  parse time. Check whether `agents/mcp/server` can be replaced with the SDK's
-  own stateless handler, or whether it tree-shakes the client.
-- **P2. The KV cache writes on every miss.** `createKrogerCacheMiddleware`
-  (`src/services/kroger/client.ts:226`) does a KV `put` for every uncached
-  GET. KV is priced and rate-limited per write, and the cache key is the raw URL,
-  so the same query with parameters in a different order misses. Normalize the key
-  (sort the search params). Consider the Cache API (`caches.default`) for this
-  shared, non-user data: it is free and has no write quota.
-- **P3. Sequential D1 writes.** See S2. Use `db.batch`.
-- **P4. `shoppingList.list()` loads every list's full `items_json`** just to
-  count the items (`src/utils/d1-shopping-storage.ts:338`). Select
-  `json_array_length(items_json)` instead.
-- **P5. Every request builds a new server.** `buildServer` registers 18 tools,
-  5 resources, 4 prompts, and the view resource per request, which converts
-  every Zod schema each time. That is acceptable at current scale, but the tool
-  definitions (schemas, descriptions) could be hoisted to module scope, leaving
-  only the handlers request-scoped.
-- **P6. The view bundle is 635 kB (179 kB gzip).** It inlines React and all views.
-  That is acceptable for an MCP App iframe, but `embla-carousel` and `lucide-react`
-  are worth checking for tree-shaking.
+- ✅ **P1. The Worker bundle was 4.36 MiB (830 KiB gzip); it is now 1.95 MiB
+  (392 KiB gzip).** Almost all of the excess came from one import:
+  `src/utils/result.ts` took `getMcpAuthContext` from `agents/mcp`, the package
+  index, which also bundles the MCP client, the v1 SDK (`@modelcontextprotocol/sdk@1.30`),
+  and `capnweb`. `composition.ts` already used `agents/mcp/server`. The import now
+  uses that entry point, and an `eslint/no-restricted-imports` rule in
+  `.oxlintrc.json` blocks `agents` and `agents/mcp` so this cannot come back. What
+  remains is the MCP server SDK (~400 KB), `@sentry/core`, `zod`, `drizzle-orm`, and
+  the OAuth provider.
+- ✅ **P2. The KV cache awaited its write on every miss** (`createKrogerCacheMiddleware`).
+  The write now runs through `ctx.waitUntil`, so a cache miss no longer adds a KV
+  `put` to the tool call's latency. Cache keys sort their query parameters, so the
+  same search with parameters in another order shares an entry. Cache hits never
+  wrote to KV; openapi-fetch skips `onResponse` when `onRequest` returns a
+  response. The Cache API is not an option: it does nothing on `*.workers.dev`,
+  where production runs.
+- ✅ **P3. Sequential D1 writes.** Pantry and equipment add/remove now send every
+  write and the read-back in one `db.batch`. That is one round trip, and it is
+  atomic: a failing statement leaves nothing written (tested).
+- ✅ **P4. `shoppingList.list()` loaded every list's `items_json`** to count
+  items. It now selects `json_array_length(items_json)`.
+- **P5. Every request builds a new server.** I looked into this and made no change. Registration
+  stores Zod schemas and closures; JSON Schema conversion happens only for
+  `tools/list`, and the stateless handler runs one method per request. Hoisting
+  definitions would need a module-level server and would give up the
+  per-request dependency injection. That trade isn't worth it without a
+  measured CPU cost, which `workerd` can't measure in tests because timers are frozen.
+- **P6. The view bundle is 647 kB (182 kB gzip).** I looked into this and made no change. The largest parts are
+  `react-dom` and the MCP protocol runtime that `@modelcontextprotocol/ext-apps`
+  imports from `@modelcontextprotocol/client`. Its unused transports and OAuth
+  code are already tree-shaken. There is no cheap win left short of replacing
+  React (for example with `preact/compat`), which isn't worth the compatibility risk
+  for a single iframe document.
 
 ---
 
@@ -246,9 +251,8 @@ repository interfaces (`shopping-store.ts`) with one D1 implementation,
 - **M4. `worker-configuration.d.ts` (600 KB) is committed and regenerated in CI.**
   That is fine, but make sure CI fails if the committed copy is stale
   (`git diff --exit-code` after `cf-typegen`) instead of overwriting it silently.
-- **M5. Leftover or misleading config.** `.oxlintrc.tailwind.json` allowlists class
-  names from another project (`oral-boards-shell`, `cn-input-otp`, `toaster`,
-  and others). See A1.
+- **M5. Leftover config.** `.oxlintrc.tailwind.json` allowlists class names from
+  another project (`oral-boards-shell`, `cn-input-otp`, `toaster`, and others).
 - **M6. `compatibility_date` is `2025-03-10`, about 18 months old.** Update it
   deliberately to pick up runtime fixes, and keep `vitest.config.ts` in sync,
   because it hard-codes the same date.
@@ -284,12 +288,10 @@ tests for cart state machines.
 
 ## 7. Automation and CI/CD
 
-- **A1. The Tailwind lint config is dead.** `.oxlintrc.tailwind.json` is not
-  referenced by any script or workflow. When run by hand, every rule reports
-  `settings.tailwindcss.entryPoint is required`, so none of its checks
-  (unknown classes, hardcoded colors) have ever executed. The README and AGENTS.md both
-  describe it as active. Set `settings.tailwindcss.entryPoint` to
-  `views/styles.css`, add `pnpm lint:tailwind`, and run it in `pnpm lint`.
+- **A1. (Corrected.)** The first version of this report said the Tailwind lint
+  never ran. That was wrong. `.oxlintrc.json` extends `.oxlintrc.tailwind.json`
+  and sets `settings.tailwindcss.entryPoint`, so its rules run in `pnpm lint`. The
+  error I saw came from running the extended file on its own.
 - ✅ **A2. CI never built the views.** A broken Vite build could merge. The
   test job now runs `pnpm build:views`. `concurrency` also cancels superseded PR
   runs.
@@ -327,21 +329,21 @@ durationMs }`) so Workers Logs / Logpush can be queried. Hash the shopper ID
 
 The README is detailed and accurate: 18 tools and 4 prompts, which I checked against the code.
 
-- **Doc1.** `SENTRY_DSN` is an optional secret (`src/env.ts`) that the README does not list.
+- ✅ **Doc1.** `SENTRY_DSN` is an optional secret (`src/env.ts`) that the README
+  did not list. It is now listed.
 - **Doc2.** There is no `SECURITY.md` for vulnerability reporting, and no privacy or
   data-retention statement, even though the service stores purchase history and pantry data.
 - **Doc3.** An architecture diagram (OAuth → OAuthProvider → MCP handler →
   D1/KV/DO/Kroger/AI Gateway) would help new contributors more than more prose.
-- **Doc4.** The README and AGENTS.md describe the Tailwind lint as active (see A1).
 
 ---
 
 ## Suggested order of work
 
-1. S1 rate limiting and S2 input caps with `db.batch`. These are small, independent
-   changes that remove the largest abuse risks.
+1. S1 rate limiting and S2 input caps. These are small, independent changes
+   that remove the largest abuse risks.
 2. T1 refresh-callback tests, then S3 (secret from env) and S4 (serialize refresh).
-3. A1 Tailwind lint, T4 migration-drift check, A3 audit in CI, S6 overrides.
+3. T4 migration-drift check, A3 audit in CI, S6 overrides.
 4. D1–D3 retention, a DO alarm, and a delete-my-data path.
 5. A4 deploy pipeline with a staging environment.
-6. P1 bundle diet, P2 cache improvements, O1–O3 observability.
+6. O1–O3 observability.

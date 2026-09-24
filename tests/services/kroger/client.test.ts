@@ -534,6 +534,53 @@ describe("createKrogerCacheMiddleware", () => {
     expect(options.expirationTtl).toBe(600);
   });
 
+  it("shares one cache key across query parameter orders", async () => {
+    const kv = makeCacheMockKv();
+    const middleware = createKrogerCacheMiddleware(kv, 600);
+
+    await middleware.onRequest?.(
+      makeCacheRequestParams(
+        new Request(
+          "https://api.kroger.com/v1/products?filter.term=milk&filter.locationId=70500847",
+        ),
+      ),
+    );
+    await middleware.onRequest?.(
+      makeCacheRequestParams(
+        new Request(
+          "https://api.kroger.com/v1/products?filter.locationId=70500847&filter.term=milk",
+        ),
+      ),
+    );
+
+    const keys = (kv.get as ReturnType<typeof vi.fn>).mock.calls.map(
+      ([key]) => key,
+    );
+    expect(keys[0]).toBe(keys[1]);
+  });
+
+  it("defers the cache write to waitUntil without delaying the response", async () => {
+    const kv = makeCacheMockKv();
+    const deferred: Promise<unknown>[] = [];
+    const middleware = createKrogerCacheMiddleware(kv, 600, (promise) => {
+      deferred.push(promise);
+    });
+    const request = new Request(
+      "https://api.kroger.com/v1/products/0001111041700",
+    );
+    const response = new Response('{"data":{"upc":"0001111041700"}}');
+
+    const result = await middleware.onResponse?.(
+      makeCacheResponseParams(request, response),
+    );
+
+    expect(result).toBeUndefined();
+    expect(await response.text()).toBe('{"data":{"upc":"0001111041700"}}');
+    expect(deferred).toHaveLength(1);
+    await Promise.all(deferred);
+    expect(kv.put).toHaveBeenCalledTimes(1);
+  });
+
   it("onResponse does not cache a non-GET response", async () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);

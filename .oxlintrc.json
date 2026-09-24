@@ -41,6 +41,23 @@
     // Imports.
     "import/no-duplicates": "error",
     "import/no-named-as-default": "error",
+    // The package index also bundles the MCP client, the v1 SDK, and capnweb,
+    // which more than doubles the Worker upload.
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "agents/mcp",
+            "message": "Import from agents/mcp/server; the index bundles the MCP client and v1 SDK."
+          },
+          {
+            "name": "agents",
+            "message": "Import from agents/mcp/server; the index bundles the MCP client and v1 SDK."
+          }
+        ]
+      }
+    ],
 
     // React 19 with jsx: react-jsx — no React import needed.
     // (Rule is obsolete with the new JSX transform; disabling is the fix.)
