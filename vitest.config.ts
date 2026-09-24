@@ -1,4 +1,4 @@
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 const liveEval = process.env.EVAL_LIVE === "1";
@@ -48,6 +48,8 @@ export default defineConfig({
                 KROGER_CLIENT_ID: "test-kroger-client-id",
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
+                // Tests drive the Worker at https://example.com.
+                MCP_RESOURCE_URL: "https://example.com",
 
                 // EVAL_LIVE selects the production Wrangler config so the
                 // live-model runner can reach its explicitly remote AI

@@ -175,6 +175,22 @@ function setupFailedPrintAdFetchForSearchFallback() {
 // Tests
 // ---------------------------------------------------------------------------
 
+function setupFailedPrintFetch() {
+  fetchMock.mockImplementation((input: string | Request | URL) => {
+    const url = urlOf(input);
+    if (url.includes("digitalads/v1/circulars")) {
+      return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+    }
+    // DACS endpoints fail
+    if (url.includes("przone.net")) {
+      return Promise.resolve(
+        mockErrorResponse(503, { error: "Service Unavailable" }),
+      );
+    }
+    return Promise.reject(new Error(`Unmocked URL: ${url}`));
+  });
+}
+
 describe("getQfcWeeklyDeals", () => {
   describe("print-ad primary path", () => {
     it("returns sourceMode print_fallback and two normalized deals", async () => {
@@ -598,22 +614,6 @@ describe("getQfcWeeklyDeals", () => {
   });
 
   describe("search API fallback when print-ad fails", () => {
-    function setupFailedPrintFetch() {
-      fetchMock.mockImplementation((input: string | Request | URL) => {
-        const url = urlOf(input);
-        if (url.includes("digitalads/v1/circulars")) {
-          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
-        }
-        // DACS endpoints fail
-        if (url.includes("przone.net")) {
-          return Promise.resolve(
-            mockErrorResponse(503, { error: "Service Unavailable" }),
-          );
-        }
-        return Promise.reject(new Error(`Unmocked URL: ${url}`));
-      });
-    }
-
     it("falls back to search API when print-ad listing returns error", async () => {
       setupFailedPrintAdFetchForSearchFallback();
 

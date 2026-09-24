@@ -255,6 +255,22 @@ const PREFERRED_LOCATION: PreferredLocation = {
   setAt: new Date().toISOString(),
 };
 
+// Both pickup-available, so the old first-pickup-available heuristic
+// alone would pick the wrong (first-listed) product for "milk".
+function makeAdversarialCandidates() {
+  const wrongMatch = makeProduct({
+    upc: "1111111111111",
+    description: "Chocolate Milk Candy Bar",
+    items: [{ fulfillment: { curbside: true, instore: false } }],
+  });
+  const rightMatch = makeProduct({
+    upc: "2222222222222",
+    description: "Whole Milk",
+    items: [{ fulfillment: { curbside: true, instore: false } }],
+  });
+  return { wrongMatch, rightMatch };
+}
+
 describe("shop_for_items", () => {
   beforeEach(() => {
     testState.capturedTools.length = 0;
@@ -686,22 +702,6 @@ describe("shop_for_items", () => {
       expect(create).not.toHaveBeenCalled();
       expect(cartPutCalls).toHaveLength(0);
     });
-
-    // Both pickup-available, so the old first-pickup-available heuristic
-    // alone would pick the wrong (first-listed) product for "milk".
-    function makeAdversarialCandidates() {
-      const wrongMatch = makeProduct({
-        upc: "1111111111111",
-        description: "Chocolate Milk Candy Bar",
-        items: [{ fulfillment: { curbside: true, instore: false } }],
-      });
-      const rightMatch = makeProduct({
-        upc: "2222222222222",
-        description: "Whole Milk",
-        items: [{ fulfillment: { curbside: true, instore: false } }],
-      });
-      return { wrongMatch, rightMatch };
-    }
 
     it("picks the semantically-better product when AI features are enabled", async () => {
       const { wrongMatch, rightMatch } = makeAdversarialCandidates();

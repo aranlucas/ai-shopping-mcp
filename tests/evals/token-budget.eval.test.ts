@@ -97,6 +97,16 @@ describe("token budget: tool surface", () => {
   });
 });
 
+function report(name: string, result: ToolCallResult) {
+  const text = contentText(result);
+  const textTokens = estimateTokens(text);
+  const structuredTokens = result.structuredContent
+    ? estimateJsonTokens(result.structuredContent)
+    : 0;
+  log(`${name}: content=${textTokens}t structuredContent=${structuredTokens}t`);
+  return { textTokens, structuredTokens };
+}
+
 describe("token budget: tool responses", () => {
   let stub: KrogerFetchStub;
   let client: Client;
@@ -116,18 +126,6 @@ describe("token budget: tool responses", () => {
     args: Record<string, unknown>,
   ): Promise<ToolCallResult> {
     return (await client.callTool({ name, arguments: args })) as ToolCallResult;
-  }
-
-  function report(name: string, result: ToolCallResult) {
-    const text = contentText(result);
-    const textTokens = estimateTokens(text);
-    const structuredTokens = result.structuredContent
-      ? estimateJsonTokens(result.structuredContent)
-      : 0;
-    log(
-      `${name}: content=${textTokens}t structuredContent=${structuredTokens}t`,
-    );
-    return { textTokens, structuredTokens };
   }
 
   it("search_products (5 terms) stays within content budget", async () => {

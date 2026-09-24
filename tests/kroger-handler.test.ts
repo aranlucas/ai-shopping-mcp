@@ -123,6 +123,21 @@ async function makeStateCookie(
 // Tests
 // ---------------------------------------------------------------------------
 
+/** Get a valid CSRF token + state value from the consent page. */
+async function getConsentFormData(env: ReturnType<typeof makeEnv>) {
+  const consentResponse = await KrogerHandler.request(
+    `${BASE_URL}/authorize?client_id=mcp-client`,
+    undefined,
+    env,
+  );
+  const consentHtml = await consentResponse.text();
+  return {
+    csrfToken: extractHiddenInput(consentHtml, "csrf_token"),
+    state: extractHiddenInput(consentHtml, "state"),
+    csrfCookieValue: getCookieHeader(consentResponse),
+  };
+}
+
 describe("Kroger OAuth handler", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -355,21 +370,6 @@ describe("Kroger OAuth handler", () => {
   // -------------------------------------------------------------------------
 
   describe("redirectToKroger", () => {
-    /** Get a valid CSRF token + state value from the consent page. */
-    async function getConsentFormData(env: ReturnType<typeof makeEnv>) {
-      const consentResponse = await KrogerHandler.request(
-        `${BASE_URL}/authorize?client_id=mcp-client`,
-        undefined,
-        env,
-      );
-      const consentHtml = await consentResponse.text();
-      return {
-        csrfToken: extractHiddenInput(consentHtml, "csrf_token"),
-        state: extractHiddenInput(consentHtml, "state"),
-        csrfCookieValue: getCookieHeader(consentResponse),
-      };
-    }
-
     it("returns 500 when KROGER_CLIENT_ID is missing from env", async () => {
       const env = makeEnv();
       env.KROGER_CLIENT_ID = "";
