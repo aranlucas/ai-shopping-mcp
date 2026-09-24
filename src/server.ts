@@ -56,8 +56,6 @@ class UserInfoHandler extends WorkerEntrypoint<AppEnv, Props> {
 }
 
 export const oauthProvider = new OAuthProvider<AppEnv>({
-  // Canonical resource every grant and token is bound to. The bare origin
-  // covers both protected routes (/mcp and /userinfo).
   resourceMetadata: { resource: workerEnv.MCP_RESOURCE_URL },
   apiHandlers: {
     "/mcp": mcpApiHandler,

@@ -175,22 +175,6 @@ function setupFailedPrintAdFetchForSearchFallback() {
 // Tests
 // ---------------------------------------------------------------------------
 
-function setupFailedPrintFetch() {
-  fetchMock.mockImplementation((input: string | Request | URL) => {
-    const url = urlOf(input);
-    if (url.includes("digitalads/v1/circulars")) {
-      return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
-    }
-    // DACS endpoints fail
-    if (url.includes("przone.net")) {
-      return Promise.resolve(
-        mockErrorResponse(503, { error: "Service Unavailable" }),
-      );
-    }
-    return Promise.reject(new Error(`Unmocked URL: ${url}`));
-  });
-}
-
 describe("getQfcWeeklyDeals", () => {
   describe("print-ad primary path", () => {
     it("returns sourceMode print_fallback and two normalized deals", async () => {
@@ -668,7 +652,7 @@ describe("getQfcWeeklyDeals", () => {
     });
 
     it("excludes zero-promo products from fallback sale discovery", async () => {
-      setupFailedPrintFetch();
+      setupFailedPrintAdFetchForSearchFallback();
       const result = await getQfcWeeklyDeals({
         locationId: "70500847",
         searchProducts: vi
@@ -683,7 +667,7 @@ describe("getQfcWeeklyDeals", () => {
     });
 
     it("filters out search API products without promo pricing", async () => {
-      setupFailedPrintFetch();
+      setupFailedPrintAdFetchForSearchFallback();
 
       const searchProducts: ProductSearchFn = vi
         .fn<ProductSearchFn>()
@@ -712,7 +696,7 @@ describe("getQfcWeeklyDeals", () => {
     });
 
     it("deduplicates search API results by productId", async () => {
-      setupFailedPrintFetch();
+      setupFailedPrintAdFetchForSearchFallback();
 
       // Return the same productId from two different category searches
       const duplicateProduct = makeProduct({
@@ -736,7 +720,7 @@ describe("getQfcWeeklyDeals", () => {
     });
 
     it("correctly prices search API deals with promo savings", async () => {
-      setupFailedPrintFetch();
+      setupFailedPrintAdFetchForSearchFallback();
 
       const searchProducts: ProductSearchFn = vi
         .fn<ProductSearchFn>()

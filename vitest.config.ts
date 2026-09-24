@@ -48,7 +48,7 @@ export default defineConfig({
                 KROGER_CLIENT_ID: "test-kroger-client-id",
                 KROGER_CLIENT_SECRET: "test-kroger-client-secret",
                 COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
-                // Tests drive the Worker at https://example.com.
+                // Test origin; the OAuth tests derive their base URL from it.
                 MCP_RESOURCE_URL: "https://example.com",
 
                 // EVAL_LIVE selects the production Wrangler config so the
