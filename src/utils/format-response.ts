@@ -1,3 +1,4 @@
+import { estimateListTotal } from "../domain/list-total.js";
 import { errorRecovery } from "../errors.js";
 import { classifyExpiry } from "../services/expiry.js";
 import { formatKrogerPrice } from "../services/kroger/price.js";
@@ -140,6 +141,16 @@ export function formatPreferredLocationCompact(
  * COMPACT: Token-efficient shopping list item formatting
  * Format: Name x qty | UPC | Notes
  */
+/** "3 item(s)" plus "~$12.47 est." when at least one item has a price. */
+export function formatListSize(items: readonly ShoppingListItem[]): string {
+  const count = `${items.length} item(s)`;
+  const { total, pricedCount } = estimateListTotal(items);
+  if (pricedCount === 0) return count;
+  const coverage =
+    pricedCount === items.length ? "" : `, ${pricedCount} priced`;
+  return `${count}, ~$${total.toFixed(2)} est.${coverage}`;
+}
+
 export function formatShoppingListItemCompact(item: ShoppingListItem): string {
   const parts: string[] = [];
 
@@ -147,6 +158,10 @@ export function formatShoppingListItemCompact(item: ShoppingListItem): string {
 
   if (item.upc) {
     parts.push(`upc=${item.upc}`);
+  }
+
+  if (item.price !== undefined) {
+    parts.push(`$${item.price.toFixed(2)} each`);
   }
 
   if (item.notes) {

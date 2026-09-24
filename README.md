@@ -67,6 +67,7 @@ Keep the Worker name, KV namespace IDs, and Durable Object migration history in 
 - `KROGER_CLIENT_ID`
 - `KROGER_CLIENT_SECRET`
 - `COOKIE_ENCRYPTION_KEY`
+- `SENTRY_DSN` (optional; enables errors-only Sentry reporting)
 
 Apply pending D1 migrations before deploying a Worker that uses the new schema:
 
@@ -125,9 +126,21 @@ match before they can be added to the cart.
 ### Editing a list by hand
 
 Lists live in the Worker's D1 database and are edited through `get_shopping_list` (with
-no `listId` it returns every list and its id; with one it returns that list's
-items and their `itemId`s), then `add_shopping_list_items` and
-`edit_shopping_list_item`. List items accept `upc` values or plain `productName` entries for unmatched ingredients.
+no arguments it returns every list and its id; with a `listId`, or a list `name`
+matched case-insensitively, it returns that list's items and their `itemId`s),
+then `add_shopping_list_items` and `edit_shopping_list_item`. List items accept
+`upc` values or plain `productName` entries for unmatched ingredients, plus an
+optional unit `price`. `shop_for_items` stores each match's current Kroger price,
+so list results include an estimated total (`~$42.18 est.`).
+
+All four list tools render the shopping-list app view, so the list in the chat
+stays current after every edit. In the app, items can be checked off (checked
+items move to the bottom), their quantity changed, or removed. Edits appear
+immediately and roll back if the server rejects them. After adding a list to the
+cart, **Mark as purchased** records the matched items with `record_order`.
+
+`remove_from_inventory` accepts a `quantity` per pantry item to use up part of it
+(the pantry view's **Use one** button); the item is removed when none is left.
 
 It exposes four workflow prompts:
 
@@ -234,6 +247,12 @@ stale results, loading, empty, and error states. The **Fail actions** control ex
 retry feedback; **Unknown cart outcome** simulates a lost cart confirmation to verify
 the check-cart action. The theme selector checks light and dark rendering. Preview actions do not
 contact a shopping account. The preview entry is excluded from the production app bundle.
+
+The preview also includes the list index (**All lists**), the editable list, and
+the cart view. **Save to list** on a product asks which saved list to use, or
+creates a new one. Product details link to the product page on kroger.com when
+Kroger provides one. `view_cart` renders the live cart, or the items added
+through the assistant when no cart id is known.
 
 Weekly deals can be filtered by category, and **Find product** opens matching products inside
 the app using the deal's store. Shopping-list actions distinguish Kroger matches from unmatched

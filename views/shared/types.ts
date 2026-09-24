@@ -5,6 +5,8 @@ export type {
   AddShoppingListToCartContent,
   AppData,
   AppViewName,
+  CartViewContent,
+  CartViewItemData,
   DealData,
   KitchenEquipmentContent,
   KitchenEquipmentItemData,
@@ -18,6 +20,8 @@ export type {
   ProductSearchResultsContent,
   ShoppingListContent,
   ShoppingListItemData,
+  ShoppingListsContent,
+  ShoppingListSummaryData,
   StoreDetailContent,
   StoreResultsContent,
   WeeklyDealsContent,
@@ -25,9 +29,13 @@ export type {
 export { parseAppResult as parseToolResult } from "../../src/app-results.js";
 
 import type {
+  AddShoppingListItemsArgs,
   AddShoppingListToCartArgs,
   AddToInventoryArgs,
   CreateShoppingListArgs,
+  EditShoppingListItemArgs,
+  GetShoppingListArgs,
+  RecordOrderArgs,
   RemoveFromInventoryArgs,
 } from "../../src/tools/tool-types.js";
 
@@ -37,6 +45,10 @@ export type { AddShoppingListToCartArgs };
 export type ToolCall =
   | { name: "add_shopping_list_to_cart"; arguments: AddShoppingListToCartArgs }
   | { name: "create_shopping_list"; arguments: CreateShoppingListArgs }
+  | { name: "get_shopping_list"; arguments: GetShoppingListArgs }
+  | { name: "add_shopping_list_items"; arguments: AddShoppingListItemsArgs }
+  | { name: "edit_shopping_list_item"; arguments: EditShoppingListItemArgs }
+  | { name: "record_order"; arguments: RecordOrderArgs }
   | { name: "add_to_inventory"; arguments: AddToInventoryArgs }
   | { name: "remove_from_inventory"; arguments: RemoveFromInventoryArgs }
   | { name: "set_preferred_store"; arguments: { storeId: string } }

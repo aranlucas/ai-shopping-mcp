@@ -5,14 +5,16 @@ import type {
   McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps/react";
 
-import { useCallback, useState } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
+import type { ChangeEvent, MouseEvent, ReactNode } from "react";
+
+import { loadShoppingLists } from "../app/tool-calls.js";
 
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardFooter } from "./ui/card";
 
-import type { ProductData } from "./types.js";
+import type { ProductData, ShoppingListSummaryData } from "./types.js";
 
 export { Badge };
 
@@ -182,6 +184,7 @@ export function ActionButton({
   failLabel,
   variant = "primary",
   labelContext,
+  iconOnly = false,
 }: {
   state: "idle" | "loading" | "done" | "error";
   onClick: () => void | Promise<void>;
@@ -193,6 +196,8 @@ export function ActionButton({
   failLabel?: string;
   variant?: "primary" | "secondary";
   labelContext?: string;
+  /** Show only the icon; the state label stays available to screen readers. */
+  iconOnly?: boolean;
 }) {
   const handleClick = useCallback(() => {
     // Callers own their visible loading/error state. This event boundary also
@@ -251,12 +256,23 @@ export function ActionButton({
           />
         </svg>
       )}
-      <span aria-live="polite">{label}</span>
+      <span aria-live="polite" className={iconOnly ? "sr-only" : undefined}>
+        {label}
+      </span>
     </Button>
   );
 }
 
-export function CartCheckLink({ app }: { app: App | null }) {
+/** A link that opens through the host when it can, else as a normal link. */
+export function ExternalLink({
+  app,
+  href,
+  children,
+}: {
+  app: App | null;
+  href: string;
+  children: ReactNode;
+}) {
   const [error, setError] = useState<string | null>(null);
   const handleClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
@@ -264,33 +280,45 @@ export function CartCheckLink({ app }: { app: App | null }) {
       event.preventDefault();
       setError(null);
       app
-        .openLink({ url: "https://www.kroger.com/cart" })
+        .openLink({ url: href })
         .then((result) => {
           if (result.isError)
-            setError(
-              "Could not open Kroger. Open your cart in Kroger directly.",
-            );
+            setError("Could not open Kroger. Open it in your browser instead.");
           return result;
         })
         .catch(() =>
-          setError("Could not open Kroger. Open your cart in Kroger directly."),
+          setError("Could not open Kroger. Open it in your browser instead."),
         );
     },
-    [app],
+    [app, href],
   );
   return (
     <>
       <a
-        href="https://www.kroger.com/cart"
+        href={href}
         onClick={handleClick}
         target="_blank"
         rel="noreferrer"
         className="text-sm font-medium underline"
       >
-        Check Kroger cart
+        {children}
       </a>
       {error && <span role="alert">{error}</span>}
     </>
+  );
+}
+
+export function CartCheckLink({
+  app,
+  label = "Check Kroger cart",
+}: {
+  app: App | null;
+  label?: string;
+}) {
+  return (
+    <ExternalLink app={app} href="https://www.kroger.com/cart">
+      {label}
+    </ExternalLink>
   );
 }
 
@@ -377,10 +405,161 @@ export function CartActionControl({
   );
 }
 
+/** A product to save to a shopping list. */
+export type SaveableProduct = {
+  productName: string;
+  upc: string;
+  quantity: number;
+  price?: number;
+};
+
+export type SaveProductToList = (
+  product: SaveableProduct,
+  listId?: string,
+) => Promise<void>;
+
+const NEW_LIST = "";
+
+/**
+ * "Save to list" that asks which list to use. Lists load on first open; if
+ * they cannot load, the product can still go to a new list.
+ */
+function SaveToListControl({
+  app,
+  product,
+  disabled,
+  onSave,
+}: {
+  app: App | null;
+  product: SaveableProduct;
+  disabled?: boolean;
+  onSave: SaveProductToList;
+}) {
+  const [open, setOpen] = useState(false);
+  const [lists, setLists] = useState<ShoppingListSummaryData[] | null>(null);
+  const [listsState, setListsState] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
+  const [target, setTarget] = useState(NEW_LIST);
+  const [saveState, setSaveState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
+  const [error, setError] = useState<string | null>(null);
+  const selectId = useId();
+
+  const handleOpen = useCallback(async () => {
+    setOpen(true);
+    setError(null);
+    if (lists !== null) return;
+    setListsState("loading");
+    try {
+      setLists(await loadShoppingLists(app));
+      setListsState("idle");
+    } catch {
+      setLists([]);
+      setListsState("error");
+    }
+  }, [app, lists]);
+
+  const handleClose = useCallback(() => {
+    setOpen(false);
+    setSaveState("idle");
+  }, []);
+
+  const handleTarget = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => setTarget(event.target.value),
+    [],
+  );
+
+  const handleSave = useCallback(async () => {
+    setSaveState("loading");
+    setError(null);
+    try {
+      await onSave(product, target || undefined);
+      setSaveState("done");
+      // A new list now exists; reload next time the picker opens.
+      if (!target) setLists(null);
+      setTimeout(() => {
+        setOpen(false);
+        setSaveState("idle");
+      }, 1500);
+    } catch (e) {
+      setSaveState("error");
+      setError(e instanceof Error ? e.message : "Failed to save to list");
+    }
+  }, [onSave, product, target]);
+
+  if (!open) {
+    return (
+      <ActionButton
+        state="idle"
+        onClick={handleOpen}
+        disabled={disabled}
+        idleLabel="Save to list"
+        labelContext={product.productName}
+        variant="secondary"
+        icon={PLUS_ICON}
+      />
+    );
+  }
+
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <label htmlFor={selectId} className="text-xs text-gray-600">
+        Save {product.productName} to
+      </label>
+      <select
+        id={selectId}
+        value={target}
+        onChange={handleTarget}
+        disabled={listsState === "loading" || saveState === "loading"}
+        className="rounded-md border border-border bg-background p-1.5 text-sm"
+      >
+        <option value={NEW_LIST}>New list</option>
+        {(lists ?? []).map((list) => (
+          <option key={list.id} value={list.id}>
+            {list.name} ({list.itemCount})
+          </option>
+        ))}
+      </select>
+      {listsState === "loading" && (
+        <output className="text-xs text-gray-500">Loading your lists…</output>
+      )}
+      {listsState === "error" && (
+        <p className="text-xs text-gray-500">
+          Couldn&apos;t load your lists. You can still save to a new list.
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <ActionButton
+          state={saveState}
+          onClick={handleSave}
+          disabled={disabled || listsState === "loading"}
+          idleLabel="Save"
+          loadingLabel="Saving..."
+          doneLabel="Saved!"
+          failLabel="Retry save"
+          labelContext={product.productName}
+          variant="secondary"
+        />
+        <Button variant="ghost" size="sm" onClick={handleClose}>
+          Cancel
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ProductActions({
   app,
   upc,
   name,
+  price,
   disabled,
   cartDisabled,
   onAddToList,
@@ -388,9 +567,10 @@ export function ProductActions({
   app: App | null;
   upc: string;
   name: string;
+  price?: number;
   disabled?: boolean;
   cartDisabled?: boolean;
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToList: SaveProductToList;
 }) {
   const cart = useCartAction(
     app,
@@ -401,62 +581,36 @@ export function ProductActions({
         productName: name,
         upc,
         quantity: 1,
+        price,
       },
       modality: "PICKUP",
     },
     2000,
   );
-  const [listState, setListState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const handleList = useCallback(async () => {
-    setListState("loading");
-    setErrorMsg(null);
-    try {
-      await onAddToList(name, upc);
-      setListState("done");
-      setTimeout(() => setListState("idle"), 2000);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to add to list";
-      setListState("error");
-      setErrorMsg(msg);
-    }
-  }, [name, onAddToList, upc]);
+  const saveable = useMemo(
+    () => ({ productName: name, upc, quantity: 1, price }),
+    [name, upc, price],
+  );
 
   return (
-    <div>
-      <div className="flex flex-wrap gap-2">
-        <CartActionControl
-          app={app}
-          state={cart.state}
-          onSubmit={cart.submit}
-          disabled={disabled || cartDisabled}
-          idleLabel="Add to Cart"
-          loadingLabel="Adding..."
-          doneLabel="Added!"
-          failLabel="Retry cart"
-          labelContext={name}
-        />
-        <ActionButton
-          state={listState}
-          onClick={handleList}
-          disabled={disabled}
-          idleLabel="Save to list"
-          loadingLabel="Saving..."
-          doneLabel="Saved!"
-          failLabel="Retry save"
-          labelContext={name}
-          variant="secondary"
-          icon={PLUS_ICON}
-        />
-      </div>
-      {errorMsg && (
-        <div role="alert" className="mt-2 text-sm text-red-600">
-          {errorMsg}
-        </div>
-      )}
+    <div className="flex flex-wrap gap-2">
+      <CartActionControl
+        app={app}
+        state={cart.state}
+        onSubmit={cart.submit}
+        disabled={disabled || cartDisabled}
+        idleLabel="Add to Cart"
+        loadingLabel="Adding..."
+        doneLabel="Added!"
+        failLabel="Retry cart"
+        labelContext={name}
+      />
+      <SaveToListControl
+        app={app}
+        product={saveable}
+        disabled={disabled}
+        onSave={onAddToList}
+      />
     </div>
   );
 }
@@ -511,7 +665,7 @@ export function ProductCard({
   app: App | null;
   product: ProductData;
   canCallTools: boolean;
-  onAddToList: (name: string, upc: string) => Promise<void>;
+  onAddToList: SaveProductToList;
 }) {
   const name = product.name;
   const brand = product.brand;
@@ -574,6 +728,7 @@ export function ProductCard({
           upc={upc}
           cartDisabled={!product.available}
           name={name}
+          price={product.price}
           disabled={!canCallTools}
           onAddToList={onAddToList}
         />

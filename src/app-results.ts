@@ -71,8 +71,21 @@ const shoppingListItemSchema = z.object({
   upc: z.string().optional(),
   quantity: z.number(),
   notes: z.string().optional(),
+  price: z.number().optional(),
   id: z.string().optional(),
   checked: z.boolean().optional(),
+});
+const shoppingListSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  itemCount: z.number(),
+  updatedAt: z.string(),
+});
+const cartViewItemSchema = z.object({
+  upc: z.string(),
+  productName: z.string().optional(),
+  quantity: z.number(),
+  modality: z.string().optional(),
 });
 const orderItemSchema = z.object({
   upc: z.string().optional(),
@@ -182,7 +195,14 @@ export const appPayloadSchemas = {
     items: z.array(shoppingListItemSchema),
     actionDetail: z.string().optional(),
   }),
+  shopping_lists: z.object({ lists: z.array(shoppingListSummarySchema) }),
   add_shopping_list_to_cart: cartResultSchema,
+  view_cart: z.object({
+    source: z.enum(["live", "assistant"]),
+    cartId: z.string().optional(),
+    items: z.array(cartViewItemSchema),
+    note: z.string().optional(),
+  }),
   record_order: z.object({
     orderId: z.string(),
     items: z.array(orderItemSchema),
@@ -199,6 +219,8 @@ export type ProductData = z.infer<typeof productSchema>;
 export type PantryItemData = z.infer<typeof pantryItemSchema>;
 export type KitchenEquipmentItemData = z.infer<typeof equipmentItemSchema>;
 export type ShoppingListItemData = z.infer<typeof shoppingListItemSchema>;
+export type ShoppingListSummaryData = z.infer<typeof shoppingListSummarySchema>;
+export type CartViewItemData = z.infer<typeof cartViewItemSchema>;
 type AppResultPayloads = {
   [View in keyof typeof appPayloadSchemas]: z.infer<
     (typeof appPayloadSchemas)[View]
@@ -237,6 +259,8 @@ export type AddShoppingListToCartContent = Extract<
   { view: "add_shopping_list_to_cart" }
 >;
 export type OrderHistoryContent = Extract<AppData, { view: "record_order" }>;
+export type ShoppingListsContent = Extract<AppData, { view: "shopping_lists" }>;
+export type CartViewContent = Extract<AppData, { view: "view_cart" }>;
 
 export const APP_VIEW_NAMES: Record<AppViewName, true> = {
   get_weekly_deals: true,
@@ -248,7 +272,9 @@ export const APP_VIEW_NAMES: Record<AppViewName, true> = {
   pantry: true,
   kitchen_equipment: true,
   create_shopping_list: true,
+  shopping_lists: true,
   add_shopping_list_to_cart: true,
+  view_cart: true,
   record_order: true,
 };
 

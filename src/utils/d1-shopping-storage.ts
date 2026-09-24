@@ -1,4 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { drizzle } from "drizzle-orm/d1";
 
 import type {
@@ -33,6 +34,29 @@ function newListItems(items: ShoppingListItem[]): StoredShoppingListItem[] {
   }));
 }
 
+function toPantryItems(rows: (typeof pantryItems.$inferSelect)[]) {
+  return rows.map((row) => {
+    const item: PantryItem = {
+      productName: row.productName,
+      quantity: row.quantity,
+      addedAt: row.addedAt,
+    };
+    if (row.expiresAt !== null) item.expiresAt = row.expiresAt;
+    return item;
+  });
+}
+
+function toEquipmentItems(rows: (typeof equipmentItems.$inferSelect)[]) {
+  return rows.map((row) => {
+    const item: EquipmentItem = {
+      equipmentName: row.equipmentName,
+      addedAt: row.addedAt,
+    };
+    if (row.category !== null) item.category = row.category;
+    return item;
+  });
+}
+
 function listFromRow(row: typeof shoppingLists.$inferSelect): ShoppingList {
   return {
     id: row.id,
@@ -49,37 +73,30 @@ export function createD1ShoppingStore(
 ): ShoppingStore {
   const db = drizzle(binding);
 
-  const getPantry = async () => {
-    const rows = await db
-      .select()
-      .from(pantryItems)
-      .where(eq(pantryItems.userId, userId))
-      .all();
-    return rows.map((row) => {
-      const item: PantryItem = {
-        productName: row.productName,
-        quantity: row.quantity,
-        addedAt: row.addedAt,
-      };
-      if (row.expiresAt !== null) item.expiresAt = row.expiresAt;
-      return item;
-    });
-  };
+  const selectPantry = () =>
+    db.select().from(pantryItems).where(eq(pantryItems.userId, userId));
+  const getPantry = async () => toPantryItems(await selectPantry().all());
 
-  const getEquipment = async () => {
-    const rows = await db
-      .select()
-      .from(equipmentItems)
-      .where(eq(equipmentItems.userId, userId))
-      .all();
-    return rows.map((row) => {
-      const item: EquipmentItem = {
-        equipmentName: row.equipmentName,
-        addedAt: row.addedAt,
-      };
-      if (row.category !== null) item.category = row.category;
-      return item;
-    });
+  const selectEquipment = () =>
+    db.select().from(equipmentItems).where(eq(equipmentItems.userId, userId));
+  const getEquipment = async () =>
+    toEquipmentItems(await selectEquipment().all());
+
+  /**
+   * Applies writes and reads the result back in one D1 batch. D1 runs a batch
+   * as a single transaction in order, so a failure leaves nothing half-written
+   * and duplicate names still merge in request order.
+   */
+  const writeThenRead = async <TRow>(
+    writes: BatchItem<"sqlite">[],
+    read: BatchItem<"sqlite"> & PromiseLike<TRow[]>,
+  ): Promise<TRow[]> => {
+    // The read is always present, so the batch is never empty.
+    const statements: BatchItem<"sqlite">[] = [...writes, read];
+    const results = await db.batch(
+      statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]],
+    );
+    return results.at(-1) as TRow[];
   };
 
   const getListRow = (listId: string) =>
@@ -194,10 +211,8 @@ export function createD1ShoppingStore(
       getAll: getPantry,
       add: async (items) => {
         const entries = Array.isArray(items) ? items : [items];
-        for (const item of entries) {
-          // Keep duplicate item names in request order when quantities merge.
-          // eslint-disable-next-line no-await-in-loop
-          await db
+        const writes = entries.map((item) =>
+          db
             .insert(pantryItems)
             .values({
               userId,
@@ -214,25 +229,22 @@ export function createD1ShoppingStore(
                 addedAt: item.addedAt,
                 expiresAt: sql`COALESCE(excluded.expires_at, ${pantryItems.expiresAt})`,
               },
-            })
-            .run();
-        }
-        return getPantry();
+            }),
+        );
+        return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
       remove: async (names) => {
-        for (const name of Array.isArray(names) ? names : [names]) {
-          // eslint-disable-next-line no-await-in-loop
-          await db
+        const writes = (Array.isArray(names) ? names : [names]).map((name) =>
+          db
             .delete(pantryItems)
             .where(
               and(
                 eq(pantryItems.userId, userId),
                 eq(pantryItems.nameKey, nameKey(name)),
               ),
-            )
-            .run();
-        }
-        return getPantry();
+            ),
+        );
+        return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
       updateQuantity: async (productName, quantity) => {
         await db
@@ -258,10 +270,8 @@ export function createD1ShoppingStore(
       getAll: getEquipment,
       add: async (items) => {
         const entries = Array.isArray(items) ? items : [items];
-        for (const item of entries) {
-          // Keep duplicate item names in request order when metadata merges.
-          // eslint-disable-next-line no-await-in-loop
-          await db
+        const writes = entries.map((item) =>
+          db
             .insert(equipmentItems)
             .values({
               userId,
@@ -276,25 +286,22 @@ export function createD1ShoppingStore(
                 category: sql`COALESCE(excluded.category, ${equipmentItems.category})`,
                 addedAt: item.addedAt,
               },
-            })
-            .run();
-        }
-        return getEquipment();
+            }),
+        );
+        return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
       remove: async (names) => {
-        for (const name of Array.isArray(names) ? names : [names]) {
-          // eslint-disable-next-line no-await-in-loop
-          await db
+        const writes = (Array.isArray(names) ? names : [names]).map((name) =>
+          db
             .delete(equipmentItems)
             .where(
               and(
                 eq(equipmentItems.userId, userId),
                 eq(equipmentItems.nameKey, nameKey(name)),
               ),
-            )
-            .run();
-        }
-        return getEquipment();
+            ),
+        );
+        return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
       clear: async () => {
         await db
@@ -326,18 +333,18 @@ export function createD1ShoppingStore(
         return row ? listFromRow(row) : null;
       },
       list: async () => {
-        const rows = await db
-          .select()
+        // Count in SQL so summaries never load every list's items.
+        return db
+          .select({
+            id: shoppingLists.id,
+            name: shoppingLists.name,
+            itemCount: sql<number>`json_array_length(${shoppingLists.items})`,
+            updatedAt: shoppingLists.updatedAt,
+          })
           .from(shoppingLists)
           .where(eq(shoppingLists.userId, userId))
           .orderBy(desc(shoppingLists.updatedAt))
           .all();
-        return rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          itemCount: row.items.length,
-          updatedAt: row.updatedAt,
-        }));
       },
       addItems: (listId, items) =>
         mutateList(listId, (current) => {

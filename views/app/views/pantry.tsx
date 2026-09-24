@@ -19,7 +19,7 @@ import {
 
 const REMOVE_ICON = (
   <svg
-    aria-label="Remove"
+    aria-hidden="true"
     className="size-3"
     fill="none"
     viewBox="0 0 24 24"
@@ -93,16 +93,32 @@ function PantryItemRow({
   item,
   canCallTools,
   onRemove,
+  onUse,
   now,
 }: {
   item: PantryItemData;
   canCallTools: boolean;
   onRemove: (name: string) => Promise<void>;
+  onUse: (name: string) => Promise<void>;
   now: number;
 }) {
   const [removeState, setRemoveState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+  const [consumeState, setConsumeState] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
+
+  const handleUse = useCallback(async () => {
+    setConsumeState("loading");
+    try {
+      await onUse(item.productName);
+      setConsumeState("idle");
+    } catch {
+      setConsumeState("error");
+      setTimeout(() => setConsumeState("idle"), 2000);
+    }
+  }, [item.productName, onUse]);
 
   const handleRemove = useCallback(async () => {
     setRemoveState("loading");
@@ -155,15 +171,29 @@ function PantryItemRow({
         </div>
       </div>
 
+      {/* Use one */}
+      <ActionButton
+        state={consumeState}
+        onClick={handleUse}
+        disabled={!canCallTools || removeState !== "idle"}
+        idleLabel="Use one"
+        loadingLabel="Updating…"
+        failLabel="Retry"
+        labelContext={item.productName}
+        variant="secondary"
+      />
+
       {/* Remove */}
       <ActionButton
         state={removeState}
         onClick={handleRemove}
         disabled={!canCallTools}
-        idleLabel=""
-        loadingLabel=""
-        doneLabel=""
-        failLabel=""
+        idleLabel="Remove"
+        loadingLabel="Removing"
+        doneLabel="Removed"
+        failLabel="Remove failed"
+        labelContext={item.productName}
+        iconOnly
         variant="secondary"
         icon={REMOVE_ICON}
       />
@@ -205,6 +235,19 @@ export function PantryView({
         arguments: { inventory: "pantry", items: [{ name }] },
       });
       if (result?.isError) throw new Error("Failed to remove item");
+      const updated = parseToolResult(result);
+      if (updated) setData(updated);
+    },
+    [app, setData],
+  );
+
+  const handleUse = useCallback(
+    async (name: string) => {
+      const result = await callTool(app, {
+        name: "remove_from_inventory",
+        arguments: { inventory: "pantry", items: [{ name, quantity: 1 }] },
+      });
+      if (result?.isError) throw new Error("Failed to update item");
       const updated = parseToolResult(result);
       if (updated) setData(updated);
     },
@@ -307,6 +350,7 @@ export function PantryView({
                 item={item}
                 canCallTools={canCallTools}
                 onRemove={handleRemove}
+                onUse={handleUse}
                 now={now}
               />
             ))}
@@ -324,6 +368,7 @@ export function PantryView({
               item={item}
               canCallTools={canCallTools}
               onRemove={handleRemove}
+              onUse={handleUse}
               now={now}
             />
           ))}

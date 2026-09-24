@@ -45,6 +45,41 @@ describe("D1 shopping storage", () => {
     expect(await user.preferredLocation.get()).toBeNull();
   });
 
+  it("merges duplicate pantry names within one batched write", async () => {
+    const user = shopper();
+    const now = "2026-09-23T00:00:00.000Z";
+
+    const stored = await user.pantry.add([
+      { productName: "Milk", quantity: 1, addedAt: now },
+      { productName: "MILK", quantity: 2, addedAt: now },
+      { productName: "Bread", quantity: 1, addedAt: now },
+    ]);
+
+    expect(stored).toHaveLength(2);
+    expect(stored.find((item) => item.productName === "Milk")).toMatchObject({
+      quantity: 3,
+    });
+    expect(await user.pantry.remove(["milk", "bread"])).toEqual([]);
+  });
+
+  it("writes nothing when any statement in a pantry batch fails", async () => {
+    const user = shopper();
+    const now = "2026-09-23T00:00:00.000Z";
+
+    await expect(
+      user.pantry.add([
+        { productName: "Rice", quantity: 1, addedAt: now },
+        // NOT NULL violation fails the whole batch.
+        {
+          productName: "Beans",
+          quantity: null as unknown as number,
+          addedAt: now,
+        },
+      ]),
+    ).rejects.toThrow(/NOT NULL/i);
+    expect(await user.pantry.getAll()).toEqual([]);
+  });
+
   it("edits lists and keeps list IDs inaccessible to another shopper", async () => {
     const user = shopper();
     const other = shopper();

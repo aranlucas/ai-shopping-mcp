@@ -33,7 +33,8 @@ const mcpApiHandler = {
     ctx: ExecutionContext,
   ): Promise<Response> {
     const handler = createMcpHandler(
-      (requestContext) => buildServer(env, requestContext),
+      (requestContext) =>
+        buildServer(env, requestContext, (promise) => ctx.waitUntil(promise)),
       {
         route: "/mcp",
       },

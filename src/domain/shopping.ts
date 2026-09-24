@@ -39,6 +39,8 @@ export interface ShoppingListItem {
   upc?: string;
   quantity: number;
   notes?: string;
+  /** Unit price in dollars when known from a Kroger match. */
+  price?: number;
 }
 
 /** A record returned by storage always has durable identity and checked state. */

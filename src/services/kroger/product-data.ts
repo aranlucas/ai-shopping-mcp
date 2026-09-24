@@ -36,6 +36,20 @@ function toImageUrl(product: Product): string | undefined {
   );
 }
 
+const KROGER_ORIGIN = "https://www.kroger.com";
+
+/** Kroger returns a site-relative page path; never follow it off kroger.com. */
+export function toProductPageUrl(path: string | undefined): string | undefined {
+  if (!path?.startsWith("/")) return undefined;
+  try {
+    const url = new URL(path, KROGER_ORIGIN);
+    if (url.origin !== KROGER_ORIGIN) return undefined;
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export function toProductData(
   product: Product,
   includeLocation = false,
@@ -53,6 +67,7 @@ export function toProductData(
     size: item?.size,
     category: product.categories?.[0],
     imageUrl: toImageUrl(product),
+    url: toProductPageUrl(product.productPageURI),
     ...(includeLocation ? { aisle: toAisle(product) } : {}),
     // Missing stock data is not evidence that a listed product is unavailable.
     available: item?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK",

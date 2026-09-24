@@ -6,17 +6,23 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  type AppData,
   appResult,
+  type CartViewContent,
   type ProductSearchResultsContent,
   type ShoppingListContent,
+  type ShoppingListsContent,
   type WeeklyDealsContent,
 } from "../src/app-results.js";
+import { CartView } from "./app/views/cart.js";
 import { ProductSearchView } from "./app/views/product-search.js";
 import { ShoppingListView } from "./app/views/shopping-list.js";
+import { ShoppingListsView } from "./app/views/shopping-lists.js";
 import { WeeklyDealsView } from "./app/views/weekly-deals.js";
 import { ErrorDisplay, ProductSearchSkeleton } from "./shared/status.js";
 import type { ToolCall } from "./shared/types.js";
@@ -119,28 +125,40 @@ const LIST: ShoppingListContent = {
   name: "Dinner for the week",
   items: [
     {
+      id: "item-1",
+      checked: false,
       productName: "Fresh organic strawberries",
       upc: "0001111000001",
+      price: 3.99,
       quantity: 2,
       notes: "Choose ripe berries for breakfast and the spinach salad.",
     },
     {
+      id: "item-2",
+      checked: false,
       productName: "Boneless skinless chicken breasts, family pack",
       upc: "0001111000005",
+      price: 11.49,
       quantity: 1,
       notes: "Enough for two dinners. Freeze half after shopping.",
     },
     {
+      id: "item-3",
+      checked: true,
       productName: "Greek yogurt, plain and unsweetened",
       upc: "0001111000006",
       quantity: 3,
     },
     {
+      id: "item-4",
+      checked: false,
       productName: "Brown jasmine rice",
       quantity: 1,
       notes: "Keep this item on the list until a product is selected.",
     },
     {
+      id: "item-5",
+      checked: false,
       productName: "A large bunch of fresh herbs for the weekend meal",
       quantity: 1,
       notes:
@@ -148,6 +166,74 @@ const LIST: ShoppingListContent = {
     },
   ],
 };
+
+const LISTS: ShoppingListsContent = {
+  view: "shopping_lists",
+  lists: [
+    {
+      id: "preview-list",
+      name: "Dinner for the week",
+      itemCount: 5,
+      updatedAt: "2026-09-20T18:00:00.000Z",
+    },
+    {
+      id: "preview-list-2",
+      name: "Saturday brunch",
+      itemCount: 3,
+      updatedAt: "2026-09-18T09:00:00.000Z",
+    },
+  ],
+};
+const CART: CartViewContent = {
+  view: "view_cart",
+  source: "assistant",
+  items: [
+    {
+      upc: "0001111000001",
+      productName: "Fresh organic strawberries",
+      quantity: 2,
+      modality: "PICKUP",
+    },
+    {
+      upc: "0001111000005",
+      productName: "Boneless skinless chicken breasts, family pack",
+      quantity: 1,
+      modality: "PICKUP",
+    },
+    {
+      upc: "0001111000001",
+      productName: "Fresh organic strawberries",
+      quantity: 1,
+      modality: "PICKUP",
+    },
+  ],
+};
+
+/** Applies a simulated list edit so the preview behaves like the server. */
+function editPreviewList(
+  list: ShoppingListContent,
+  args: Extract<ToolCall, { name: "edit_shopping_list_item" }>["arguments"],
+): ShoppingListContent {
+  if (args.remove)
+    return {
+      ...list,
+      items: list.items.filter((item) => item.id !== args.itemId),
+    };
+  return {
+    ...list,
+    items: list.items.map((item) =>
+      item.id === args.itemId
+        ? {
+            ...item,
+            ...(args.checked === undefined ? {} : { checked: args.checked }),
+            ...(args.quantity === undefined
+              ? {}
+              : { quantity: Number(args.quantity) }),
+          }
+        : item,
+    ),
+  };
+}
 
 function Preview() {
   const [view, setView] = useState("deals");
@@ -160,10 +246,14 @@ function Preview() {
     [],
   );
   const [lastAction, setLastAction] = useState("No actions yet.");
-  const handleView = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => setView(event.target.value),
-    [],
-  );
+  const [listData, setListData] = useState<AppData | null>(LIST);
+  const listRef = useRef<ShoppingListContent>(LIST);
+  const handleView = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    const next = event.target.value;
+    setView(next);
+    listRef.current = LIST;
+    setListData(next === "lists" ? LISTS : LIST);
+  }, []);
   const handleTheme = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => setTheme(event.target.value),
     [],
@@ -216,6 +306,40 @@ function Preview() {
             return {
               content: [],
               structuredContent: { listId: "preview-created-list" },
+            };
+          if (call.name === "get_shopping_list")
+            return call.arguments.listId
+              ? {
+                  content: [],
+                  ...appResult("create_shopping_list", listRef.current),
+                }
+              : { content: [], ...appResult("shopping_lists", LISTS) };
+          if (call.name === "add_shopping_list_items")
+            return {
+              content: [],
+              ...appResult("create_shopping_list", listRef.current),
+            };
+          if (call.name === "edit_shopping_list_item") {
+            listRef.current = editPreviewList(listRef.current, call.arguments);
+            return {
+              content: [],
+              ...appResult("create_shopping_list", listRef.current),
+            };
+          }
+          if (call.name === "record_order")
+            return {
+              content: [],
+              ...appResult("record_order", {
+                orderId: "preview-order",
+                items: [],
+                totalItems: 0,
+                placedAt: new Date().toISOString(),
+              }),
+            };
+          if (call.name === "remove_from_inventory")
+            return {
+              content: [],
+              ...appResult("pantry", { items: [] }),
             };
           if (call.name === "add_shopping_list_to_cart")
             return {
@@ -293,6 +417,8 @@ function Preview() {
               <option value="stale">Stale deals</option>
               <option value="products">Products</option>
               <option value="list">Shopping list</option>
+              <option value="lists">All lists</option>
+              <option value="cart">Cart</option>
               <option value="empty">Empty deals</option>
               <option value="failed">Failed search</option>
               <option value="loading">Loading</option>
@@ -344,9 +470,25 @@ function Preview() {
         {view === "failed" && (
           <ProductSearchView data={failedProducts} app={app} canCallTools />
         )}
-        {view === "list" && (
-          <ShoppingListView data={LIST} app={app} canCallTools />
-        )}
+        {(view === "list" || view === "lists") &&
+          listData?.view === "create_shopping_list" && (
+            <ShoppingListView
+              data={listData}
+              setData={setListData}
+              app={app}
+              canCallTools
+            />
+          )}
+        {(view === "list" || view === "lists") &&
+          listData?.view === "shopping_lists" && (
+            <ShoppingListsView
+              data={listData}
+              setData={setListData}
+              app={app}
+              canCallTools
+            />
+          )}
+        {view === "cart" && <CartView data={CART} app={app} />}
         {view === "loading" && <ProductSearchSkeleton />}
         {view === "error" && (
           <ErrorDisplay message="Your session expired. Reconnect your account and ask your assistant to try again." />

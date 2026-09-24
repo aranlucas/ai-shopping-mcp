@@ -201,6 +201,15 @@ describe("MCP App view routing", () => {
         placedAt: "2026-09-18",
       },
     ],
+    [
+      "shopping_lists",
+      {
+        lists: [
+          { id: "1", name: "Groceries", itemCount: 2, updatedAt: "2026-09" },
+        ],
+      },
+    ],
+    ["view_cart", { source: "assistant", items: [{ upc: "1", quantity: 2 }] }],
   ])(
     "accepts valid %s payloads including optional-field omissions",
     (view, payload) => {

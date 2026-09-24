@@ -341,12 +341,8 @@ describe("MCP client over Worker OAuth integration", () => {
     expect(toolNames).toContain("get_meal_planning_context");
     // Text-only tools: their results are read by the model, not rendered.
     const textOnlyTools = new Set([
-      "add_shopping_list_items",
-      "edit_shopping_list_item",
       "get_meal_planning_context",
-      "get_shopping_list",
       "get_shopping_profile",
-      "view_cart",
     ]);
     const uiMismatches = tools.tools
       .filter(

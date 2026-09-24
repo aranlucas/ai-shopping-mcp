@@ -234,9 +234,12 @@ describe("MCP agent contract", () => {
     const tools = registerAllTools();
     const appBackedTools = [
       "add_to_inventory",
+      "add_shopping_list_items",
       "add_shopping_list_to_cart",
       "create_shopping_list",
+      "edit_shopping_list_item",
       "get_product",
+      "get_shopping_list",
       "get_store",
       "get_weekly_deals",
       "record_order",
@@ -245,6 +248,7 @@ describe("MCP agent contract", () => {
       "search_stores",
       "set_preferred_store",
       "shop_for_items",
+      "view_cart",
     ];
 
     for (const name of appBackedTools) {
@@ -259,9 +263,6 @@ describe("MCP agent contract", () => {
 
     const shoppingProfile = toolByName(tools, "get_shopping_profile");
     expect(shoppingProfile.config._meta?.ui?.resourceUri).toBeUndefined();
-
-    const viewCart = toolByName(tools, "view_cart");
-    expect(viewCart.config._meta?.ui?.resourceUri).toBeUndefined();
   });
 
   it("models product search and shopping list validation in schemas", () => {

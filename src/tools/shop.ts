@@ -8,7 +8,10 @@ import type { components as ProductComponents } from "../services/kroger/product
 
 import { appResult } from "../app-results.js";
 import { apiError, notFoundError } from "../errors.js";
-import { formatKrogerPrice } from "../services/kroger/price.js";
+import {
+  formatKrogerPrice,
+  normalizeKrogerPrice,
+} from "../services/kroger/price.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import {
   classifyShoppingItem,
@@ -21,6 +24,7 @@ import {
   safeResolveLocationId,
   toMcpError,
 } from "../utils/result.js";
+import { formatListSize } from "../utils/format-response.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import type {
   PantryStore,
@@ -275,11 +279,15 @@ export function registerShopTools(
         flags: itemFlagLabels(request.name, pantryItems, deals),
       }));
 
-      const listItems: ShoppingListItem[] = matched.map((match) => ({
-        productName: match.product.description || match.name,
-        upc: match.product.upc,
-        quantity: match.quantity,
-      }));
+      const listItems: ShoppingListItem[] = matched.map((match) => {
+        const { price } = normalizeKrogerPrice(match.product.items?.[0]?.price);
+        return {
+          productName: match.product.description || match.name,
+          upc: match.product.upc,
+          quantity: match.quantity,
+          ...(price === undefined ? {} : { price }),
+        };
+      });
 
       const listName = `Shopping list ${new Date().toISOString().slice(0, 10)}`;
 
@@ -292,7 +300,7 @@ export function registerShopTools(
       const { listId, list } = createResult.value;
 
       const parts: string[] = [
-        `Created shopping list "${listName}" (listId=${listId}) with ${matched.length} item(s).`,
+        `Created shopping list "${listName}" (listId=${listId}) with ${formatListSize(list.items)}.`,
         "",
         ...matched.map((match) =>
           formatMatchLineMarkdown(

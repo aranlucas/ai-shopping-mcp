@@ -5,7 +5,7 @@ import {
 import { getMcpAuthContext } from "agents/mcp/server";
 
 import type { AppEnv } from "./env.js";
-import type { KrogerTokenInfo } from "./services/kroger/client.js";
+import type { KrogerTokenInfo, WaitUntil } from "./services/kroger/client.js";
 
 import { registerPrompts } from "./prompts.js";
 import { ProductService } from "./services/kroger/product-service.js";
@@ -49,6 +49,7 @@ export const SERVER_OPTIONS = {
 export function buildServer(
   env: AppEnv,
   requestContext: McpRequestContext,
+  waitUntil?: WaitUntil,
 ): McpServer {
   const userId = getProps().id;
   const clientId = requestContext.authInfo?.clientId ?? userId;
@@ -72,6 +73,7 @@ export function buildServer(
     },
     userDataKv,
     requestContext.requestInfo?.signal,
+    waitUntil,
   );
 
   const shoppingStore = createD1ShoppingStore(env.SHOPPING_DB, userId);
