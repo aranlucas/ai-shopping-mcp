@@ -3,15 +3,15 @@
 Scope: the Worker (`src/`), the MCP App views (`views/`), tests, CI/CD, config, and docs,
 as of `b11bf22`. I read the code and ran every repository check:
 
-| Check | Result |
-| --- | --- |
-| `pnpm lint` (standard + type-aware) | clean |
-| `pnpm fmt:check` | clean |
-| `pnpm typecheck` | clean |
-| `pnpm coverage` | 817 passed / 3 skipped; 93.4% statements, 82.4% branches |
-| `pnpm audit --prod` | 9 advisories (6 high, 2 moderate, 1 low), all transitive |
-| `wrangler deploy --dry-run` | 4.36 MiB upload / 830 KiB gzip |
-| `vite build` (views) | 635 kB single-file HTML / 179 kB gzip |
+| Check                               | Result                                                   |
+| ----------------------------------- | -------------------------------------------------------- |
+| `pnpm lint` (standard + type-aware) | clean                                                    |
+| `pnpm fmt:check`                    | clean                                                    |
+| `pnpm typecheck`                    | clean                                                    |
+| `pnpm coverage`                     | 817 passed / 3 skipped; 93.4% statements, 82.4% branches |
+| `pnpm audit --prod`                 | 9 advisories (6 high, 2 moderate, 1 low), all transitive |
+| `wrangler deploy --dry-run`         | 4.36 MiB upload / 830 KiB gzip                           |
+| `vite build` (views)                | 635 kB single-file HTML / 179 kB gzip                    |
 
 Severity: **High** means fix soon, **Medium** means schedule it, **Low** is hygiene.
 Items marked ✅ are fixed in the same PR as this report.
@@ -51,7 +51,7 @@ to the whole application, so one abusive or looping client can take product
 search offline for all users and run up AI spend. Dynamic client registration
 (`/register`) is open, which is expected for MCP, so the only natural throttle
 key is the shopper ID.
-*Fix:* add a [Workers Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
+_Fix:_ add a [Workers Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
 keyed by `userId` in `buildServer` (or in `mcpApiHandler`), with a tighter bucket
 for `shop_for_items`. Return a normal `API_ERROR` with status 429 so
 `errorRecovery` maps it to `retry_later`.
@@ -61,6 +61,7 @@ for `shop_for_items`. Return a normal `API_ERROR` with status 429 so
 (`src/tools/shopping-list.ts:58,65`), `record_order.items`
 (`src/tools/orders.ts:22`), and `add_to_inventory.items` /
 `remove_from_inventory.items` (`src/tools/inventory.ts:51,65`). The consequences:
+
 - Pantry and equipment writes issue **one D1 statement per item in a loop**
   (`src/utils/d1-shopping-storage.ts:197,261`). A large array can hit the
   per-invocation D1 query or CPU limits partway through and leave a
@@ -69,7 +70,7 @@ for `shop_for_items`. Return a normal `API_ERROR` with status 429 so
   so a huge list approaches D1's 2 MB row limit and makes every later edit slow.
 - `listId`/`itemId` strings have no length cap.
 
-*Fix:* cap arrays (for example 100 list items per call, 500 per list, 100 order
+_Fix:_ cap arrays (for example 100 list items per call, 500 per list, 100 order
 lines, 100 inventory items). Switch the loops to a single `db.batch([...])`
 so each call is atomic and takes one round trip.
 
@@ -81,7 +82,7 @@ stores `krogerClientId` and `krogerClientSecret` in grant props
 reading `env`. The props are encrypted, but this puts the app secret into every
 grant record. Rotating the secret also breaks refresh for every existing user,
 because old grants keep the old value.
-*Fix:* read `env.KROGER_CLIENT_ID`/`SECRET` in `tokenExchangeCallback`. The
+_Fix:_ read `env.KROGER_CLIENT_ID`/`SECRET` in `tokenExchangeCallback`. The
 callback does not receive `env` (v0.10.3), so construct the `OAuthProvider` inside
 `fetch` and let the callback close over `env`. Keep reading the grant fields only
 as a fallback for grants issued before the change.
@@ -90,17 +91,17 @@ as a fallback for grants issued before the change.
 concurrent `refresh_token` grants for the same grant can both pass
 `isKrogerTokenExpiring` (`src/server.ts:108`) and both call Kroger. The second
 gets `invalid_grant`, which the callback turns into "Reconnect the MCP server".
-*Fix:* serialize the refresh per grant, for example with a short-lived lock
+_Fix:_ serialize the refresh per grant, for example with a short-lived lock
 in the existing per-user `CartOperations` DO or in a small `TokenRefresh` DO. Add
 a test for the concurrent case.
 
 **S5. The `regenerate-worker-types` workflow runs dependency code with a write token.**
 It uses `pull_request_target` with `contents: write`, checks out the Dependabot
-branch, and runs `pnpm run cf-typegen`, which executes the *updated* `wrangler`
+branch, and runs `pnpm run cf-typegen`, which executes the _updated_ `wrangler`
 from that branch. `--ignore-scripts` blocks install hooks but not the
 binary itself. A compromised `wrangler` release could push to any Dependabot
 branch. The actor guard limits exposure, but this is still a supply-chain path.
-*Fix:* run typegen in a `pull_request` job with read-only permissions, upload
+_Fix:_ run typegen in a `pull_request` job with read-only permissions, upload
 the generated file as an artifact, and commit it from a separate
 `workflow_run` job that runs no dependency code. Alternatively, drop the
 workflow, since CI already regenerates types before typechecking.
@@ -116,7 +117,7 @@ be a `devDependency`. Add `pnpm.overrides` for the patched versions and add
 `JSON.stringify(error.detail)` (`src/errors.ts:186`), and `safeStorage`/`fromApiResponse`
 embed raw exception messages such as D1 SQL errors and upstream bodies in the text
 the model sees. This is low-risk, but it discloses internals and wastes tokens.
-*Fix:* log the detail server-side and give the model the message plus
+_Fix:_ log the detail server-side and give the model the message plus
 `recovery` only.
 
 ### Low
@@ -315,7 +316,7 @@ tests for cart state machines.
   `STORAGE_ERROR`s with `Sentry.captureException` (without user data), tagged
   with the tool name.
 - **O2. Logs are unstructured strings.** Emit JSON objects (`{ tool, code, userHash,
-  durationMs }`) so Workers Logs / Logpush can be queried. Hash the shopper ID
+durationMs }`) so Workers Logs / Logpush can be queried. Hash the shopper ID
   rather than logging it raw.
 - **O3. No metrics for Kroger quota use or AI Gateway cost.** Workers Analytics
   Engine counters per tool would support S1 and D5.
