@@ -7,8 +7,7 @@
 
 ![Illustration of meal planning turning fresh groceries into a checked shopping list](docs/images/readme-cover.png)
 
-*Concept artwork for the grocery MCP; the Worker serves the tools and app view described below.*
-
+_Concept artwork for the grocery MCP; the Worker serves the tools and app view described below._
 
 An OAuth-protected MCP server that gives AI clients a way to plan meals, check Kroger and QFC products and weekly deals, organize shopping lists, and prepare cart additions. A bundled interactive MCP App makes lists and product results easier to review.
 
@@ -28,7 +27,7 @@ Shopping, product search, stores, and weekly deals are Kroger/QFC-only.
 
 ## How the Worker is wired
 
-~~~mermaid
+```mermaid
 flowchart LR
   Client[MCP client] --> OAuth[OAuth-protected Worker]
   OAuth --> Tools[MCP tools and prompts]
@@ -37,38 +36,38 @@ flowchart LR
   Tools --> KV[OAuth and cache KV]
   Tools --> Cart[Cart operations Durable Object]
   Tools --> App[MCP App view]
-~~~
+```
 
 ## Run locally
 
 Requires Node.js 24.18.1 or newer and pnpm 12.6. Wrangler runs the Worker locally; set Kroger client credentials in the ignored `.dev.vars` file before testing OAuth or shopping requests.
 
-~~~sh
+```sh
 pnpm install
 pnpm db:migrate:local
 pnpm start
-~~~
+```
 
 The local Worker runs at `http://localhost:8788`. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html`.
 
-~~~sh
+```sh
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
-~~~
+```
 
 ## Connect an MCP client
 
 The deployed service accepts remote MCP connections at:
 
-~~~text
+```text
 https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp
-~~~
+```
 
 Clients that require a local proxy can use `mcp-remote`:
 
-~~~json
+```json
 {
   "mcpServers": {
     "kroger-shopping": {
@@ -81,7 +80,7 @@ Clients that require a local proxy can use `mcp-remote`:
     }
   }
 }
-~~~
+```
 
 ## Production resources and data
 
