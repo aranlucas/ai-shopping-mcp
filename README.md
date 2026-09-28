@@ -1,25 +1,95 @@
-# Grocery shopping MCP
+# From “what's for dinner?” to a Kroger-ready list
 
-Cloudflare Worker that exposes authenticated grocery shopping tools over MCP. Product search, carts, stores, and weekly deals are Kroger/QFC-only. OAuth grants live in the existing `OAUTH_KV` namespace; atomic cart operations live in the `CART_OPERATIONS` Durable Object; legacy cart receipts, the assistant cart mirror, and product/location caches live in `USER_DATA_KV`. Pantry, equipment, orders, preferred stores, and shopping lists live in the Worker's `SHOPPING_DB` D1 database. The Worker also serves one bundled MCP App view shared by tool results.
+[![CI](https://github.com/aranlucas/ai-shopping-mcp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aranlucas/ai-shopping-mcp/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/github/license/aranlucas/ai-shopping-mcp)](LICENSE)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-grocery_tools-5B5BD6)
 
-## Local development
+![Illustration of meal planning turning fresh groceries into a checked shopping list](docs/images/readme-cover.png)
 
-Keep local secrets in `.dev.vars`. `pnpm start` and `pnpm dev` load that file
-through Wrangler.
+*Concept artwork for the grocery MCP; the Worker serves the tools and app view described below.*
 
-Shopping data is scoped to the authenticated Kroger shopper ID and stored directly
-in D1. No second service or bearer-token forwarding is involved.
 
-The schema is defined in `src/db/schema.ts`. Generate a SQL migration with
-`pnpm db:generate`, then apply it with `pnpm db:migrate:local` for local
-development or `pnpm db:migrate:remote` for the configured Cloudflare database.
-Wrangler reads the migration files from `migrations/` via `migrations_dir` in
-`wrangler.jsonc`. New D1 storage starts empty; gateway records are not imported.
+An OAuth-protected MCP server that gives AI clients a way to plan meals, check Kroger and QFC products and weekly deals, organize shopping lists, and prepare cart additions. A bundled interactive MCP App makes lists and product results easier to review.
 
-Formatting uses Oxfmt with Prettier-style defaults: 80-column print width,
-two-space indentation, double quotes, semicolons, and trailing commas. Run
-`pnpm fmt` to apply formatting or `pnpm fmt:check` to check it. CI runs the
-format check alongside Oxlint, including the type-aware promise rules.
+> “Use what's in my pantry, plan three vegetarian dinners, then make a list of what I need from Kroger.”
+
+The host AI handles the meal plan; this Worker supplies the shopper-specific pantry, product, store, list, deal, and cart tools.
+
+## A grocery workflow with real store context
+
+- Find Kroger products and compare weekly deals for a preferred store.
+- Keep pantry, equipment, order history, and shopping lists in one shopper profile.
+- Turn recipe ingredients into a list, review matches, and choose which matched items to add to the cart.
+- Use the bundled MCP App to review lists, check items off, and retry safely after an uncertain cart response.
+- Connect over remote MCP OAuth to compatible clients.
+
+Shopping, product search, stores, and weekly deals are Kroger/QFC-only.
+
+## How the Worker is wired
+
+~~~mermaid
+flowchart LR
+  Client[MCP client] --> OAuth[OAuth-protected Worker]
+  OAuth --> Tools[MCP tools and prompts]
+  Tools --> Kroger[Kroger APIs]
+  Tools --> D1[(Shopping D1 database)]
+  Tools --> KV[OAuth and cache KV]
+  Tools --> Cart[Cart operations Durable Object]
+  Tools --> App[MCP App view]
+~~~
+
+## Run locally
+
+Requires Node.js 24.18.1 or newer and pnpm 12.6. Wrangler runs the Worker locally; set Kroger client credentials in the ignored `.dev.vars` file before testing OAuth or shopping requests.
+
+~~~sh
+pnpm install
+pnpm db:migrate:local
+pnpm start
+~~~
+
+The local Worker runs at `http://localhost:8788`. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html`.
+
+~~~sh
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+~~~
+
+## Connect an MCP client
+
+The deployed service accepts remote MCP connections at:
+
+~~~text
+https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp
+~~~
+
+Clients that require a local proxy can use `mcp-remote`:
+
+~~~json
+{
+  "mcpServers": {
+    "kroger-shopping": {
+      "command": "pnpm",
+      "args": [
+        "dlx",
+        "mcp-remote",
+        "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"
+      ]
+    }
+  }
+}
+~~~
+
+## Production resources and data
+
+User shopping data is stored in D1 and scoped to the authenticated Kroger shopper. OAuth grants use `OAUTH_KV`; cart operations use the `CART_OPERATIONS` Durable Object; caches and compatibility receipts use `USER_DATA_KV`.
+
+The schema is defined in [`src/db/schema.ts`](src/db/schema.ts). Apply local migrations with `pnpm db:migrate:local`; apply remote migrations before a Worker deployment with `pnpm db:migrate:remote`. Required production secrets are `KROGER_CLIENT_ID`, `KROGER_CLIENT_SECRET`, and `COOKIE_ENCRYPTION_KEY`. `SENTRY_DSN` is optional.
+
+---
 
 ### Tool dependencies
 
