@@ -41,3 +41,6 @@ yarn.lock
 .wrangler
 .claude/worktrees
 .worktrees/
+
+# Cloudflare CLI build output and generated types
+.cloudflare/
