@@ -13,9 +13,9 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "eval:mcp": "vitest run tests/evals",
     "test:selector:live": "node scripts/test-selector-live.mjs",
-    "deploy": "pnpm build:views && wrangler deploy",
+    "deploy": "pnpm build:worker && cf deploy --prebuilt",
     "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
-    "start": "wrangler dev",
+    "start": "cf dev",
     "cf-typegen": "wrangler types",
     "lint": "oxlint && pnpm lint:types",
     "lint:types": "oxlint -c .oxlintrc.type-aware.json",
@@ -30,7 +30,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply SHOPPING_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply SHOPPING_DB --remote",
-    "eval:selector:live": "node scripts/eval-selector-live.mjs"
+    "eval:selector:live": "node scripts/eval-selector-live.mjs",
+    "build:worker": "pnpm build:views && wrangler build --experimental-new-config --experimental-cf-build-output"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -66,6 +67,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-istanbul": "^4.1.11",
+    "cf": "1.0.0-beta.5",
     "concurrently": "^10.0.5",
     "drizzle-kit": "0.31.11",
     "oxfmt": "^0.70.0",
@@ -76,7 +78,7 @@
     "vite": "^8.3.1",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.11",
-    "wrangler": "^4.139.0"
+    "wrangler": "^4.143.0"
   },
   "engines": {
     "node": ">=24.18.1"

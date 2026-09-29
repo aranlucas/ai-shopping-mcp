@@ -128,10 +128,10 @@ Deploy from this repository with:
 
 ```bash
 pnpm build
-pnpm exec wrangler deploy
+pnpm deploy
 ```
 
-Keep the Worker name, KV namespace IDs, and Durable Object migration history in `wrangler.jsonc` stable. Configure these runtime secrets in Cloudflare:
+Keep the Worker name, KV namespace IDs, and Durable Object lifecycle declarations in `cloudflare.config.ts` stable. Configure these runtime secrets in Cloudflare:
 
 - `KROGER_CLIENT_ID`
 - `KROGER_CLIENT_SECRET`
@@ -359,3 +359,5 @@ pnpm test:selector:live
 ```
 
 Locally it uses the active Wrangler login. In CI it requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+See [Cloudflare CLI migration](CF_MIGRATION.md) for cf deployment and compatibility details.
