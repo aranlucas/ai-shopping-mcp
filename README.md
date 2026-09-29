@@ -359,5 +359,3 @@ pnpm test:selector:live
 ```
 
 Locally it uses the active Wrangler login. In CI it requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-
-See [Cloudflare CLI migration](CF_MIGRATION.md) for cf deployment and compatibility details.
