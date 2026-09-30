@@ -44,3 +44,4 @@ yarn.lock
 
 # Cloudflare CLI build output and generated types
 .cloudflare/
+eval-results/

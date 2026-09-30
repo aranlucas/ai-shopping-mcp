@@ -12,6 +12,8 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "eval:mcp": "vitest run tests/evals",
+    "eval:agent": "EVAL_AGENT=1 vitest run tests/evals/agent.eval.test.ts --reporter=vitest-evals/reporter --reporter=json --outputFile.json=eval-results/agent.json",
+    "eval:agent:summary": "node scripts/eval-agent-summary.mjs",
     "test:selector:live": "node scripts/test-selector-live.mjs",
     "deploy": "pnpm build:worker && cf deploy --prebuilt",
     "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
@@ -31,7 +33,8 @@
     "db:migrate:local": "wrangler d1 migrations apply SHOPPING_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply SHOPPING_DB --remote",
     "eval:selector:live": "node scripts/eval-selector-live.mjs",
-    "build:worker": "pnpm build:views && wrangler build --experimental-new-config --experimental-cf-build-output"
+    "build:worker": "pnpm build:views && wrangler build --experimental-new-config --experimental-cf-build-output",
+    "eval:agent:report": "vitest-evals serve eval-results/agent.json"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -61,12 +64,15 @@
   "devDependencies": {
     "@babel/core": "^8.0.6",
     "@cloudflare/vitest-plugin": "^1.2.6",
+    "@openrouter/ai-sdk-provider": "^2.10.0",
     "@shadcn/lint": "^0.2.0",
     "@types/node": "^26.6.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "@vitest-evals/harness-ai-sdk": "^0.17.0",
     "@vitest/coverage-istanbul": "^4.1.11",
+    "ai": "^6.0.197",
     "cf": "1.0.0-beta.5",
     "concurrently": "^10.0.5",
     "drizzle-kit": "0.31.11",
@@ -78,6 +84,7 @@
     "vite": "^8.3.1",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^4.1.11",
+    "vitest-evals": "^0.17.0",
     "wrangler": "^4.143.0"
   },
   "engines": {

@@ -3,6 +3,15 @@ import { defineConfig } from "vitest/config";
 
 const liveEval = process.env.EVAL_LIVE === "1";
 
+// The agent eval reads OPENROUTER_API_KEY from .dev.vars when it isn't exported.
+if (process.env.EVAL_AGENT === "1" && !process.env.OPENROUTER_API_KEY) {
+  try {
+    process.loadEnvFile(".dev.vars");
+  } catch {
+    // No .dev.vars: the agent eval skips itself without a key.
+  }
+}
+
 export default defineConfig({
   test: {
     root: ".",
@@ -63,6 +72,17 @@ export default defineConfig({
                 ...(process.env.EVAL_LOG
                   ? { EVAL_LOG: process.env.EVAL_LOG }
                   : {}),
+                // Agent eval over OpenRouter (`pnpm eval:agent`).
+                ...Object.fromEntries(
+                  [
+                    "EVAL_AGENT",
+                    "EVAL_MODELS",
+                    "EVAL_TASKS",
+                    "OPENROUTER_API_KEY",
+                  ].flatMap((name) =>
+                    process.env[name] ? [[name, process.env[name]]] : [],
+                  ),
+                ),
               },
             },
           }),
