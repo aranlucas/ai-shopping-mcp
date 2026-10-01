@@ -10,4 +10,9 @@ allowBuilds:
 
 minimumReleaseAge: 0
 
+overrides:
+  "@ai-sdk/provider-utils@>=4.0.0 <4.0.33": "4.0.33"
+  "undici@>=7.0.0 <7.29.1": "7.29.1"
+  "@esbuild-kit/core-utils>esbuild": "0.25.0"
+
 pmOnFail: ignore
