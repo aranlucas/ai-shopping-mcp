@@ -205,7 +205,7 @@ describe("inventory and profile tools", () => {
     });
 
     it("summarizes preferred store, pantry with expiring flags, equipment, and frequently purchased items", async () => {
-      const soon = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const soon = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
       const storage = makeStorage({
         preferredLocation: {
           get: async () => ({
