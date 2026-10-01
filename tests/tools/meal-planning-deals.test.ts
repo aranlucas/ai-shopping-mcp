@@ -15,7 +15,7 @@ import {
   resetToolTestHarness,
 } from "./tool-test-harness.js";
 import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
-import { registerRecipeTools } from "../../src/tools/recipes.js";
+import { registerInventoryTools } from "../../src/tools/inventory.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 
 vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
@@ -60,16 +60,13 @@ function legacyWarning(message: string): WeeklyDealWarning {
 }
 
 function call(args: Record<string, unknown> = {}) {
-  const { inputSchema } = getCapturedTool("get_meal_planning_context")
-    .config as {
+  const { inputSchema } = getCapturedTool("get_shopping_profile").config as {
     inputSchema: z.ZodType<Record<string, unknown>>;
   };
-  return getCapturedHandler("get_meal_planning_context")(
-    inputSchema.parse(args),
-  );
+  return getCapturedHandler("get_shopping_profile")(inputSchema.parse(args));
 }
 
-describe("meal planning with weekly deals", () => {
+describe("shopping profile with weekly deals", () => {
   let context: ReturnType<typeof makeContext>;
   let cache: Map<string, string>;
   let readCache: ReturnType<
@@ -96,12 +93,7 @@ describe("meal planning with weekly deals", () => {
         cache.set(key, value);
       },
     } as unknown as KvLike;
-    registerRecipeTools(context.server, {
-      pantry: context.pantry,
-      equipment: context.equipment,
-      orderHistory: context.orderHistory,
-      loadWeeklyDeals: context.loadWeeklyDeals,
-    });
+    registerInventoryTools(context.server, context);
   });
 
   afterEach(() => {
@@ -121,33 +113,25 @@ describe("meal planning with weekly deals", () => {
     cache.set(CACHE_KEY, JSON.stringify(entry));
   }
 
-  it("leaves default pantry planning free of deal reads and network calls", async () => {
+  it("leaves the default profile free of deal reads and network calls", async () => {
     const result = await call();
     expect(result.isError).toBe(false);
     expect(result.text).toContain("Rice x2");
-    expect(result.text).not.toContain("Weekly Deals");
+    expect(result.text).not.toContain("Weekly deals");
     expect(getQfcWeeklyDeals).not.toHaveBeenCalled();
     expect(readCache).not.toHaveBeenCalled();
   });
 
   it("combines preferred-store offers with pantry context and exact-product guidance", async () => {
-    const result = await call({
-      includeWeeklyDeals: true,
-      numberOfMeals: 2,
-      dietaryPreferences: "vegetarian",
-    });
+    const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("Rice x2");
     expect(result.text).toContain("Black beans | $0.99");
     expect(result.text).toContain(`storeId=${STORE_ID}`);
     expect(result.text).toContain("cache=miss");
-    expect(result.text).toContain("Dietary preferences: vegetarian");
     expect(result.text).toContain("search_products");
     expect(result.text).toContain("create_shopping_list");
-    expect(result.text).toContain(
-      "do not assume sale items are already in the pantry",
-    );
-    expect(result.structuredContent).toBeUndefined();
+    expect(result.text).toContain("Sale items are not in the pantry");
     expect(result._meta).toBeUndefined();
     expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -183,7 +167,7 @@ describe("meal planning with weekly deals", () => {
     context.preferredLocation.get = async () => null;
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
-    expect(result.text).toContain("Weekly Deals Unavailable");
+    expect(result.text).toContain("Weekly deals unavailable");
     expect(result.text).toContain("Rice x2");
     expect(result.text).toContain("search_stores");
     expect(result.text).toContain("set_preferred_store");
@@ -194,11 +178,8 @@ describe("meal planning with weekly deals", () => {
     await context.pantry.clear();
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
-    expect(result.text).toContain(
-      "Treat all recipe ingredients as items to buy",
-    );
+    expect(result.text).toContain("Pantry:\n- empty");
     expect(result.text).toContain("Black beans");
-    expect(result.text).toContain("Action Required");
   });
 
   it("handles empty ads without suggesting that discounts exist", async () => {
@@ -239,7 +220,7 @@ describe("meal planning with weekly deals", () => {
     );
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
-    expect(result.text).toContain("Weekly Deals Unavailable");
+    expect(result.text).toContain("Weekly deals unavailable");
     expect(result.text).toContain("get_weekly_deals to retry");
     expect(result.text).toContain("Rice x2");
     expect(result.text).not.toContain("Black beans");
@@ -276,7 +257,7 @@ describe("meal planning with weekly deals", () => {
 
   it("normalizes string booleans without treating false as an opt-in", async () => {
     const disabled = await call({ includeWeeklyDeals: " FALSE " });
-    expect(disabled.text).not.toContain("Weekly Deals");
+    expect(disabled.text).not.toContain("Weekly deals");
     expect(getQfcWeeklyDeals).not.toHaveBeenCalled();
     const enabled = await call({ includeWeeklyDeals: "true" });
     expect(enabled.text).toContain("Black beans");

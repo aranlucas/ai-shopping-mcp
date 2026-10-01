@@ -112,12 +112,12 @@ describe("MCP Apps v2 protocol bridge", () => {
       });
 
       const rejectedCall = callTool(app, {
-        name: "get_store",
+        name: "set_preferred_store",
         arguments: { storeId: "missing" },
       });
       await expect(rejectedCall).rejects.toMatchObject({
         code: -32602,
-        message: expect.stringContaining("get_store"),
+        message: expect.stringContaining("set_preferred_store"),
       });
       await expect(rejectedCall).rejects.toSatisfy(
         (error: unknown) => error instanceof ProtocolError,

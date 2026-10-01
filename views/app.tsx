@@ -118,12 +118,8 @@ function getPartialLoadingMessage(
       if (terms?.length) return `Searching for ${terms.join(", ")}…`;
       return "Searching products…";
     }
-    case "get_product":
-      return "Loading product…";
     case "search_stores":
       return "Searching stores…";
-    case "get_store":
-      return "Loading store…";
     case "set_preferred_store":
       return "Saving preferred store…";
     case "create_shopping_list":
@@ -132,17 +128,14 @@ function getPartialLoadingMessage(
       return "Adding to cart…";
     case "get_shopping_list":
       return "Loading shopping list…";
-    case "add_shopping_list_items":
-    case "edit_shopping_list_item":
+    case "update_shopping_list":
       return "Updating shopping list…";
     case "view_cart":
       return "Loading cart…";
     case "shop_for_items":
       return "Shopping for items…";
-    case "add_to_inventory":
-      return "Adding to inventory…";
-    case "remove_from_inventory":
-      return "Removing from inventory…";
+    case "update_inventory":
+      return "Updating inventory…";
     case "get_weekly_deals":
       return "Fetching weekly deals…";
     default:
@@ -184,12 +177,10 @@ function ShoppingAppInner({
           return <WeeklyDealsSkeleton />;
         case "create_shopping_list":
         case "get_shopping_list":
-        case "add_shopping_list_items":
-        case "edit_shopping_list_item":
+        case "update_shopping_list":
         case "view_cart":
         case "shop_for_items":
-        case "add_to_inventory":
-        case "remove_from_inventory":
+        case "update_inventory":
         case "record_order":
           return <ListSkeleton />;
         default: {

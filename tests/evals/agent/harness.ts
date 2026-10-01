@@ -115,14 +115,14 @@ async function snapshotLists(client: Client): Promise<AgentOutput["lists"]> {
   );
 }
 
-/** get_shopping_profile has no structuredContent, so read its Pantry section. */
 async function snapshotPantry(client: Client): Promise<AgentOutput["pantry"]> {
   const profile = await callTool(client, "get_shopping_profile", {});
-  const section =
-    contentText(profile).split("## Pantry")[1]?.split("##")[0] ?? "";
-  return [...section.matchAll(/^- (.+?) x(\d+)/gm)].map((match) => ({
-    name: match[1],
-    quantity: Number(match[2]),
+  const structured = profile.structuredContent as
+    | { pantry?: AgentOutput["pantry"] }
+    | undefined;
+  return (structured?.pantry ?? []).map(({ name, quantity }) => ({
+    name,
+    quantity,
   }));
 }
 

@@ -258,7 +258,8 @@ describe("search_products", () => {
 
     const tool = getCapturedTool("search_products");
     const config = tool.config as { description: string };
-    expect(config.description).toContain("Put every needed item");
+    expect(config.description).toContain("put every item in terms");
+    expect(config.description).toContain("do not call once per item");
     expect(config.description).toContain("do not call once per item");
   });
 
@@ -720,16 +721,16 @@ describe("search_products", () => {
     });
 
     expect(textFromResult(result)).toContain(
-      "pass the UPCs above to create_shopping_list",
+      "pass these UPCs to create_shopping_list",
     );
   });
 });
 
 // ---------------------------------------------------------------------------
-// get_product
+// search_products with upcs (exact lookup; formerly get_product)
 // ---------------------------------------------------------------------------
 
-describe("get_product", () => {
+describe("search_products exact UPC lookup", () => {
   beforeEach(() => {
     testState.capturedTools.length = 0;
     authenticate();
@@ -741,8 +742,8 @@ describe("get_product", () => {
     product.allergensDescription = "Contains milk";
     registerProducts(async () => makeDetailResponse(product));
 
-    const result = await getCapturedHandler("get_product")({
-      upc: "0001111041700",
+    const result = await getCapturedHandler("search_products")({
+      upcs: ["0001111041700"],
     });
 
     const sc = structuredContentOf(result) as { product: ProductData };
@@ -764,8 +765,8 @@ describe("get_product", () => {
   it("returns MCP error when API response has no product data (data.data is undefined)", async () => {
     registerProducts(async () => makeDetailResponse(undefined));
 
-    const result = await getCapturedHandler("get_product")({
-      upc: "0001111041700",
+    const result = await getCapturedHandler("search_products")({
+      upcs: ["0001111041700"],
     });
 
     expect(isErrorResult(result)).toBe(true);
@@ -775,8 +776,8 @@ describe("get_product", () => {
   it("returns MCP error when the Kroger API call itself fails (e.g. 401)", async () => {
     registerProducts(async () => makeErrorResponse(401));
 
-    const result = await getCapturedHandler("get_product")({
-      upc: "0001111041700",
+    const result = await getCapturedHandler("search_products")({
+      upcs: ["0001111041700"],
     });
 
     expect(isErrorResult(result)).toBe(true);
@@ -792,8 +793,8 @@ describe("get_product", () => {
       return makeDetailResponse(product);
     });
 
-    await getCapturedHandler("get_product")({
-      upc: "0001111041700",
+    await getCapturedHandler("search_products")({
+      upcs: ["0001111041700"],
       storeId: "12345678",
     });
 
@@ -804,8 +805,8 @@ describe("get_product", () => {
     const product = makeProduct();
     registerProducts(async () => makeDetailResponse(product));
 
-    const result = await getCapturedHandler("get_product")({
-      upc: "0001111041700",
+    const result = await getCapturedHandler("search_products")({
+      upcs: ["0001111041700"],
     });
 
     const sc = structuredContentOf(result) as { product: ProductData };
@@ -819,18 +820,18 @@ describe("get_product", () => {
 
   it("accepts a 10-digit upc and pads it to 13 digits via the schema", () => {
     registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("get_product");
+    const tool = getCapturedTool("search_products");
     const config = tool.config as {
-      inputSchema: { parse: (v: unknown) => { upc: string } };
+      inputSchema: { parse: (v: unknown) => { upcs: string[] } };
     };
-    expect(config.inputSchema.parse({ upc: "1111041700" }).upc).toBe(
+    expect(config.inputSchema.parse({ upcs: ["1111041700"] }).upcs).toEqual([
       "0001111041700",
-    );
+    ]);
   });
 
   it("rejects productRef in the input schema", () => {
     registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("get_product");
+    const tool = getCapturedTool("search_products");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
@@ -842,18 +843,18 @@ describe("get_product", () => {
 
   it("rejects a upc containing letters", () => {
     registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("get_product");
+    const tool = getCapturedTool("search_products");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
-    expect(config.inputSchema.safeParse({ upc: "abc1111041700" }).success).toBe(
-      false,
-    );
+    expect(
+      config.inputSchema.safeParse({ upcs: ["abc1111041700"] }).success,
+    ).toBe(false);
   });
 
   it("rejects productId instead of upc", () => {
     registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("get_product");
+    const tool = getCapturedTool("search_products");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
@@ -862,9 +863,9 @@ describe("get_product", () => {
     ).toBe(false);
   });
 
-  it("rejects a call without upc", () => {
+  it("rejects a call with neither terms nor upcs", () => {
     registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("get_product");
+    const tool = getCapturedTool("search_products");
     const config = tool.config as {
       inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };

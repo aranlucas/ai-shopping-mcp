@@ -282,7 +282,7 @@ export function LocationResultsView({
   const handleViewDetails = useCallback(
     async (id: string) => {
       const result = await callTool(app, {
-        name: "get_store",
+        name: "search_stores",
         arguments: { storeId: id },
       });
       if (result?.isError) throw new Error("Failed to load details");

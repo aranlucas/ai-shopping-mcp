@@ -88,10 +88,12 @@ describe("error actionability", () => {
     expect(contentText(result)).toContain("search_products");
   });
 
-  it("get_meal_planning_context with an empty pantry names add_to_inventory with an example", async () => {
-    const result = await call("get_meal_planning_context", {});
-    // Empty pantry is guidance, not a hard error — but it must name the fix.
-    expect(contentText(result)).toContain("add_to_inventory");
+  it("search_products without a preferred store warns before cart adds fail", async () => {
+    const result = await call("search_products", { terms: ["milk"] });
+    expect(result.isError).toBeFalsy();
+    const text = contentText(result);
+    expect(text).toContain("No preferred store is set");
+    expect(text).toContain("set_preferred_store");
   });
 
   it("the advertised recovery path actually recovers", async () => {
@@ -100,7 +102,7 @@ describe("error actionability", () => {
     expect(failed.isError).toBe(true);
 
     // …then follow the error's own instructions to the letter.
-    const stores = await call("search_stores", { zipCodeNear: "98105" });
+    const stores = await call("search_stores", { zipCode: "98105" });
     expect(stores.isError).toBeFalsy();
     const storeId = contentText(stores).match(/storeId=([A-Za-z0-9]{8})/)?.[1];
     expect(storeId).toBeDefined();

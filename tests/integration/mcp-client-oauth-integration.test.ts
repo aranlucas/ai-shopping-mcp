@@ -338,12 +338,9 @@ describe("MCP client over Worker OAuth integration", () => {
     const toolNames = tools.tools.map((tool) => tool.name);
 
     expect(toolNames).toContain("search_products");
-    expect(toolNames).toContain("get_meal_planning_context");
+    expect(toolNames).toContain("get_shopping_profile");
     // Text-only tools: their results are read by the model, not rendered.
-    const textOnlyTools = new Set([
-      "get_meal_planning_context",
-      "get_shopping_profile",
-    ]);
+    const textOnlyTools = new Set(["get_shopping_profile"]);
     const uiMismatches = tools.tools
       .filter(
         (tool) =>
@@ -509,17 +506,15 @@ describe("MCP client over Worker OAuth integration", () => {
 
       const writes = await Promise.all([
         alice.callTool({
-          name: "add_to_inventory",
+          name: "update_inventory",
           arguments: {
-            inventory: "pantry",
-            items: [{ name: "Alice rice", quantity: 2 }],
+            pantry: { add: [{ name: "Alice rice", quantity: 2 }] },
           },
         }),
         bob.callTool({
-          name: "add_to_inventory",
+          name: "update_inventory",
           arguments: {
-            inventory: "pantry",
-            items: [{ name: "Bob beans", quantity: 3 }],
+            pantry: { add: [{ name: "Bob beans", quantity: 3 }] },
           },
         }),
       ]);

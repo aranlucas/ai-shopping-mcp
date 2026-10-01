@@ -248,7 +248,7 @@ export function formatProductSearchMarkdown(
 ): string {
   const lines: string[] = [];
   for (const result of results) {
-    lines.push(`## ${result.term}`);
+    lines.push(`${result.term}:`);
     if (result.status === "failed") {
       lines.push(
         `- Kroger search failed for this term. ${result.error.message} recovery=${errorRecovery(result.error)}`,
@@ -268,12 +268,12 @@ export function formatProductSearchMarkdown(
   }
   lines.push(
     "",
-    "To save exact matches, pass the UPCs above to create_shopping_list.",
+    "Next: pass these UPCs to create_shopping_list or add_shopping_list_to_cart.",
   );
   return lines.join("\n");
 }
 
-/** Markdown key/value lines for get_product: no images. */
+/** Key/value lines for one exact-UPC product lookup: no images. */
 export function formatProductDetailMarkdown(product: Product): string {
   const lines: string[] = [
     `upc: ${product.upc ?? "unknown"}`,
@@ -339,7 +339,7 @@ export function formatStoreListMarkdown(stores: Location[]): string {
   return stores.map(formatStoreLineMarkdown).join("\n");
 }
 
-/** Markdown hours block for get_store. */
+/** Hours block for a single-store lookup. */
 function formatStoreHoursMarkdown(location: Location): string {
   if (!location.hours) return "";
 
@@ -363,7 +363,7 @@ function formatStoreHoursMarkdown(location: Location): string {
   return lines.length > 1 ? lines.join("\n") : "";
 }
 
-/** Markdown for get_store: the store line plus hours. */
+/** A single-store lookup: the store line plus hours. */
 export function formatStoreDetailMarkdown(location: Location): string {
   const lines = [formatStoreLineMarkdown(location)];
   const hours = formatStoreHoursMarkdown(location);

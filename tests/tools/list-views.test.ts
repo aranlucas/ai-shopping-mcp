@@ -163,9 +163,9 @@ describe("app-backed shopping list tools", () => {
     setup();
     const created = await createList("Dinner", [{ productName: "Rice" }]);
 
-    const result = await getCapturedHandler("add_shopping_list_items")({
+    const result = await getCapturedHandler("update_shopping_list")({
       listId: created.listId,
-      items: [{ productName: "Beans", quantity: 2 }],
+      add: [{ productName: "Beans", quantity: 2 }],
     });
 
     expect(result.text).toContain("List now has 2 item(s)");
@@ -185,19 +185,17 @@ describe("app-backed shopping list tools", () => {
     ]);
     const [rice, beans] = created.items;
 
-    const checked = await getCapturedHandler("edit_shopping_list_item")({
+    const checked = await getCapturedHandler("update_shopping_list")({
       listId: created.listId,
-      itemId: rice.id,
-      checked: true,
+      change: [{ itemId: rice.id, checked: true }],
     });
     expect(parseAppResult(checked)).toMatchObject({
       items: [{ productName: "Rice", checked: true }, { checked: false }],
     });
 
-    const removed = await getCapturedHandler("edit_shopping_list_item")({
+    const removed = await getCapturedHandler("update_shopping_list")({
       listId: created.listId,
-      itemId: beans.id,
-      remove: true,
+      remove: [beans.id],
     });
     expect(removed.text).toContain(`Removed itemId=${beans.id}`);
     expect(parseAppResult(removed)).toMatchObject({
@@ -218,12 +216,13 @@ describe("pantry quantity use", () => {
       { productName: "Milk", quantity: 1, addedAt: "2026-09-01" },
     ]);
 
-    const result = await getCapturedHandler("remove_from_inventory")({
-      inventory: "pantry",
-      items: [
-        { name: "Eggs", quantity: 1 },
-        { name: "Milk", quantity: 1 },
-      ],
+    const result = await getCapturedHandler("update_inventory")({
+      pantry: {
+        remove: [
+          { name: "Eggs", quantity: 1 },
+          { name: "Milk", quantity: 1 },
+        ],
+      },
     });
 
     expect(result.isError).toBe(false);

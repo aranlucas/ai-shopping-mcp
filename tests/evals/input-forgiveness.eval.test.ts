@@ -58,13 +58,15 @@ describe("input forgiveness", () => {
 
   describe("normalized (must succeed)", () => {
     it("accepts an unpadded UPC and pads it to 13 digits", async () => {
-      const result = await call("get_product", { upc: "1111041700" });
+      const result = await call("search_products", { upcs: ["1111041700"] });
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
       expect(contentText(result)).toContain("0001111041700");
     });
 
     it("accepts a UPC with surrounding whitespace", async () => {
-      const result = await call("get_product", { upc: " 0001111041700 " });
+      const result = await call("search_products", {
+        upcs: [" 0001111041700 "],
+      });
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
@@ -125,39 +127,38 @@ describe("input forgiveness", () => {
     });
 
     it("rejects a non-numeric UPC with instructions to copy it from search_products", async () => {
-      const result = await call("get_product", { upc: "not-a-upc" });
+      const result = await call("search_products", { upcs: ["not-a-upc"] });
       expect(result.isError).toBe(true);
       expect(contentText(result)).toContain("search_products");
     });
 
-    it("rejects get_product with productId instead of upc", async () => {
-      const result = await call("get_product", { productId: "1111041700" });
+    it("rejects productId instead of upcs", async () => {
+      const result = await call("search_products", {
+        productId: "1111041700",
+      });
       expect(result.isError).toBe(true);
     });
 
-    it("rejects productRef instead of upc", async () => {
-      const result = await call("get_product", {
+    it("rejects productRef instead of upcs", async () => {
+      const result = await call("search_products", {
         productRef: "kroger:0001111041700",
       });
       expect(result.isError).toBe(true);
     });
 
-    it("rejects get_product without upc", async () => {
-      const result = await call("get_product", { storeId: "70500847" });
+    it("rejects search_products with neither terms nor upcs", async () => {
+      const result = await call("search_products", { storeId: "70500847" });
       expect(result.isError).toBe(true);
     });
 
     it("rejects a wrong-length storeId pointing at search_stores", async () => {
-      const result = await call("get_store", { storeId: "123" });
+      const result = await call("search_stores", { storeId: "123" });
       expect(result.isError).toBe(true);
       expect(contentText(result)).toContain("search_stores");
     });
 
-    it("rejects listId+items together with a message naming both options", async () => {
-      const result = await call("add_shopping_list_to_cart", {
-        listId: "list_a1b2c3d8",
-        items: [{ upc: "0001111041700" }],
-      });
+    it("rejects a cart add with neither listId nor items, naming both", async () => {
+      const result = await call("add_shopping_list_to_cart", {});
       expect(result.isError).toBe(true);
       const text = contentText(result);
       expect(text).toContain("listId");

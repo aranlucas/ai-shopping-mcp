@@ -17,7 +17,6 @@ import { registerInventoryTools } from "./tools/inventory.js";
 import { registerLocationTools } from "./tools/location.js";
 import { registerOrderTools } from "./tools/orders.js";
 import { registerProductTools } from "./tools/product.js";
-import { registerRecipeTools } from "./tools/recipes.js";
 import { registerResources } from "./tools/resources.js";
 import { registerShopTools } from "./tools/shop.js";
 import { registerShoppingListTools } from "./tools/shopping-list.js";
@@ -35,7 +34,7 @@ export const SERVER_INFO = {
 
 export const SERVER_OPTIONS = {
   instructions:
-    "Kroger grocery assistant with stores, pantry, equipment, orders, and lists. Use shop_for_items for one-shot shopping, or search_products then create_shopping_list and pass its listId to add_shopping_list_to_cart. Copy exact UPCs from search results into lists and orders; storeId selects the Kroger store. Edit lists with get_shopping_list, add_shopping_list_items, and edit_shopping_list_item. Use get_shopping_profile before personalized suggestions.",
+    "Kroger grocery assistant. Tools use the user's saved preferred store, so call them directly; only if a tool reports no preferred store, ask for a zip code and use search_stores then set_preferred_store. Use shop_for_items for one-shot shopping, or search_products then create_shopping_list and pass its listId to add_shopping_list_to_cart. Copy exact UPCs from search results. Edit lists with get_shopping_list then update_shopping_list; update the pantry with update_inventory. Call get_shopping_profile before personalized suggestions or meal planning. Cart adds default to PICKUP.",
 } as const;
 
 /**
@@ -116,6 +115,7 @@ export function buildServer(
     shoppingList,
   });
   registerInventoryTools(server, {
+    loadWeeklyDeals,
     equipment,
     orderHistory,
     pantry,
@@ -125,17 +125,11 @@ export function buildServer(
     locationClient: clients.locationClient,
     preferredLocation,
   });
-  registerOrderTools(server, { orderHistory });
+  registerOrderTools(server, { orderHistory, preferredLocation });
   registerProductTools(server, {
     productClient: clients.productClient,
     productService,
     preferredLocation,
-  });
-  registerRecipeTools(server, {
-    pantry,
-    equipment,
-    orderHistory,
-    loadWeeklyDeals,
   });
   registerResources(server, {
     productService,

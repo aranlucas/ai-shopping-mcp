@@ -231,8 +231,8 @@ export function PantryView({
   const handleRemove = useCallback(
     async (name: string) => {
       const result = await callTool(app, {
-        name: "remove_from_inventory",
-        arguments: { inventory: "pantry", items: [{ name }] },
+        name: "update_inventory",
+        arguments: { pantry: { remove: [{ name }] } },
       });
       if (result?.isError) throw new Error("Failed to remove item");
       const updated = parseToolResult(result);
@@ -244,8 +244,8 @@ export function PantryView({
   const handleUse = useCallback(
     async (name: string) => {
       const result = await callTool(app, {
-        name: "remove_from_inventory",
-        arguments: { inventory: "pantry", items: [{ name, quantity: 1 }] },
+        name: "update_inventory",
+        arguments: { pantry: { remove: [{ name, quantity: 1 }] } },
       });
       if (result?.isError) throw new Error("Failed to update item");
       const updated = parseToolResult(result);

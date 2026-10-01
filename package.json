@@ -12,7 +12,7 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "eval:mcp": "vitest run tests/evals",
-    "eval:agent": "EVAL_AGENT=1 vitest run tests/evals/agent.eval.test.ts --reporter=vitest-evals/reporter --reporter=json --outputFile.json=eval-results/agent.json",
+    "eval:agent": "node scripts/eval-agent.mjs",
     "eval:agent:summary": "node scripts/eval-agent-summary.mjs",
     "test:selector:live": "node scripts/test-selector-live.mjs",
     "deploy": "pnpm build:worker && cf deploy --prebuilt",
@@ -34,7 +34,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply SHOPPING_DB --remote",
     "eval:selector:live": "node scripts/eval-selector-live.mjs",
     "build:worker": "pnpm build:views && wrangler build --experimental-new-config --experimental-cf-build-output",
-    "eval:agent:report": "vitest-evals serve eval-results/agent.json"
+    "eval:agent:report": "vitest-evals serve eval-results"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

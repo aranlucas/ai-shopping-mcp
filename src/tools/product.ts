@@ -22,12 +22,8 @@ export {
   searchProductsForTerms,
 } from "../services/kroger/search.js";
 
-const getProductInputSchema = z.strictObject({
-  upc: upcSchema.describe("UPC from search_products"),
-  storeId: storeIdSchema
-    .optional()
-    .describe("Kroger store ID for pricing and availability"),
-});
+const NO_STORE_NOTICE =
+  "No preferred store is set, so prices and availability are not for a specific store, and cart adds will fail. Use search_stores and set_preferred_store first when the user wants to buy.";
 
 export type ProductToolDependencies = {
   productClient: KrogerClients["productClient"];
@@ -45,7 +41,7 @@ export function registerProductTools(
     {
       title: "Search Products",
       description:
-        "Search Kroger products in one batch. Put every needed item in the terms array; do not call once per item. Copy returned UPCs into shopping lists and orders. Uses the preferred Kroger store unless storeId is supplied.",
+        "Search Kroger products in one batch: put every item in terms (do not call once per item), or pass upcs to look up exact products. Returns upc, price, sale price, and pickup availability at the preferred store; copy the UPCs into lists, carts, and orders.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -53,30 +49,45 @@ export function registerProductTools(
         idempotentHint: true,
         openWorldHint: true,
       },
-      inputSchema: z.strictObject({
-        terms: z
-          .array(z.string().trim().min(1).max(100))
-          .min(1, { message: "At least one search term is required" })
-          .max(10, { message: "Maximum 10 search terms allowed" })
-          .describe("Batch terms, e.g. ['milk', 'bread', 'eggs']"),
-        storeId: storeIdSchema
-          .optional()
-          .describe("Kroger store ID; defaults to your preferred store"),
-        limitPerTerm: z.coerce
-          .number()
-          .int()
-          .min(1)
-          .max(10)
-          .default(5)
-          .describe("Max products per term (1-10)"),
-        includeLocation: z
-          .boolean()
-          .default(false)
-          .describe("Include aisle and shelf details for in-store shopping"),
-      }),
+      inputSchema: z
+        .strictObject({
+          terms: z
+            .array(z.string().trim().min(1).max(100))
+            .min(1)
+            .max(10, { message: "Maximum 10 search terms allowed" })
+            .optional()
+            .describe("Batch search terms, e.g. ['milk', 'bread', 'eggs']"),
+          upcs: z
+            .array(upcSchema)
+            .min(1)
+            .max(10, { message: "Maximum 10 UPCs allowed" })
+            .optional()
+            .describe("Exact 13-digit UPCs to look up instead of searching"),
+          storeId: storeIdSchema
+            .optional()
+            .describe(
+              "8-character storeId from search_stores; defaults to the preferred store",
+            ),
+          limitPerTerm: z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(10)
+            .default(5)
+            .describe("Max products per term (1-10)"),
+          includeLocation: z
+            .boolean()
+            .default(false)
+            .describe(
+              "Include aisle and shelf for each product, for shopping in the store",
+            ),
+        })
+        .refine((input) => Boolean(input.terms ?? input.upcs), {
+          message: "Pass terms to search, or upcs to look up exact products.",
+        }),
     },
     async (
-      { terms, storeId, limitPerTerm, includeLocation },
+      { terms, upcs, storeId, limitPerTerm, includeLocation },
       requestContext,
     ) => {
       let locationId = storeId;
@@ -88,6 +99,10 @@ export function registerProductTools(
         if (preferred.isErr()) return toMcpError(preferred.error);
         locationId = preferred.value?.locationId;
       }
+      const notice = locationId ? "" : `${NO_STORE_NOTICE}\n\n`;
+
+      if (upcs && !terms) return lookupUpcs(upcs, locationId, notice);
+
       const requests = [...new Set(terms)].map((term, index) => ({
         requestId: `term_${index}`,
         term,
@@ -120,7 +135,7 @@ export function registerProductTools(
         content: [
           {
             type: "text" as const,
-            text: formatProductSearchMarkdown(results, { includeLocation }),
+            text: `${notice}${formatProductSearchMarkdown(results, { includeLocation })}`,
           },
         ],
         ...appResult("search_products", {
@@ -146,32 +161,53 @@ export function registerProductTools(
     },
   );
 
-  registerAppTool(
-    server,
-    "get_product",
-    {
-      title: "Get Product Details",
-      description:
-        "Get one Kroger product by its UPC, with price, availability, and shelf location.",
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-      inputSchema: getProductInputSchema,
-    },
-    async ({ upc, storeId }) => {
-      const result = await productService.getProduct(upc, storeId);
-      if (result.isErr()) return toMcpError(result.error);
-      const product = toProductData(result.value, true, upc);
+  /** Exact UPC lookups; one UPC renders the product detail view. */
+  async function lookupUpcs(
+    upcs: string[],
+    locationId: string | undefined,
+    notice: string,
+  ) {
+    const lookups = await Promise.all(
+      [...new Set(upcs)].map(async (upc) => ({
+        upc,
+        result: await productService.getProduct(upc, locationId),
+      })),
+    );
+    const found = lookups.flatMap(({ upc, result }) =>
+      result.isOk() ? [toProductData(result.value, true, upc)] : [],
+    );
+    const missing = lookups.filter(({ result }) => result.isErr());
+    if (found.length === 0) {
+      const [first] = missing;
+      if (first?.result.isErr()) return toMcpError(first.result.error);
+    }
+
+    const text = [
+      notice.trim(),
+      ...found.map((product) => formatProductDetails(product)),
+      missing.length > 0
+        ? `Not found: ${missing.map(({ upc }) => `upc=${upc}`).join(", ")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    if (found.length === 1) {
       return {
-        content: [
-          { type: "text" as const, text: formatProductDetails(product) },
-        ],
-        ...appResult("get_product", { product }),
+        content: [{ type: "text" as const, text }],
+        ...appResult("get_product", { product: found[0] }),
       };
-    },
-  );
+    }
+    return {
+      content: [{ type: "text" as const, text }],
+      ...appResult("search_products", {
+        results: found.map((product) => ({
+          term: product.upc,
+          products: [product],
+          failed: false,
+        })),
+        totalProducts: found.length,
+      }),
+    };
+  }
 }

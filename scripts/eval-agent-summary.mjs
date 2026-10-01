@@ -1,13 +1,21 @@
-// Summarizes the vitest-evals JSON report from `pnpm eval:agent` as Markdown
-// (used for the GitHub Actions step summary).
+// Summarizes the vitest-evals JSON reports from `pnpm eval:agent` (one per
+// model) as Markdown, e.g. for the GitHub Actions step summary.
 //
-//   node scripts/eval-agent-summary.mjs [eval-results/agent.json]
-import { readFile } from "node:fs/promises";
+//   node scripts/eval-agent-summary.mjs [eval-results]
+import { readFile, readdir } from "node:fs/promises";
 
-const reportPath = process.argv[2] ?? "eval-results/agent.json";
-const report = JSON.parse(await readFile(reportPath, "utf8"));
+const directory = process.argv[2] ?? "eval-results";
+const files = (await readdir(directory)).filter((file) =>
+  /^agent.*\.json$/.test(file),
+);
+const reports = await Promise.all(
+  files.map(async (file) =>
+    JSON.parse(await readFile(`${directory}/${file}`, "utf8")),
+  ),
+);
+const testResults = reports.flatMap((report) => report.testResults);
 
-const runs = report.testResults
+const runs = testResults
   .flatMap((file) => file.assertionResults)
   .filter((test) => test.meta?.eval)
   .map((test) => {
@@ -27,7 +35,7 @@ const runs = report.testResults
     };
   });
 
-const errored = report.testResults
+const errored = testResults
   .flatMap((file) => file.assertionResults)
   .filter((test) => !test.meta?.eval && test.status === "failed");
 

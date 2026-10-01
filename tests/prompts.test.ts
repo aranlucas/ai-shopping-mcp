@@ -190,13 +190,13 @@ describe("registerPrompts", () => {
   });
 
   describe("plan_meals_from_pantry", () => {
-    it("directs the host model to fetch meal planning context", async () => {
+    it("directs the host model to fetch the shopping profile", async () => {
       const result = await callPrompt("plan_meals_from_pantry", {
         meal_count: "4",
       });
       const text = getText(result);
-      expect(text).toContain("get_meal_planning_context");
-      expect(text).toContain("numberOfMeals: 4");
+      expect(text).toContain("get_shopping_profile");
+      expect(text).toContain("suggest 4 meals");
       expect(text).toContain("create_shopping_list");
       expect(text).toContain("includeWeeklyDeals: true");
       expect(text).toContain("search_products");

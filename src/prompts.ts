@@ -131,9 +131,7 @@ Please make sure to check product availability at my preferred location before a
           .string()
           .optional()
           .default("3")
-          .describe(
-            "Number of meals to plan; passed to get_meal_planning_context",
-          ),
+          .describe("Number of meals to plan"),
       }),
     },
     ({ meal_count }) => {
@@ -150,14 +148,14 @@ Please make sure to check product availability at my preferred location before a
               type: "text",
               text: `Please plan meals from my pantry.
 
-1. Call get_meal_planning_context with numberOfMeals: ${numberOfMeals}
-2. Use the returned pantry, expiry, equipment, and recent-order context to suggest meals
+1. Call get_shopping_profile
+2. Use the returned pantry, expiry, equipment, and recent-order context to suggest ${numberOfMeals} meals
 3. Prioritize expiring ingredients and exclude expired items
 4. For missing ingredients I want to buy, create a shopping list with create_shopping_list
 
-If I ask to plan around sales, include includeWeeklyDeals: true in the context call; use my preferred Kroger store or an explicit storeId. Confirm exact products and current prices with search_products before creating the list.
+If I ask to plan around sales, call get_shopping_profile with includeWeeklyDeals: true; use my preferred Kroger store or an explicit storeId. Confirm exact products and current prices with search_products before creating the list.
 
-Do not invent pantry contents; use the context returned by get_meal_planning_context.`,
+Do not invent pantry contents; use the context returned by get_shopping_profile.`,
             },
           },
         ],
