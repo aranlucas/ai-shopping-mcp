@@ -258,8 +258,7 @@ describe("search_products", () => {
 
     const tool = getCapturedTool("search_products");
     const config = tool.config as { description: string };
-    expect(config.description).toContain("put every item in terms");
-    expect(config.description).toContain("do not call once per item");
+    expect(config.description).toContain("Batch all items in terms");
     expect(config.description).toContain("do not call once per item");
   });
 
