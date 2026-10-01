@@ -73,7 +73,9 @@ export const addShoppingListToCartInputSchema = z
       .string()
       .min(1)
       .optional()
-      .describe("listId from create_shopping_list"),
+      .describe(
+        "listId from get_shopping_list, create_shopping_list, or shop_for_items",
+      ),
     items: z
       .array(inlineCartItemSchema)
       .min(1)
@@ -460,7 +462,7 @@ const viewCartInputSchema = z.object({
     .min(1)
     .optional()
     .describe(
-      "Kroger cart id, only if the user provides one; it is remembered afterwards.",
+      "Optional live Kroger cart ID supplied by the user; remembered for later reads. Cart-add tools do not return one.",
     ),
 });
 
@@ -601,7 +603,7 @@ export function registerCartTools(
     {
       title: "View Cart",
       description:
-        "Shows what is in the user's Kroger cart. Without a known Kroger cart id it lists the items this assistant added, which may miss changes made in the Kroger app.",
+        "Lists items added through this assistant, with quantities and fulfillment, without prices or totals; Kroger app changes are not shown. Reads a live cart only with a user-supplied or previously saved cartId. Cart-add tools do not return a cartId. For budget estimates, use product prices and quantities.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -626,7 +628,7 @@ export function registerCartTools(
       if (!resolvedId) {
         return mirrorFallbackResult(
           carts,
-          "No live cart id known — pass cartId to view_cart once to enable live cart reads.",
+          "Showing assistant add history, without prices or totals. Kroger app changes are not shown. A live read requires a user-supplied cartId; cart-add tools do not return one.",
         );
       }
 

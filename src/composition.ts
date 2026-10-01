@@ -34,7 +34,7 @@ export const SERVER_INFO = {
 
 export const SERVER_OPTIONS = {
   instructions:
-    "Kroger grocery assistant. Tools use the user's saved preferred store, so call them directly; only if a tool reports no preferred store, ask for a zip code and use search_stores then set_preferred_store. Use shop_for_items for one-shot shopping, or search_products then create_shopping_list and pass its listId to add_shopping_list_to_cart. Copy exact UPCs from search results. Edit lists with get_shopping_list then update_shopping_list; update the pantry with update_inventory. Call get_shopping_profile before personalized suggestions or meal planning. Cart adds default to PICKUP.",
+    "Kroger grocery assistant. Use the saved preferred store; if a tool reports none, ask for a ZIP code, then search_stores and set_preferred_store. Use shop_for_items for automatic matches in a new list; use search_products for price comparisons or specific choices, then create_shopping_list and add_shopping_list_to_cart. Copy exact UPCs and report unmatched items. For an existing list, get_shopping_list then update_shopping_list. Call get_shopping_profile before personalized suggestions or meal planning; update the pantry with update_inventory. Cart adds default to PICKUP; use DELIVERY when requested. view_cart defaults to assistant add history, without prices or totals. record_order logs completed purchases by name; no product search needed.",
 } as const;
 
 /**

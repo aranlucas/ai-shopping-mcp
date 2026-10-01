@@ -262,7 +262,7 @@ export function registerShoppingListTools(
     {
       title: "Create Shopping List",
       description:
-        'Creates a named shopping list; returns `listId` for add_shopping_list_to_cart. Give exact Kroger items their `upc` from search_products, and use `productName` for free text. Example: {"name":"Tuesday dinner","items":[{"upc":"0001111041700","productName":"Milk","quantity":1}]}',
+        'Creates a NEW named shopping list; use get_shopping_list then update_shopping_list to append to an existing list. Returns `listId` for add_shopping_list_to_cart. Give exact Kroger items their `upc` from search_products, and use `productName` for free text. Example: {"name":"Tuesday dinner","items":[{"upc":"0001111041700","productName":"Milk","quantity":1}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,

@@ -1081,7 +1081,7 @@ describe("view_cart tool", () => {
     expect(getCalls).toHaveLength(1);
   });
 
-  it("falls back to the mirror with a cartId hint when no id is known", async () => {
+  it("explains the assistant history limits when no cart id is known", async () => {
     const storage = makeStorage(
       null,
       null,
@@ -1107,6 +1107,8 @@ describe("view_cart tool", () => {
     expect(getCalls).toHaveLength(0);
     expect(text).toContain("in-store/app changes are not shown");
     expect(text).toContain("cartId");
+    expect(text).toContain("without prices or totals");
+    expect(text).toContain("cart-add tools do not return one");
   });
 
   it("falls back to the mirror and names the failed cartId when the live read errors", async () => {

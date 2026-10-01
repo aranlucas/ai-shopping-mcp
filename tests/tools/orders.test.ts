@@ -57,6 +57,12 @@ describe("order storage-backed tools", () => {
     });
 
     expect(result.text).toContain("Order recorded successfully");
+    expect(result.text).toContain("2 line item(s), 5 package(s)");
+    expect(result.text).toContain("storeId=70500847");
+    expect(result.text).toContain("Apples x2");
+    expect(result.text).toContain("Bananas x3");
+    expect(result.text).toContain("Estimated total: $3.00 (1/2 lines priced)");
+    expect(result.text).toContain("Notes: Pickup order");
     expect(storedOrders).toHaveLength(1);
     expect(storedOrders[0]).toMatchObject({
       totalItems: 5,
