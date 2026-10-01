@@ -359,7 +359,8 @@ describe("MCP client over Worker OAuth integration", () => {
     }
     expect(client.getInstructions()).toContain("create_shopping_list");
     expect(client.getInstructions()).toContain("add_shopping_list_to_cart");
-    expect(client.getInstructions()).toContain("listId");
+    expect(client.getInstructions()).toContain("get_shopping_list");
+    expect(client.getInstructions()).toContain("update_shopping_list");
     expect(client.getInstructions()).toContain("get_shopping_profile");
     expect(client.getInstructions()).not.toContain(
       "pantry, equipment, shopping list, preferred location",

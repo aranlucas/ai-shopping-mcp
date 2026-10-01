@@ -4,12 +4,12 @@ Reviewed the two most recent completed Agent Eval runs on 2026-09-30
 (Pacific time). Workflow success alone is not the task pass rate: the eval
 step uses `continue-on-error`.
 
-| Run | Model | Train | Held-out | Average calls | Tool errors |
-| --- | --- | --- | --- | --- | --- |
-| [36796412935](https://github.com/aranlucas/ai-shopping-mcp/actions/runs/36796412935) | Qwen 3.8 27B | 10/10 | 5/5 | 2.0 | 0 |
-| 36796412935 | Space Bunny Alpha | 10/10 | 5/5 | 2.8 | 0 |
-| [36796833143](https://github.com/aranlucas/ai-shopping-mcp/actions/runs/36796833143) | Qwen 3.8 27B | 9/10 | 4/5 | 2.0 | 0 |
-| 36796833143 | Space Bunny Alpha | 10/10 | 5/5 | 2.7 | 0 |
+| Run                                                                                  | Model             | Train | Held-out | Average calls | Tool errors |
+| ------------------------------------------------------------------------------------ | ----------------- | ----- | -------- | ------------- | ----------- |
+| [36796412935](https://github.com/aranlucas/ai-shopping-mcp/actions/runs/36796412935) | Qwen 3.8 27B      | 10/10 | 5/5      | 2.0           | 0           |
+| 36796412935                                                                          | Space Bunny Alpha | 10/10 | 5/5      | 2.8           | 0           |
+| [36796833143](https://github.com/aranlucas/ai-shopping-mcp/actions/runs/36796833143) | Qwen 3.8 27B      | 9/10  | 4/5      | 2.0           | 0           |
+| 36796833143                                                                          | Space Bunny Alpha | 10/10 | 5/5      | 2.7           | 0           |
 
 These are historical baselines, not measurements of the changes below.
 
