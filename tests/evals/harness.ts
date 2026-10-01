@@ -15,7 +15,6 @@ import {
 import { SELF, env } from "cloudflare:test";
 import { expect, vi } from "vitest";
 import { ensureShoppingSchema } from "../d1-schema.js";
-import { stubJevAi } from "../jev-stub.js";
 
 const CLIENT_REDIRECT_URI = "https://client.example/callback";
 const MCP_BASE_URL = env.MCP_RESOURCE_URL;
@@ -323,14 +322,6 @@ export type KrogerFetchStub = {
  * Replaces global fetch with a deterministic Kroger API fixture router.
  */
 export function installKrogerFetchStub(): KrogerFetchStub {
-  const originalAi = env.AI;
-  const jev = stubJevAi();
-  // Fixture the bounded product decision (Jev); other AI calls pass through.
-  env.AI = {
-    run: (...args: Parameters<Ai["run"]>) => originalAi.run(...args),
-    gateway: (id: string) =>
-      id === "default" ? jev.gateway(id) : originalAi.gateway(id),
-  } as Ai;
   const cartPuts: Array<{ items: CapturedCartItem[] }> = [];
   vi.stubGlobal(
     "fetch",
@@ -406,7 +397,6 @@ export function installKrogerFetchStub(): KrogerFetchStub {
     cartPuts,
     allCartItems: () => cartPuts.flatMap((put) => put.items),
     restore: () => {
-      env.AI = originalAi;
       vi.unstubAllGlobals();
     },
   };

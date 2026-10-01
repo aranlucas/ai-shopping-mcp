@@ -34,7 +34,7 @@ export const SERVER_INFO = {
 
 export const SERVER_OPTIONS = {
   instructions:
-    "Kroger grocery assistant. Use the saved preferred store; if a tool reports none, ask for a ZIP code, then search_stores and set_preferred_store. Use shop_for_items for automatic matches in a new list; use search_products for price comparisons or specific choices, then create_shopping_list and add_shopping_list_to_cart. Copy exact UPCs and report unmatched items. For an existing list, get_shopping_list then update_shopping_list. Call get_shopping_profile before personalized suggestions or meal planning; update the pantry with update_inventory. Cart adds default to PICKUP; use DELIVERY when requested. view_cart defaults to assistant add history, without prices or totals. record_order logs completed purchases by name; no product search needed.",
+    "Kroger grocery assistant. Use the saved preferred store; if a tool reports none, ask for a ZIP code, then search_stores and set_preferred_store. Use shop_for_items to get up to five product options per item, then choose suitable products using the user's preferences. Copy chosen UPCs and quantities into create_shopping_list or add_shopping_list_to_cart; use search_products to refine searches or inspect exact products. Report unmatched items. For an existing list, get_shopping_list then update_shopping_list with its listId. Call get_shopping_profile before personalized suggestions or meal planning; update the pantry with update_inventory. Cart adds default to PICKUP; use DELIVERY when requested. view_cart defaults to assistant add history, without prices or totals. record_order logs completed purchases by name; no product search needed.",
 } as const;
 
 /**
@@ -139,14 +139,10 @@ export function buildServer(
     preferredLocation,
   });
   registerShopTools(server, {
-    carts,
     productClient: clients.productClient,
-    cartClient: clients.cartClient,
     weeklyDealsCache,
     pantry,
     preferredLocation,
-    shoppingList,
-    ai: env.AI,
   });
   registerShoppingListTools(server, {
     weeklyDealsCache,

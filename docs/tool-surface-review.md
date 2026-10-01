@@ -1,3 +1,8 @@
+> Historical API review. As of 2026-09-30, `shop_for_items` is read-only and
+> returns up to five eligible options per requested item. The calling agent chooses
+> UPCs and uses the list/cart tools. The automatic matching and `addToCart`
+> recommendations below describe the previous API.
+
 # Tool surface review
 
 A tool-by-tool review of the 18 MCP tools against Anthropic's

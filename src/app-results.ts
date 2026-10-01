@@ -34,6 +34,9 @@ const productSchema = z.object({
   upc: z.string().trim().min(1),
   name: z.string(),
   brand: z.string().optional(),
+  declarations: z.array(z.string()).optional(),
+  allergens: z.string().optional(),
+  ingredients: z.string().optional(),
   category: z.string().optional(),
   size: z.string().optional(),
   price: z.number().optional(),
@@ -173,6 +176,9 @@ export const appPayloadSchemas = {
     results: z.array(
       z.object({
         term: z.string(),
+        requestId: z.string().optional(),
+        quantity: z.number().int().positive().optional(),
+        flags: z.array(z.string()).optional(),
         products: z.array(productSchema),
         failed: z.boolean(),
         error: z.string().optional(),

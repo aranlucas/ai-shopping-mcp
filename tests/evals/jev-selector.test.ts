@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   selectProductMatches,
   type SelectorAi,
-} from "../../src/services/product-selector.js";
+} from "../../scripts/fixtures/jev-product-selector.js";
 import { stubJevAi, type JevRun } from "../jev-stub.js";
 
 const candy = {

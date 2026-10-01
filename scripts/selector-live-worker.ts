@@ -1,7 +1,7 @@
 import {
   selectProductMatches,
   type SelectorAi,
-} from "../src/services/product-selector.js";
+} from "./fixtures/jev-product-selector.js";
 
 /** Ephemeral local test worker: only the AI binding connects to Cloudflare. */
 export default {

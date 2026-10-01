@@ -247,7 +247,12 @@ export function formatProductDetails(product: ProductData): string {
  */
 export function formatProductSearchMarkdown(
   results: ProductSearchResult[],
-  options: { includeLocation?: boolean; exactUpcs?: ReadonlySet<string> } = {},
+  options: {
+    includeLocation?: boolean;
+    exactUpcs?: ReadonlySet<string>;
+    includeMatchingFacts?: boolean;
+    includeNextStep?: boolean;
+  } = {},
 ): string {
   const lines: string[] = [];
   for (const result of results) {
@@ -273,19 +278,28 @@ export function formatProductSearchMarkdown(
       lines.push("- No Kroger results.");
     } else {
       lines.push(
-        ...result.products.map((product) =>
-          formatProductLine(
-            toProductData(product, options.includeLocation),
-            options,
+        ...result.products.flatMap((product) =>
+          [
+            formatProductLine(
+              toProductData(product, options.includeLocation),
+              options,
+            ),
+          ].concat(
+            options.includeMatchingFacts
+              ? formatProductFacts(product).filter((line) =>
+                  /^  (claims|allergens|ingredients):/.test(line),
+                )
+              : [],
           ),
         ),
       );
     }
   }
-  lines.push(
-    "",
-    "Next: pass these UPCs to create_shopping_list or add_shopping_list_to_cart.",
-  );
+  if (options.includeNextStep !== false)
+    lines.push(
+      "",
+      "Next: pass these UPCs to create_shopping_list or add_shopping_list_to_cart.",
+    );
   return lines.join("\n");
 }
 

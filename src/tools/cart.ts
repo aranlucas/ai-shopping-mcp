@@ -73,9 +73,7 @@ export const addShoppingListToCartInputSchema = z
       .string()
       .min(1)
       .optional()
-      .describe(
-        "listId from get_shopping_list, create_shopping_list, or shop_for_items",
-      ),
+      .describe("listId from get_shopping_list or create_shopping_list"),
     items: z
       .array(inlineCartItemSchema)
       .min(1)
@@ -126,7 +124,7 @@ function cartResultPayload(payload: {
 
 /**
  * PUTs the given line items to the Kroger cart. Shared by every cart-write
- * path (listId, inline items, and `shop_for_items`'s `addToCart`) so the
+ * path (listId and inline items) so the
  * PUT → mirror-append logic lives in one place. On success, also appends to
  * the per-user cart mirror
  * (`carts.cartMirror`) that `view_cart` reads — best-effort, a mirror
@@ -495,7 +493,7 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
   const parts: string[] = note ? [note] : [];
   if (mirrorResult.value.length === 0) {
     parts.push(
-      "No items added to your cart through this assistant yet. Use shop_for_items to search for items and add them to your Kroger cart.",
+      "No items added to your cart through this assistant yet. Use shop_for_items to find product options, then pass chosen UPCs to add_shopping_list_to_cart.",
     );
   } else {
     const lines = mirrorResult.value.map(

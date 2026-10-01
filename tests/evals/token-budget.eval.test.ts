@@ -148,9 +148,11 @@ describe("token budget: tool responses", () => {
     });
     expect(result.isError).toBeFalsy();
 
-    // Baseline 2026-07: 102t.
-    const { textTokens } = report("shop_for_items", result);
-    expect(textTokens).toBeLessThan(200);
+    // 2026-09-30: five-option read-only flow, 232t text / 371t structured
+    // for this milk + eggs catalog. Budget both surfaces at about 1.25x.
+    const { textTokens, structuredTokens } = report("shop_for_items", result);
+    expect(textTokens).toBeLessThan(300);
+    expect(structuredTokens).toBeLessThan(470);
   });
 
   it("get_shopping_profile stays within content budget with populated data", async () => {

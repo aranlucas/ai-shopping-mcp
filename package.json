@@ -33,6 +33,7 @@
     "db:migrate:local": "wrangler d1 migrations apply SHOPPING_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply SHOPPING_DB --remote",
     "eval:selector:live": "node scripts/eval-selector-live.mjs",
+    "eval:agent-selector:live": "node scripts/eval-agent-selector-live.mjs",
     "build:worker": "pnpm build:views && wrangler build --experimental-new-config --experimental-cf-build-output",
     "eval:agent:report": "vitest-evals serve eval-results"
   },

@@ -97,7 +97,6 @@ function makeDependencies() {
     orderHistory,
     shoppingList,
     carts: {} as CartStore,
-    ai: {} as Env["AI"],
     weeklyDealsCache: {} as WeeklyDealsCache,
     loadWeeklyDeals: async () => {
       throw new Error("Weekly deals not used in registration tests");
@@ -221,6 +220,7 @@ describe("MCP agent contract", () => {
       "search_products",
       "search_stores",
       "view_cart",
+      "shop_for_items",
     ]) {
       expect(
         toolByName(tools, name).config.annotations?.readOnlyHint,
@@ -239,6 +239,7 @@ describe("MCP agent contract", () => {
       "get_shopping_profile",
       "search_products",
       "search_stores",
+      "shop_for_items",
     ]) {
       expect(
         toolByName(tools, name).config.annotations?.idempotentHint,

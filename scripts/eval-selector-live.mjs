@@ -16,17 +16,36 @@ const summarize = (rows) => ({
   total: rows.length,
 });
 
-const cases = process.argv.includes("--holdout") ? holdoutCases : tuningCases;
+const cases = process.argv.includes("--all")
+  ? [...tuningCases, ...holdoutCases]
+  : process.argv.includes("--holdout")
+    ? holdoutCases
+    : tuningCases;
+const compact = process.argv.includes("--compact");
+const rankedControl = process.argv.includes("--ranked-control");
+const orders = rankedControl
+  ? ["acceptable-first"]
+  : ["original", "reversed", "shuffled"];
 const outputPath =
   process.argv.slice(2).find((arg) => !arg.startsWith("--")) ??
   "jev-evaluation-latest.json";
 const selectorSource = await readFile(
-  new URL("../src/services/product-selector.ts", import.meta.url),
+  new URL("./fixtures/jev-product-selector.ts", import.meta.url),
   "utf8",
 );
 const report = {
   startedAt: new Date().toISOString(),
-  dataset: `${cases.length} synthetic hand-labeled grocery cases, three candidate orders; labels fixed before inference`,
+  dataset: `${cases.length} synthetic hand-labeled grocery cases, ${orders.length} candidate order(s); labels fixed before inference`,
+  orders,
+  controlDescription: rankedControl
+    ? "Label-informed ordering puts acceptable candidates first; an ideal-retrieval control, not observed Kroger relevance."
+    : null,
+  candidateSet: compact
+    ? "Original challenge candidates without unrelated fillers"
+    : "Expanded to 20 candidates with unrelated fillers",
+  rankedControl,
+  comparison:
+    "First eligible candidate in identical order; same stock/UPC/curbside eligibility as production. Synthetic order is not Kroger ranking.",
   selectorSource,
   selectorSha256: createHash("sha256").update(selectorSource).digest("hex"),
   batches: [],
@@ -58,19 +77,26 @@ try {
   );
   const expanded = cases.map((testCase) => ({
     ...testCase,
-    products: expandedCandidates(testCase),
+    products: compact ? testCase.candidates : expandedCandidates(testCase),
   }));
-  for (const order of ["original", "reversed", "shuffled"]) {
+  for (const order of orders) {
     for (let offset = 0; offset < expanded.length; offset += 10) {
       const batch = expanded.slice(offset, offset + 10);
       const items = batch.map((testCase, index) => ({
+        requestId: `item_${index}`,
         query: testCase.query,
         products:
-          order === "reversed"
-            ? testCase.products.toReversed()
-            : order === "shuffled"
-              ? shuffled(testCase.products, 42 + offset + index)
-              : testCase.products,
+          order === "acceptable-first"
+            ? testCase.products.toSorted(
+                (a, b) =>
+                  Number(testCase.acceptableUpcs.includes(b.upc)) -
+                  Number(testCase.acceptableUpcs.includes(a.upc)),
+              )
+            : order === "reversed"
+              ? testCase.products.toReversed()
+              : order === "shuffled"
+                ? shuffled(testCase.products, 42 + offset + index)
+                : testCase.products,
       }));
       // Deliberately serial: measure isolated latency without bursts or application retries.
       // oxlint-disable-next-line eslint/no-await-in-loop -- isolate latency and avoid inference bursts
@@ -97,6 +123,20 @@ try {
             : selection.status === "selected" &&
               testCase.acceptableUpcs.includes(selection.product.upc)),
         );
+        const firstEligible = items[index].products.find((product) => {
+          const variant = product.items?.[0];
+          return (
+            variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
+            Boolean(product.upc) &&
+            variant?.fulfillment?.curbside === true
+          );
+        });
+        const baselineCorrect = expectedAbstention
+          ? !firstEligible
+          : Boolean(
+              firstEligible &&
+              testCase.acceptableUpcs.includes(firstEligible.upc),
+            );
         const answer = body.calls?.[0]?.response?.answers?.[`item_${index}`];
         report.results.push({
           id: testCase.id,
@@ -106,6 +146,11 @@ try {
           order,
           batchIndex,
           correct,
+          baselineCorrect,
+          baselineActual: firstEligible
+            ? { upc: firstEligible.upc, name: firstEligible.description }
+            : "unresolved",
+          candidates: items[index].products,
           expected: expectedAbstention
             ? "unresolved"
             : testCase.candidates
@@ -147,6 +192,55 @@ try {
   report.summary = {
     ...summarize(results),
     uniqueCases: cases.length,
+    matchableRequests: {
+      jev: summarize(results.filter((row) => row.expected !== "unresolved")),
+      firstEligible: {
+        correct: results.filter(
+          (row) => row.expected !== "unresolved" && row.baselineCorrect,
+        ).length,
+        total: results.filter((row) => row.expected !== "unresolved").length,
+      },
+    },
+    failedBatches: report.batches.filter((batch) => batch.error).length,
+    firstEligible: {
+      correct: results.filter((row) => row.baselineCorrect).length,
+      total: results.length,
+      wrongSelections: results.filter(
+        (row) => typeof row.baselineActual === "object" && !row.baselineCorrect,
+      ).length,
+      selected: results.filter((row) => typeof row.baselineActual === "object")
+        .length,
+    },
+    paired: {
+      jevWins: results.filter((row) => row.correct && !row.baselineCorrect)
+        .length,
+      jevRegressions: results.filter(
+        (row) => !row.correct && row.baselineCorrect,
+      ).length,
+      bothCorrect: results.filter((row) => row.correct && row.baselineCorrect)
+        .length,
+      bothWrong: results.filter((row) => !row.correct && !row.baselineCorrect)
+        .length,
+    },
+    wrongSelections: selections.filter((row) => !row.correct).length,
+    missedMatches: results.filter(
+      (row) => row.expected !== "unresolved" && row.actual === "unresolved",
+    ).length,
+    byOrder: Object.fromEntries(
+      orders.map((order) => {
+        const rows = results.filter((row) => row.order === order);
+        return [
+          order,
+          {
+            jev: summarize(rows),
+            firstEligible: {
+              correct: rows.filter((row) => row.baselineCorrect).length,
+              total: rows.length,
+            },
+          },
+        ];
+      }),
+    ),
     selectedPrecision: summarize(selections),
     expectedAbstentions: summarize(expectedAbstentions),
     errors: results.filter((result) => result.actual === "error").length,
@@ -178,6 +272,7 @@ try {
         0,
       ),
   };
+  report.completedAt = new Date().toISOString();
   console.log(JSON.stringify(report.summary, null, 2));
 } finally {
   await writeFile(outputPath, JSON.stringify(report, null, 2) + "\n");
