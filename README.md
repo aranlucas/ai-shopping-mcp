@@ -157,7 +157,7 @@ The Kroger application must allow `profile.compact`, `cart.basic:write`, and `pr
 The server exposes 13 tools:
 
 - Stores: `search_stores` (by zip code, or one store's details by `storeId`), `set_preferred_store`
-- Products and deals: `search_products` (by `terms`, or exact `upcs`), `shop_for_items`, `get_weekly_deals`
+- Products and deals: `search_products` (text terms and/or exact UPCs in one `terms` list), `shop_for_items`, `get_weekly_deals`
 - Household: `get_shopping_profile`, `update_inventory`, `record_order`
 - Lists and cart: `create_shopping_list`, `get_shopping_list`, `update_shopping_list`, `add_shopping_list_to_cart`, `view_cart`
 
@@ -188,7 +188,11 @@ Run `pnpm eval:selector:live` for the 30-case live evaluation, or append an outp
 
 `search_products` searches Kroger directly using one optional `storeId`, defaulting
 to the preferred Kroger store. Terms run concurrently; a failed term retains its
-error type and recovery guidance while successful terms remain usable.
+error type and recovery guidance while successful terms remain usable. An all-digit
+term is an exact UPC lookup (five Kroger calls at a time, no limit on how many)
+that also returns the product's other variants with their UPCs, allergens, dietary
+claims, ingredients, nutrition, rating, and storage. Text terms follow Kroger's
+limits: at least 3 characters, trimmed to 8 words, at most 10 per call.
 
 Products use UPCs throughout the tools, domain model, and app. Copy `upc` from
 search results into lists and orders. There is no

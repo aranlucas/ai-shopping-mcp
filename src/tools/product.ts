@@ -6,21 +6,45 @@ import { appResult } from "../app-results.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import { toProductData } from "../services/kroger/product-data.js";
 import type { ProductService } from "../services/kroger/product-service.js";
-import { searchProductsForTerms } from "../services/kroger/search.js";
 import {
-  formatProductDetails,
-  formatProductSearchMarkdown,
-} from "../utils/format-response.js";
+  type ProductSearchResult,
+  searchProductsForTerms,
+} from "../services/kroger/search.js";
+import { formatProductSearchMarkdown } from "../utils/format-response.js";
 import { safeStorage, toMcpError } from "../utils/result.js";
 import type { PreferredLocationStore } from "../utils/shopping-store.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { storeIdSchema, upcSchema } from "./schemas.js";
+import { storeIdSchema } from "./schemas.js";
 
 export {
   type ProductSearchResult,
   logProductSearchError,
   searchProductsForTerms,
 } from "../services/kroger/search.js";
+
+/** An all-digit term is a UPC (copied from earlier results), not a search. */
+const UPC_TERM = /^\d{8,13}$/;
+const MAX_TEXT_TERMS = 10;
+/** UPC detail calls in flight at once; there is no cap on how many are asked. */
+const UPC_LOOKUP_BATCH = 5;
+
+/** Runs `fn` over `items` a batch at a time, preserving order. */
+async function mapInBatches<T, R>(
+  items: T[],
+  size: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let start = 0; start < items.length; start += size) {
+    const batch = items
+      .slice(start, start + size)
+      .map((item, offset) => fn(item, start + offset));
+    // oxlint-disable-next-line eslint/no-await-in-loop -- batches are sequential to bound concurrent Kroger calls
+    const settled = await Promise.all(batch);
+    results.push(...settled);
+  }
+  return results;
+}
 
 const NO_STORE_NOTICE =
   "No preferred store is set, so prices and availability are not for a specific store, and cart adds will fail. Use search_stores and set_preferred_store first when the user wants to buy.";
@@ -41,7 +65,7 @@ export function registerProductTools(
     {
       title: "Search Products",
       description:
-        "Search Kroger products in one batch: put every item in terms (do not call once per item), or pass upcs to look up exact products. Returns upc, price, sale price, and pickup availability at the preferred store; copy the UPCs into lists, carts, and orders.",
+        "Search Kroger products in one batch: put every item in terms, do not call once per item. A term that is a UPC (all digits) looks up that exact product with its aisle and every size. Returns upc, price, sale price, and pickup availability at the preferred store; copy the UPCs into lists, carts, and orders.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -49,44 +73,43 @@ export function registerProductTools(
         idempotentHint: true,
         openWorldHint: true,
       },
-      inputSchema: z
-        .strictObject({
-          terms: z
-            .array(z.string().trim().min(1).max(100))
-            .min(1)
-            .max(10, { message: "Maximum 10 search terms allowed" })
-            .optional()
-            .describe("Batch search terms, e.g. ['milk', 'bread', 'eggs']"),
-          upcs: z
-            .array(upcSchema)
-            .min(1)
-            .optional()
-            .describe("Exact 13-digit UPCs to look up instead of searching"),
-          storeId: storeIdSchema
-            .optional()
-            .describe(
-              "8-character storeId from search_stores; defaults to the preferred store",
-            ),
-          limitPerTerm: z.coerce
-            .number()
-            .int()
-            .min(1)
-            .max(10)
-            .default(5)
-            .describe("Max products per term (1-10)"),
-          includeLocation: z
-            .boolean()
-            .default(false)
-            .describe(
-              "Include aisle and shelf for each product, for shopping in the store",
-            ),
-        })
-        .refine((input) => Boolean(input.terms ?? input.upcs), {
-          message: "Pass terms to search, or upcs to look up exact products.",
-        }),
+      inputSchema: z.strictObject({
+        terms: z
+          .array(z.string().trim().min(1).max(100))
+          .min(1, { message: "At least one search term is required" })
+          .refine(
+            (terms) =>
+              terms.filter((term) => !UPC_TERM.test(term)).length <=
+              MAX_TEXT_TERMS,
+            {
+              message: `Maximum ${MAX_TEXT_TERMS} text search terms per call (UPC terms don't count).`,
+            },
+          )
+          .describe(
+            "Product names to search, e.g. ['milk', 'bread'], and/or UPCs to look up exactly, e.g. ['0001111041700']",
+          ),
+        storeId: storeIdSchema
+          .optional()
+          .describe(
+            "8-character storeId from search_stores; defaults to the preferred store",
+          ),
+        limitPerTerm: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(10)
+          .default(5)
+          .describe("Max products per text term (1-10)"),
+        includeLocation: z
+          .boolean()
+          .default(false)
+          .describe(
+            "Include aisle and shelf for each product, for shopping in the store",
+          ),
+      }),
     },
     async (
-      { terms, upcs, storeId, limitPerTerm, includeLocation },
+      { terms, storeId, limitPerTerm, includeLocation },
       requestContext,
     ) => {
       let locationId = storeId;
@@ -98,27 +121,65 @@ export function registerProductTools(
         if (preferred.isErr()) return toMcpError(preferred.error);
         locationId = preferred.value?.locationId;
       }
-      const notice = locationId ? "" : `${NO_STORE_NOTICE}\n\n`;
 
-      if (upcs && !terms) return lookupUpcs(upcs, locationId, notice);
+      const uniqueTerms = [
+        ...new Set(
+          terms.map((term) =>
+            UPC_TERM.test(term) ? term.padStart(13, "0") : term,
+          ),
+        ),
+      ];
+      const upcs = uniqueTerms.filter((term) => UPC_TERM.test(term));
+      const textTerms = uniqueTerms.filter((term) => !UPC_TERM.test(term));
 
-      const requests = [...new Set(terms)].map((term, index) => ({
-        requestId: `term_${index}`,
-        term,
-      }));
       const progressToken = requestContext.mcpReq._meta?.progressToken;
-      const results = await searchProductsForTerms(
-        productClient,
-        requests,
-        { locationId, limitPerTerm },
-        async (completed, total) => {
-          if (progressToken === undefined) return;
-          await requestContext.mcpReq.notify({
-            method: "notifications/progress",
-            params: { progressToken, progress: completed, total },
-          });
-        },
+      const [lookups, searches] = await Promise.all([
+        mapInBatches(
+          upcs,
+          UPC_LOOKUP_BATCH,
+          async (upc, index): Promise<ProductSearchResult> =>
+            (await productService.getProduct(upc, locationId)).match(
+              (product) => ({
+                requestId: `upc_${index}`,
+                term: upc,
+                status: "success" as const,
+                products: [product],
+              }),
+              (error) => ({
+                requestId: `upc_${index}`,
+                term: upc,
+                status: "failed" as const,
+                error,
+              }),
+            ),
+        ),
+        textTerms.length === 0
+          ? Promise.resolve([])
+          : searchProductsForTerms(
+              productClient,
+              textTerms.map((term, index) => ({
+                requestId: `term_${index}`,
+                term,
+              })),
+              { locationId, limitPerTerm },
+              async (completed, total) => {
+                if (progressToken === undefined) return;
+                await requestContext.mcpReq.notify({
+                  method: "notifications/progress",
+                  params: { progressToken, progress: completed, total },
+                });
+              },
+            ),
+      ]);
+      // Report in the order the terms were asked.
+      const byTerm = new Map(
+        [...lookups, ...searches].map((result) => [result.term, result]),
       );
+      const results = uniqueTerms.flatMap((term) => {
+        const result = byTerm.get(term);
+        return result ? [result] : [];
+      });
+
       const totalProducts = results.reduce(
         (sum, result) =>
           sum + (result.status === "success" ? result.products.length : 0),
@@ -130,13 +191,26 @@ export function registerProductTools(
         failures[0];
       if (totalProducts === 0 && failure) return toMcpError(failure.error);
 
+      const exactUpcs = new Set(upcs);
+      const text = `${locationId ? "" : `${NO_STORE_NOTICE}\n\n`}${formatProductSearchMarkdown(results, { includeLocation, exactUpcs })}`;
+
+      // A single exact lookup opens the product detail view in the app.
+      const [only] = results;
+      if (
+        results.length === 1 &&
+        exactUpcs.has(only.term) &&
+        only.status === "success"
+      ) {
+        return {
+          content: [{ type: "text" as const, text }],
+          ...appResult("get_product", {
+            product: toProductData(only.products[0], true, only.term),
+          }),
+        };
+      }
+
       return {
-        content: [
-          {
-            type: "text" as const,
-            text: `${notice}${formatProductSearchMarkdown(results, { includeLocation })}`,
-          },
-        ],
+        content: [{ type: "text" as const, text }],
         ...appResult("search_products", {
           results: results.map((result) =>
             result.status === "failed"
@@ -149,7 +223,11 @@ export function registerProductTools(
               : {
                   term: result.term,
                   products: result.products.map((product) =>
-                    toProductData(product, includeLocation),
+                    toProductData(
+                      product,
+                      includeLocation || exactUpcs.has(result.term),
+                      exactUpcs.has(result.term) ? result.term : undefined,
+                    ),
                   ),
                   failed: false,
                 },
@@ -159,54 +237,4 @@ export function registerProductTools(
       };
     },
   );
-
-  /** Exact UPC lookups; one UPC renders the product detail view. */
-  async function lookupUpcs(
-    upcs: string[],
-    locationId: string | undefined,
-    notice: string,
-  ) {
-    const lookups = await Promise.all(
-      [...new Set(upcs)].map(async (upc) => ({
-        upc,
-        result: await productService.getProduct(upc, locationId),
-      })),
-    );
-    const found = lookups.flatMap(({ upc, result }) =>
-      result.isOk() ? [toProductData(result.value, true, upc)] : [],
-    );
-    const missing = lookups.filter(({ result }) => result.isErr());
-    if (found.length === 0) {
-      const [first] = missing;
-      if (first?.result.isErr()) return toMcpError(first.result.error);
-    }
-
-    const text = [
-      notice.trim(),
-      ...found.map((product) => formatProductDetails(product)),
-      missing.length > 0
-        ? `Not found: ${missing.map(({ upc }) => `upc=${upc}`).join(", ")}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
-    if (found.length === 1) {
-      return {
-        content: [{ type: "text" as const, text }],
-        ...appResult("get_product", { product: found[0] }),
-      };
-    }
-    return {
-      content: [{ type: "text" as const, text }],
-      ...appResult("search_products", {
-        results: found.map((product) => ({
-          term: product.upc,
-          products: [product],
-          failed: false,
-        })),
-        totalProducts: found.length,
-      }),
-    };
-  }
 }

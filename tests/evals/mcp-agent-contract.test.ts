@@ -285,7 +285,7 @@ describe("MCP agent contract", () => {
     );
     expect(
       searchProducts.config.inputSchema?.safeParse({
-        upcs: ["0001111041700"],
+        terms: ["0001111041700"],
       }).success,
     ).toBe(true);
 

@@ -58,14 +58,14 @@ describe("input forgiveness", () => {
 
   describe("normalized (must succeed)", () => {
     it("accepts an unpadded UPC and pads it to 13 digits", async () => {
-      const result = await call("search_products", { upcs: ["1111041700"] });
+      const result = await call("search_products", { terms: ["1111041700"] });
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
       expect(contentText(result)).toContain("0001111041700");
     });
 
     it("accepts a UPC with surrounding whitespace", async () => {
       const result = await call("search_products", {
-        upcs: [" 0001111041700 "],
+        terms: [" 0001111041700 "],
       });
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
@@ -126,27 +126,21 @@ describe("input forgiveness", () => {
       expect(result.isError, `${contentText(result)}`).toBeTruthy();
     });
 
-    it("rejects a non-numeric UPC with instructions to copy it from search_products", async () => {
-      const result = await call("search_products", { upcs: ["not-a-upc"] });
-      expect(result.isError).toBe(true);
-      expect(contentText(result)).toContain("search_products");
-    });
-
-    it("rejects productId instead of upcs", async () => {
+    it("rejects productId instead of terms", async () => {
       const result = await call("search_products", {
         productId: "1111041700",
       });
       expect(result.isError).toBe(true);
     });
 
-    it("rejects productRef instead of upcs", async () => {
+    it("rejects productRef instead of terms", async () => {
       const result = await call("search_products", {
         productRef: "kroger:0001111041700",
       });
       expect(result.isError).toBe(true);
     });
 
-    it("rejects search_products with neither terms nor upcs", async () => {
+    it("rejects search_products without terms", async () => {
       const result = await call("search_products", { storeId: "70500847" });
       expect(result.isError).toBe(true);
     });

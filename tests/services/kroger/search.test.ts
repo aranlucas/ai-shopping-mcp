@@ -93,4 +93,33 @@ describe("searchProductsForTerms", () => {
       });
     }
   });
+
+  it("applies Kroger's term limits: under 3 characters fails alone, over 8 words is trimmed", async () => {
+    const get = vi.fn<SearchGet>(async () => ({
+      data: { data: [] },
+      response: new Response(null, { status: 200 }),
+    }));
+
+    const results = await searchProductsForTerms(
+      productClient(get),
+      [
+        { requestId: "a", term: "ox" },
+        {
+          requestId: "b",
+          term: "one two three four five six seven eight nine ten",
+        },
+      ],
+      { limitPerTerm: 5 },
+    );
+
+    expect(results[0]).toMatchObject({
+      status: "failed",
+      error: expect.objectContaining({ type: "VALIDATION_ERROR" }),
+    });
+    expect(results[1]).toMatchObject({ status: "success" });
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls[0][1].params.query?.["filter.term"]).toBe(
+      "one two three four five six seven eight",
+    );
+  });
 });

@@ -241,15 +241,31 @@ export function formatProductDetails(product: ProductData): string {
   return formatProductLine(product, { includeLocation: true }).slice(2);
 }
 
-/** One result per requested term; preserve failures separately from empty searches. */
+/**
+ * One result per requested term; preserve failures separately from empty
+ * searches. Terms in `exactUpcs` were UPC lookups and show full detail.
+ */
 export function formatProductSearchMarkdown(
   results: ProductSearchResult[],
-  options: { includeLocation?: boolean } = {},
+  options: { includeLocation?: boolean; exactUpcs?: ReadonlySet<string> } = {},
 ): string {
   const lines: string[] = [];
   for (const result of results) {
     lines.push(`${result.term}:`);
-    if (result.status === "failed") {
+    const exact = options.exactUpcs?.has(result.term) ?? false;
+    if (
+      exact &&
+      result.status === "failed" &&
+      result.error.type === "NOT_FOUND"
+    ) {
+      lines.push("- No Kroger product has this UPC.");
+    } else if (exact && result.status === "success") {
+      lines.push(
+        ...result.products.flatMap((product) =>
+          formatExactProductLines(product, result.term),
+        ),
+      );
+    } else if (result.status === "failed") {
       lines.push(
         `- Kroger search failed for this term. ${result.error.message} recovery=${errorRecovery(result.error)}`,
       );
@@ -273,43 +289,121 @@ export function formatProductSearchMarkdown(
   return lines.join("\n");
 }
 
-/** Key/value lines for one exact-UPC product lookup: no images. */
-export function formatProductDetailMarkdown(product: Product): string {
-  const lines: string[] = [
-    `upc: ${product.upc ?? "unknown"}`,
-    `description: ${product.description ?? "unknown"}`,
-  ];
+const MAX_INGREDIENT_CHARS = 300;
+const MAX_NUTRIENTS = 8;
 
-  if (product.brand) lines.push(`brand: ${product.brand}`);
+/**
+ * Detail-only facts from Kroger's product model for an exact lookup:
+ * dietary claims, allergens, ingredients, nutrition, rating, storage, and
+ * purchase restrictions. Absent fields are skipped.
+ */
+function formatProductFacts(product: Product): string[] {
+  const lines: string[] = [];
+  const claims = [
+    product.organicClaimName ?? undefined,
+    product.nonGmo ? (product.nonGmoClaimName ?? "non-GMO") : undefined,
+    product.hypoallergenic ? "hypoallergenic" : undefined,
+    product.certifiedForPassover ? "certified for Passover" : undefined,
+    product.snapEligible ? "SNAP eligible" : undefined,
+    ...(product.manufacturerDeclarations ?? []),
+  ].filter(Boolean);
+  if (claims.length > 0) lines.push(`  claims: ${claims.join(", ")}`);
 
-  if (product.items && product.items.length > 0) {
-    lines.push("variants:");
-    for (const item of product.items) {
-      const parts: string[] = [];
-      if (item.size) parts.push(item.size);
+  const allergens =
+    product.allergensDescription ??
+    product.allergens
+      ?.map((allergen) =>
+        [allergen.levelOfContainmentName, allergen.name]
+          .filter(Boolean)
+          .join(" "),
+      )
+      .filter(Boolean)
+      .join(", ");
+  if (allergens) lines.push(`  allergens: ${allergens}`);
 
-      const price = formatKrogerPrice(item.price);
-      if (price) parts.push(price);
-
-      const pickup = Boolean(
-        item.fulfillment?.curbside || item.fulfillment?.instore,
-      );
-      parts.push(`pickup: ${pickup ? "yes" : "no"}`);
-      if (item.inventory?.stockLevel)
-        parts.push(`stock: ${item.inventory.stockLevel}`);
-
-      lines.push(`- ${parts.join(" | ")}`);
-    }
-  }
-
-  if (product.aisleLocations && product.aisleLocations.length > 0) {
-    const aisle = product.aisleLocations[0];
+  const nutrition = product.nutritionInformation;
+  const ingredients = nutrition?.ingredientStatement?.trim();
+  if (ingredients) {
     lines.push(
-      `aisle: ${[aisle.description, aisle.number].filter(Boolean).join(" ")}`,
+      `  ingredients: ${
+        ingredients.length > MAX_INGREDIENT_CHARS
+          ? `${ingredients.slice(0, MAX_INGREDIENT_CHARS)}…`
+          : ingredients
+      }`,
+    );
+  }
+  const nutrients = (nutrition?.nutrients ?? [])
+    .slice(0, MAX_NUTRIENTS)
+    .flatMap((nutrient) => {
+      const name = nutrient.displayName ?? nutrient.description;
+      if (!name || nutrient.quantity === undefined) return [];
+      return [
+        `${name} ${nutrient.quantity}${nutrient.unitOfMeasure?.abbreviation ?? ""}`,
+      ];
+    });
+  if (nutrients.length > 0) {
+    const serving = nutrition?.servingSize?.description;
+    lines.push(
+      `  nutrition${serving ? ` (per ${serving})` : ""}: ${nutrients.join(", ")}`,
     );
   }
 
-  return lines.join("\n");
+  const rating = product.ratingsAndReviews;
+  if (rating?.averageOverallRating !== undefined) {
+    lines.push(
+      `  rating: ${rating.averageOverallRating}/5${
+        rating.totalReviewCount ? ` (${rating.totalReviewCount} reviews)` : ""
+      }`,
+    );
+  }
+  if (product.temperature?.indicator) {
+    lines.push(`  storage: ${product.temperature.indicator}`);
+  }
+
+  const restrictions = [
+    product.ageRestriction ? "age-restricted" : undefined,
+    product.alcohol ? "contains alcohol" : undefined,
+    product.retstrictions?.maximumOrderQuantity
+      ? `max ${product.retstrictions.maximumOrderQuantity} per order`
+      : undefined,
+  ].filter(Boolean);
+  if (restrictions.length > 0) {
+    lines.push(`  restrictions: ${restrictions.join(", ")}`);
+  }
+  if (product.countryOrigin) lines.push(`  origin: ${product.countryOrigin}`);
+  return lines;
+}
+
+/**
+ * An exact-UPC lookup: the product line with location, then every other
+ * variant (Kroger item) with its own upc, then the detail-only facts.
+ */
+function formatExactProductLines(product: Product, upc: string): string[] {
+  const lines = [
+    formatProductLine(toProductData(product, true, upc), {
+      includeLocation: true,
+    }),
+  ];
+  const [first, ...variants] = product.items ?? [];
+  if (first?.soldBy?.toLowerCase() === "weight") {
+    lines.push("  sold by weight; price is an estimate");
+  }
+  if (variants.length > 0) {
+    lines.push("  other variants:");
+    for (const item of variants) {
+      const parts: string[] = [];
+      if (item.itemId) parts.push(`upc=${item.itemId}`);
+      if (item.size) parts.push(item.size);
+      const price = formatKrogerPrice(item.price);
+      if (price) parts.push(price);
+      parts.push(`pickup: ${item.fulfillment?.curbside ? "yes" : "no"}`);
+      if (item.inventory?.stockLevel === "TEMPORARILY_OUT_OF_STOCK")
+        parts.push("out of stock");
+      lines.push(`  - ${parts.join(" | ")}`);
+    }
+  }
+  lines.push(...formatProductFacts(product));
+  return lines;
 }
 
 /** One markdown line for a store: storeId, name, address, phone. */

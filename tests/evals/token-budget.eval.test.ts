@@ -130,7 +130,7 @@ describe("token budget: tool responses", () => {
 
   it("search_products UPC lookup stays within content budget", async () => {
     const result = await call("search_products", {
-      upcs: ["0001111041700"],
+      terms: ["0001111041700"],
       storeId: DEFAULT_STORE_ID,
     });
     expect(result.isError).toBeFalsy();

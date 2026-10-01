@@ -727,10 +727,10 @@ describe("search_products", () => {
 });
 
 // ---------------------------------------------------------------------------
-// search_products with upcs (exact lookup; formerly get_product)
+// search_products with UPC terms (exact lookup; formerly get_product)
 // ---------------------------------------------------------------------------
 
-describe("search_products exact UPC lookup", () => {
+describe("search_products UPC terms", () => {
   beforeEach(() => {
     testState.capturedTools.length = 0;
     authenticate();
@@ -743,7 +743,7 @@ describe("search_products exact UPC lookup", () => {
     registerProducts(async () => makeDetailResponse(product));
 
     const result = await getCapturedHandler("search_products")({
-      upcs: ["0001111041700"],
+      terms: ["0001111041700"],
     });
 
     const sc = structuredContentOf(result) as { product: ProductData };
@@ -766,7 +766,7 @@ describe("search_products exact UPC lookup", () => {
     registerProducts(async () => makeDetailResponse(undefined));
 
     const result = await getCapturedHandler("search_products")({
-      upcs: ["0001111041700"],
+      terms: ["0001111041700"],
     });
 
     expect(isErrorResult(result)).toBe(true);
@@ -777,7 +777,7 @@ describe("search_products exact UPC lookup", () => {
     registerProducts(async () => makeErrorResponse(401));
 
     const result = await getCapturedHandler("search_products")({
-      upcs: ["0001111041700"],
+      terms: ["0001111041700"],
     });
 
     expect(isErrorResult(result)).toBe(true);
@@ -794,7 +794,7 @@ describe("search_products exact UPC lookup", () => {
     });
 
     await getCapturedHandler("search_products")({
-      upcs: ["0001111041700"],
+      terms: ["0001111041700"],
       storeId: "12345678",
     });
 
@@ -806,7 +806,7 @@ describe("search_products exact UPC lookup", () => {
     registerProducts(async () => makeDetailResponse(product));
 
     const result = await getCapturedHandler("search_products")({
-      upcs: ["0001111041700"],
+      terms: ["0001111041700"],
     });
 
     const sc = structuredContentOf(result) as { product: ProductData };
@@ -818,15 +818,143 @@ describe("search_products exact UPC lookup", () => {
     expect(text).toContain("upc=0001111041700");
   });
 
-  it("accepts a 10-digit upc and pads it to 13 digits via the schema", () => {
-    registerProducts(async () => makeDetailResponse(undefined));
+  it("pads a short all-digit term and looks it up as a UPC", async () => {
+    const paths: string[] = [];
+    registerProducts(async (path, opts) => {
+      paths.push(`${path} ${JSON.stringify(opts.params.path ?? {})}`);
+      return makeDetailResponse(makeProduct());
+    });
+
+    await getCapturedHandler("search_products")({ terms: ["1111041700"] });
+
+    expect(paths).toEqual(['/v1/products/{id} {"id":"0001111041700"}']);
+  });
+
+  it("searches text terms and looks up UPC terms in one call, in order", async () => {
+    const calls: string[] = [];
+    registerProducts(async (path) => {
+      calls.push(path);
+      return path === "/v1/products"
+        ? makeSearchResponse([makeProduct({ upc: "0001111099999" })])
+        : makeDetailResponse(makeProduct());
+    });
+
+    const result = await getCapturedHandler("search_products")({
+      terms: ["0001111041700", "bread"],
+    });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(calls.toSorted()).toEqual(["/v1/products", "/v1/products/{id}"]);
+    const text = textFromResult(result);
+    expect(text.indexOf("0001111041700:")).toBeLessThan(text.indexOf("bread:"));
+    expect(result).toMatchObject({
+      _meta: { "dev.aranlucas/view": "search_products" },
+    });
+  });
+
+  it("shows other variants with their own UPCs and the product's details", async () => {
+    registerProducts(async () =>
+      makeDetailResponse(
+        makeProduct({
+          items: [
+            {
+              itemId: "0001111041700",
+              size: "1 gal",
+              price: { regular: 3.99 },
+            },
+            {
+              itemId: "0001111041800",
+              size: "half gal",
+              price: { regular: 2.49 },
+              fulfillment: { curbside: true },
+            },
+          ],
+          allergensDescription: "Contains milk",
+          organicClaimName: "USDA Organic",
+          snapEligible: true,
+          nutritionInformation: {
+            ingredientStatement: "Organic milk, vitamin D3.",
+            servingSize: { description: "1 cup" },
+            nutrients: [
+              {
+                displayName: "Calories",
+                quantity: 120,
+                unitOfMeasure: { abbreviation: "" },
+              },
+              {
+                displayName: "Protein",
+                quantity: 8,
+                unitOfMeasure: { abbreviation: "g" },
+              },
+            ],
+          },
+          ratingsAndReviews: {
+            averageOverallRating: 4.6,
+            totalReviewCount: 31,
+          },
+          temperature: { indicator: "Refrigerated" },
+        }),
+      ),
+    );
+
+    const text = textFromResult(
+      await getCapturedHandler("search_products")({
+        terms: ["0001111041700"],
+      }),
+    );
+
+    expect(text).toContain("other variants:");
+    expect(text).toContain("upc=0001111041800 | half gal | $2.49");
+    expect(text).toContain("claims: USDA Organic, SNAP eligible");
+    expect(text).toContain("allergens: Contains milk");
+    expect(text).toContain("ingredients: Organic milk, vitamin D3.");
+    expect(text).toContain("nutrition (per 1 cup): Calories 120, Protein 8g");
+    expect(text).toContain("rating: 4.6/5 (31 reviews)");
+    expect(text).toContain("storage: Refrigerated");
+  });
+
+  it("looks up any number of UPCs, five Kroger calls at a time", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let calls = 0;
+    registerProducts(async () => {
+      calls++;
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1);
+      });
+      inFlight--;
+      return makeDetailResponse(makeProduct());
+    });
+
+    const terms = Array.from({ length: 12 }, (_, index) =>
+      String(1_111_041_700 + index).padStart(13, "0"),
+    );
+    const result = await getCapturedHandler("search_products")({ terms });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(calls).toBe(12);
+    expect(maxInFlight).toBeLessThanOrEqual(5);
+  });
+
+  it("still caps text search terms at ten per call", () => {
+    registerProducts(async () => makeSearchResponse([]));
     const tool = getCapturedTool("search_products");
     const config = tool.config as {
-      inputSchema: { parse: (v: unknown) => { upcs: string[] } };
+      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
     };
-    expect(config.inputSchema.parse({ upcs: ["1111041700"] }).upcs).toEqual([
-      "0001111041700",
-    ]);
+    const upcs = Array.from({ length: 20 }, (_, index) =>
+      String(index).padStart(13, "0"),
+    );
+    const words = Array.from({ length: 10 }, (_, index) => `item ${index}`);
+
+    expect(
+      config.inputSchema.safeParse({ terms: [...words, ...upcs] }).success,
+    ).toBe(true);
+    expect(
+      config.inputSchema.safeParse({ terms: [...words, "one more"] }).success,
+    ).toBe(false);
   });
 
   it("rejects productRef in the input schema", () => {
@@ -841,17 +969,6 @@ describe("search_products exact UPC lookup", () => {
     ).toBe(false);
   });
 
-  it("rejects a upc containing letters", () => {
-    registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
-    expect(
-      config.inputSchema.safeParse({ upcs: ["abc1111041700"] }).success,
-    ).toBe(false);
-  });
-
   it("rejects productId instead of upc", () => {
     registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("search_products");
@@ -863,7 +980,7 @@ describe("search_products exact UPC lookup", () => {
     ).toBe(false);
   });
 
-  it("rejects a call with neither terms nor upcs", () => {
+  it("rejects a call without terms", () => {
     registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("search_products");
     const config = tool.config as {
