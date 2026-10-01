@@ -1,853 +1,280 @@
-import { cartOperationStore } from "../cart-operation-store.js";
-import type { McpServer } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { KrogerClients } from "../../src/services/kroger/client.js";
-import type { components as ProductComponents } from "../../src/services/kroger/product.js";
-import { createWeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
-import type {
-  PreferredLocation,
-  ShoppingList,
-  ShoppingListItem,
-} from "../../src/domain/shopping.js";
-import type { KvLike } from "../../src/utils/kv.js";
-import type { ShoppingStore } from "../../src/utils/shopping-store.js";
-import type {
-  CartSnapshotItem,
-  CartStore,
-} from "../../src/utils/user-storage.js";
-
+import type { components } from "../../src/services/kroger/product.js";
+import { appPayloadSchemas } from "../../src/app-results.js";
 import {
-  registerShopTools as registerShopToolsImpl,
+  getCapturedHandler,
+  getCapturedTool,
+  makeContext,
+  resetToolTestHarness,
+} from "./tool-test-harness.js";
+import {
+  registerShopTools,
   shopForItemsInputSchema,
 } from "../../src/tools/shop.js";
-import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
-import {
-  type TestToolHandler as ToolHandler,
-  wrapV2ToolHandler,
-  type TestToolConfig,
-} from "../v2-tool-handler.js";
-import { stubJevAi, type JevRun } from "../jev-stub.js";
 
-type Product = ProductComponents["schemas"]["products.productModel"];
-
-type AuthContext = {
-  props?: { id: string; accessToken: string; tokenExpiresAt: number };
-};
-
-type CapturedTool = { name: string; config: unknown; handler: ToolHandler };
-
-const testState = vi.hoisted(() => ({
-  authContext: undefined as AuthContext | undefined,
-  capturedTools: [] as CapturedTool[],
-}));
-
-vi.mock("agents/mcp/server", () => ({
-  getMcpAuthContext: () => testState.authContext,
-}));
-
-function authenticate(userId = "user-123") {
-  testState.authContext = {
-    props: {
-      id: userId,
-      accessToken: "test-token",
-      tokenExpiresAt: Date.now() + 60_000,
+type Product = components["schemas"]["products.productModel"];
+const product = (index: number, overrides: Partial<Product> = {}): Product => ({
+  upc: String(index).padStart(13, "0"),
+  description: `Milk ${index}`,
+  brand: "Kroger",
+  items: [
+    {
+      size: "1 gal",
+      price: { regular: 3.49, promo: 2.99 },
+      fulfillment: { curbside: true, delivery: true },
     },
-  };
-}
-
-function textFromResult(result: unknown): string {
-  const r = result as { content?: Array<{ type: string; text: string }> };
-  return r.content?.[0]?.text ?? "";
-}
-
-function isErrorResult(result: unknown): boolean {
-  return Boolean((result as { isError?: boolean }).isError);
-}
-
-function structuredContentOf(result: unknown): Record<string, unknown> {
-  return (
-    (result as { structuredContent?: Record<string, unknown> })
-      .structuredContent ?? {}
-  );
-}
-
-function makeProduct(overrides: Partial<Product> = {}): Product {
-  return {
-    upc: "0001111041700",
-    description: "Kroger 2% Reduced Fat Milk",
-    brand: "Kroger",
-    items: [
-      {
-        size: "1 gal",
-        price: { regular: 3.49, promo: 2.99 },
-        fulfillment: { curbside: true, instore: true },
-      },
-    ],
-    ...overrides,
-  };
-}
-
-function makeStubAi() {
-  return stubJevAi("Whole Milk");
-}
-
-function makeMinimalKv(): KvLike {
-  return {
-    get: async () => null,
-    put: async () => {},
-  } as unknown as KvLike;
-}
-
-type ProductGetFn = (
-  path: string,
-  opts: { params: { query?: Record<string, string | number> } },
-) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
-
-type CartPutOptions = { body: unknown; headers: Record<string, string> };
-type CartPutCall = { path: string; options: CartPutOptions };
-
-type ShopFixture = {
-  server: McpServer;
-  storage: ShoppingStore & CartStore;
-  carts: CartStore;
-  productClient: KrogerClients["productClient"];
-  cartClient: KrogerClients["cartClient"];
-  cache: KvLike | null;
-  ai: Env["AI"];
-};
-
-function registerShopTools(fixture: ShopFixture) {
-  registerShopToolsImpl(fixture.server, {
-    carts: fixture.carts,
-    productClient: fixture.productClient,
-    cartClient: fixture.cartClient,
-    weeklyDealsCache: createWeeklyDealsCache(fixture.cache),
-    pantry: fixture.storage.pantry,
-    preferredLocation: fixture.storage.preferredLocation,
-    shoppingList: fixture.storage.shoppingList,
-    ai: fixture.ai,
-  });
-}
-
-function makeContext(
-  productGet: ProductGetFn,
-  preferredLocation: PreferredLocation | null,
-  cartOptions: {
-    status?: number;
-    throws?: boolean;
-    cartPutCalls?: CartPutCall[];
-    snapshotSetCalls?: unknown[][];
-    mirrorAppendCalls?: unknown[][];
-  } = {},
-): ShopFixture {
-  const createdLists: ShoppingList[] = [];
-  const cartPutCalls = cartOptions.cartPutCalls ?? [];
-  const snapshotSetCalls = cartOptions.snapshotSetCalls ?? [];
-  const mirrorAppendCalls = cartOptions.mirrorAppendCalls ?? [];
-
-  const storage = {
-    preferredLocation: {
-      get: async () => preferredLocation,
-      set: async () => {},
-      delete: async () => {},
-    },
-    shoppingList: {
-      create: async ({
-        name,
-        items,
-      }: {
-        name: string;
-        items: ShoppingListItem[];
-      }) => {
-        const id = `list_${(createdLists.length + 1).toString(16).padStart(8, "0")}`;
-        const list: ShoppingList = {
-          id,
-          name,
-          items: items.map((item, index) => ({
-            ...item,
-            id: `item-${createdLists.length}-${index}`,
-            checked: false,
-          })),
-          createdAt: new Date().toISOString(),
-        };
-        createdLists.push(list);
-        return list;
-      },
-      get: async (id: string) => createdLists.find((l) => l.id === id) ?? null,
-      clear: async () => {},
-    },
-    operations: cartOperationStore(),
-    cartSnapshot: {
-      get: async () => null,
-      set: async (id: string, items: unknown[]) => {
-        snapshotSetCalls.push([id, items]);
-      },
-      clear: async () => {},
-    },
-    cartMirror: {
-      getAll: async () => [],
-      append: async (items: CartSnapshotItem[], addedAt: string) => {
-        mirrorAppendCalls.push([items, addedAt]);
-        return items.map((item) => ({ ...item, addedAt }));
-      },
-      clear: async () => {},
-    },
-    pantry: {
-      getAll: async () => [],
-    } as unknown as ShoppingStore["pantry"],
-    equipment: {} as ShoppingStore["equipment"],
-    orderHistory: {} as ShoppingStore["orderHistory"],
-  } as unknown as ShoppingStore & CartStore;
-
-  const server = {
-    registerTool: (
-      name: string,
-      config: TestToolConfig,
-      handler: ToolHandler,
-    ) => {
-      testState.capturedTools.push({
-        name,
-        config,
-        handler: wrapV2ToolHandler(handler, config),
-      });
-    },
-  };
-  const cartClient = {
-    PUT: async (path: string, options: CartPutOptions) => {
-      cartPutCalls.push({ path, options });
-      if (cartOptions.throws) throw new Error("Network failure");
-      return {
-        data: undefined,
-        response: new Response(null, { status: cartOptions.status ?? 204 }),
-      };
-    },
-  } as unknown as KrogerClients["cartClient"];
-  return {
-    server: server as unknown as McpServer,
-    productClient: {
-      GET: productGet,
-    } as unknown as KrogerClients["productClient"],
-    cartClient,
-    storage,
-    carts: storage,
-    cache: makeMinimalKv(),
-    ai: stubJevAi() as unknown as Env["AI"],
-  };
-}
-
-function getCapturedHandler(name: string): ToolHandler {
-  const tool = testState.capturedTools.find((t) => t.name === name);
-  expect(tool).toBeDefined();
-  return (
-    tool?.handler ??
-    (async () => {
-      throw new Error(`Tool ${name} was not captured`);
-    })
-  );
-}
-
-const PREFERRED_LOCATION: PreferredLocation = {
-  locationId: "70500034",
-  locationName: "QFC Broadway",
-  address: "417 Broadway E",
-  chain: "QFC",
-  setAt: new Date().toISOString(),
-};
-
-// Both pickup-available, so the old first-pickup-available heuristic
-// alone would pick the wrong (first-listed) product for "milk".
-function makeAdversarialCandidates() {
-  const wrongMatch = makeProduct({
-    upc: "1111111111111",
-    description: "Chocolate Milk Candy Bar",
-    items: [{ fulfillment: { curbside: true, instore: false } }],
-  });
-  const rightMatch = makeProduct({
-    upc: "2222222222222",
-    description: "Whole Milk",
-    items: [{ fulfillment: { curbside: true, instore: false } }],
-  });
-  return { wrongMatch, rightMatch };
-}
-
-describe("shop_for_items", () => {
-  beforeEach(() => {
-    testState.capturedTools.length = 0;
-    authenticate();
-  });
-
-  it("resolves the preferred store, searches each name, and creates a shopping list", async () => {
-    registerShopTools(
-      makeContext(async (_path, opts) => {
-        const term = String(opts.params.query?.["filter.term"] ?? "");
-        if (term === "whole milk") {
-          return {
-            data: { data: [makeProduct()] },
-            response: new Response(null, { status: 200 }),
-          };
-        }
-        if (term === "eggs") {
-          return {
-            data: {
-              data: [
-                makeProduct({
-                  upc: "0002000000029",
-                  description: "Grade A Large Eggs",
-                }),
-              ],
-            },
-            response: new Response(null, { status: 200 }),
-          };
-        }
-        return {
-          data: { data: [] },
-          response: new Response(null, { status: 200 }),
-        };
-      }, PREFERRED_LOCATION),
-    );
-
-    const result = await getCapturedHandler("shop_for_items")({
-      items: [{ name: "whole milk" }, { name: "eggs", quantity: 2 }],
-    });
-
-    expect(isErrorResult(result)).toBe(false);
-    const sc = structuredContentOf(result);
-    expect(result).toMatchObject({
-      _meta: { "dev.aranlucas/view": "create_shopping_list" },
-    });
-    expect(sc["listId"]).toMatch(/^list_[0-9a-f]{8}$/);
-    expect((sc["items"] as Array<{ upc?: string }>).map((i) => i.upc)).toEqual([
-      "0001111041700",
-      "0002000000029",
-    ]);
-
-    const text = textFromResult(result);
-    expect(text).toContain("whole milk → Kroger 2% Reduced Fat Milk");
-    expect(text).toContain("eggs → Grade A Large Eggs");
-    expect(text).toContain(
-      `call add_shopping_list_to_cart with listId "${sc["listId"]}"`,
-    );
-  });
-
-  it("picks the pickup-available product over a non-pickup product for the same name", async () => {
-    const noPickup = makeProduct({
-      upc: "1111111111111",
-      description: "No Pickup",
-      items: [{ fulfillment: { curbside: false, instore: false } }],
-    });
-    const withPickup = makeProduct({
-      upc: "2222222222222",
-      description: "Has Pickup",
-      items: [{ fulfillment: { curbside: true, instore: false } }],
-    });
-
-    registerShopTools(
-      makeContext(async () => {
-        return {
-          data: { data: [noPickup, withPickup] },
-          response: new Response(null, { status: 200 }),
-        };
-      }, PREFERRED_LOCATION),
-    );
-
-    const result = await getCapturedHandler("shop_for_items")({
-      items: [{ name: "milk" }],
-    });
-
-    const sc = structuredContentOf(result);
-    expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(
-      "2222222222222",
-    );
-  });
-
-  it("tracks names with zero results and still creates a list for the rest", async () => {
-    registerShopTools(
-      makeContext(async (_path, opts) => {
-        const term = String(opts.params.query?.["filter.term"] ?? "");
-        if (term === "milk") {
-          return {
-            data: { data: [makeProduct()] },
-            response: new Response(null, { status: 200 }),
-          };
-        }
-        return {
-          data: { data: [] },
-          response: new Response(null, { status: 200 }),
-        };
-      }, PREFERRED_LOCATION),
-    );
-
-    const result = await getCapturedHandler("shop_for_items")({
-      items: [{ name: "milk" }, { name: "unobtainium sauce" }],
-    });
-
-    expect(isErrorResult(result)).toBe(false);
-    expect(textFromResult(result)).toContain(
-      "No results for: unobtainium sauce.",
-    );
-    const sc = structuredContentOf(result);
-    expect((sc["items"] as unknown[]).length).toBe(1);
-  });
-
-  it.each([0, undefined, 3.49, 2.99])(
-    "normalizes promo=%s in the shopping response",
-    async (promo) => {
-      registerShopTools(
-        makeContext(
-          async () => ({
-            data: {
-              data: [
-                makeProduct({
-                  items: [
-                    {
-                      price: { regular: 3.49, promo },
-                      fulfillment: { curbside: true },
-                    },
-                  ],
-                }),
-              ],
-            },
-            response: new Response(null, { status: 200 }),
-          }),
-          PREFERRED_LOCATION,
-        ),
-      );
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "milk" }],
-      });
-      const text = textFromResult(result);
-      expect(text).toContain(promo === 2.99 ? "$2.99 (was $3.49)" : "$3.49");
-      expect(text).not.toContain("$0");
-      expect(text.includes("(was")).toBe(promo === 2.99);
-    },
-  );
-
-  it.each(["timeout", "rate-limit"])(
-    "preserves a partial %s failure alongside successful matches",
-    async (failure) => {
-      const cartPutCalls: CartPutCall[] = [];
-      registerShopTools(
-        makeContext(
-          async (_path, options) => {
-            if (options.params.query?.["filter.term"] === "milk")
-              return {
-                data: { data: [makeProduct()] },
-                response: new Response(null, { status: 200 }),
-              };
-            if (failure === "timeout") throw new Error("Search timed out");
-            return { error: {}, response: new Response(null, { status: 429 }) };
-          },
-          PREFERRED_LOCATION,
-          { cartPutCalls },
-        ),
-      );
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [
-          { name: "milk", quantity: 1 },
-          { name: "eggs", quantity: 1 },
-        ],
-        addToCart: true,
-      });
-      const text = textFromResult(result);
-      expect(isErrorResult(result)).toBe(false);
-      expect(text).toContain("Some searches failed");
-      expect(text).toContain(
-        failure === "timeout" ? "NETWORK_ERROR" : "API_ERROR",
-      );
-      expect(text).toContain("recovery: retry_later");
-      expect(text).not.toContain("No results for: eggs");
-      expect((structuredContentOf(result)["items"] as unknown[]).length).toBe(
-        1,
-      );
-      expect(cartPutCalls).toHaveLength(1);
-      expect(cartPutCalls[0].options.body).toEqual({
-        items: [{ upc: "0001111041700", quantity: 1, modality: "PICKUP" }],
-      });
-    },
-  );
-
-  it("returns an error when every name has zero results", async () => {
-    registerShopTools(
-      makeContext(async () => {
-        return {
-          data: { data: [] },
-          response: new Response(null, { status: 200 }),
-        };
-      }, PREFERRED_LOCATION),
-    );
-
-    const result = await getCapturedHandler("shop_for_items")({
-      items: [{ name: "unobtainium" }],
-    });
-
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain(
-      "No products found for: unobtainium",
-    );
-    expect(textFromResult(result)).toContain("search_products");
-  });
-
-  it("returns a prescriptive error when no preferred store is set", async () => {
-    registerShopTools(
-      makeContext(async () => {
-        return {
-          data: { data: [] },
-          response: new Response(null, { status: 200 }),
-        };
-      }, null),
-    );
-
-    const result = await getCapturedHandler("shop_for_items")({
-      items: [{ name: "milk" }],
-    });
-
-    expect(isErrorResult(result)).toBe(true);
-    expect(textFromResult(result)).toContain("No preferred store set");
-    expect(textFromResult(result)).toContain("search_stores");
-    expect(textFromResult(result)).toContain("set_preferred_store");
-  });
-
-  describe("addToCart", () => {
-    it("defaults to false when omitted", () => {
-      const parsed = shopForItemsInputSchema.parse({
-        items: [{ name: "milk" }],
-      });
-      expect(parsed.addToCart).toBe(false);
-    });
-
-    it("coerces the strings 'true' and 'false' since small models sometimes stringify booleans", () => {
-      expect(
-        shopForItemsInputSchema.parse({
-          items: [{ name: "milk" }],
-          addToCart: "true",
-        }).addToCart,
-      ).toBe(true);
-      expect(
-        shopForItemsInputSchema.parse({
-          items: [{ name: "milk" }],
-          addToCart: "false",
-        }).addToCart,
-      ).toBe(false);
-    });
-
-    it("adds matched items to the cart, persists a cart snapshot, and mirrors the items", async () => {
-      const cartPutCalls: CartPutCall[] = [];
-      const snapshotSetCalls: unknown[][] = [];
-      const mirrorAppendCalls: unknown[][] = [];
-
-      registerShopTools(
-        makeContext(
-          async () => makeSearchResponse([makeProduct()]),
-          PREFERRED_LOCATION,
-          {
-            cartPutCalls,
-            snapshotSetCalls,
-            mirrorAppendCalls,
-          },
-        ),
-      );
-
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "whole milk", quantity: 1 }],
-        addToCart: true,
-      });
-
-      expect(isErrorResult(result)).toBe(false);
-      expect(cartPutCalls).toHaveLength(1);
-      expect(cartPutCalls[0]).toMatchObject({
-        options: {
-          body: {
-            items: [{ upc: "0001111041700", quantity: 1, modality: "PICKUP" }],
-          },
-        },
-      });
-      expect(snapshotSetCalls).toHaveLength(1);
-      expect(mirrorAppendCalls).toHaveLength(1);
-
-      const sc = structuredContentOf(result);
-      const text = textFromResult(result);
-      expect(text).toContain(`listId=${sc["listId"]}`);
-      expect(text).toContain("Added");
-      expect(text).toContain("cart");
-      expect(text).toContain("no need to call add_shopping_list_to_cart");
-      expect(text).not.toContain("Review these matches");
-    });
-  });
-
-  describe("semantic match ranking", () => {
-    it("selects multiple grocery items in one Jev call and preserves quantities", async () => {
-      const milk = makeProduct();
-      const eggs = makeProduct({ upc: "0002000000029", description: "Eggs" });
-      const ctx = makeContext(
-        async (_path, options) =>
-          makeSearchResponse(
-            options.params.query?.["filter.term"] === "milk" ? [milk] : [eggs],
-          ),
-        PREFERRED_LOCATION,
-      );
-      const run = vi.fn<JevRun>(stubJevAi().gateway("default").run);
-      ctx.ai = { gateway: () => ({ run }) } as unknown as Env["AI"];
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [
-          { name: "milk", quantity: 2 },
-          { name: "eggs", quantity: 3 },
-        ],
-      });
-      expect(isErrorResult(result)).toBe(false);
-      expect(run).toHaveBeenCalledTimes(1);
-      expect(structuredContentOf(result)["items"]).toEqual([
-        expect.objectContaining({
-          upc: milk.upc,
-          quantity: 2,
-        }),
-        expect.objectContaining({
-          upc: eggs.upc,
-          quantity: 3,
-        }),
-      ]);
-    });
-
-    it("can select the twentieth product in the expanded candidate pool", async () => {
-      const products = Array.from({ length: 20 }, (_, index) =>
-        makeProduct({
-          upc: String(index + 1).padStart(13, "0"),
-          description: `Milk ${index + 1}`,
-        }),
-      );
-      const ctx = makeContext(async (_path, options) => {
-        expect(options.params.query?.["filter.limit"]).toBe(20);
-        return makeSearchResponse(products);
-      }, PREFERRED_LOCATION);
-      ctx.ai = stubJevAi("Milk 20") as unknown as Env["AI"];
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "milk" }],
-      });
-      expect(isErrorResult(result)).toBe(false);
-      expect(structuredContentOf(result)["items"]).toEqual([
-        expect.objectContaining({
-          productName: "Milk 20",
-          upc: "0000000000020",
-        }),
-      ]);
-    });
-
-    it("surfaces Jev failure before any list or cart mutation", async () => {
-      const cartPutCalls: CartPutCall[] = [];
-      const ctx = makeContext(
-        async () => makeSearchResponse([makeProduct()]),
-        PREFERRED_LOCATION,
-        {
-          cartPutCalls,
-        },
-      );
-      const create = vi.spyOn(ctx.storage.shoppingList, "create");
-      ctx.ai = {
-        gateway: () => ({
-          run: async () => {
-            throw new Error("offline");
-          },
-        }),
-      } as unknown as Env["AI"];
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "milk" }],
-        addToCart: true,
-      });
-      expect(isErrorResult(result)).toBe(true);
-      expect(textFromResult(result)).toContain("Jev product selection failed");
-      expect(create).not.toHaveBeenCalled();
-      expect(cartPutCalls).toHaveLength(0);
-    });
-
-    it("does not put an abstained item in a list or cart", async () => {
-      const cartPutCalls: CartPutCall[] = [];
-      const ctx = makeContext(
-        async () => makeSearchResponse([makeProduct()]),
-        PREFERRED_LOCATION,
-        {
-          cartPutCalls,
-        },
-      );
-      const create = vi.spyOn(ctx.storage.shoppingList, "create");
-      ctx.ai = {
-        gateway: () => ({
-          run: async () =>
-            Response.json({
-              model: "jev-test",
-              answers: {
-                item_0: {
-                  type: "choice",
-                  choice: "no_match",
-                  confidence: 1,
-                  probabilities: {
-                    candidate_0: 0,
-                    no_match: 1,
-                    needs_review: 0,
-                  },
-                },
-              },
-            }),
-        }),
-      } as unknown as Env["AI"];
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "milk" }],
-        addToCart: true,
-      });
-      expect(isErrorResult(result)).toBe(true);
-      expect(textFromResult(result)).toContain("No suitable match");
-      expect(create).not.toHaveBeenCalled();
-      expect(cartPutCalls).toHaveLength(0);
-    });
-
-    it("picks the semantically-better product when AI features are enabled", async () => {
-      const { wrongMatch, rightMatch } = makeAdversarialCandidates();
-
-      const ctx = makeContext(
-        async () => makeSearchResponse([wrongMatch, rightMatch]),
-        PREFERRED_LOCATION,
-      );
-      ctx.ai = makeStubAi() as unknown as Env["AI"];
-
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "milk" }],
-      });
-
-      const sc = structuredContentOf(result);
-      expect((sc["items"] as Array<{ upc?: string }>)[0]?.upc).toBe(
-        "2222222222222",
-      );
-    });
-  });
-
-  describe("pantry and deal flags", () => {
-    it("appends ' | in pantry' when the requested item is already in the pantry", async () => {
-      const ctx = makeContext(
-        async () => makeSearchResponse([makeProduct()]),
-        PREFERRED_LOCATION,
-      );
-      ctx.storage = {
-        ...ctx.storage,
-        pantry: {
-          getAll: async () => [
-            {
-              productName: "Whole Milk",
-              quantity: 1,
-              addedAt: new Date().toISOString(),
-            },
-          ],
-        } as unknown as ShoppingStore["pantry"],
-      };
-
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "whole milk" }],
-      });
-
-      expect(textFromResult(result)).toContain("in pantry");
-    });
-
-    it("does not flag pantry when the item isn't present", async () => {
-      const ctx = makeContext(
-        async () => makeSearchResponse([makeProduct()]),
-        PREFERRED_LOCATION,
-      );
-      ctx.storage = {
-        ...ctx.storage,
-        pantry: {
-          getAll: async () => [
-            {
-              productName: "Bread",
-              quantity: 1,
-              addedAt: new Date().toISOString(),
-            },
-          ],
-        } as unknown as ShoppingStore["pantry"],
-      };
-
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "whole milk" }],
-      });
-
-      expect(textFromResult(result)).not.toContain("in pantry");
-    });
-
-    it("appends ' | on sale: $X' when a fresh weekly-deals cache entry matches the item", async () => {
-      const store = new Map<string, string>();
-      const cacheKey = buildWeeklyDealsCacheKey({
-        locationId: PREFERRED_LOCATION.locationId,
-        limit: 50,
-        pageLimit: 2,
-      });
-      const now = Date.now();
-      store.set(
-        cacheKey,
-        JSON.stringify({
-          version: 1,
-          createdAt: now,
-          freshUntil: now + 60_000,
-          staleUntil: now + 120_000,
-          data: {
-            sourceMode: "print_fallback",
-            locationId: PREFERRED_LOCATION.locationId,
-            divisionCode: "705",
-            warnings: [],
-            deals: [
-              {
-                id: "d1",
-                title: "Kroger Whole Milk, Gallon",
-                price: "$2.99",
-                source: "print",
-              },
-            ],
-          },
-        }),
-      );
-
-      const ctx = makeContext(
-        async () => makeSearchResponse([makeProduct()]),
-        PREFERRED_LOCATION,
-      );
-      ctx.ai = stubJevAi() as unknown as Env["AI"];
-      ctx.cache = {
-        get: async (key: string) => store.get(key) ?? null,
-        put: async (key: string, value: string) => {
-          store.set(key, value);
-        },
-      } as unknown as KvLike;
-
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "whole milk" }],
-      });
-
-      expect(textFromResult(result)).toContain("on sale: $2.99");
-    });
-
-    it("does not flag on sale when the weekly-deals cache is cold", async () => {
-      const ctx = makeContext(
-        async () => makeSearchResponse([makeProduct()]),
-        PREFERRED_LOCATION,
-      );
-
-      registerShopTools(ctx);
-      const result = await getCapturedHandler("shop_for_items")({
-        items: [{ name: "whole milk" }],
-      });
-
-      expect(textFromResult(result)).not.toContain("on sale");
-    });
-  });
+  ],
+  ...overrides,
 });
 
-function makeSearchResponse(products: Product[]) {
-  return {
-    data: { data: products },
-    response: new Response(null, { status: 200 }),
-  };
+async function setup(products: Product[] = [product(1)]) {
+  const context = makeContext();
+  await context.preferredLocation.set({
+    locationId: "70500034",
+    locationName: "QFC",
+    address: "Broadway",
+    chain: "QFC",
+    setAt: new Date().toISOString(),
+  });
+  const get = vi.fn<
+    (
+      path: string,
+      options: { params: { query?: Record<string, string | number> } },
+    ) => Promise<{ data: { data: Product[] }; response: Response }>
+  >(
+    async (
+      _path: string,
+      _options: { params: { query?: Record<string, string | number> } },
+    ) => ({
+      data: { data: products },
+      response: new Response(null, { status: 200 }),
+    }),
+  );
+  context.productClient = {
+    GET: get,
+  } as unknown as KrogerClients["productClient"];
+  registerShopTools(context.server, context);
+  return { context, get, call: getCapturedHandler("shop_for_items") };
 }
+
+function options(
+  result: Awaited<ReturnType<ReturnType<typeof getCapturedHandler>>>,
+) {
+  expect(result._meta).toMatchObject({
+    "dev.aranlucas/view": "search_products",
+  });
+  return appPayloadSchemas.search_products.parse(result.structuredContent);
+}
+
+describe("shop_for_items product options", () => {
+  beforeEach(resetToolTestHarness);
+
+  it("returns five choices in catalog order without creating a list or writing a cart", async () => {
+    const { context, get, call } = await setup(
+      Array.from({ length: 8 }, (_, i) => product(i + 1)),
+    );
+    const create = vi.spyOn(context.shoppingList, "create");
+    const put = vi.spyOn(context.cartClient, "PUT");
+    const result = await call({ items: [{ name: "milk", quantity: 2 }] });
+    const data = options(result);
+    expect(data.results[0]).toMatchObject({
+      requestId: "item_0",
+      term: "milk",
+      quantity: 2,
+      failed: false,
+    });
+    expect(data.results[0].products.map((item) => item.upc)).toEqual(
+      [1, 2, 3, 4, 5].map((i) => String(i).padStart(13, "0")),
+    );
+    expect(data.totalProducts).toBe(5);
+    expect(result.text).toContain("requested qty=2");
+    expect(result.text).toContain("create_shopping_list");
+    expect(result.text).toContain("add_shopping_list_to_cart");
+    expect(create).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+    expect(get.mock.calls[0][1].params.query).toMatchObject({
+      "filter.locationId": "70500034",
+      "filter.limit": 20,
+    });
+    expect(getCapturedTool("shop_for_items").config).toMatchObject({
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    });
+  });
+
+  it("filters ineligible products and duplicate UPCs before taking five options", async () => {
+    const { call } = await setup([
+      product(1, {
+        items: [
+          {
+            inventory: { stockLevel: "TEMPORARILY_OUT_OF_STOCK" },
+            fulfillment: { curbside: true },
+          },
+        ],
+      }),
+      product(2, { items: [{ fulfillment: { curbside: false } }] }),
+      product(3, { upc: undefined }),
+      product(4),
+      product(4),
+      ...Array.from({ length: 6 }, (_, i) => product(i + 5)),
+    ]);
+    expect(
+      options(
+        await call({ items: [{ name: "milk" }] }),
+      ).results[0].products.map((item) => item.upc),
+    ).toEqual([4, 5, 6, 7, 8].map((i) => String(i).padStart(13, "0")));
+  });
+
+  it("checks delivery fulfillment independently of pickup", async () => {
+    const { call } = await setup([
+      product(1, {
+        items: [{ fulfillment: { curbside: true, delivery: false } }],
+      }),
+      product(2, {
+        items: [{ fulfillment: { curbside: false, delivery: true } }],
+      }),
+    ]);
+    const result = await call({
+      items: [{ name: "milk" }],
+      modality: "delivery",
+    });
+    expect(options(result).results[0].products.map((item) => item.upc)).toEqual(
+      [product(2).upc],
+    );
+    expect(result.text).toContain("DELIVERY");
+  });
+
+  it("retains duplicate requests with distinct IDs and quantities", async () => {
+    const { call } = await setup();
+    expect(
+      options(
+        await call({
+          items: [
+            { name: "milk", quantity: 2 },
+            { name: "milk", quantity: 3 },
+          ],
+        }),
+      ).results,
+    ).toEqual([
+      expect.objectContaining({ requestId: "item_0", quantity: 2 }),
+      expect.objectContaining({ requestId: "item_1", quantity: 3 }),
+    ]);
+  });
+
+  it("exposes price, size, and supplied dietary evidence to the calling agent", async () => {
+    const { call } = await setup([
+      product(1, {
+        manufacturerDeclarations: ["Certified Gluten Free"],
+        allergensDescription: "Contains milk",
+        nutritionInformation: { ingredientStatement: "Milk, lactase" },
+      }),
+    ]);
+    const result = await call({ items: [{ name: "milk" }] });
+    expect(options(result).results[0].products[0]).toMatchObject({
+      price: 2.99,
+      regularPrice: 3.49,
+      size: "1 gal",
+      declarations: ["Certified Gluten Free"],
+      allergens: "Contains milk",
+      ingredients: "Milk, lactase",
+    });
+    expect(result.text).toContain("claims: Certified Gluten Free");
+    expect(result.text).toContain("allergens: Contains milk");
+    expect(result.text).toContain("ingredients: Milk, lactase");
+    expect(result.text).toContain("$2.99 (was $3.49)");
+  });
+
+  it("returns fewer than five when the catalog has fewer eligible choices", async () => {
+    const { call } = await setup([product(1), product(2)]);
+    expect(
+      options(await call({ items: [{ name: "milk" }] })).totalProducts,
+    ).toBe(2);
+  });
+
+  it("preserves empty and failed searches alongside usable options", async () => {
+    const { get, call } = await setup();
+    get.mockResolvedValueOnce({
+      data: { data: [product(1)] },
+      response: new Response(null, { status: 200 }),
+    });
+    get.mockResolvedValueOnce({
+      data: { data: [] },
+      response: new Response(null, { status: 200 }),
+    });
+    get.mockResolvedValueOnce({
+      data: { data: [] },
+      response: new Response(null, { status: 429 }),
+    });
+    const result = await call({
+      items: [{ name: "milk" }, { name: "eggs" }, { name: "bread" }],
+    });
+    expect(result.isError).toBe(false);
+    expect(options(result).results).toEqual([
+      expect.objectContaining({ term: "milk", failed: false }),
+      expect.objectContaining({ term: "eggs", failed: false, products: [] }),
+      expect.objectContaining({
+        term: "bread",
+        failed: true,
+        products: [],
+        error: expect.any(String),
+      }),
+    ]);
+    expect(result.text).toContain("No Kroger results");
+    expect(result.text).toContain("recovery=retry_later");
+  });
+
+  it("preserves an upstream failure when every search fails", async () => {
+    const { get, call } = await setup();
+    get.mockRejectedValueOnce(new Error("Search timed out"));
+    const result = await call({ items: [{ name: "milk" }] });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain(
+      'search products for "milk": Search timed out',
+    );
+    expect(result.text).not.toContain("No available");
+  });
+
+  it("suggests refining search when no eligible choices remain", async () => {
+    const { call } = await setup([]);
+    const result = await call({ items: [{ name: "milk" }] });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("search_products");
+    expect(result.text).toContain("No available pickup products");
+  });
+
+  it("names the store setup steps without searching when no preferred store is set", async () => {
+    const { context, get, call } = await setup();
+    await context.preferredLocation.delete();
+    const result = await call({ items: [{ name: "milk" }] });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("search_stores");
+    expect(result.text).toContain("set_preferred_store");
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("includes pantry flags without writing household data", async () => {
+    const { context, call } = await setup();
+    await context.pantry.add({
+      productName: "Whole Milk",
+      quantity: 1,
+      addedAt: new Date().toISOString(),
+    });
+    const result = await call({ items: [{ name: "whole milk" }] });
+    expect(options(result).results[0].flags).toContain("in pantry");
+    expect(result.text).toContain("in pantry");
+  });
+
+  it("rejects the retired addToCart input instead of silently ignoring it", () => {
+    expect(
+      shopForItemsInputSchema.safeParse({
+        items: [{ name: "milk" }],
+        addToCart: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      shopForItemsInputSchema.parse({
+        items: [{ name: " milk ", quantity: "2" }],
+      }),
+    ).toEqual({ items: [{ name: "milk", quantity: 2 }], modality: "PICKUP" });
+  });
+});

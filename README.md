@@ -166,25 +166,35 @@ See `docs/tool-surface-review.md` for why the surface is shaped this way.
 
 ### Kroger product search
 
-`shop_for_items` uses TypeSafe Jev (`typesafe/jev-1.13`) by default through the existing
-Cloudflare `AI` binding and the `default` AI Gateway, using OpenRouter BYOK. It sends the entire list
-(up to 10 requested items) in one inference call, with one Choice question and
-up to 20 candidate products per item. Jev chooses one candidate or
-returns no match / needs review. Explicitly out-of-stock products are excluded;
-`addToCart: true` also requires a UPC and curbside fulfillment. Model errors,
-invalid responses, or a five-second timeout return a tool error before any list or
-cart write. There is no fallback model or heuristic picker.
+`shop_for_items` is read-only. It searches up to 10 requested items at the preferred
+store and returns up to **five distinct product options per item**, with UPC, brand,
+size, price, and any supplied dietary declarations, allergens, and ingredients.
+Explicitly out-of-stock products are excluded. Options must support the requested
+`modality` (`PICKUP` by default, or `DELIVERY`). The search retrieves up to 20
+catalog records per item, filters eligibility and duplicate UPCs, then returns the
+first five remaining options. These are candidates, not guaranteed semantic matches.
 
-Store an OpenRouter key under alias `default` on the `default` gateway. The
-Worker binding authenticates automatically; no provider key is stored in the
-application. Jev uses OpenRouter's Decisions API through
-`AI.gateway("default").run()` with provider `openrouter` and endpoint
-`../alpha/decisions`. This resolves outside OpenRouter's usual `/api/v1` base
-to `/api/alpha/decisions`. Gateway retries are explicitly limited to one attempt.
-The live smoke test (`pnpm test:selector:live`) runs an ephemeral local Worker
-with a remote AI binding using Wrangler login or Cloudflare environment credentials.
-Run `pnpm eval:selector:live` for the 30-case live evaluation, or append an output path and `--holdout` for
-12 additional fixed cases. These use synthetic catalogs and never write a list or cart.
+The calling agent chooses products using the user's requirements and preferences,
+then passes exact UPCs and original quantities to `create_shopping_list`,
+`update_shopping_list`, or `add_shopping_list_to_cart`. Searches preserve partial
+failures and empty results per item. No list or cart changes occur during search;
+`addToCart` is no longer an accepted input. Kroger selection makes no server-side
+model calls and requires no AI Gateway or OpenRouter key.
+
+```json
+{
+  "items": [
+    { "name": "whole milk", "quantity": 1 },
+    { "name": "eggs", "quantity": 2 }
+  ],
+  "modality": "PICKUP"
+}
+```
+
+JEV was removed after the [paired selector evaluation](docs/jev-value-evaluation.md).
+The raw reports and archived selector remain available to reproduce the experiment;
+they are not part of the production API. The live agent comparison can replay an
+existing report with `pnpm eval:agent-selector:live <paired-report.json>`.
 
 `search_products` searches Kroger directly using one optional `storeId`, defaulting
 to the preferred Kroger store. Terms run concurrently; a failed term retains its
@@ -206,7 +216,7 @@ no arguments it returns every list and its id; with a `listId`, or a list `name`
 matched case-insensitively, it returns that list's items and their `itemId`s),
 then `update_shopping_list`, which adds, changes, and removes items in one call. List items accept
 `upc` values or plain `productName` entries for unmatched ingredients, plus an
-optional unit `price`. `shop_for_items` stores each match's current Kroger price,
+optional unit `price`. `shop_for_items` returns each option's current Kroger price for the agent to copy,
 so list results include an estimated total (`~$42.18 est.`).
 
 All the list tools render the shopping-list app view, so the list in the chat
@@ -260,9 +270,8 @@ the assistant mirror is not proof of the upstream outcome.
 For inline cart items, supply a unique `operationId` and reuse it for retries.
 Reusing an id with changed items is rejected. Calls without an id remain supported
 for compatibility but have no cross-request deduplication key. A new id means a
-new intentional cart add. The one-shot `shop_for_items` workflow creates a new list
-on every call; retry its cart step using the returned `listId`, not by repeating
-the whole workflow.
+new intentional cart add. `shop_for_items` only returns product options; after
+choosing products and creating a list, retry its cart step using the saved `listId`.
 
 Product buttons in the app retain the original list for a cart retry and coalesce
 concurrent clicks. Both product and saved-list views replace retry controls with
@@ -354,7 +363,9 @@ and skeleton rounding. Shared UI implementations retain their existing lint
 exclusion. The existing Tailwind plugin continues to check utility validity,
 arbitrary values, and hardcoded colors via `.oxlintrc.tailwind.json`.
 
-The live Jev selection check is separate because it uses Cloudflare credentials and incurs usage. It exercises the production selector with synthetic products, including a no-match case, without shopping-list or cart writes:
+The archived JEV selection check uses Cloudflare credentials and incurs usage.
+It exercises the evaluation-only selector in `scripts/fixtures/jev-product-selector.ts`
+with synthetic products, without shopping-list or cart writes:
 
 ```bash
 pnpm test:selector:live

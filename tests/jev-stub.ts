@@ -1,4 +1,4 @@
-import type { SelectorAi } from "../src/services/product-selector.js";
+import type { SelectorAi } from "../scripts/fixtures/jev-product-selector.js";
 
 export type JevRun = ReturnType<SelectorAi["gateway"]>["run"];
 

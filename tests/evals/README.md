@@ -56,8 +56,10 @@ These suites pin down the implicit contract the server offers to weak models:
    tool.
 3. Schemas normalize recoverable input instead of rejecting it.
 4. The golden path (`search_stores` → `set_preferred_store` →
-   `shop_for_items` → `add_shopping_list_to_cart`) completes in 4 calls, and
-   retrying the cart add is safe.
+   `shop_for_items` → choose UPCs → `create_shopping_list` →
+   `add_shopping_list_to_cart`) completes in 5 calls. Product discovery is
+   read-only and returns up to five options per requested item;
+   retrying the saved-list cart add is safe.
 
 If you change a response format and one of these fails, the format change
 broke small-model interop — fix the format or renegotiate the contract here

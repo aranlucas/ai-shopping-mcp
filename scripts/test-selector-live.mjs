@@ -72,7 +72,9 @@ async function main() {
         query: product.description,
         products: [...distractors, product],
       })),
-    ];
+    ].map((item, index) =>
+      Object.assign({}, item, { requestId: `item_${index}` }),
+    );
     const response = await worker.fetch("http://localhost/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

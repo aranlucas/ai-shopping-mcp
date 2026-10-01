@@ -19,10 +19,12 @@ These are historical baselines, not measurements of the changes below.
   provide prices and totals. Its default result is assistant add history.
   The description, `cartId` parameter, and fallback response now explain
   those limits and direct budget estimates to product prices and quantities.
-- Shopping tools needed a clearer choice rule. `shop_for_items` creates a
-  new list with automatic matches; `search_products` is the comparison path;
-  `get_shopping_list` followed by `update_shopping_list` edits an existing
-  list. Descriptions and server instructions now state this distinction.
+- Shopping tools needed a clearer choice rule. After the selector evaluation,
+  `shop_for_items` now returns up to five options per requested item without
+  writes. The agent chooses UPCs, then calls the list/cart tools;
+  `search_products` refines searches and inspects exact products.
+  `get_shopping_list` followed by `update_shopping_list` edits an existing list.
+  Descriptions and server instructions state this distinction.
 - Train-task purchase feedback called “3 items” confusing when two lines
   contained three packages. `record_order` now echoes product names and
   quantities, labels line and package counts, returns `orderId` and

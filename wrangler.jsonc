@@ -51,10 +51,6 @@
       "id": "d7f0b87afb2b49cdbab0ead481cef6ed",
     },
   ],
-  "ai": {
-    "binding": "AI",
-    "remote": true,
-  },
   "observability": {
     "enabled": true,
   },

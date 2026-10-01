@@ -1,6 +1,6 @@
 import * as z from "zod/v4";
 
-import type { components as ProductComponents } from "./kroger/product.js";
+import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 

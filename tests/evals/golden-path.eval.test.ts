@@ -56,40 +56,47 @@ describe("golden path (scripted agent, text-only)", () => {
     return result;
   }
 
-  it("cold start: find store → save it → shop_for_items → add to cart, in 4 calls", async () => {
-    // 1. The agent only knows the user's zip code.
+  async function chooseAndCreate(
+    items: Array<{ name: string; quantity?: number }>,
+  ) {
+    const shop = await call("shop_for_items", { items });
+    const text = contentText(shop);
+    expect(text).toContain("create_shopping_list");
+    expect(extractListIds(text)).toHaveLength(0);
+    expect(stub.cartPuts).toHaveLength(0);
+    const groups = text.split(/item_\d+: requested qty=/).slice(1);
+    const chosen = items.map((item, index) => {
+      const [upc] = extractUpcs(groups[index]);
+      expect(upc).toBeDefined();
+      return { upc, quantity: item.quantity ?? 1 };
+    });
+    return call("create_shopping_list", {
+      name: "Chosen groceries",
+      items: chosen,
+    });
+  }
+
+  it("cold start: find store → save it → options → choose/list → cart, in 5 calls", async () => {
     const stores = await call("search_stores", { zipCode: "98105" });
     const storeIds = extractStoreIds(contentText(stores));
     expect(storeIds.length).toBeGreaterThan(0);
-
-    // 2. Save the first store as preferred.
     await call("set_preferred_store", { storeId: storeIds[0] });
-
-    // 3. One-shot shop. The listId must be extractable from text alone.
-    const shop = await call("shop_for_items", {
-      items: [{ name: "milk" }, { name: "eggs", quantity: 2 }],
-    });
-    const shopText = contentText(shop);
-    const listIds = extractListIds(shopText);
-    expect(listIds, `no extractable listId in:\n${shopText}`).toHaveLength(1);
-    // The text must name the follow-up tool so the model knows the next step.
-    expect(shopText).toContain("add_shopping_list_to_cart");
-
-    // 4. Hand the listId straight back.
+    const created = await chooseAndCreate([
+      { name: "milk" },
+      { name: "eggs", quantity: 2 },
+    ]);
+    const listIds = extractListIds(contentText(created));
+    expect(listIds).toHaveLength(1);
     const added = await call("add_shopping_list_to_cart", {
       listId: listIds[0],
     });
     expect(contentText(added)).toContain("Added");
-
-    // The Kroger cart received one item per requested product, quantities intact.
     const items = stub.allCartItems();
     expect(items).toHaveLength(2);
     expect(upcsForTerm("milk")).toContain(items[0].upc);
     expect(upcsForTerm("eggs")).toContain(items[1].upc);
     expect(items[1].quantity).toBe(2);
-
-    // Whole flow fits the documented 4-call budget.
-    expect(toolCalls).toBe(4);
+    expect(toolCalls).toBe(5);
   });
 
   it("manual path: search_products → create_shopping_list → add to cart, with exact UPC handoff", async () => {
@@ -120,7 +127,7 @@ describe("golden path (scripted agent, text-only)", () => {
 
   it("retrying add_shopping_list_to_cart with the same listId does not double-add", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
-    const shop = await call("shop_for_items", { items: [{ name: "butter" }] });
+    const shop = await chooseAndCreate([{ name: "butter" }]);
     const [listId] = extractListIds(contentText(shop));
 
     await call("add_shopping_list_to_cart", { listId });
@@ -133,47 +140,27 @@ describe("golden path (scripted agent, text-only)", () => {
     expect(contentText(retry)).toContain("already added");
   });
 
-  it("returning user one-shot: shop_for_items with addToCart lands the cart in 1 call", async () => {
-    // Seeding the preferred store models a returning user's earlier session
-    // and doesn't count against the 1-call budget of the shopping action
-    // itself, so it's reset here before the timed call.
+  it("returning user chooses options, saves a list, then adds to cart in 3 calls", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
     toolCalls = 0;
-
-    const shop = await call("shop_for_items", {
-      items: [{ name: "milk" }],
-      addToCart: true,
-    });
-    const shopText = contentText(shop);
-    const listIds = extractListIds(shopText);
-    expect(listIds, `no extractable listId in:\n${shopText}`).toHaveLength(1);
-    expect(shopText).toContain("Added");
-    expect(shopText).not.toContain("Review these matches");
-
-    // A single shop_for_items call landed the cart for a returning user.
-    expect(toolCalls).toBe(1);
-
+    const created = await chooseAndCreate([{ name: "milk" }]);
+    const [listId] = extractListIds(contentText(created));
+    expect(listId).toBeDefined();
+    await call("add_shopping_list_to_cart", { listId });
+    expect(toolCalls).toBe(3);
     const items = stub.allCartItems();
     expect(items).toHaveLength(1);
     expect(upcsForTerm("milk")).toContain(items[0].upc);
-
-    // The addToCart path persists a cart snapshot under the same storage key
-    // add_shopping_list_to_cart checks, so a follow-up call with this listId
-    // must not double-add.
-    const retry = await call("add_shopping_list_to_cart", {
-      listId: listIds[0],
-    });
+    const retry = await call("add_shopping_list_to_cart", { listId });
     expect(stub.cartPuts).toHaveLength(1);
     expect(contentText(retry)).toContain("already added");
   });
 
   it("view_cart shows items added through this assistant, with name and upc", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
-    const shop = await call("shop_for_items", {
-      items: [{ name: "eggs" }],
-      addToCart: true,
-    });
-    expect(extractListIds(contentText(shop))).toHaveLength(1);
+    const created = await chooseAndCreate([{ name: "eggs" }]);
+    const [listId] = extractListIds(contentText(created));
+    await call("add_shopping_list_to_cart", { listId });
 
     const viewed = await call("view_cart", {});
     const text = contentText(viewed);

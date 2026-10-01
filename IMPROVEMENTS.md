@@ -26,7 +26,7 @@ OAuth flow, D1 queries scoped by `user_id`, high test coverage, and now an agent
 eval that drives the real MCP server. The main gaps:
 
 1. **No per-user rate limiting or input caps.** One user can use up the whole
-   app's Kroger API quota and AI Gateway budget, or write unbounded rows.
+   app's Kroger API quota, or write unbounded rows.
 2. **Concurrent pantry writes can lose updates** (E1). Hosts run parallel tool
    calls concurrently, so this is reachable today.
 3. **Storage grows forever**, and users cannot delete their data.
@@ -44,8 +44,8 @@ eval that drives the real MCP server. The main gaps:
 **S1. No rate limiting on any MCP tool.** Every authenticated request fans out to
 the Kroger API: `search_products` makes up to 10 text searches plus one detail
 call per UPC term (uncapped by design, five in flight at a time), and weekly
-deals makes several. `shop_for_items` also makes a paid Jev/OpenRouter call
-through AI Gateway (`src/services/product-selector.ts`). Kroger's quotas apply to
+deals makes several. `shop_for_items` searches Kroger and returns five options
+per requested item without a paid inference call. Kroger's quotas apply to
 the whole application, so one looping client can take product search offline for
 everyone. Dynamic client registration (`/register`) is open, as MCP expects, so
 the natural throttle key is the shopper ID.
@@ -227,7 +227,7 @@ Found while building and running the agent eval. See
   diff, so a `src/db/schema.ts` edit without a migration can't merge.
 - **T5. Schedule the paid and free live evals.** Run the agent eval weekly from
   the `Agent Eval` workflow (it runs on demand and on PRs today) to catch model
-  and API drift; the Jev selector evals could share a budget-capped job.
+  and API drift; the archived selector evals could share a budget-capped job.
 - **T6. The agent eval barely separates capable models.** The baseline was 57/60,
   with three models near-perfect. Add harder tasks: substitutions under a budget,
   allergen and dietary questions (now answerable from UPC lookups), multi-store

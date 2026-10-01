@@ -138,7 +138,7 @@ export function ProductSearchView({
         if (result.failed) {
           return (
             <div
-              key={result.term}
+              key={result.requestId ?? result.term}
               role="alert"
               className="mb-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
             >
@@ -167,7 +167,7 @@ export function ProductSearchView({
         }
         if (result.products.length === 0) {
           return (
-            <div key={result.term} className="mb-5">
+            <div key={result.requestId ?? result.term} className="mb-5">
               <div className="mb-1.5 flex items-center gap-2">
                 <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                   {result.term}
@@ -179,7 +179,10 @@ export function ProductSearchView({
           );
         }
         return (
-          <section key={result.term} className="mb-7 last:mb-0">
+          <section
+            key={result.requestId ?? result.term}
+            className="mb-7 last:mb-0"
+          >
             <div className="mb-3 flex flex-wrap items-baseline gap-2">
               <h2 className="text-sm font-semibold text-gray-900">
                 {result.term}

@@ -277,7 +277,6 @@ export type ToolTestContext = {
   /** Optional raw binding retained for cache fixture setup. */
   cache: KvLike | null;
   weeklyDealsCache: WeeklyDealsCache;
-  ai: Env["AI"];
   loadWeeklyDeals(params: WeeklyDealsLoadParams): ReturnType<WeeklyDealsLoader>;
 };
 
@@ -338,7 +337,6 @@ export function makeContext(
     get weeklyDealsCache() {
       return createWeeklyDealsCache(context.cache);
     },
-    ai: {} as Env["AI"],
     loadWeeklyDeals(
       params: WeeklyDealsLoadParams,
     ): ReturnType<WeeklyDealsLoader> {
