@@ -60,7 +60,6 @@ export function registerProductTools(
           upcs: z
             .array(upcSchema)
             .min(1)
-            .max(10, { message: "Maximum 10 UPCs allowed" })
             .optional()
             .describe("Exact 13-digit UPCs to look up instead of searching"),
           storeId: storeIdSchema
