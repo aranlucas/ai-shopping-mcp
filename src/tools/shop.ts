@@ -60,7 +60,9 @@ const shopItemSchema = z.object({
     .string()
     .min(1)
     .max(100)
-    .describe("Item to shop for, e.g. 'whole milk'"),
+    .describe(
+      "Product search phrase including requested brand, size, or dietary needs, e.g. 'organic whole milk'",
+    ),
   quantity: z.coerce
     .number()
     .int()
@@ -79,11 +81,15 @@ export const shopForItemsInputSchema = z.object({
   addToCart: coercedBooleanSchema
     .optional()
     .default(false)
-    .describe("Also add the matched items to the Kroger cart"),
+    .describe(
+      "Add matches to the Kroger cart now (default false: only save a new list)",
+    ),
   modality: modalityEnum
     .optional()
     .default("PICKUP")
-    .describe("How the cart order is fulfilled when addToCart is true"),
+    .describe(
+      "PICKUP (default) or DELIVERY; applies only when addToCart is true",
+    ),
 });
 
 /**
@@ -196,7 +202,7 @@ export function registerShopTools(
     {
       title: "Shop For Items",
       description:
-        'One-shot shopping at the preferred store: searches each item name, picks the best match, and saves a new shopping list. Set addToCart:true to also add the matches to the Kroger cart, with modality DELIVERY for delivery. Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
+        'Searches up to 10 items at the preferred store, automatically picks matches, and creates a NEW list. Use search_products to compare prices or choose exact products; use update_shopping_list to append to an existing list. addToCart:true also adds matches now; modality defaults to PICKUP. Report any unmatched items. Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,

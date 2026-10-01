@@ -9,7 +9,7 @@ import type {
 } from "../utils/shopping-store.js";
 
 import { appResult } from "../app-results.js";
-import { formatOrderHistoryCompact } from "../utils/format-response.js";
+import { formatShoppingListItemCompact } from "../utils/format-response.js";
 import { getProps, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
@@ -30,7 +30,9 @@ export const recordOrderInputSchema = z.object({
     .describe("Items that were actually purchased in the completed order"),
   storeId: storeIdSchema
     .optional()
-    .describe("Where it was bought; defaults to the preferred store"),
+    .describe(
+      "8-character storeId from search_stores; defaults to the preferred store. Put a store name in notes if its ID is unknown.",
+    ),
   notes: z.string().max(500).optional(),
 });
 
@@ -49,7 +51,7 @@ export function registerOrderTools(
     {
       title: "Record Completed Order",
       description:
-        'Logs groceries the user actually bought, building the order history behind frequently purchased items and restock suggestions. Items need a productName; add the upc when you have it. Example: {"items":[{"productName":"Kroger 2% Milk","quantity":2}]}',
+        'Records a completed purchase in order history; does not place an order or update the pantry. Product names are enough: no search needed for unknown UPCs. storeId defaults to the preferred store; put a different store name in notes if its ID is unknown. Example: {"items":[{"productName":"Milk","quantity":2}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -96,7 +98,19 @@ export function registerOrderTools(
             content: [
               {
                 type: "text" as const,
-                text: `Order recorded successfully:\n\n${formatOrderHistoryCompact([order])}`,
+                text: [
+                  `Order recorded successfully: orderId=${orderId} | ${items.length} line item(s), ${totalItems} package(s)`,
+                  ...(locationId ? [`storeId=${locationId}`] : []),
+                  ...(order.estimatedTotal === undefined
+                    ? []
+                    : [
+                        `Estimated total: $${order.estimatedTotal.toFixed(2)} (${items.filter((item) => item.price !== undefined).length}/${items.length} lines priced)`,
+                      ]),
+                  ...items.map(
+                    (item) => `- ${formatShoppingListItemCompact(item)}`,
+                  ),
+                  ...(notes ? [`Notes: ${notes}`] : []),
+                ].join("\n"),
               },
             ],
           },
