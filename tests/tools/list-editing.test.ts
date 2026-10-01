@@ -1,7 +1,6 @@
 /**
  * Covers the human-editable list surface: reading lists and their item ids,
- * appending plain ingredients without a Kroger UPC, editing one item, and
- * deleting one.
+ * and update_shopping_list's add / change / remove batch.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -38,6 +37,16 @@ function makeListStorage(overrides: Partial<ListStore>) {
   const storage = makeStorage();
   storage.shoppingList = { ...storage.shoppingList, ...overrides } as ListStore;
   return storage;
+}
+
+/** A stored list containing the given items, for `get` stubs. */
+function listWith(...items: StoredShoppingListItem[]) {
+  return async () => ({
+    id: "list-a",
+    name: "Weekly",
+    items,
+    createdAt: "2026-08-01T00:00:00Z",
+  });
 }
 
 function storedItem(
@@ -129,9 +138,9 @@ describe("shopping list editing tools", () => {
     const fixture = makeContext(makeListStorage({ addItems }));
     registerShoppingListTools(fixture.server, fixture);
 
-    const result = await getCapturedHandler("add_shopping_list_items")({
+    const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
-      items: [{ productName: "Chili Onion Crunch", notes: "Sample Catalog" }],
+      add: [{ productName: "Chili Onion Crunch", notes: "Sample Catalog" }],
     });
 
     expect(result.isError).toBe(false);
@@ -163,9 +172,9 @@ describe("shopping list editing tools", () => {
     } as unknown as Pick<ProductService, "getProduct" | "enrichProductName">;
     registerShoppingListTools(ctx.server, ctx);
 
-    await getCapturedHandler("add_shopping_list_items")({
+    await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
-      items: [{ upc: "0001111042578", quantity: 2 }],
+      add: [{ upc: "0001111042578", quantity: 2 }],
     });
 
     expect(addItems).toHaveBeenCalledWith("list-a", [
@@ -180,13 +189,13 @@ describe("shopping list editing tools", () => {
   it("rejects an item with neither a UPC nor a name", () => {
     const fixture = makeContext();
     registerShoppingListTools(fixture.server, fixture);
-    const { config } = getCapturedTool("add_shopping_list_items");
+    const { config } = getCapturedTool("update_shopping_list");
     const { inputSchema } = config as {
       inputSchema: { safeParse: (input: unknown) => { success: boolean } };
     };
 
     expect(
-      inputSchema.safeParse({ listId: "list-a", items: [{ quantity: 1 }] })
+      inputSchema.safeParse({ listId: "list-a", add: [{ quantity: 1 }] })
         .success,
     ).toBe(false);
   });
@@ -194,7 +203,7 @@ describe("shopping list editing tools", () => {
   it("rejects productRef instead of UPC", () => {
     const fixture = makeContext();
     registerShoppingListTools(fixture.server, fixture);
-    const { config } = getCapturedTool("add_shopping_list_items");
+    const { config } = getCapturedTool("update_shopping_list");
     const { inputSchema } = config as {
       inputSchema: { safeParse: (input: unknown) => { success: boolean } };
     };
@@ -202,9 +211,10 @@ describe("shopping list editing tools", () => {
     expect(
       inputSchema.safeParse({
         listId: "list-a",
-        items: [{ productRef: "kroger:1", productName: "Milk" }],
+        add: [{ productRef: "kroger:1", productName: "Milk" }],
       }).success,
     ).toBe(false);
+    expect(inputSchema.safeParse({ listId: "list-a" }).success).toBe(false);
   });
 
   it("edits only the fields it is given", async () => {
@@ -218,10 +228,9 @@ describe("shopping list editing tools", () => {
     const fixture = makeContext(makeListStorage({ updateItem }));
     registerShoppingListTools(fixture.server, fixture);
 
-    const result = await getCapturedHandler("edit_shopping_list_item")({
+    const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
-      itemId: "item-1",
-      quantity: 3,
+      change: [{ itemId: "item-1", quantity: 3 }],
     });
 
     expect(result.isError).toBe(false);
@@ -244,10 +253,9 @@ describe("shopping list editing tools", () => {
     const fixture = makeContext(makeListStorage({ updateItem, removeItem }));
     registerShoppingListTools(fixture.server, fixture);
 
-    const result = await getCapturedHandler("edit_shopping_list_item")({
+    const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
-      itemId: "item-1",
-      checked: true,
+      change: [{ itemId: "item-1", checked: true }],
     });
 
     expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", {
@@ -257,7 +265,7 @@ describe("shopping list editing tools", () => {
     expect(result.text).toContain("checked off");
   });
 
-  it("deletes the item when remove is set, without also patching it", async () => {
+  it("deletes removed items without also patching them", async () => {
     const updateItem = vi.fn<
       (
         listId: string,
@@ -268,13 +276,14 @@ describe("shopping list editing tools", () => {
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},
     );
-    const fixture = makeContext(makeListStorage({ updateItem, removeItem }));
+    const fixture = makeContext(
+      makeListStorage({ updateItem, removeItem, get: listWith(storedItem()) }),
+    );
     registerShoppingListTools(fixture.server, fixture);
 
-    const result = await getCapturedHandler("edit_shopping_list_item")({
+    const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
-      itemId: "item-1",
-      remove: true,
+      remove: ["item-1"],
     });
 
     expect(removeItem).toHaveBeenCalledWith("list-a", "item-1");
@@ -286,12 +295,123 @@ describe("shopping list editing tools", () => {
     const fixture = makeContext(makeListStorage({}));
     registerShoppingListTools(fixture.server, fixture);
 
-    const result = await getCapturedHandler("edit_shopping_list_item")({
+    const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
-      itemId: "item-1",
+      change: [{ itemId: "item-1" }],
     });
 
     expect(result.isError).toBe(true);
-    expect(result.text).toContain("remove=true");
+    expect(result.text).toContain("needs productName, quantity");
+  });
+
+  it("applies a whole edit in one call: remove, change, then add", async () => {
+    const calls: string[] = [];
+    const storage = makeListStorage({
+      get: listWith(storedItem({ id: "cheese", productName: "Cheddar" })),
+      removeItem: async (_listId, itemId) => {
+        calls.push(`remove ${itemId}`);
+      },
+      updateItem: async (_listId, itemId, patch) => {
+        calls.push(`change ${itemId}`);
+        return storedItem({ id: itemId, ...patch });
+      },
+      addItems: async (_listId, items) => {
+        calls.push(`add ${items.length}`);
+        return items.map((item) => ({ ...item, checked: false, id: "new-1" }));
+      },
+    });
+    const fixture = makeContext(storage);
+    registerShoppingListTools(fixture.server, fixture);
+
+    const result = await getCapturedHandler("update_shopping_list")({
+      listId: "list-a",
+      add: [{ productName: "Eggs" }],
+      change: [
+        { itemId: "milk", quantity: 2 },
+        { itemId: "bread", checked: true },
+      ],
+      remove: ["cheese"],
+    });
+
+    expect(result.isError).toBe(false);
+    expect(calls).toEqual([
+      "remove cheese",
+      "change milk",
+      "change bread",
+      "add 1",
+    ]);
+    expect(result.text).toContain("Removed itemId=cheese");
+    expect(result.text).toContain("checked off");
+    expect(result.text).toContain("Added itemId=new-1");
+  });
+
+  it("reports edits already applied when a later one fails", async () => {
+    const storage = makeListStorage({
+      get: listWith(storedItem({ id: "cheese", productName: "Cheddar" })),
+      removeItem: async () => {},
+      updateItem: async () => {
+        throw new Error("row locked");
+      },
+    });
+    const fixture = makeContext(storage);
+    registerShoppingListTools(fixture.server, fixture);
+
+    const result = await getCapturedHandler("update_shopping_list")({
+      listId: "list-a",
+      change: [{ itemId: "milk", quantity: 2 }],
+      remove: ["cheese"],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("Already applied");
+    expect(result.text).toContain("Removed itemId=cheese");
+  });
+
+  it("removes by item name or quantity 0, as models often send", async () => {
+    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
+      async () => {},
+    );
+    const fixture = makeContext(
+      makeListStorage({
+        removeItem,
+        get: listWith(
+          storedItem({ id: "item-c", productName: "Kroger Cheddar Block" }),
+          storedItem({ id: "item-m", productName: "Milk" }),
+        ),
+      }),
+    );
+    registerShoppingListTools(fixture.server, fixture);
+
+    const result = await getCapturedHandler("update_shopping_list")({
+      listId: "list-a",
+      remove: ["kroger cheddar block"],
+      change: [{ itemId: "item-m", quantity: 0 }],
+    });
+
+    expect(result.isError).toBe(false);
+    expect(removeItem.mock.calls).toEqual([
+      ["list-a", "item-c"],
+      ["list-a", "item-m"],
+    ]);
+  });
+
+  it("changes nothing when a removal names an unknown item", async () => {
+    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
+      async () => {},
+    );
+    const fixture = makeContext(
+      makeListStorage({ removeItem, get: listWith(storedItem()) }),
+    );
+    registerShoppingListTools(fixture.server, fixture);
+
+    const result = await getCapturedHandler("update_shopping_list")({
+      listId: "list-a",
+      remove: ["item-1", "Caviar"],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain('No item "Caviar"');
+    expect(result.text).toContain("itemId=item-1 Milk");
+    expect(removeItem).not.toHaveBeenCalled();
   });
 });

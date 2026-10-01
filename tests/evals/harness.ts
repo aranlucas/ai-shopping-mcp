@@ -259,7 +259,9 @@ function productsForTerm(
   term: string,
 ): ReturnType<typeof makeFixtureProduct>[] {
   const normalized = term.toLowerCase().trim();
-  if (normalized.startsWith("zzz")) return [];
+  // "zzz…" terms (and the "frobnut" in them, if a model retries a shorter
+  // term) have no products, for not-found paths.
+  if (normalized.startsWith("zzz") || normalized.includes("frobnut")) return [];
 
   const exact = FIXTURE_CATALOG[normalized];
   if (exact) return exact.map(makeFixtureProduct);
@@ -323,7 +325,7 @@ export type KrogerFetchStub = {
 export function installKrogerFetchStub(): KrogerFetchStub {
   const originalAi = env.AI;
   const jev = stubJevAi();
-  // Preserve the live host-model binding, but fixture the bounded product decision.
+  // Fixture the bounded product decision (Jev); other AI calls pass through.
   env.AI = {
     run: (...args: Parameters<Ai["run"]>) => originalAi.run(...args),
     gateway: (id: string) =>

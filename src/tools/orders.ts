@@ -3,7 +3,10 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../domain/shopping.js";
-import type { OrderHistoryStore } from "../utils/shopping-store.js";
+import type {
+  OrderHistoryStore,
+  PreferredLocationStore,
+} from "../utils/shopping-store.js";
 
 import { appResult } from "../app-results.js";
 import { formatOrderHistoryCompact } from "../utils/format-response.js";
@@ -12,9 +15,11 @@ import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 
 const orderItemSchema = z.strictObject({
-  upc: upcSchema.describe("13-digit UPC from search_products"),
-  productName: z.string().max(200),
-  quantity: z.coerce.number().int().min(1).max(999),
+  upc: upcSchema
+    .optional()
+    .describe("13-digit UPC from search_products, if known"),
+  productName: z.string().trim().min(1).max(200),
+  quantity: z.coerce.number().int().min(1).max(999).default(1),
   price: z.coerce.number().min(0).optional(),
 });
 
@@ -25,17 +30,18 @@ export const recordOrderInputSchema = z.object({
     .describe("Items that were actually purchased in the completed order"),
   storeId: storeIdSchema
     .optional()
-    .describe("8-character storeId from search_stores"),
+    .describe("Where it was bought; defaults to the preferred store"),
   notes: z.string().max(500).optional(),
 });
 
 export type OrderToolDependencies = {
   orderHistory: OrderHistoryStore;
+  preferredLocation: PreferredLocationStore;
 };
 
 export function registerOrderTools(
   server: McpServer,
-  { orderHistory }: OrderToolDependencies,
+  { orderHistory, preferredLocation }: OrderToolDependencies,
 ): void {
   registerAppTool(
     server,
@@ -43,7 +49,7 @@ export function registerOrderTools(
     {
       title: "Record Completed Order",
       description:
-        "Records the groceries the user actually purchased as order history. This supports future preference context, frequently purchased items, and meal planning based on recent shopping behavior.",
+        'Logs groceries the user actually bought, building the order history behind frequently purchased items and restock suggestions. Items need a productName; add the upc when you have it. Example: {"items":[{"productName":"Kroger 2% Milk","quantity":2}]}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -55,6 +61,15 @@ export function registerOrderTools(
     },
     async ({ items, storeId, notes }) => {
       getProps();
+      const locationId =
+        storeId ??
+        (await safeStorage(
+          () => preferredLocation.get(),
+          "fetch preferred store",
+        ).match(
+          (store) => store?.locationId,
+          () => undefined,
+        ));
       const orderId = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
       const estimatedTotal = items.reduce(
@@ -68,7 +83,7 @@ export function registerOrderTools(
         totalItems,
         estimatedTotal: estimatedTotal > 0 ? estimatedTotal : undefined,
         placedAt: new Date().toISOString(),
-        locationId: storeId,
+        locationId,
         notes,
       };
 

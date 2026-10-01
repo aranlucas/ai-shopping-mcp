@@ -63,39 +63,59 @@ export function registerWeeklyDealsTools(
           .number()
           .int()
           .min(1)
-          .max(200)
+          .max(50)
           .optional()
-          .default(50)
-          .describe("Maximum number of deals to return"),
-        pageLimit: z.coerce
+          .default(15)
+          .describe("Number of deals per page (1-50)"),
+        offset: z.coerce
           .number()
           .int()
-          .min(1)
-          .max(10)
+          .min(0)
           .optional()
-          .default(2)
-          .describe("Print-ad fallback only: number of ad pages to parse"),
+          .default(0)
+          .describe(
+            "Deals to skip; pass the nextOffset from the previous page",
+          ),
       }),
     },
-    async ({ storeId, limit, pageLimit }, requestContext) => {
+    async ({ storeId, limit, offset }, requestContext) => {
+      // Always load the shared cache entry (item flags and meal planning read
+      // it too); `limit` only trims what is shown.
       const result = await loadWeeklyDeals({
         storeId,
-        limit,
-        pageLimit,
+        ...WEEKLY_DEALS_FETCH,
         signal: requestContext.mcpReq.signal,
       });
       if (result.isErr()) return toMcpError(result.error);
       return formatWeeklyDealsToolResponse(
         result.value.data,
         result.value.cacheState,
+        { limit, offset },
       );
     },
   );
 }
 
+/** Page footer: which slice this is and how to get the next one. */
+function formatDealsPage(offset: number, shown: number, total: number) {
+  if (shown === total) return "";
+  const end = offset + shown;
+  if (shown === 0) return `\nNo deals at offset ${offset}; there are ${total}.`;
+  return end < total
+    ? `\nDeals ${offset + 1}-${end} of ${total}. More: nextOffset=${end}`
+    : `\nDeals ${offset + 1}-${end} of ${total} (last page).`;
+}
+
+/** Fetch size behind every weekly-deals read, so all readers share one cache key. */
+export const WEEKLY_DEALS_FETCH = { limit: 50, pageLimit: 2 } as const;
+
 export function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,
   cacheState: "miss" | "fresh" | "stale",
+  page: { limit: number; offset: number } = {
+    limit: WEEKLY_DEALS_FETCH.limit,
+    offset: 0,
+  },
 ) {
   const validFrom =
     result.printCircular?.eventStartDate ??
@@ -116,6 +136,7 @@ export function formatWeeklyDealsToolResponse(
       validTill: deal.validTill,
       category: classifyDealCategory(deal.title),
     }))
+    .slice(page.offset, page.offset + page.limit)
     .toSorted(
       (a, b) =>
         DEAL_CATEGORIES.indexOf(a.category) -
@@ -126,12 +147,13 @@ export function formatWeeklyDealsToolResponse(
     content: [
       {
         type: "text" as const,
-        text: formatWeeklyDealsMarkdown(
-          deals,
-          validFrom,
-          validTill,
-          formatWeeklyDealWarnings(result.warnings),
-        ),
+        text:
+          formatWeeklyDealsMarkdown(
+            deals,
+            validFrom,
+            validTill,
+            formatWeeklyDealWarnings(result.warnings),
+          ) + formatDealsPage(page.offset, deals.length, result.deals.length),
       },
     ],
     ...appResult("get_weekly_deals", {

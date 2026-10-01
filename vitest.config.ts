@@ -1,7 +1,14 @@
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
-const liveEval = process.env.EVAL_LIVE === "1";
+// The agent eval reads OPENROUTER_API_KEY from .dev.vars when it isn't exported.
+if (process.env.EVAL_AGENT === "1" && !process.env.OPENROUTER_API_KEY) {
+  try {
+    process.loadEnvFile(".dev.vars");
+  } catch {
+    // No .dev.vars: the agent eval skips itself without a key.
+  }
+}
 
 export default defineConfig({
   test: {
@@ -17,28 +24,20 @@ export default defineConfig({
         plugins: [
           cloudflareTest({
             main: "./src/server.ts",
-            remoteBindings: liveEval,
-            ...(liveEval
-              ? { wrangler: { configPath: "./wrangler.jsonc" } }
-              : {}),
             miniflare: {
-              ...(liveEval
-                ? {}
-                : {
-                    compatibilityDate: "2025-03-10",
-                    compatibilityFlags: [
-                      "nodejs_compat",
-                      "global_fetch_strictly_public",
-                    ],
-                    kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
-                    d1Databases: ["SHOPPING_DB"],
-                    durableObjects: {
-                      CART_OPERATIONS: {
-                        className: "CartOperations",
-                        useSQLite: true,
-                      },
-                    },
-                  }),
+              compatibilityDate: "2025-03-10",
+              compatibilityFlags: [
+                "nodejs_compat",
+                "global_fetch_strictly_public",
+              ],
+              kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
+              d1Databases: ["SHOPPING_DB"],
+              durableObjects: {
+                CART_OPERATIONS: {
+                  className: "CartOperations",
+                  useSQLite: true,
+                },
+              },
               // Miniflare's WorkerOptions expose plain variables through
               // `bindings`, not `vars` (which is wrangler-config syntax). Using
               // `vars` here is silently ignored, so these must live under
@@ -51,18 +50,20 @@ export default defineConfig({
                 // Test origin; the OAuth tests derive their base URL from it.
                 MCP_RESOURCE_URL: "https://example.com",
 
-                // EVAL_LIVE selects the production Wrangler config so the
-                // live-model runner can reach its explicitly remote AI
-                // binding. Normal tests define only their local KV bindings.
-                ...(process.env.EVAL_LIVE
-                  ? { EVAL_LIVE: process.env.EVAL_LIVE }
-                  : {}),
-                ...(process.env.EVAL_MODEL
-                  ? { EVAL_MODEL: process.env.EVAL_MODEL }
-                  : {}),
                 ...(process.env.EVAL_LOG
                   ? { EVAL_LOG: process.env.EVAL_LOG }
                   : {}),
+                // Agent eval over OpenRouter (`pnpm eval:agent`).
+                ...Object.fromEntries(
+                  [
+                    "EVAL_AGENT",
+                    "EVAL_MODELS",
+                    "EVAL_TASKS",
+                    "OPENROUTER_API_KEY",
+                  ].flatMap((name) =>
+                    process.env[name] ? [[name, process.env[name]]] : [],
+                  ),
+                ),
               },
             },
           }),

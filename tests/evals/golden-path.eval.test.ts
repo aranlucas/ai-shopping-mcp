@@ -58,7 +58,7 @@ describe("golden path (scripted agent, text-only)", () => {
 
   it("cold start: find store → save it → shop_for_items → add to cart, in 4 calls", async () => {
     // 1. The agent only knows the user's zip code.
-    const stores = await call("search_stores", { zipCodeNear: "98105" });
+    const stores = await call("search_stores", { zipCode: "98105" });
     const storeIds = extractStoreIds(contentText(stores));
     expect(storeIds.length).toBeGreaterThan(0);
 

@@ -18,14 +18,14 @@ export async function getMealPlanningDeals(
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (result.isErr()) {
-    return `\n**Weekly Deals Unavailable:** ${result.error.message}\nContinue with pantry context; use get_weekly_deals to retry.`;
+    return `\nWeekly deals unavailable: ${result.error.message}\nContinue with pantry context; use get_weekly_deals to retry.`;
   }
 
   const { data, cacheState } = result.value;
   const deals = data.deals.slice(0, MEAL_PLANNING_DEAL_LIMIT);
   const parts = [
-    `\n**Weekly Deals (QFC/Kroger):** storeId=${data.locationId} | cache=${cacheState}`,
-    `Showing ${deals.length} of ${data.deals.length} offers.`,
+    `\nWeekly deals (QFC/Kroger): storeId=${data.locationId} | cache=${cacheState}`,
+    `Showing ${deals.length} of ${data.deals.length} offers. Sale items are not in the pantry; confirm exact products and prices with search_products before create_shopping_list.`,
   ];
   if (cacheState === "stale") {
     parts.push(

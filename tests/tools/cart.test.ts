@@ -1183,18 +1183,18 @@ describe("view_cart tool", () => {
 });
 
 describe("addShoppingListToCartInputSchema", () => {
-  describe("listId / items mutual exclusivity", () => {
+  describe("listId / items", () => {
     it("rejects when neither listId nor items is provided", () => {
       const result = addShoppingListToCartInputSchema.safeParse({});
       expect(result.success).toBe(false);
     });
 
-    it("rejects when both listId and items are provided", () => {
+    it("accepts both listId and items; the saved list wins in the handler", () => {
       const result = addShoppingListToCartInputSchema.safeParse({
         listId: SHORT_LIST_ID,
         items: [{ upc: "0001111042578" }],
       });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
     });
 
     it("accepts listId alone", () => {

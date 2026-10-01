@@ -412,7 +412,7 @@ describe("formatProductLine", () => {
 });
 
 describe("formatProductSearchMarkdown", () => {
-  it("renders a heading and product lines per search term", () => {
+  it("renders a label and product lines per search term", () => {
     const results: ProductSearchResult[] = [
       {
         requestId: "term_0",
@@ -422,7 +422,8 @@ describe("formatProductSearchMarkdown", () => {
       },
     ];
     const text = formatProductSearchMarkdown(results);
-    expect(text).toContain("## milk");
+    expect(text).toContain("milk:\n");
+    expect(text).not.toContain("## ");
     expect(text).toContain("upc=0001111041700");
     expect(text).not.toContain("location:");
   });
@@ -455,7 +456,7 @@ describe("formatProductSearchMarkdown", () => {
         status: "success",
       },
     ]);
-    expect(text).toContain("## unobtainium");
+    expect(text).toContain("unobtainium:");
     expect(text).toContain("No Kroger results.");
   });
 
@@ -481,7 +482,7 @@ describe("formatProductSearchMarkdown", () => {
         status: "success",
       },
     ]);
-    expect(text).toContain("pass the UPCs above to create_shopping_list");
+    expect(text).toContain("pass these UPCs to create_shopping_list");
   });
 });
 

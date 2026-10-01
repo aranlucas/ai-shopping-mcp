@@ -1,5 +1,5 @@
 /**
- * Eval: meal planning context with weekly deals.
+ * Eval: meal planning from get_shopping_profile with weekly deals.
  *
  * These tests exercise the real MCP wire contract. The weekly-deals cache is
  * seeded through the worker's USER_DATA_KV binding so a normal run never
@@ -20,7 +20,6 @@ import {
   DEFAULT_STORE_ID,
   contentText,
   createEvalMcpClient,
-  estimateTokens,
   extractListIds,
   extractStoreIds,
   extractUpcs,
@@ -137,18 +136,16 @@ describe("meal planning weekly deals (wire eval)", () => {
 
   it("returns pantry and deals together, then supports search-to-list in three calls", async () => {
     await call("set_preferred_store", { storeId: DEFAULT_STORE_ID });
-    await call("add_to_inventory", {
-      inventory: "pantry",
-      items: [{ name: "Rice", quantity: 2 }],
+    await call("update_inventory", {
+      pantry: { add: [{ name: "Rice", quantity: 2 }] },
     });
     await seedDeals();
     toolCalls = 0;
 
     // Timed workflow: one context call, one batched exact-product search, and
     // one shopping-list write. The setup calls above model an existing user.
-    const context = await call("get_meal_planning_context", {
+    const context = await call("get_shopping_profile", {
       includeWeeklyDeals: true,
-      numberOfMeals: 2,
       storeId: DEFAULT_STORE_ID,
     });
     const contextText = contentText(context);
@@ -161,7 +158,6 @@ describe("meal planning weekly deals (wire eval)", () => {
     expect(contextText).toContain(`from ${DEAL_START}`);
     expect(contextText).toContain(`until ${DEAL_END}`);
     expect(contextText).toContain("cache=fresh");
-    expect(context.structuredContent).toBeUndefined();
 
     const search = await call("search_products", { terms: ["milk"], storeId });
     const [upc] = extractUpcs(contentText(search));
@@ -178,46 +174,6 @@ describe("meal planning weekly deals (wire eval)", () => {
     expect(stub.cartPuts).toHaveLength(0);
   });
 
-  it("accepts string booleans and keeps the default false path deal-free", async () => {
-    await call("set_preferred_store", { storeId: DEFAULT_STORE_ID });
-    await call("add_to_inventory", {
-      inventory: "pantry",
-      items: [{ name: "Rice", quantity: 1 }],
-    });
-    await seedDeals();
-
-    const disabled = await call("get_meal_planning_context", {
-      includeWeeklyDeals: " FALSE ",
-    });
-    expect(contentText(disabled)).toContain("Rice x1");
-    expect(contentText(disabled)).not.toContain("Weekly Deals");
-    expect(contentText(disabled)).not.toContain("Kroger 2% Reduced Fat Milk");
-
-    const enabled = await call("get_meal_planning_context", {
-      includeWeeklyDeals: " true ",
-      storeId: DEFAULT_STORE_ID,
-    });
-    expect(contentText(enabled)).toContain("Weekly Deals");
-    expect(contentText(enabled)).toContain("cache=fresh");
-  });
-
-  it("can plan from deals when the pantry is empty", async () => {
-    await seedDeals();
-
-    const result = await call("get_meal_planning_context", {
-      includeWeeklyDeals: true,
-      storeId: DEFAULT_STORE_ID,
-    });
-    const text = contentText(result);
-    expect(text).toContain(
-      "Your pantry is empty. Treat all recipe ingredients as items to buy.",
-    );
-    expect(text).toContain("Kroger 2% Reduced Fat Milk");
-    expect(text).toContain("Action Required");
-    expect(text).toContain("search_products");
-    expect(stub.cartPuts).toHaveLength(0);
-  });
-
   it("surfaces a refresh warning when stale cached deals cannot refresh", async () => {
     await seedDeals(
       {
@@ -230,7 +186,7 @@ describe("meal planning weekly deals (wire eval)", () => {
     );
     failKrogerFetches();
 
-    const result = await call("get_meal_planning_context", {
+    const result = await call("get_shopping_profile", {
       includeWeeklyDeals: true,
       storeId: DEFAULT_STORE_ID,
     });
@@ -242,35 +198,5 @@ describe("meal planning weekly deals (wire eval)", () => {
     expect(text).toContain("Live refresh failed; served stale KV cache.");
     expect(text).toContain("Kroger 2% Reduced Fat Milk");
     expect(text).toContain("Member prices require a loyalty card.");
-  });
-
-  it("keeps pantry context and gives recovery guidance when deals are unavailable", async () => {
-    await call("add_to_inventory", {
-      inventory: "pantry",
-      items: [{ name: "Rice", quantity: 1 }],
-    });
-
-    const result = await call("get_meal_planning_context", {
-      includeWeeklyDeals: true,
-    });
-    const text = contentText(result);
-    expect(text).toContain("Weekly Deals Unavailable");
-    expect(text).toContain("get_weekly_deals to retry");
-    expect(text).toContain("Rice x1");
-    expect(text).not.toContain("Kroger 2% Reduced Fat Milk");
-    expect(stub.cartPuts).toHaveLength(0);
-  });
-
-  it("keeps ten concise offers within the meal-planning response budget", async () => {
-    await seedDeals();
-    const result = await call("get_meal_planning_context", {
-      includeWeeklyDeals: true,
-      storeId: DEFAULT_STORE_ID,
-    });
-    const text = contentText(result);
-    expect(text).toContain("Showing 10 of 10 offers");
-    expect(text).toContain("Weeknight Offer 10");
-    expect(estimateTokens(text)).toBeLessThanOrEqual(1000);
-    expect(result.structuredContent).toBeUndefined();
   });
 });

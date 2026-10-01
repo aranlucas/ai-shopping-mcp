@@ -18,7 +18,10 @@ import {
 } from "../../src/tools/orders.js";
 
 function registerOrders(context: ReturnType<typeof makeContext>) {
-  registerOrderTools(context.server, { orderHistory: context.orderHistory });
+  registerOrderTools(context.server, {
+    orderHistory: context.orderHistory,
+    preferredLocation: context.preferredLocation,
+  });
 }
 
 describe("order storage-backed tools", () => {
@@ -129,7 +132,7 @@ describe("order storage-backed tools", () => {
     expect(sc.estimatedTotal).toBeUndefined();
   });
 
-  it("rejects record_order items without upc at the schema level", () => {
+  it("accepts record_order items by name, with or without a upc", () => {
     const fixture = makeContext();
     registerOrders(fixture);
 
@@ -142,11 +145,10 @@ describe("order storage-backed tools", () => {
       config.inputSchema.safeParse({
         items: [{ productName: "Apples", quantity: 2 }],
       }).success,
+    ).toBe(true);
+    expect(
+      recordOrderInputSchema.safeParse({ items: [{ quantity: 2 }] }).success,
     ).toBe(false);
-    const directResult = recordOrderInputSchema.safeParse({
-      items: [{ productName: "Apples", quantity: 2 }],
-    });
-    expect(directResult.success).toBe(false);
     expect(
       config.inputSchema.safeParse({
         items: [{ upc: "0000000000001", productName: "Apples", quantity: 2 }],

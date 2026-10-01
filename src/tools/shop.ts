@@ -39,7 +39,7 @@ import {
   itemFlagLabels,
 } from "./item-flags.js";
 import { searchProductsForTerms } from "./product.js";
-import { coercedBooleanSchema } from "./schemas.js";
+import { coercedBooleanSchema, modalityEnum } from "./schemas.js";
 import { createShoppingListRecord } from "./shopping-list.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -61,7 +61,13 @@ const shopItemSchema = z.object({
     .min(1)
     .max(100)
     .describe("Item to shop for, e.g. 'whole milk'"),
-  quantity: z.coerce.number().int().min(1).max(999).default(1),
+  quantity: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(999)
+    .default(1)
+    .describe("Packages to buy, not units: a dozen eggs is 1 carton of 12"),
 });
 
 export const shopForItemsInputSchema = z.object({
@@ -73,9 +79,11 @@ export const shopForItemsInputSchema = z.object({
   addToCart: coercedBooleanSchema
     .optional()
     .default(false)
-    .describe(
-      "Also add matched items to the Kroger cart (PICKUP) after creating the list",
-    ),
+    .describe("Also add the matched items to the Kroger cart"),
+  modality: modalityEnum
+    .optional()
+    .default("PICKUP")
+    .describe("How the cart order is fulfilled when addToCart is true"),
 });
 
 /**
@@ -127,13 +135,14 @@ async function finishShopForItemsCart(
   responseText: string,
   list: ShoppingList,
   lineItems: LineItem[],
+  modality: "PICKUP" | "DELIVERY",
 ) {
   const parts = [responseText];
   const addResult = await addLineItemsToCart(
     carts,
     cartClient,
     lineItems,
-    "PICKUP",
+    modality,
     {
       receiptListId: listId,
     },
@@ -187,7 +196,7 @@ export function registerShopTools(
     {
       title: "Shop For Items",
       description:
-        'One-shot shopping: resolves your preferred store, searches for each item name, picks the best match, and creates a shopping list. Set addToCart:true to also add the matches to your Kroger cart (PICKUP). Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
+        'One-shot shopping at the preferred store: searches each item name, picks the best match, and saves a new shopping list. Set addToCart:true to also add the matches to the Kroger cart, with modality DELIVERY for delivery. Example: {"items":[{"name":"whole milk"},{"name":"eggs","quantity":2}],"addToCart":true}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -197,7 +206,7 @@ export function registerShopTools(
       },
       inputSchema: shopForItemsInputSchema,
     },
-    async ({ items, addToCart }) => {
+    async ({ items, addToCart, modality }) => {
       getProps();
       const resolvedLocation = await safeResolveLocationId(
         preferredLocation,
@@ -351,6 +360,7 @@ export function registerShopTools(
         parts.join("\n"),
         list,
         lineItems,
+        modality,
       );
     },
   );

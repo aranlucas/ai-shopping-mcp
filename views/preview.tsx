@@ -209,29 +209,31 @@ const CART: CartViewContent = {
   ],
 };
 
-/** Applies a simulated list edit so the preview behaves like the server. */
-function editPreviewList(
+/** Applies a simulated list update so the preview behaves like the server. */
+function updatePreviewList(
   list: ShoppingListContent,
-  args: Extract<ToolCall, { name: "edit_shopping_list_item" }>["arguments"],
+  args: Extract<ToolCall, { name: "update_shopping_list" }>["arguments"],
 ): ShoppingListContent {
-  if (args.remove)
-    return {
-      ...list,
-      items: list.items.filter((item) => item.id !== args.itemId),
-    };
+  const removed = new Set(args.remove ?? []);
+  const changes = new Map(
+    (args.change ?? []).map((change) => [change.itemId, change]),
+  );
   return {
     ...list,
-    items: list.items.map((item) =>
-      item.id === args.itemId
-        ? {
-            ...item,
-            ...(args.checked === undefined ? {} : { checked: args.checked }),
-            ...(args.quantity === undefined
-              ? {}
-              : { quantity: Number(args.quantity) }),
-          }
-        : item,
-    ),
+    items: list.items
+      .filter((item) => !item.id || !removed.has(item.id))
+      .map((item) => {
+        const change = item.id ? changes.get(item.id) : undefined;
+        if (!change) return item;
+        return Object.assign(
+          {},
+          item,
+          change.checked === undefined ? {} : { checked: change.checked },
+          change.quantity === undefined
+            ? {}
+            : { quantity: Number(change.quantity) },
+        );
+      }),
   };
 }
 
@@ -314,13 +316,11 @@ function Preview() {
                   ...appResult("create_shopping_list", listRef.current),
                 }
               : { content: [], ...appResult("shopping_lists", LISTS) };
-          if (call.name === "add_shopping_list_items")
-            return {
-              content: [],
-              ...appResult("create_shopping_list", listRef.current),
-            };
-          if (call.name === "edit_shopping_list_item") {
-            listRef.current = editPreviewList(listRef.current, call.arguments);
+          if (call.name === "update_shopping_list") {
+            listRef.current = updatePreviewList(
+              listRef.current,
+              call.arguments,
+            );
             return {
               content: [],
               ...appResult("create_shopping_list", listRef.current),
@@ -336,7 +336,7 @@ function Preview() {
                 placedAt: new Date().toISOString(),
               }),
             };
-          if (call.name === "remove_from_inventory")
+          if (call.name === "update_inventory")
             return {
               content: [],
               ...appResult("pantry", { items: [] }),

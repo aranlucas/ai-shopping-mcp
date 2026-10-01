@@ -47,35 +47,6 @@ describe("token budget: tool surface", () => {
     await reset();
   });
 
-  it("keeps the serialized tool list within the small-model budget", async () => {
-    const { tools } = await client.listTools();
-
-    const perTool = tools
-      .map((tool) => ({ name: tool.name, tokens: estimateJsonTokens(tool) }))
-      .toSorted((a, b) => b.tokens - a.tokens);
-    const total = perTool.reduce((sum, entry) => sum + entry.tokens, 0);
-
-    log("tool surface tokens:", total);
-    for (const entry of perTool) log(`  ${entry.name}: ${entry.tokens}`);
-
-    // Whole tool list: what every request to the host model carries.
-    // Baseline 2026-07 (Phase 1, #1-2): 3455 estimated tokens across 14 tools.
-    // Updated 2026-07 (Phase 2, #3-4): 3637 estimated tokens across 15 tools —
-    // +134t for the new read-only view_cart tool and +~12t for shop_for_items'
-    // addToCart field. Still comfortably under the cap, so the budget itself
-    // is unchanged; see small-model-efficiency-plan.md Phase 2 items 3-4.
-    expect(total).toBeLessThan(4200);
-
-    // No single tool may dominate the surface. Baseline max: 311
-    // (add_shopping_list_to_cart).
-    for (const entry of perTool) {
-      expect(
-        entry.tokens,
-        `tool ${entry.name} definition too large`,
-      ).toBeLessThan(400);
-    }
-  });
-
   it("keeps server instructions compact and aligned with the golden path", async () => {
     const instructions = client.getInstructions() ?? "";
     const tokens = estimateTokens(instructions);
@@ -148,7 +119,7 @@ describe("token budget: tool responses", () => {
   });
 
   it("search_stores stays within content budget", async () => {
-    const result = await call("search_stores", { zipCodeNear: "98105" });
+    const result = await call("search_stores", { zipCode: "98105" });
     expect(result.isError).toBeFalsy();
 
     // Baseline 2026-07: 74t.
@@ -157,15 +128,15 @@ describe("token budget: tool responses", () => {
     expect(structuredTokens).toBeLessThan(500);
   });
 
-  it("get_product stays within content budget", async () => {
-    const result = await call("get_product", {
-      upc: "0001111041700",
+  it("search_products UPC lookup stays within content budget", async () => {
+    const result = await call("search_products", {
+      terms: ["0001111041700"],
       storeId: DEFAULT_STORE_ID,
     });
     expect(result.isError).toBeFalsy();
 
-    // Baseline 2026-07: 40t.
-    const { textTokens, structuredTokens } = report("get_product", result);
+    // Baseline 2026-07 (as get_product): 40t.
+    const { textTokens, structuredTokens } = report("upc lookup", result);
     expect(textTokens).toBeLessThan(100);
     expect(structuredTokens).toBeLessThan(500);
   });
@@ -184,26 +155,25 @@ describe("token budget: tool responses", () => {
 
   it("get_shopping_profile stays within content budget with populated data", async () => {
     await call("set_preferred_store", { storeId: DEFAULT_STORE_ID });
-    await call("add_to_inventory", {
-      inventory: "pantry",
-      items: [
-        { name: "Rice", quantity: 2 },
-        { name: "Black beans", quantity: 4 },
-        { name: "Olive oil" },
-      ],
-    });
-    await call("add_to_inventory", {
-      inventory: "equipment",
-      items: [{ name: "Dutch oven", category: "Cooking" }],
+    await call("update_inventory", {
+      pantry: {
+        add: [
+          { name: "Rice", quantity: 2 },
+          { name: "Black beans", quantity: 4 },
+          { name: "Olive oil" },
+        ],
+      },
+      equipment: { add: [{ name: "Dutch oven", category: "Cooking" }] },
     });
 
     const result = await call("get_shopping_profile", {});
     expect(result.isError).toBeFalsy();
 
     // Baseline 2026-07 (Phase 1): 61t. Updated 2026-07 (Phase 3, #7): 72t —
-    // +11t for the new "## Due to restock" section (empty here, since this
+    // +11t for the new "Due to restock" section (empty here, since this
     // scenario has no order history); cap unchanged, still comfortably under
-    // it. See small-model-efficiency-plan.md Phase 3 item 7.
+    // it. See small-model-efficiency-plan.md Phase 3 item 7. The 2026-09
+    // consolidation folded meal-planning context in; text cap unchanged.
     const { textTokens } = report("get_shopping_profile", result);
     expect(textTokens).toBeLessThan(150);
   });

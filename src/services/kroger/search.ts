@@ -7,6 +7,7 @@ import type { AppError } from "../../errors.js";
 import type { KrogerClients } from "./client.js";
 import type { components as ProductComponents } from "./product.js";
 
+import { validationError } from "../../errors.js";
 import { fromApiResponse } from "../../utils/result.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
@@ -33,6 +34,15 @@ export type ProductSearchResult = ProductSearchSuccess | ProductSearchFailure;
  * and `shop_for_items` so both tools use the same query shape, sorting, and
  * error handling.
  */
+/** Kroger's `filter.term` limits (kroger/product.json). */
+const MIN_TERM_CHARS = 3;
+const MAX_TERM_WORDS = 8;
+
+/** Trims a term to Kroger's word limit; longer terms are rejected upstream. */
+function toKrogerTerm(term: string): string {
+  return term.trim().split(/\s+/).slice(0, MAX_TERM_WORDS).join(" ");
+}
+
 export async function searchProductsForTerms(
   productClient: KrogerClients["productClient"],
   requests: ProductSearchRequest[],
@@ -43,8 +53,19 @@ export async function searchProductsForTerms(
   const totalSearches = requests.length;
 
   const searchPromises = requests.map(async (request) => {
+    const term = toKrogerTerm(request.term);
+    if (term.length < MIN_TERM_CHARS) {
+      completedSearches++;
+      return {
+        ...request,
+        status: "failed" as const,
+        error: validationError(
+          `"${request.term}" is too short; Kroger needs at least ${MIN_TERM_CHARS} characters. Search by the full product name.`,
+        ),
+      };
+    }
     const queryParams: Record<string, string | number> = {
-      "filter.term": request.term,
+      "filter.term": term,
       ...(params.locationId ? { "filter.locationId": params.locationId } : {}),
       "filter.fulfillment": "ais",
       "filter.limit": params.limitPerTerm,

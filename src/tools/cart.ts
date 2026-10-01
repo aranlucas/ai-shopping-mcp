@@ -49,7 +49,13 @@ export type LineItem = { upc: string; quantity: number; productName?: string };
 
 const inlineCartItemSchema = z.object({
   upc: upcSchema.describe("UPC from search_products"),
-  quantity: z.coerce.number().int().min(1).max(999).default(1),
+  quantity: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(999)
+    .default(1)
+    .describe("Packages to buy, not units: a dozen eggs is 1 carton of 12"),
 });
 
 export const addShoppingListToCartInputSchema = z
@@ -73,17 +79,20 @@ export const addShoppingListToCartInputSchema = z
       .min(1)
       .max(10)
       .optional()
-      .describe("Inline UPC/quantity pairs; omit listId."),
+      .describe("Inline UPC/quantity pairs, when there is no saved list"),
     storeId: storeIdSchema
       .optional()
       .describe(
         "8-character storeId from search_stores. Uses your preferred store if omitted.",
       ),
-    modality: modalityEnum.default("PICKUP"),
+    modality: modalityEnum
+      .default("PICKUP")
+      .describe("PICKUP (default) or DELIVERY"),
   })
-  .refine((value) => Boolean(value.listId) !== Boolean(value.items), {
+  // With both, the saved list wins (see the handler).
+  .refine((value) => Boolean(value.listId ?? value.items), {
     message:
-      "Provide exactly one of listId (from create_shopping_list) or items (inline upc/quantity pairs) — not both, not neither.",
+      "Provide listId (from create_shopping_list) or items (inline upc/quantity pairs).",
   });
 
 function toCartSnapshotItems(
@@ -450,7 +459,9 @@ const viewCartInputSchema = z.object({
     .trim()
     .min(1)
     .optional()
-    .describe("Kroger cart UUID; remembered after a successful live read."),
+    .describe(
+      "Kroger cart id, only if the user provides one; it is remembered afterwards.",
+    ),
 });
 
 function formatLiveCart(cart: LiveCart, cartId: string): string {
@@ -540,7 +551,7 @@ export function registerCartTools(
     {
       title: "Add Shopping List to Cart",
       description:
-        'Add a saved list or inline UPCs to the Kroger cart. Omit storeId for your preferred store. Reuse operationId for inline retries. Example: {"listId":"list_a1b2c3d8"}',
+        'Adds a saved list (listId) or up to 10 UPCs (items) to the Kroger cart at the preferred store, for PICKUP unless modality is DELIVERY. Reuse operationId when retrying an inline add. Example: {"listId":"list_a1b2c3d8"}',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -590,7 +601,7 @@ export function registerCartTools(
     {
       title: "View Cart",
       description:
-        "Read the live Kroger cart using a remembered cartId, or show the assistant-only mirror when no id is known.",
+        "Shows what is in the user's Kroger cart. Without a known Kroger cart id it lists the items this assistant added, which may miss changes made in the Kroger app.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,

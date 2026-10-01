@@ -10,7 +10,7 @@ import type { LocationData } from "../app-results.js";
 import type { PreferredLocationStore } from "../utils/shopping-store.js";
 
 import { appResult } from "../app-results.js";
-import { notFoundError } from "../errors.js";
+import { notFoundError, validationError } from "../errors.js";
 import {
   formatPreferredLocationCompact,
   formatStoreDetailMarkdown,
@@ -43,6 +43,15 @@ function compactLocation(location: Location): LocationData {
   };
 }
 
+/** zipCode, or the value of any zip-like key a model misspelled it as. */
+function zipCodeFrom(input: Record<string, unknown>): string | undefined {
+  if (typeof input.zipCode === "string") return input.zipCode.trim();
+  const alias = Object.entries(input).find(
+    ([key, value]) => /^(zip|postal)/i.test(key) && typeof value === "string",
+  );
+  return typeof alias?.[1] === "string" ? alias[1].trim() : undefined;
+}
+
 export type LocationToolDependencies = {
   locationClient: KrogerClients["locationClient"];
   preferredLocation: PreferredLocationStore;
@@ -59,9 +68,9 @@ export function registerLocationTools(
     server,
     "search_stores",
     {
-      title: "Search Store Locations",
+      title: "Search Stores",
       description:
-        "Finds Kroger or QFC stores near a 5-digit zip code. Returns store names, addresses, and 8-character location IDs for preferred-store setup, product availability, and pickup or delivery planning.",
+        "Finds Kroger-family stores (Kroger, QFC, Fred Meyer, Ralphs, …) near a zip code, returning each store's storeId, address, and phone. Pass storeId instead to get one store's hours and departments.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -69,35 +78,53 @@ export function registerLocationTools(
         idempotentHint: true,
         openWorldHint: true,
       },
-      inputSchema: z.object({
-        zipCodeNear: z
-          .string()
-          .length(5, { message: "Zip code must be exactly 5 digits" })
-          .describe(
-            "5-digit zip code. Ask the user for their zip code if you don't know it.",
-          ),
-        limit: z.coerce.number().min(1).max(200).optional().default(5),
-        chain: z
-          .string()
-          .optional()
-          .default("QFC")
-          .describe(
-            "Kroger family chain to search. Defaults to QFC — pass e.g. 'KROGER' to widen results to other banners.",
-          ),
-      }),
+      // Loose so a misspelled zip key (zip, zipCodeNear, postalCode, …) is
+      // still read as zipCode instead of rejected; see zipCodeFrom.
+      inputSchema: z
+        .looseObject({
+          zipCode: z
+            .string()
+            .trim()
+            .length(5, { message: "Zip code must be exactly 5 digits" })
+            .optional()
+            .describe(
+              "5-digit zip code to search near. Ask the user if you don't know it.",
+            ),
+          storeId: storeIdSchema
+            .optional()
+            .describe(
+              "8-character storeId to look up one store's hours and departments",
+            ),
+          limit: z.coerce.number().int().min(1).max(20).optional().default(5),
+          chain: z
+            .string()
+            .optional()
+            .describe(
+              "Only return one banner, e.g. 'QFC' or 'KROGER'. Omit to search every banner.",
+            ),
+        })
+        .refine((input) => Boolean(zipCodeFrom(input) ?? input.storeId), {
+          message:
+            'Pass zipCode (5 digits) to search, or storeId for one store. Example: {"zipCode":"98105"}',
+        }),
     },
-    async ({ zipCodeNear, limit, chain }) => {
-      const queryParams: Record<string, string | number> = {};
+    async (input) => {
+      const { storeId, limit, chain } = input;
+      if (storeId) return getStoreDetails(storeId);
+      const zipCodeNear = zipCodeFrom(input);
+      if (!zipCodeNear || !/^\d{5}$/.test(zipCodeNear)) {
+        return toMcpError(
+          validationError(
+            'zipCode must be 5 digits. Example: {"zipCode":"98105"}',
+          ),
+        );
+      }
 
-      if (zipCodeNear) {
-        queryParams["filter.zipCode.near"] = zipCodeNear;
-      }
-      if (limit !== undefined) {
-        queryParams["filter.limit"] = limit;
-      }
-      if (chain) {
-        queryParams["filter.chain"] = chain;
-      }
+      const queryParams: Record<string, string | number> = {
+        "filter.limit": limit,
+        "filter.zipCode.near": zipCodeNear,
+      };
+      if (chain) queryParams["filter.chain"] = chain;
 
       const result = await fromApiResponse(
         () =>
@@ -120,56 +147,35 @@ export function registerLocationTools(
     },
   );
 
-  registerAppTool(
-    server,
-    "get_store",
-    {
-      title: "Get Store Details",
-      description:
-        "Retrieves detailed information for one Kroger/QFC store by its storeId, including address, phone, hours, and departments. Use the 8-character storeId from search_stores output.",
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-      inputSchema: z.object({
-        storeId: storeIdSchema.describe(
-          "8-character storeId from search_stores",
-        ),
-      }),
-    },
-    async ({ storeId }) => {
-      const result = await fromApiResponse(
-        () =>
-          locationClient.GET("/v1/locations/{locationId}", {
-            params: { path: { locationId: storeId } },
-          }),
-        "get location details",
-      ).andThen((data) => {
-        const location = data?.data;
-        if (!location) {
-          return err(
-            notFoundError(`No information found for location ID: ${storeId}`),
-          );
-        }
-        return ok(location);
-      });
+  async function getStoreDetails(storeId: string) {
+    const result = await fromApiResponse(
+      () =>
+        locationClient.GET("/v1/locations/{locationId}", {
+          params: { path: { locationId: storeId } },
+        }),
+      "get location details",
+    ).andThen((data) => {
+      const location = data?.data;
+      if (!location) {
+        return err(
+          notFoundError(`No information found for location ID: ${storeId}`),
+        );
+      }
+      return ok(location);
+    });
 
-      if (result.isErr()) return toMcpError(result.error);
-      const location = result.value;
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: formatStoreDetailMarkdown(location),
-          },
-        ],
-        ...appResult("get_store", { store: compactLocation(location) }),
-      };
-    },
-  );
+    if (result.isErr()) return toMcpError(result.error);
+    const location = result.value;
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: formatStoreDetailMarkdown(location),
+        },
+      ],
+      ...appResult("get_store", { store: compactLocation(location) }),
+    };
+  }
 
   registerAppTool(
     server,

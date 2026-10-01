@@ -11,27 +11,39 @@ measures the actual wire payloads a host model sees.
 ```bash
 pnpm eval:mcp                 # all deterministic suites (also run by pnpm test)
 EVAL_LOG=1 pnpm eval:mcp      # print measured token tables for recalibration
-EVAL_LIVE=1 pnpm eval:mcp     # + live small-model runs via the Workers AI binding
-EVAL_LIVE=1 EVAL_MODEL=@cf/meta/llama-3.3-70b-instruct-fp8-fast pnpm eval:mcp
 ```
 
-The deterministic suites run in CI as part of `pnpm test`. The live-model
-suite only runs with `EVAL_LIVE=1`: it uses the Worker's own Cloudflare AI
-binding (`env.AI`), which miniflare proxies to **remote** Workers AI — it
-needs Cloudflare credentials (`wrangler login` or
-`CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`) and can incur usage charges,
-which is why it never runs implicitly.
+The agent eval (`agent.eval.test.ts`) is separate and opt-in:
+
+```bash
+pnpm eval:agent                                   # 4 free OpenRouter models × all tasks
+EVAL_MODELS=qwen/qwen3.8-27b:free pnpm eval:agent # one model
+EVAL_TASKS=budget-basket,no-store-yet pnpm eval:agent
+EVAL_CONCURRENCY=1 pnpm eval:agent                # fewer parallel models
+pnpm eval:agent:summary                           # Markdown table of eval-results/
+pnpm eval:agent:report                            # browse eval-results/ in the UI
+```
+
+It needs `OPENROUTER_API_KEY` (exported or in `.dev.vars`). The default
+models are free, so a key with a $0 credit limit works. Each model runs in
+its own vitest process; `EVAL_CONCURRENCY` (default 2) caps how many run at
+once, because OpenRouter's free tier allows about 20 requests a minute and
+1000 a day per account. A full run is roughly 300 requests.
+
+The deterministic suites run in CI as part of `pnpm test`. The agent eval
+runs in the `Agent Eval` GitHub workflow on demand and on PRs that touch the
+tools.
 
 ## What each suite measures
 
-| Suite                              | Question it answers                                                                                                                                                                                                                                                          |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp-agent-contract.test.ts`       | Is the tool surface the designed workflow-first set, with correct annotations and view metadata?                                                                                                                                                                             |
-| `token-budget.eval.test.ts`        | How many tokens do the tool list, instructions, and representative responses cost — and did they regress? Budgets are calibrated against `estimateTokens()` (~4 chars/token) at ~1.3–2× measured baselines; recalibrate deliberately with `EVAL_LOG=1`, never bump-to-green. |
-| `golden-path.eval.test.ts`         | Can a "scripted small model" that only reads `content[0].text` and extracts ids with trivial regexes (`storeId=…`, `upc=…`, `listId=…`) finish the golden paths within the documented call budget? Also covers idempotent cart retry and partial no-result searches.         |
-| `input-forgiveness.eval.test.ts`   | Are typical small-model input mistakes (unpadded UPCs, string numbers, lowercase enums, stray whitespace, extra keys) normalized instead of rejected — and when rejection is right, does the error name the fix?                                                             |
-| `error-actionability.eval.test.ts` | Does every error name the concrete recovery tool, and does following that advice actually work?                                                                                                                                                                              |
-| `live-model.eval.test.ts`          | Can a real small model (default `@cf/meta/llama-3.1-8b-instruct` on Workers AI, via the Worker's own `env.AI` binding) complete the `scenarios.ts` shopping tasks against the live tool surface? Reports tool-call count and schema rejections per scenario.                 |
+| Suite                              | Question it answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp-agent-contract.test.ts`       | Is the tool surface the designed workflow-first set, with correct annotations and view metadata?                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `token-budget.eval.test.ts`        | How many tokens do the tool list, instructions, and representative responses cost — and did they regress? Budgets are calibrated against `estimateTokens()` (~4 chars/token) at ~1.3–2× measured baselines; recalibrate deliberately with `EVAL_LOG=1`, never bump-to-green.                                                                                                                                                                                                                                                  |
+| `golden-path.eval.test.ts`         | Can a "scripted small model" that only reads `content[0].text` and extracts ids with trivial regexes (`storeId=…`, `upc=…`, `listId=…`) finish the golden paths within the documented call budget? Also covers idempotent cart retry and partial no-result searches.                                                                                                                                                                                                                                                          |
+| `input-forgiveness.eval.test.ts`   | Are typical small-model input mistakes (unpadded UPCs, string numbers, lowercase enums, stray whitespace, extra keys) normalized instead of rejected — and when rejection is right, does the error name the fix?                                                                                                                                                                                                                                                                                                              |
+| `error-actionability.eval.test.ts` | Does every error name the concrete recovery tool, and does following that advice actually work?                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `agent.eval.test.ts`               | Following Anthropic's [writing tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents): can real models finish realistic multi-step tasks (`agent/tasks.ts`) through the MCP server? Built on [vitest-evals](https://github.com/getsentry/vitest-evals): an AI SDK tool loop on an OpenRouter model is the harness, `TaskChecksJudge` grades end state (cart, lists, pantry, recorded orders), and the report keeps tool calls, usage, and each model's TOOL FEEDBACK. `[test]` tasks are held out. |
 
 ## The small-model contract
 
@@ -51,13 +63,13 @@ If you change a response format and one of these fails, the format change
 broke small-model interop — fix the format or renegotiate the contract here
 explicitly.
 
-## Adding a scenario
+## Adding an agent task
 
-Add fixture products to `FIXTURE_CATALOG` in `harness.ts` (terms starting
-with `zzz` intentionally return no results), then append to `SCENARIOS` in
-`scenarios.ts` with the user phrasing that failed in the wild, a tool-call
-budget, and the expected cart contents (`anyOf` UPC sets, since any fixture
-match for a term is a legitimate model pick).
+Append to `AGENT_TASKS` in `agent/tasks.ts`: a prompt phrased the way a user
+would say it, optional `setup` (seeded through real tool calls), and `checks`
+over the end-state snapshot. Check outcomes, not a fixed tool path, so any
+valid strategy passes. Mark a task `split: "test"` to hold it out from tool
+tuning.
 
 ## Known limitations
 
@@ -66,9 +78,8 @@ match for a term is a legitimate model pick).
   `tests/tools/weekly-deals.test.ts` cover the caching logic).
 - `estimateTokens()` is a chars/4 heuristic, not a real tokenizer. Budgets
   are for regression detection, not billing.
-- The live runner's `env.AI` binding is remote-proxied by miniflare (real
-  Workers AI inference, real charges); everything else stays fixture-backed.
-  Tool-calling reliability varies by Workers AI model — a failure at the
-  default 8B model is signal about the tool surface, but confirm against a
-  larger model (`EVAL_MODEL=@cf/meta/llama-3.3-70b-instruct-fp8-fast`) before
-  treating it as a regression.
+- Free OpenRouter models vary run to run, and providers sometimes return
+  502s. Read a failing transcript before treating it as a tool regression,
+  and check model TOOL FEEDBACK against the transcript: models misreport.
+- Fixture artifacts look like tool bugs to models: unknown search terms
+  synthesize a generic product, and fixture stores only list some hours.

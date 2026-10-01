@@ -154,12 +154,15 @@ The Kroger application must allow `profile.compact`, `cart.basic:write`, and `pr
 
 ## MCP surface
 
-The server exposes 18 tools:
+The server exposes 13 tools:
 
-- Stores: `search_stores`, `get_store`, `set_preferred_store`
-- Products and deals: `search_products`, `get_product`, `shop_for_items`, `get_weekly_deals`
-- Profile and meal context: `add_to_inventory`, `remove_from_inventory`, `get_shopping_profile`, `get_meal_planning_context`
-- Lists, cart, and orders: `create_shopping_list`, `get_shopping_list`, `add_shopping_list_items`, `edit_shopping_list_item`, `add_shopping_list_to_cart`, `view_cart`, `record_order`
+- Stores: `search_stores` (by zip code, or one store's details by `storeId`), `set_preferred_store`
+- Products and deals: `search_products` (text terms and/or exact UPCs in one `terms` list), `shop_for_items`, `get_weekly_deals`
+- Household: `get_shopping_profile`, `update_inventory`, `record_order`
+- Lists and cart: `create_shopping_list`, `get_shopping_list`, `update_shopping_list`, `add_shopping_list_to_cart`, `view_cart`
+
+Most tools default to the preferred store, and cart adds default to `PICKUP`.
+See `docs/tool-surface-review.md` for why the surface is shaped this way.
 
 ### Kroger product search
 
@@ -185,7 +188,11 @@ Run `pnpm eval:selector:live` for the 30-case live evaluation, or append an outp
 
 `search_products` searches Kroger directly using one optional `storeId`, defaulting
 to the preferred Kroger store. Terms run concurrently; a failed term retains its
-error type and recovery guidance while successful terms remain usable.
+error type and recovery guidance while successful terms remain usable. An all-digit
+term is an exact UPC lookup (five Kroger calls at a time, no limit on how many)
+that also returns the product's other variants with their UPCs, allergens, dietary
+claims, ingredients, nutrition, rating, and storage. Text terms follow Kroger's
+limits: at least 3 characters, trimmed to 8 words, at most 10 per call.
 
 Products use UPCs throughout the tools, domain model, and app. Copy `upc` from
 search results into lists and orders. There is no
@@ -197,19 +204,20 @@ match before they can be added to the cart.
 Lists live in the Worker's D1 database and are edited through `get_shopping_list` (with
 no arguments it returns every list and its id; with a `listId`, or a list `name`
 matched case-insensitively, it returns that list's items and their `itemId`s),
-then `add_shopping_list_items` and `edit_shopping_list_item`. List items accept
+then `update_shopping_list`, which adds, changes, and removes items in one call. List items accept
 `upc` values or plain `productName` entries for unmatched ingredients, plus an
 optional unit `price`. `shop_for_items` stores each match's current Kroger price,
 so list results include an estimated total (`~$42.18 est.`).
 
-All four list tools render the shopping-list app view, so the list in the chat
+All the list tools render the shopping-list app view, so the list in the chat
 stays current after every edit. In the app, items can be checked off (checked
 items move to the bottom), their quantity changed, or removed. Edits appear
 immediately and roll back if the server rejects them. After adding a list to the
 cart, **Mark as purchased** records the matched items with `record_order`.
 
-`remove_from_inventory` accepts a `quantity` per pantry item to use up part of it
-(the pantry view's **Use one** button); the item is removed when none is left.
+`update_inventory` edits the pantry and kitchen equipment. A `pantry.remove`
+entry with a `quantity` uses up part of an item (the pantry view's **Use one**
+button); the item is removed when none is left.
 
 It exposes four workflow prompts:
 
@@ -220,17 +228,11 @@ It exposes four workflow prompts:
 
 ### Planning meals around weekly deals
 
-Pass `includeWeeklyDeals: true` to `get_meal_planning_context` to combine your pantry,
+Pass `includeWeeklyDeals: true` to `get_shopping_profile` to combine your pantry,
 expiring ingredients, equipment, and recent purchases with up to ten QFC/Kroger offers:
 
 ```json
-{
-  "numberOfMeals": 3,
-  "mealType": "dinner",
-  "dietaryPreferences": "vegetarian",
-  "includeWeeklyDeals": true,
-  "storeId": "70500847"
-}
+{ "includeWeeklyDeals": true, "storeId": "70500847" }
 ```
 
 Omit `storeId` to use your preferred Kroger store. This option also works with an
@@ -241,7 +243,7 @@ The summary reuses the default `get_weekly_deals` cache and preserves offer pric
 conditions, validity dates, and warnings. Stale ads are explicitly labeled; unavailable
 deals leave pantry context usable with recovery guidance. Call `get_weekly_deals` for
 more offers, then `search_products` to confirm exact products and current prices before
-creating a list. Without `includeWeeklyDeals`, meal planning makes no deal requests.
+creating a list. Without `includeWeeklyDeals`, the profile makes no deal requests.
 
 The primary small-model contract is concise text in `content[0].text`. MCP App routing metadata stays in `_meta`; do not treat `structuredContent` as the reasoning payload.
 

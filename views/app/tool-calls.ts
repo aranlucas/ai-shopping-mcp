@@ -194,10 +194,10 @@ export async function saveProductToList(
   await callForView(
     app,
     {
-      name: "add_shopping_list_items",
+      name: "update_shopping_list",
       arguments: {
         listId,
-        items: [
+        add: [
           {
             upc: input.upc,
             productName: input.productName,
@@ -249,14 +249,29 @@ export async function openShoppingList(
   return data;
 }
 
-/** Edit one list item and return the whole updated list. */
+export type ShoppingListItemEdit = {
+  listId: string;
+  itemId: string;
+  productName?: string;
+  quantity?: number;
+  notes?: string;
+  checked?: boolean;
+  remove?: boolean;
+};
+
+/** Edit or remove one list item and return the whole updated list. */
 export async function editShoppingListItem(
   app: Parameters<typeof callTool>[0],
-  args: Extract<ToolCall, { name: "edit_shopping_list_item" }>["arguments"],
+  { listId, itemId, remove, ...change }: ShoppingListItemEdit,
 ): Promise<ShoppingListContent> {
   const data = await callForView(
     app,
-    { name: "edit_shopping_list_item", arguments: args },
+    {
+      name: "update_shopping_list",
+      arguments: remove
+        ? { listId, remove: [itemId] }
+        : { listId, change: [{ itemId, ...change }] },
+    },
     "Could not update the list",
   );
   if (data.view !== "create_shopping_list")

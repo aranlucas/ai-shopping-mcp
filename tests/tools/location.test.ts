@@ -55,7 +55,7 @@ describe("location storage-backed tools", () => {
     registerLocation(context);
 
     const result = await getCapturedHandler("search_stores")({
-      zipCodeNear: "98122",
+      zipCode: "98122",
       limit: 3,
       chain: "QFC",
     });
@@ -85,7 +85,7 @@ describe("location storage-backed tools", () => {
     });
   });
 
-  it("requires zipCodeNear on search_stores (no default) and defaults limit to 5", () => {
+  it("requires a zip code or storeId on search_stores and defaults limit to 5", () => {
     const context = makeContext();
     registerLocation(context);
     const tool = getCapturedTool("search_stores");
@@ -97,10 +97,16 @@ describe("location storage-backed tools", () => {
     };
 
     expect(config.inputSchema.safeParse({}).success).toBe(false);
-    expect(config.inputSchema.safeParse({ zipCodeNear: "98122" }).success).toBe(
+    expect(config.inputSchema.safeParse({ zipCode: "98122" }).success).toBe(
       true,
     );
-    expect(config.inputSchema.parse({ zipCodeNear: "98122" }).limit).toBe(5);
+    expect(config.inputSchema.parse({ zipCode: "98122" }).limit).toBe(5);
+    // Misspelled zip keys are read as zipCode rather than rejected.
+    for (const key of ["zip", "zipCodeNear", "zipCodeNearv", "postalCode"]) {
+      expect
+        .soft(config.inputSchema.safeParse({ [key]: "98122" }).success)
+        .toBe(true);
+    }
   });
 
   it("returns structured store details for a valid storeId", async () => {
@@ -129,7 +135,7 @@ describe("location storage-backed tools", () => {
     } as unknown as KrogerClients["locationClient"];
     registerLocation(context);
 
-    const result = await getCapturedHandler("get_store")({
+    const result = await getCapturedHandler("search_stores")({
       storeId: "70500847",
     });
 
@@ -162,7 +168,7 @@ describe("location storage-backed tools", () => {
     } as unknown as KrogerClients["locationClient"];
     registerLocation(context);
 
-    const result = await getCapturedHandler("get_store")({
+    const result = await getCapturedHandler("search_stores")({
       storeId: "70500847",
     });
 

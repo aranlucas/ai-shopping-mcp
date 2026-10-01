@@ -1,41 +1,39 @@
-# Codebase audit — September 2026
+# Improvements backlog
 
-Scope: the Worker (`src/`), the MCP App views (`views/`), tests, CI/CD, config, and docs,
-as of `b11bf22`. I read the code and ran every repository check:
+Open findings for the Worker (`src/`), the MCP App views (`views/`), tests, CI/CD,
+config, and docs. First audited September 2026; re-checked against the code after
+the tool consolidation (18 → 13 tools) and the agent eval landed. Fixed items
+have been removed.
 
-| Check                               | Result                                                   |
-| ----------------------------------- | -------------------------------------------------------- |
-| `pnpm lint` (standard + type-aware) | clean                                                    |
-| `pnpm fmt:check`                    | clean                                                    |
-| `pnpm typecheck`                    | clean                                                    |
-| `pnpm coverage`                     | 817 passed / 3 skipped; 93.4% statements, 82.4% branches |
-| `pnpm audit --prod`                 | 9 advisories (6 high, 2 moderate, 1 low), all transitive |
-| `wrangler deploy --dry-run`         | 4.36 MiB upload / 830 KiB gzip (now 1.95 MiB / 392 KiB)  |
-| `vite build` (views)                | 635 kB single-file HTML / 179 kB gzip                    |
+| Check                               | Result                                                           |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| `pnpm lint` (standard + type-aware) | clean                                                            |
+| `pnpm fmt:check`                    | clean                                                            |
+| `pnpm typecheck`                    | clean                                                            |
+| `pnpm coverage`                     | 829 passed; 94.1% statements, 83.2% branches                     |
+| `pnpm audit --prod`                 | 28 advisories (11 high, 13 moderate, 4 low), all transitive      |
+| `pnpm eval:agent` (4 free models)   | 57/60 tasks on 18 tools; 13-tool rerun in progress (see PR #140) |
 
 Severity: **High** means fix soon, **Medium** means schedule it, **Low** is hygiene.
-Items marked ✅ are fixed in the same PR as this report.
 
 ---
 
 ## Summary
 
-The codebase is in good shape. Dependency injection is explicit, errors are typed
-(`neverthrow` plus `AppError`), cart writes are idempotent and journaled in a
-Durable Object, the OAuth flow has CSRF, PKCE, signed cookies, and approvals
-bound to the redirect URI, D1 queries always filter by `user_id`, and test
-coverage is high. The main gaps:
+The codebase is in good shape: explicit dependency injection, typed errors
+(`neverthrow` plus `AppError`), idempotent journaled cart writes, a hardened
+OAuth flow, D1 queries scoped by `user_id`, high test coverage, and now an agent
+eval that drives the real MCP server. The main gaps:
 
-1. **No per-user rate limiting or input caps.** One user can use up the
-   whole app's shared Kroger API quota and AI Gateway budget, or write
-   unbounded rows into D1 and the Durable Object.
-2. **Storage grows forever.** Cart-operation journal entries, order history, and
-   shopping lists are never pruned, and users have no way to delete their data.
-3. **Automation gaps.**
-   CI has no migration-drift check or dependency audit, and there is no deploy
-   pipeline.
+1. **No per-user rate limiting or input caps.** One user can use up the whole
+   app's Kroger API quota and AI Gateway budget, or write unbounded rows.
+2. **Concurrent pantry writes can lose updates** (E1). Hosts run parallel tool
+   calls concurrently, so this is reachable today.
+3. **Storage grows forever**, and users cannot delete their data.
 4. **The token-refresh code is the least-tested security path** (`server.ts`
-   is at 77% coverage).
+   is at 78% coverage).
+5. **The agent eval is too easy to separate capable models** and its graders and
+   fixtures produce false signals (T6–T9).
 
 ---
 
@@ -44,295 +42,248 @@ coverage is high. The main gaps:
 ### High
 
 **S1. No rate limiting on any MCP tool.** Every authenticated request fans out to
-the Kroger API (`search_products` makes up to 10 calls, and weekly deals makes several),
-and `shop_for_items` makes a paid Jev/OpenRouter call through AI Gateway on every
-invocation (`src/services/product-selector.ts`). Kroger's public API quotas apply
-to the whole application, so one abusive or looping client can take product
-search offline for all users and run up AI spend. Dynamic client registration
-(`/register`) is open, which is expected for MCP, so the only natural throttle
-key is the shopper ID.
+the Kroger API: `search_products` makes up to 10 text searches plus one detail
+call per UPC term (uncapped by design, five in flight at a time), and weekly
+deals makes several. `shop_for_items` also makes a paid Jev/OpenRouter call
+through AI Gateway (`src/services/product-selector.ts`). Kroger's quotas apply to
+the whole application, so one looping client can take product search offline for
+everyone. Dynamic client registration (`/register`) is open, as MCP expects, so
+the natural throttle key is the shopper ID.
 _Fix:_ add a [Workers Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
-keyed by `userId` in `buildServer` (or in `mcpApiHandler`), with a tighter bucket
-for `shop_for_items`. Return a normal `API_ERROR` with status 429 so
-`errorRecovery` maps it to `retry_later`.
+keyed by `userId` in `buildServer` (or `mcpApiHandler`), with a tighter bucket
+for `shop_for_items` and for UPC-heavy `search_products` calls. Return an
+`API_ERROR` with status 429 so `errorRecovery` maps it to `retry_later`.
 
-**S2. Unbounded array inputs.** These schemas have `.min(1)` but no `.max()`:
-`create_shopping_list.items` / `add_shopping_list_items.items`
-(`src/tools/shopping-list.ts:58,65`), `record_order.items`
-(`src/tools/orders.ts:22`), and `add_to_inventory.items` /
-`remove_from_inventory.items` (`src/tools/inventory.ts:51,65`). The consequences:
-
-- ✅ Pantry and equipment writes issued one D1 statement per item in a loop,
-  which was not atomic. They now run as one `db.batch` (see P3). A very large
-  array can still exceed D1's per-batch limits, so the cap is still needed.
-- A list stores its items as one JSON blob, and each edit rewrites the whole blob,
-  so a huge list approaches D1's 2 MB row limit and makes every later edit slow.
-- `listId`/`itemId` strings have no length cap.
-
-_Fix:_ cap arrays (for example 100 list items per call, 500 per list, 100 order
-lines, 100 inventory items).
+**S2. Unbounded array inputs.** These have `.min(1)` but no `.max()`:
+`create_shopping_list.items` and `update_shopping_list.add` / `.change` /
+`.remove` (`src/tools/shopping-list.ts`), `record_order.items`
+(`src/tools/orders.ts`), and `update_inventory.pantry.add` / `.remove` and
+`.equipment.add` / `.remove` (`src/tools/inventory.ts`). A list stores its items
+as one JSON blob that every edit rewrites, so a huge list approaches D1's 2 MB
+row limit and slows every later edit; large inventory arrays can exceed D1's
+per-batch limits. `listId` / `itemId` strings have no length cap.
+_Fix:_ cap arrays (for example 100 items per call, 500 per list, 100 order lines).
+`search_products` UPC terms are intentionally uncapped; S1 is their guard.
 
 ### Medium
 
 **S3. The Kroger client secret is copied into every OAuth grant.** `/callback`
 stores `krogerClientId` and `krogerClientSecret` in grant props
-(`src/kroger-handler.ts:331`), and the refresh callback reads them back instead of
-reading `env`. The props are encrypted, but this puts the app secret into every
-grant record. Rotating the secret also breaks refresh for every existing user,
-because old grants keep the old value.
-_Fix:_ read `env.KROGER_CLIENT_ID`/`SECRET` in `tokenExchangeCallback`. The
-callback does not receive `env` (v0.10.3), so construct the `OAuthProvider` inside
-`fetch` and let the callback close over `env`. Keep reading the grant fields only
-as a fallback for grants issued before the change.
+(`src/kroger-handler.ts:331`), and the refresh callback reads them back
+(`src/server.ts:87`). The props are encrypted, but every grant carries the app
+secret, and rotating it breaks refresh for existing users.
+_Fix:_ read `env.KROGER_CLIENT_ID` / `SECRET` in `tokenExchangeCallback` by
+constructing the `OAuthProvider` inside `fetch` so the callback closes over
+`env`. Fall back to the grant fields only for grants issued before the change.
 
 **S4. The Kroger refresh can race.** Kroger refresh tokens are single-use. Two
-concurrent `refresh_token` grants for the same grant can both pass
-`isKrogerTokenExpiring` (`src/server.ts:108`) and both call Kroger. The second
-gets `invalid_grant`, which the callback turns into "Reconnect the MCP server".
-_Fix:_ serialize the refresh per grant, for example with a short-lived lock
-in the existing per-user `CartOperations` DO or in a small `TokenRefresh` DO. Add
-a test for the concurrent case.
+concurrent `refresh_token` grants can both pass `isKrogerTokenExpiring`
+(`src/server.ts:110`) and both call Kroger; the second gets `invalid_grant` and
+the user is told to reconnect.
+_Fix:_ serialize refresh per grant (a short lock in the per-user
+`CartOperations` DO or a small `TokenRefresh` DO), with a concurrency test.
 
-**S5. The `regenerate-worker-types` workflow runs dependency code with a write token.**
-It uses `pull_request_target` with `contents: write`, checks out the Dependabot
-branch, and runs `pnpm run cf-typegen`, which executes the _updated_ `wrangler`
-from that branch. `--ignore-scripts` blocks install hooks but not the
-binary itself. A compromised `wrangler` release could push to any Dependabot
-branch. The actor guard limits exposure, but this is still a supply-chain path.
-_Fix:_ run typegen in a `pull_request` job with read-only permissions, upload
-the generated file as an artifact, and commit it from a separate
-`workflow_run` job that runs no dependency code. Alternatively, drop the
-workflow, since CI already regenerates types before typechecking.
+**S5. `regenerate-worker-types` runs dependency code with a write token.** It uses
+`pull_request_target` with `contents: write`, checks out the Dependabot branch,
+and runs that branch's `wrangler`. A compromised release could push to any
+Dependabot branch.
+_Fix:_ generate in a read-only `pull_request` job, upload the file as an
+artifact, and commit it from a `workflow_run` job that runs no dependency code,
+or drop the workflow since CI regenerates types before typechecking.
 
-**S6. Transitive advisories.** `pnpm audit --prod` reports `fast-uri` (4 high, SSRF
-and host confusion), `smol-toml` (high, DoS), `js-yaml` (high), `qs` (2 moderate),
-and `@ai-sdk/provider-utils` (low). They come from `agents` and `shadcn`.
-`shadcn` is only needed at build time for `shadcn/tailwind.css`, so it should
-be a `devDependency`. Add `pnpm.overrides` for the patched versions and add
-`pnpm audit --prod --audit-level=high` to CI (see A3).
+**S6. Transitive advisories grew from 9 to 28.** `pnpm audit --prod` reports
+`fast-uri`, `js-yaml`, `smol-toml`, `undici`, and `brace-expansion` (high), plus
+`qs`, `ip-address` (moderate) and `@ai-sdk/provider-utils` (low), mostly via
+`agents` and `shadcn`. `shadcn` is only needed at build time for
+`shadcn/tailwind.css`, so move it to `devDependencies`, add `pnpm.overrides` for
+patched versions, and gate CI on `pnpm audit --prod --audit-level=high` (A3).
 
 **S7. Internal details reach tool output.** `formatAppError` appends
-`JSON.stringify(error.detail)` (`src/errors.ts:186`), and `safeStorage`/`fromApiResponse`
-embed raw exception messages such as D1 SQL errors and upstream bodies in the text
-the model sees. This is low-risk, but it discloses internals and wastes tokens.
-_Fix:_ log the detail server-side and give the model the message plus
-`recovery` only.
+`JSON.stringify(error.detail)` (`src/errors.ts:186`); `safeStorage` /
+`fromApiResponse` embed raw exception text (D1 SQL errors, upstream bodies); and
+weekly-deals warnings forward fetch errors verbatim (eval transcripts show
+"Unexpected external fetch…" reaching the model).
+_Fix:_ log details server-side and give the model the message plus `recovery`.
 
 ### Low
 
-- **S8.** `/callback` does not guard `tokenResponse.json()` or the token `fetch`
-  (`src/kroger-handler.ts:252`). An HTML 5xx or a timeout from Kroger becomes an
-  unhandled 500 instead of a readable error.
+- **S8.** `/callback` does not guard the token `fetch` or `tokenResponse.json()`
+  (`src/kroger-handler.ts:252`); an HTML 5xx or timeout becomes an unhandled 500.
 - **S9.** The grant scope is the client-requested `oauthReqInfo.scope`
-  (`src/kroger-handler.ts:322`), not the scopes Kroger actually granted or an
-  intersection with `scopesSupported`.
+  (`src/kroger-handler.ts:322`), not what Kroger granted.
 - **S10.** The approved-clients cookie grows without a limit
-  (`src/workers-oauth-utils.ts:660`). After about 20 approvals it exceeds the 4 KB
-  cookie limit and browsers drop it silently. Cap it to the N most recent approvals.
-- **S11.** The approval form's `state` is unsigned base64 JSON. `completeAuthorization`
-  re-validates the redirect URI and PKCE, so it cannot be exploited today, but
-  signing it (HMAC with `COOKIE_ENCRYPTION_KEY`) would be cheap defense in depth.
-- **S12.** `src/services/qfc-weekly-deals.ts` calls a third-party host
-  (`*.przone.net`) with a scraped "public" API key and a spoofed
-  `User-Agent: Mozilla/5.0`. That is a terms-of-service and fragility risk. Document it,
-  and feature-flag it so it can be switched off without a deploy.
-- **S13.** `.claude/settings.json` pre-approves `Bash(curl:*)` for agents. That
-  is a broad exfiltration primitive; scope it to specific hosts or remove it.
-- ✅ **S14.** `ci.yml` had no `permissions:` block, so it inherited the repository's
-  default token scope. It now declares `contents: read`.
+  (`src/workers-oauth-utils.ts`). Past ~20 approvals it exceeds 4 KB and browsers
+  drop it. Keep the N most recent.
+- **S11.** The approval form's `state` is unsigned base64 JSON. Not exploitable
+  today, but an HMAC with `COOKIE_ENCRYPTION_KEY` is cheap defense in depth.
+- **S12.** `src/services/qfc-weekly-deals.ts` calls `*.przone.net` with a scraped
+  public key and a spoofed `User-Agent`. Document it and feature-flag it.
+- **S13.** `.claude/settings.json` pre-approves `Bash(curl:*)` for agents. Scope it
+  to specific hosts or remove it.
 
 ---
 
-## 2. Performance
+## 2. Tool surface and agent behavior
 
-- ✅ **P1. The Worker bundle was 4.36 MiB (830 KiB gzip); it is now 1.95 MiB
-  (392 KiB gzip).** Almost all of the excess came from one import:
-  `src/utils/result.ts` took `getMcpAuthContext` from `agents/mcp`, the package
-  index, which also bundles the MCP client, the v1 SDK (`@modelcontextprotocol/sdk@1.30`),
-  and `capnweb`. `composition.ts` already used `agents/mcp/server`. The import now
-  uses that entry point, and an `eslint/no-restricted-imports` rule in
-  `.oxlintrc.json` blocks `agents` and `agents/mcp` so this cannot come back. What
-  remains is the MCP server SDK (~400 KB), `@sentry/core`, `zod`, `drizzle-orm`, and
-  the OAuth provider.
-- ✅ **P2. The KV cache awaited its write on every miss** (`createKrogerCacheMiddleware`).
-  The write now runs through `ctx.waitUntil`, so a cache miss no longer adds a KV
-  `put` to the tool call's latency. Cache keys sort their query parameters, so the
-  same search with parameters in another order shares an entry. Cache hits never
-  wrote to KV; openapi-fetch skips `onResponse` when `onRequest` returns a
-  response. The Cache API is not an option: it does nothing on `*.workers.dev`,
-  where production runs.
-- ✅ **P3. Sequential D1 writes.** Pantry and equipment add/remove now send every
-  write and the read-back in one `db.batch`. That is one round trip, and it is
-  atomic: a failing statement leaves nothing written (tested).
-- ✅ **P4. `shoppingList.list()` loaded every list's `items_json`** to count
-  items. It now selects `json_array_length(items_json)`.
-- **P5. Every request builds a new server.** I looked into this and made no change. Registration
-  stores Zod schemas and closures; JSON Schema conversion happens only for
-  `tools/list`, and the stateless handler runs one method per request. Hoisting
-  definitions would need a module-level server and would give up the
-  per-request dependency injection. That trade isn't worth it without a
-  measured CPU cost, which `workerd` can't measure in tests because timers are frozen.
-- **P6. The view bundle is 647 kB (182 kB gzip).** I looked into this and made no change. The largest parts are
-  `react-dom` and the MCP protocol runtime that `@modelcontextprotocol/ext-apps`
-  imports from `@modelcontextprotocol/client`. Its unused transports and OAuth
-  code are already tree-shaken. There is no cheap win left short of replacing
-  React (for example with `preact/compat`), which isn't worth the compatibility risk
-  for a single iframe document.
+Found while building and running the agent eval. See
+`docs/tool-surface-review.md` for the per-tool review behind the consolidation.
+
+- **E1. Pantry quantity updates can lose writes (Medium).** "Used 6 eggs" reads
+  the pantry, subtracts in JavaScript (`consumePantryItems`,
+  `src/tools/inventory.ts`), and writes an absolute quantity
+  (`updateQuantity`, `src/utils/d1-shopping-storage.ts:249`). Two concurrent
+  calls, from parallel tool calls or quick taps on the app's **Use one** button,
+  both read 12 and both write 11. Shopping lists don't have this problem: they
+  use a version check with retries (`mutateList`).
+  _Fix:_ decrement in SQL (`quantity = quantity - ?`) and delete rows at or below
+  zero in the same `db.batch`, with a concurrency test.
+- **E2. The cart can't be read back reliably.** `view_cart` needs a Kroger cart id
+  that no tool returns, so it falls back to the assistant mirror, and
+  `add_shopping_list_to_cart` returns no prices or total. Two eval models
+  flagged this in TOOL FEEDBACK. Return line prices and an estimated total from
+  the add, and show the same in the mirror.
+- **E3. Product facts are text-only.** UPC lookups now return allergens, claims,
+  ingredients, nutrition, and ratings to the model, but `ProductData`
+  (`src/app-results.ts`) has no fields for them, so the product detail view
+  can't show them. Add optional fields and render them in the view.
+- **E4. Scanned barcodes miss.** Kroger ids are 13 digits without the barcode
+  check digit. A 12-digit UPC-A from a scanner is padded with its check digit
+  still on. Accept barcodes explicitly (validate the check digit and drop it),
+  or document that only copied `upc=` values work.
+- **E5. "Expires today" fires a day early.** `classifyExpiry` floors
+  milliseconds into days, so an item expiring in 23 hours reads as "today".
+  Compare calendar dates in the user's timezone instead.
+- **E6. `record_order` miscounts for the reader.** `totalItems` sums quantities,
+  so a two-line order of 2 milk + 1 eggs reads "3 items"; one model reported it
+  as wrong. Say "3 units across 2 items".
+- **E7. Try namespaced tool names.** Generic names (`search_products`,
+  `view_cart`) can collide with other commerce servers in the same host. Measure
+  a `kroger_` prefix with the agent eval before adopting it.
 
 ---
 
 ## 3. Scalability and data lifecycle
 
 - **D1. Cart-journal entries never expire.** `CartOperations`
-  (`src/cart-operations.ts`) keeps every completed operation forever, and inline
-  adds without an `operationId` create a new random key on every call
-  (`src/tools/cart.ts:144`). Per-user DO storage grows without a limit. Add a
-  DO alarm that deletes `completed` entries older than about 30 days, keeping
-  `pending` ones as the design requires.
-- **D2. D1 has no retention policy.** Order history, shopping lists, and pantry
-  rows are kept indefinitely. The nightly cron only purges OAuth KV. Add a retention
-  sweep to `scheduled`, for example lists untouched for 180 days.
-- **D3. Users cannot delete their data.** Pantry and equipment have `clear()`,
-  but lists and orders do not, and no tool or endpoint erases everything a
-  user has stored. That matters for privacy expectations (and CCPA-style requests),
-  since this service stores purchase history. Add a `delete_my_data` path
-  that covers D1, the DO journal, and the `user:{id}:*` KV keys.
-- **D4. Cart idempotency is scoped per OAuth client.** Lists belong to the user
-  in D1, but the journal key includes `clientId` (`src/composition.ts`). Adding the
-  same list from two clients, such as desktop and mobile, will add it twice.
-  If that is not intentional, key list operations by user only.
-- **D5. Kroger API quota.** See S1. This is the practical ceiling on user count.
-  Cache hit rates and per-user limits determine how far it scales.
+  (`src/cart-operations.ts`) keeps every completed operation, and inline adds
+  without an `operationId` create a new key each call. Add a DO alarm that
+  deletes `completed` entries older than ~30 days and keeps `pending` ones.
+- **D2. D1 has no retention policy.** Orders, lists, and pantry rows are kept
+  forever; the nightly cron only purges OAuth KV. Add a retention sweep to
+  `scheduled` (for example lists untouched for 180 days).
+- **D3. Users cannot delete their data.** Nothing erases a user's lists, orders,
+  DO journal, and `user:{id}:*` KV keys. Add a delete-my-data path; this service
+  stores purchase history.
+- **D4. Cart idempotency is scoped per OAuth client.** The journal key includes
+  `clientId` (`src/composition.ts`), so the same list added from desktop and
+  mobile is added twice. Key list operations by user if that isn't intended.
+- **D5. Kroger API quota** is the practical ceiling on users. See S1.
 
 ---
 
 ## 4. Accessibility (MCP App views)
 
-The views are generally well done: live regions on action buttons, `role="alert"`
-for errors, labeled `<select>`, `aria-hidden` on decorative icons, and host
-theming through `light-dark()` tokens with dark-mode palette remaps.
-
-- ✅ **A11Y1. The icon-only Remove buttons in Pantry and Kitchen Equipment had
-  no accessible name while busy and a generic name when idle.** Their labels were
-  `""`. The only name came from `aria-label="Remove"` on the SVG, and that SVG is not
-  rendered in the loading, done, or error states. Screen-reader users heard an
-  unlabeled button, or "Remove" repeated for every row. They now use
-  `labelContext` ("Remove: Eggs") with a new `iconOnly` option on `ActionButton`
-  that keeps the state text available to screen readers only.
-- ✅ **A11Y2. The OAuth approval page had a mismatched heading** (`<h2>…</h1>`),
-  which produces a broken document outline. Fixed.
-- **A11Y3.** The approval page's Cancel button links to `/`, which has no route
-  and returns an error page. Link to the client's `redirect_uri` with
-  `error=access_denied` (the OAuth-correct cancel), or render a plain
+- **A11Y3.** The approval page's Cancel links to `/`, which has no route. Redirect
+  to the client's `redirect_uri` with `error=access_denied`, or render a
   "cancelled" page.
-- **A11Y4.** There are no automated a11y checks. Add `vitest-axe` or
-  Playwright + `@axe-core/playwright` against `views/preview.html` in each theme,
-  since the preview harness already renders every state.
+- **A11Y4.** No automated a11y checks. Run `vitest-axe` or Playwright with
+  `@axe-core/playwright` against `views/preview.html` in each theme.
 
 ---
 
 ## 5. Architecture and maintainability
 
-**Strengths:** explicit DI in `composition.ts`, per-module dependency types,
-repository interfaces (`shopping-store.ts`) with one D1 implementation,
-`neverthrow` throughout, and a small typed error union with recovery hints.
-
-- **M1. Cart tools require a store they do not use.** `add_shopping_list_to_cart`
-  accepts `storeId` and calls `safeResolveLocationId`
-  (`src/tools/cart.ts:262,386`), but the Kroger cart API does not take a
-  location. The store only feeds the success message, yet a user with no
-  preferred store gets a hard error for a cart add that would have
-  worked. Make location resolution best-effort, or remove `storeId`.
-- **M2. `record_order` is not idempotent.** IDs are `ORD-${Date.now()}-${random}`
-  (`src/tools/orders.ts:58`), so a retry records a duplicate order. Accept an
-  optional client-supplied `orderId`, as the cart path does with `operationId`.
-- **M3. Version drift.** `SERVER_INFO.version` is `1.1.0` and `package.json` is `1.0.0`.
-  Use one source.
-- **M4. `worker-configuration.d.ts` (600 KB) is committed and regenerated in CI.**
-  That is fine, but make sure CI fails if the committed copy is stale
-  (`git diff --exit-code` after `cf-typegen`) instead of overwriting it silently.
+- **M1. Cart adds require a store they don't use.** `add_shopping_list_to_cart`
+  resolves a location (`safeResolveLocationId` in `src/tools/cart.ts`), but the
+  Kroger cart API takes none; the store only feeds the success message. A user
+  with no preferred store gets an error for an add that would have worked. Make
+  resolution best-effort, or drop `storeId`.
+- **M2. `record_order` is not idempotent.** Ids are `ORD-${Date.now()}-${random}`,
+  so a retry records a duplicate. Accept an optional client `orderId`, as the cart
+  does with `operationId`.
+- **M3. Version drift.** `SERVER_INFO.version` is `1.1.0`; `package.json` is
+  `1.0.0`. Use one source.
+- **M4. Stale generated types pass silently.** CI regenerates
+  `worker-configuration.d.ts` before typechecking; fail instead when the
+  committed copy differs (`git diff --exit-code` after `cf-typegen`).
 - **M5. Leftover config.** `.oxlintrc.tailwind.json` allowlists class names from
-  another project (`oral-boards-shell`, `cn-input-otp`, `toaster`, and others).
-- **M6. `compatibility_date` is `2025-03-10`, about 18 months old.** Update it
-  deliberately to pick up runtime fixes, and keep `vitest.config.ts` in sync,
-  because it hard-codes the same date.
+  another project (`oral-boards-shell`, `cn-input-otp`, `toaster`).
+- **M6. `compatibility_date` is `2025-03-10`.** Update it deliberately, together
+  with the copy hard-coded in `vitest.config.ts`.
 
 ---
 
-## 6. Testing
+## 6. Testing and evals
 
-**Strengths:** 817 tests on the real `workerd` pool, OAuth integration tests,
-storage-backed tool tests against D1 and the DO, contract and token-budget evals, and
-tests for cart state machines.
-
-- **T1. `src/server.ts` is at 77.5% line coverage.** The uncovered lines are the
-  `tokenExchangeCallback` branches: 429 mapping, 503 mapping, the
-  missing-rotation `invalid_grant`, and the not-yet-expiring path. This is the
-  most security-sensitive code in the repository. Add unit tests that call the callback
-  directly with a stubbed `fetch`, plus the concurrent-refresh case from S4.
-- **T2. Low branch coverage in `tools/shop.ts` (58.5%) and `tools/location.ts`
-  (61.8%)**, and in `weekly-deals/format.ts` (55.6%).
-- **T3. No component tests for the React views.** Only the pure modules
-  (`cart-action`, `tool-calls`, routing) are tested. Add React Testing Library
-  plus axe tests for the stateful views (shopping list, product search,
-  pantry).
-- **T4. No migration-drift test.** Nothing checks that `src/db/schema.ts` matches
-  `migrations/`. `tests/d1-schema.ts` applies the migrations, but a schema edit
-  without `db:generate` would pass CI and then fail in production. Run
-  `drizzle-kit generate` in CI and fail on a diff.
-- **T5.** The Jev live evals are manual only, which is reasonable because they cost
-  money. Consider a weekly scheduled workflow with a budget cap to catch model
-  drift.
+- **T1. `src/server.ts` is at 78% line coverage.** The uncovered lines are the
+  `tokenExchangeCallback` branches (429 and 503 mapping, missing-rotation
+  `invalid_grant`, not-yet-expiring). Test the callback directly with a stubbed
+  `fetch`, plus the concurrent-refresh case from S4.
+- **T2. Low branch coverage** in `tools/shop.ts` (60%) and
+  `weekly-deals/format.ts` (56%).
+- **T3. No component tests for the React views.** Add React Testing Library plus
+  axe tests for the stateful views (shopping list, product search, pantry).
+- **T4. No migration-drift check.** Run `drizzle-kit generate` in CI and fail on a
+  diff, so a `src/db/schema.ts` edit without a migration can't merge.
+- **T5. Schedule the paid and free live evals.** Run the agent eval weekly from
+  the `Agent Eval` workflow (it runs on demand and on PRs today) to catch model
+  and API drift; the Jev selector evals could share a budget-capped job.
+- **T6. The agent eval barely separates capable models.** The baseline was 57/60,
+  with three models near-perfect. Add harder tasks: substitutions under a budget,
+  allergen and dietary questions (now answerable from UPC lookups), multi-store
+  price comparison, and recovery after a `MUTATION_OUTCOME_UNKNOWN`. Run each task
+  three times and report pass^3, since free models vary between runs.
+- **T7. Answer graders are brittle.** `missing-item` failed a correct answer
+  ("No such product exists at Kroger — I searched and got zero results") because
+  its regex wanted specific wording. Use a
+  cheap LLM judge (`FactualityJudge` in vitest-evals) for answer text, and keep
+  regexes for end state.
+- **T8. Fixtures mislead models.** Unknown search terms synthesize a generic
+  product (models then "substitute" it), fixture stores list only Monday and
+  Tuesday hours, and the weekly-deals circular endpoints aren't mocked, so every
+  deals call carries a fetch-failure warning. Make unknown terms return nothing,
+  give stores full hours, and mock the circular endpoints.
+- **T9. Schema rejections are invisible in eval metrics.** The AI SDK rejects
+  invalid tool input before `execute`, and vitest-evals records those calls as
+  `pending`, so `toolErrors` stays 0. Qwen's 16 rejected `search_stores` calls in
+  one run reported zero errors. Count `pending` calls as rejections in
+  `TaskChecksJudge` metadata and the summary.
 
 ---
 
 ## 7. Automation and CI/CD
 
-- **A1. (Corrected.)** The first version of this report said the Tailwind lint
-  never ran. That was wrong. `.oxlintrc.json` extends `.oxlintrc.tailwind.json`
-  and sets `settings.tailwindcss.entryPoint`, so its rules run in `pnpm lint`. The
-  error I saw came from running the extended file on its own.
-- ✅ **A2. CI never built the views.** A broken Vite build could merge. The
-  test job now runs `pnpm build:views`. `concurrency` also cancels superseded PR
-  runs.
 - **A3.** Add `pnpm audit --prod --audit-level=high` (or `osv-scanner`) to CI, and
-  enable CodeQL / secret scanning if they are not already on.
-- **A4. No deploy pipeline.** Deploys and `db:migrate:remote` are manual, and the
-  README requires running migrations before deploying. A `deploy.yml` on `main`
-  (migrate, then `wrangler deploy`, with an environment approval gate) would
-  remove the risk of deploying code that runs against an unmigrated schema.
-  A staging Worker environment in `wrangler.jsonc` would let migrations be tested first.
-- **A5. The Node version does not match everywhere.** `.node-version` and `engines` require
-  24.18.1, but `.cursor/environment.json` installs "24" and nothing enforces it
-  locally (`engine-strict`). Minor.
-- **A6.** CI installs dependencies three times (lint, typecheck, test). That is fine
-  for parallelism. A shared setup composite action would reduce duplication.
+  enable CodeQL and secret scanning if they are not already on.
+- **A4. No deploy pipeline.** Deploys and `db:migrate:remote` are manual. A
+  `deploy.yml` on `main` (migrate, then deploy, behind an environment approval)
+  plus a staging environment would stop code from running against an unmigrated
+  schema.
+- **A5. Node version is not enforced everywhere.** `.cursor/environment.json`
+  installs "24" while `.node-version` and `engines` require 24.18.1, and nothing
+  sets `engine-strict` locally. Minor.
+- **A6.** CI installs dependencies separately in each job. A shared composite
+  setup action would reduce duplication.
 
 ---
 
 ## 8. Observability
 
-- **O1. Sentry only captures uncaught exceptions,** but almost every failure is
-  converted into an MCP `isError` result, so Sentry sees very little.
-  Report `INVALID_RESPONSE`, `MUTATION_OUTCOME_UNKNOWN`, and unexpected
-  `STORAGE_ERROR`s with `Sentry.captureException` (without user data), tagged
-  with the tool name.
-- **O2. Logs are unstructured strings.** Emit JSON objects (`{ tool, code, userHash,
-durationMs }`) so Workers Logs / Logpush can be queried. Hash the shopper ID
-  rather than logging it raw.
-- **O3. No metrics for Kroger quota use or AI Gateway cost.** Workers Analytics
-  Engine counters per tool would support S1 and D5.
+- **O1. Sentry only sees uncaught exceptions,** but nearly every failure becomes an
+  MCP `isError` result. Report `INVALID_RESPONSE`, `MUTATION_OUTCOME_UNKNOWN`,
+  and unexpected `STORAGE_ERROR`s with `Sentry.captureException`, tagged by tool,
+  without user data.
+- **O2. Logs are unstructured strings.** Emit JSON (`{ tool, code, userHash,
+durationMs }`) so Workers Logs can be queried; hash the shopper id.
+- **O3. No metrics for Kroger quota use or AI Gateway cost.** Analytics Engine
+  counters per tool would support S1 and D5.
 
 ---
 
 ## 9. Documentation
 
-The README is detailed and accurate: 18 tools and 4 prompts, which I checked against the code.
-
-- ✅ **Doc1.** `SENTRY_DSN` is an optional secret (`src/env.ts`) that the README
-  did not list. It is now listed.
-- **Doc2.** There is no `SECURITY.md` for vulnerability reporting, and no privacy or
-  data-retention statement, even though the service stores purchase history and pantry data.
+- **Doc2.** No `SECURITY.md` for vulnerability reports, and no privacy or
+  data-retention statement, though the service stores purchase history.
 - **Doc3.** An architecture diagram (OAuth → OAuthProvider → MCP handler →
   D1/KV/DO/Kroger/AI Gateway) would help new contributors more than more prose.
 
@@ -340,10 +291,12 @@ The README is detailed and accurate: 18 tools and 4 prompts, which I checked aga
 
 ## Suggested order of work
 
-1. S1 rate limiting and S2 input caps. These are small, independent changes
-   that remove the largest abuse risks.
+1. E1 pantry race, S1 rate limiting, and S2 input caps: small, independent, and
+   they remove the largest correctness and abuse risks.
 2. T1 refresh-callback tests, then S3 (secret from env) and S4 (serialize refresh).
-3. T4 migration-drift check, A3 audit in CI, S6 overrides.
-4. D1–D3 retention, a DO alarm, and a delete-my-data path.
-5. A4 deploy pipeline with a staging environment.
-6. O1–O3 observability.
+3. Eval quality: T9, T7, T8, then T6, so tool changes are measured against
+   signal rather than noise.
+4. T4 migration-drift check, A3 audit in CI, S6 overrides.
+5. D1–D3 retention, a DO alarm, and a delete-my-data path.
+6. E2 cart readback and E3 product facts in the view.
+7. A4 deploy pipeline with staging, then O1–O3 observability.

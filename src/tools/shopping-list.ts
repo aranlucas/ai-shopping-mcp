@@ -1,6 +1,6 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { ResultAsync } from "neverthrow";
+import { type ResultAsync, errAsync, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
@@ -46,7 +46,12 @@ export const shoppingListItemInputSchema = z
   .strictObject({
     upc: upcSchema.optional().describe("13-digit UPC from search_products"),
     productName: z.string().trim().min(1).max(200).optional(),
-    quantity: z.coerce.number().min(1).max(999).default(1),
+    quantity: z.coerce
+      .number()
+      .min(1)
+      .max(999)
+      .default(1)
+      .describe("Packages to buy, not units"),
     notes: z.string().max(500).optional(),
     price: z.coerce
       .number()
@@ -73,22 +78,37 @@ export const createShoppingListInputSchema = z.object({
     .min(1, { message: "Shopping list must include at least one item" }),
 });
 
-export const addShoppingListItemsInputSchema = z.object({
-  listId: listIdSchema,
-  items: z
-    .array(shoppingListItemInputSchema)
-    .min(1, { message: "Provide at least one item to add" }),
-});
-
-export const editShoppingListItemInputSchema = z.object({
-  listId: listIdSchema,
+const shoppingListItemChangeSchema = z.object({
   itemId: itemIdSchema,
   productName: z.string().trim().min(1).max(200).optional(),
-  quantity: z.coerce.number().min(1).max(999).optional(),
+  quantity: z.coerce
+    .number()
+    .min(0)
+    .max(999)
+    .optional()
+    .describe("0 removes the item"),
   notes: z.string().max(500).optional(),
   checked: z.boolean().optional(),
-  remove: z.boolean().optional(),
 });
+
+export const updateShoppingListInputSchema = z
+  .object({
+    listId: listIdSchema,
+    add: z.array(shoppingListItemInputSchema).min(1).optional(),
+    change: z
+      .array(shoppingListItemChangeSchema)
+      .min(1)
+      .optional()
+      .describe("Only the fields you pass change"),
+    remove: z
+      .array(itemIdSchema)
+      .min(1)
+      .optional()
+      .describe("itemIds (or exact item names) to delete"),
+  })
+  .refine((input) => Boolean(input.add ?? input.change ?? input.remove), {
+    message: "Pass at least one of add, change, or remove.",
+  });
 
 export const getShoppingListInputSchema = z.object({
   listId: listIdSchema.optional(),
@@ -182,7 +202,7 @@ function listItemLines(list: ShoppingList): string {
 
 function describeList(list: ShoppingList): string {
   if (list.items.length === 0) {
-    return `Shopping list "${list.name}" (listId=${list.id}) is empty. Add items with add_shopping_list_items.`;
+    return `Shopping list "${list.name}" (listId=${list.id}) is empty. Add items with update_shopping_list.`;
   }
   return `Shopping list "${list.name}" (listId=${list.id}) has ${formatListSize(list.items)}.\n\n${listItemLines(list)}`;
 }
@@ -215,6 +235,15 @@ export function matchListsByName(
   const exact = lists.filter((list) => list.name.toLowerCase() === query);
   if (exact.length > 0) return exact;
   return lists.filter((list) => list.name.toLowerCase().includes(query));
+}
+
+/** Earlier edits in a batch already committed; say which before the error. */
+function partialFailure(error: AppError, applied: string[]) {
+  if (applied.length === 0) return toMcpError(error);
+  return toMcpError({
+    ...error,
+    message: `${error.message} Already applied before the failure:\n${applied.join("\n")}`,
+  });
 }
 
 export function registerShoppingListTools(
@@ -372,105 +401,138 @@ export function registerShoppingListTools(
 
   registerAppTool(
     server,
-    "add_shopping_list_items",
+    "update_shopping_list",
     {
-      title: "Add Shopping List Items",
+      title: "Update Shopping List",
       description:
-        "Appends items to an existing list, keeping what is already on it. Use upc for exact Kroger matches, or productName for free text.",
+        "Edits a saved list in one call: add items, change existing items (quantity, productName, notes, checked:true to check off), and remove items. itemIds come from get_shopping_list.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        // `remove` deletes items.
+        destructiveHint: true,
         idempotentHint: false,
         openWorldHint: false,
       },
-      inputSchema: addShoppingListItemsInputSchema,
+      inputSchema: updateShoppingListInputSchema,
     },
-    async ({ listId, items }) => {
-      const storedItems = await toStoredItems(productService, items);
-      const result = await safeStorage(
-        () => shoppingList.addItems(listId, storedItems),
-        "add shopping list items",
+    async ({ listId, add, change: requestedChanges, remove: requested }) => {
+      const summary: string[] = [];
+
+      // quantity 0 means "take it off the list".
+      const change = (requestedChanges ?? []).filter(
+        (entry) => entry.quantity !== 0,
       );
-      if (result.isErr()) return toMcpError(result.error);
+      const removeRefs = [
+        ...(requested ?? []),
+        ...(requestedChanges ?? [])
+          .filter((entry) => entry.quantity === 0)
+          .map((entry) => entry.itemId),
+      ];
+      const resolved = await resolveItemIds(listId, removeRefs);
+      if (resolved.isErr()) return toMcpError(resolved.error);
 
-      const added = result.value;
-      const lines = added
-        .map(
-          (item, index) =>
-            `${index + 1}. itemId=${item.id} ${formatShoppingListItemCompact(item)}`,
-        )
-        .join("\n");
-      const text = `Added ${added.length} item(s) to listId=${listId}.\n\n${lines}`;
-      return withUpdatedList(listId, text);
-    },
-  );
-
-  registerAppTool(
-    server,
-    "edit_shopping_list_item",
-    {
-      title: "Edit Shopping List Item",
-      description:
-        "Changes one item on a list: rename it, set quantity or notes, check it off with checked=true, or delete it with remove=true. Only the fields you pass change.",
-      _meta: { ui: { resourceUri: APP_VIEW_URI } },
-      annotations: {
-        readOnlyHint: false,
-        // remove=true deletes the item, so this tool can destroy data.
-        destructiveHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-      inputSchema: editShoppingListItemInputSchema,
-    },
-    async ({
-      listId,
-      itemId,
-      productName,
-      quantity,
-      notes,
-      checked,
-      remove,
-    }) => {
-      if (remove) {
+      for (const itemId of resolved.value) {
+        // oxlint-disable-next-line eslint/no-await-in-loop -- edits apply in order so a failure reports what already changed
         const removed = await safeStorage(
           () => shoppingList.removeItem(listId, itemId),
           "remove shopping list item",
         );
-        if (removed.isErr()) return toMcpError(removed.error);
-        return withUpdatedList(
-          listId,
-          `Removed itemId=${itemId} from listId=${listId}.`,
+        if (removed.isErr()) return partialFailure(removed.error, summary);
+        summary.push(`Removed itemId=${itemId}.`);
+      }
+
+      for (const { itemId, ...fields } of change) {
+        const patch = Object.fromEntries(
+          Object.entries(fields).filter(([, value]) => value !== undefined),
+        );
+        if (Object.keys(patch).length === 0) {
+          return partialFailure(
+            validationError(
+              `change for itemId=${itemId} needs productName, quantity, notes, or checked.`,
+            ),
+            summary,
+          );
+        }
+        // oxlint-disable-next-line eslint/no-await-in-loop -- edits apply in order so a failure reports what already changed
+        const updated = await safeStorage(
+          () => shoppingList.updateItem(listId, itemId, patch),
+          "update shopping list item",
+        );
+        if (updated.isErr()) return partialFailure(updated.error, summary);
+        const item = updated.value;
+        summary.push(
+          `Updated itemId=${itemId}: ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
         );
       }
 
-      const patch = {
-        ...(productName === undefined ? {} : { productName }),
-        ...(quantity === undefined ? {} : { quantity }),
-        ...(notes === undefined ? {} : { notes }),
-        ...(checked === undefined ? {} : { checked }),
-      };
-      if (Object.keys(patch).length === 0) {
-        return toMcpError(
-          validationError(
-            "Pass productName, quantity, notes, checked, or remove=true.",
+      if (add) {
+        const storedItems = await toStoredItems(productService, add);
+        const added = await safeStorage(
+          () => shoppingList.addItems(listId, storedItems),
+          "add shopping list items",
+        );
+        if (added.isErr()) return partialFailure(added.error, summary);
+        summary.push(
+          ...added.value.map(
+            (item) =>
+              `Added itemId=${item.id} ${formatShoppingListItemCompact(item)}`,
           ),
         );
       }
 
-      const result = await safeStorage(
-        () => shoppingList.updateItem(listId, itemId, patch),
-        "update shopping list item",
-      );
-      if (result.isErr()) return toMcpError(result.error);
-
-      const item = result.value;
       return withUpdatedList(
         listId,
-        `Updated itemId=${itemId} on listId=${listId}: ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
+        `Updated listId=${listId}:\n${summary.join("\n")}`,
       );
     },
   );
+
+  /**
+   * Maps remove references to itemIds. Models sometimes pass an item's name
+   * instead of its id; an exact (case-insensitive) name match is accepted.
+   */
+  function resolveItemIds(
+    listId: string,
+    refs: string[],
+  ): ResultAsync<string[], AppError> {
+    if (refs.length === 0) return okAsync([]);
+    return safeStorage(
+      () => shoppingList.get(listId),
+      "read shopping list",
+    ).andThen((list) => {
+      if (!list) {
+        return errAsync(
+          notFoundError(
+            `No list with listId=${listId}. Call get_shopping_list with no listId.`,
+          ),
+        );
+      }
+      const ids: string[] = [];
+      for (const ref of refs) {
+        const key = ref.trim().toLowerCase();
+        const item =
+          list.items.find((candidate) => candidate.id === ref) ??
+          list.items.find(
+            (candidate) => candidate.productName.toLowerCase() === key,
+          );
+        if (!item) {
+          return errAsync(
+            notFoundError(
+              `No item "${ref}" on listId=${listId}. Nothing was changed. Items: ${list.items
+                .map(
+                  (candidate) =>
+                    `itemId=${candidate.id} ${candidate.productName}`,
+                )
+                .join("; ")}`,
+            ),
+          );
+        }
+        ids.push(item.id);
+      }
+      return okAsync(ids);
+    });
+  }
 
   /**
    * Re-reads the list after a successful edit so the app can show it. The

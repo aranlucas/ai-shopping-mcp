@@ -18,7 +18,6 @@ import { registerInventoryTools } from "../../src/tools/inventory.js";
 import { registerLocationTools } from "../../src/tools/location.js";
 import { registerOrderTools } from "../../src/tools/orders.js";
 import { registerProductTools } from "../../src/tools/product.js";
-import { registerRecipeTools } from "../../src/tools/recipes.js";
 import { registerShopTools } from "../../src/tools/shop.js";
 import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
@@ -115,7 +114,6 @@ function registerAllTools() {
   registerProductTools(deps.server, deps);
   registerInventoryTools(deps.server, deps);
   registerOrderTools(deps.server, deps);
-  registerRecipeTools(deps.server, deps);
   registerShoppingListTools(deps.server, deps);
   registerShopTools(deps.server, deps);
   registerWeeklyDealsTools(deps.server, deps);
@@ -136,25 +134,33 @@ describe("MCP agent contract", () => {
       .toSorted();
 
     expect(toolNames).toEqual([
-      "add_shopping_list_items",
       "add_shopping_list_to_cart",
-      "add_to_inventory",
       "create_shopping_list",
-      "edit_shopping_list_item",
-      "get_meal_planning_context",
-      "get_product",
       "get_shopping_list",
       "get_shopping_profile",
-      "get_store",
       "get_weekly_deals",
       "record_order",
-      "remove_from_inventory",
       "search_products",
       "search_stores",
       "set_preferred_store",
       "shop_for_items",
+      "update_inventory",
+      "update_shopping_list",
       "view_cart",
     ]);
+
+    // Folded into the tools above; one home per question.
+    for (const removed of [
+      "add_shopping_list_items",
+      "add_to_inventory",
+      "edit_shopping_list_item",
+      "get_meal_planning_context",
+      "get_product",
+      "get_store",
+      "remove_from_inventory",
+    ]) {
+      expect(toolNames).not.toContain(removed);
+    }
 
     expect(toolNames).not.toContain("add_to_cart");
     expect(toolNames).not.toContain("add_kitchen_equipment");
@@ -209,10 +215,8 @@ describe("MCP agent contract", () => {
     }
 
     for (const name of [
-      "get_meal_planning_context",
-      "get_product",
+      "get_shopping_list",
       "get_shopping_profile",
-      "get_store",
       "get_weekly_deals",
       "search_products",
       "search_stores",
@@ -224,30 +228,39 @@ describe("MCP agent contract", () => {
       ).toBe(true);
     }
 
-    expect(
-      toolByName(tools, "remove_from_inventory").config.annotations
-        ?.destructiveHint,
-    ).toBe(true);
+    for (const name of ["update_inventory", "update_shopping_list"]) {
+      expect(
+        toolByName(tools, name).config.annotations?.destructiveHint,
+        `${name} can remove items`,
+      ).toBe(true);
+    }
+    for (const name of [
+      "get_shopping_list",
+      "get_shopping_profile",
+      "search_products",
+      "search_stores",
+    ]) {
+      expect(
+        toolByName(tools, name).config.annotations?.idempotentHint,
+        `${name} is a pure read`,
+      ).toBe(true);
+    }
   });
 
   it("keeps UI resources paired with every app-backed tool", () => {
     const tools = registerAllTools();
     const appBackedTools = [
-      "add_to_inventory",
-      "add_shopping_list_items",
       "add_shopping_list_to_cart",
       "create_shopping_list",
-      "edit_shopping_list_item",
-      "get_product",
       "get_shopping_list",
-      "get_store",
       "get_weekly_deals",
       "record_order",
-      "remove_from_inventory",
       "search_products",
       "search_stores",
       "set_preferred_store",
       "shop_for_items",
+      "update_inventory",
+      "update_shopping_list",
       "view_cart",
     ];
 
@@ -258,9 +271,6 @@ describe("MCP agent contract", () => {
       );
     }
 
-    const mealContext = toolByName(tools, "get_meal_planning_context");
-    expect(mealContext.config._meta?.ui?.resourceUri).toBeUndefined();
-
     const shoppingProfile = toolByName(tools, "get_shopping_profile");
     expect(shoppingProfile.config._meta?.ui?.resourceUri).toBeUndefined();
   });
@@ -269,6 +279,15 @@ describe("MCP agent contract", () => {
     const tools = registerAllTools();
     const searchProducts = toolByName(tools, "search_products");
     const createShoppingList = toolByName(tools, "create_shopping_list");
+
+    expect(searchProducts.config.inputSchema?.safeParse({}).success).toBe(
+      false,
+    );
+    expect(
+      searchProducts.config.inputSchema?.safeParse({
+        terms: ["0001111041700"],
+      }).success,
+    ).toBe(true);
 
     expect(
       searchProducts.config.inputSchema?.safeParse({
