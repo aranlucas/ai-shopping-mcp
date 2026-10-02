@@ -34,6 +34,67 @@ The deterministic suites run in CI as part of `pnpm test`. The agent eval
 runs in the `Agent Eval` GitHub workflow on demand and on PRs that touch the
 tools.
 
+## Using the current Codex session as the LLM
+
+```bash
+pnpm eval:agent:codex
+EVAL_TASKS=budget-basket,missing-item pnpm eval:agent:codex
+```
+
+This opt-in driver needs no model API key. It uses the same real Worker,
+OAuth/MCP connection, Kroger fixtures, task setup, and `TaskChecksJudge` as
+the OpenRouter eval. Codex chooses actions interactively; this command does
+not start another model. Keep it running while Codex drives the local bridge.
+
+The command prints a loopback URL and creates a fresh
+`eval-results/codex-*/` directory. `GET /pending` returns the current turn's
+`id`, task prompt, server instructions, and tool definitions, or the latest
+tool's text and error flag. Submit one action with that exact turn ID:
+
+```json
+{
+  "id": "id-from-pending",
+  "action": {
+    "type": "tool",
+    "name": "search_stores",
+    "arguments": { "zipCode": "98105" }
+  }
+}
+```
+
+Send it to `POST /action`, then read the next pending turn. Finish a task with:
+
+```json
+{
+  "id": "id-from-pending",
+  "action": {
+    "type": "finish",
+    "answer": "Your final answer",
+    "feedback": "none"
+  }
+}
+```
+
+Stale turn IDs are rejected. Tool calls are capped at 16 per task. The driver
+keeps `transcript.jsonl`, `agent-codex.json`, run metadata, and source snapshots
+(as `.txt` files so build tools do not compile archived code). It returns a
+failing exit code when task checks fail. Summarize a specific run with:
+
+```bash
+node scripts/eval-agent-summary.mjs eval-results/codex-<run>
+```
+
+Token usage is unknown for an interactive session and appears as `-`, rather
+than a fabricated zero. Runs use fixture carts. All normal tests remain
+noninteractive unless the driver supplies its binding.
+
+For hill climbing, use training task IDs in `EVAL_TASKS`, retain the baseline
+before editing, and inspect actual tool transcripts before choosing a change.
+Use held-out tasks to validate the retained candidate. Distinguish fresh
+Codex decisions from replaying saved actions, and distinguish grader fixes
+from changes in task performance. The first comparison is recorded in
+[`docs/codex-eval-hill-climb.md`](../../docs/codex-eval-hill-climb.md).
+
 ## What each suite measures
 
 | Suite                              | Question it answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |

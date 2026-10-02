@@ -1,5 +1,6 @@
 /**
- * Eval: agent task suite over OpenRouter models (opt-in, `pnpm eval:agent`).
+ * Eval: agent tasks over OpenRouter (`pnpm eval:agent`) or the current
+ * interactive Codex session (`pnpm eval:agent:codex`). Both are opt-in.
  *
  * Built on vitest-evals: one `describeEval` suite per model, each task a
  * harness run (AI SDK tool loop ↔ real MCP server, Kroger fixtures) graded by
@@ -20,12 +21,16 @@ import {
   taskInput,
 } from "./agent/harness.js";
 import { TaskChecksJudge } from "./agent/judges.js";
+import { codexAgentHarness } from "./agent/codex-harness.js";
 import { AGENT_TASKS } from "./agent/tasks.js";
 import { createEvalMcpClient, installKrogerFetchStub } from "./harness.js";
 
 const evalEnv = env as unknown as Record<string, string | undefined>;
 const apiKey = evalEnv.OPENROUTER_API_KEY ?? "";
-const enabled = evalEnv.EVAL_AGENT === "1" && apiKey !== "";
+const codexDriver = (env as unknown as { EVAL_CODEX_DRIVER?: Fetcher })
+  .EVAL_CODEX_DRIVER;
+const enabled =
+  Boolean(codexDriver) || (evalEnv.EVAL_AGENT === "1" && apiKey !== "");
 
 const DEFAULT_MODELS = [
   "stealth/space-bunny-alpha",
@@ -33,14 +38,20 @@ const DEFAULT_MODELS = [
   "nvidia/nemotron-3-super-120b-a12b:free",
   "liquid/lfm-2.5-2.6b:free",
 ];
-const models =
-  evalEnv.EVAL_MODELS?.split(",").filter(Boolean) ?? DEFAULT_MODELS;
+const models = codexDriver
+  ? ["codex/session"]
+  : (evalEnv.EVAL_MODELS?.split(",").filter(Boolean) ?? DEFAULT_MODELS);
 const taskFilter = evalEnv.EVAL_TASKS?.split(",").filter(Boolean);
 const tasks = taskFilter
   ? AGENT_TASKS.filter((task) => taskFilter.includes(task.id))
   : AGENT_TASKS;
 
 let session: AgentSession | undefined;
+
+function getSession(): AgentSession {
+  if (!session) throw new Error("MCP session not initialized");
+  return session;
+}
 
 beforeEach(async () => {
   if (!enabled) return;
@@ -50,6 +61,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   if (!session) return;
+  await session.client.close();
   session.stub.restore();
   session = undefined;
   await reset();
@@ -59,14 +71,9 @@ for (const model of models) {
   describeEval(
     model,
     {
-      harness: shoppingAgentHarness({
-        model,
-        apiKey,
-        session: () => {
-          if (!session) throw new Error("MCP session not initialized");
-          return session;
-        },
-      }),
+      harness: codexDriver
+        ? codexAgentHarness({ driver: codexDriver, session: getSession })
+        : shoppingAgentHarness({ model, apiKey, session: getSession }),
       judges: [TaskChecksJudge],
       judgeThreshold: 1,
       skipIf: () => !enabled,
@@ -75,7 +82,7 @@ for (const model of models) {
       for (const task of tasks) {
         it(
           `[${task.split}] ${task.id}`,
-          { timeout: 600_000 },
+          { timeout: codexDriver ? 1_800_000 : 600_000 },
           async ({ run }) => {
             await run(taskInput(task));
           },

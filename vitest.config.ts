@@ -32,6 +32,18 @@ export default defineConfig({
               ],
               kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
               d1Databases: ["SHOPPING_DB"],
+              ...(process.env.EVAL_CODEX_PORT
+                ? {
+                    serviceBindings: {
+                      EVAL_CODEX_DRIVER: {
+                        external: {
+                          address: `127.0.0.1:${process.env.EVAL_CODEX_PORT}`,
+                          http: {},
+                        },
+                      },
+                    },
+                  }
+                : {}),
               durableObjects: {
                 CART_OPERATIONS: {
                   className: "CartOperations",

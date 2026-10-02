@@ -299,7 +299,9 @@ describe("add_shopping_list_to_cart tool", () => {
 
       expect(isErrorResult(result)).toBe(false);
       expect(result).not.toHaveProperty("inputRequests");
-      expect(textFromResult(result)).toContain("1 item(s)");
+      expect(textFromResult(result)).toContain("1 line item(s), 2 package(s)");
+      expect(textFromResult(result)).toContain("for PICKUP");
+      expect(textFromResult(result)).toContain(`storeId=${LOCATION_ID}`);
       expect(textFromResult(result)).toContain("Tuesday Dinner");
       expect(putCalls).toHaveLength(1);
       expect(putCalls[0]?.path).toBe("/v1/cart/add");
@@ -545,11 +547,13 @@ describe("add_shopping_list_to_cart tool", () => {
       registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      await handler({
+      const result = await handler({
         listId: SHORT_LIST_ID,
         storeId: LOCATION_ID,
         modality: "DELIVERY",
       });
+
+      expect(textFromResult(result)).toContain("for DELIVERY");
 
       expect(putCalls[0]).toMatchObject({
         options: {

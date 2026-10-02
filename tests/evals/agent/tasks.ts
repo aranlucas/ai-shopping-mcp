@@ -60,12 +60,25 @@ const WRITE_TOOLS = new Set([
   "add_shopping_list_items",
   "edit_shopping_list_item",
   "update_inventory",
+  "set_preferred_store",
   "update_shopping_list",
   "create_shopping_list",
   "add_shopping_list_to_cart",
-  "shop_for_items",
   "record_order",
 ]);
+
+function reportsMissingItem(answer: string): boolean {
+  return answer
+    .split(/[.!?;\n]/u)
+    .some(
+      (sentence) =>
+        /zzzfrobnut/i.test(sentence) &&
+        /(couldn['’]?t|could not|didn['’]?t|did not)\s+(find|locate)|\bno\s+(?:(?:kroger|available|matching)\s+)*(results?|match(?:es)?|products?|options?)\b|\bnot\s+(find|found|available)\b|\bunavailable\b|\bout of stock\b/i.test(
+          sentence,
+        ) &&
+        !/\bnot\s+(unavailable|out of stock)\b/i.test(sentence),
+    );
+}
 
 function daysFromNow(days: number): string {
   return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
@@ -373,10 +386,7 @@ export const AGENT_TASKS: AgentTask[] = [
       ),
       check(
         "tells the user zzzfrobnut wasn't found",
-        /zzzfrobnut/i.test(answer) &&
-          /(couldn.?t|could not|no (results|match)|not (find|found|available)|unavailable)/i.test(
-            answer,
-          ),
+        reportsMissingItem(answer),
         answer,
       ),
     ],
