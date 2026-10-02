@@ -31,7 +31,7 @@ const runs = testResults
       feedback: score.metadata?.feedback ?? "",
       toolCalls: usage.toolCalls ?? 0,
       toolErrors: score.metadata?.toolErrors ?? 0,
-      tokens: usage.totalTokens ?? 0,
+      tokens: usage.totalTokens ?? null,
     };
   });
 
@@ -43,10 +43,14 @@ const models = [...new Set(runs.map((run) => run.model))];
 const tasks = [...new Set(runs.map((run) => run.task))];
 const rate = (rows) =>
   rows.length ? `${rows.filter((row) => row.pass).length}/${rows.length}` : "-";
-const avg = (rows, key) =>
-  rows.length
-    ? (rows.reduce((sum, row) => sum + row[key], 0) / rows.length).toFixed(1)
+const avg = (rows, key) => {
+  const measured = rows.filter((row) => typeof row[key] === "number");
+  return measured.length
+    ? (
+        measured.reduce((sum, row) => sum + row[key], 0) / measured.length
+      ).toFixed(1)
     : "-";
+};
 const oneLine = (text) => text.replace(/\s+/g, " ").trim();
 
 const lines = [
@@ -56,7 +60,8 @@ const lines = [
   "| --- | --- | --- | --- | --- | --- |",
   ...models.map((model) => {
     const rows = runs.filter((run) => run.model === model);
-    return `| ${model} | ${rate(rows.filter((r) => r.split === "train"))} | ${rate(rows.filter((r) => r.split === "test"))} | ${avg(rows, "toolCalls")} | ${rows.reduce((sum, r) => sum + r.toolErrors, 0)} | ${Math.round(Number(avg(rows, "tokens")) || 0)} |`;
+    const tokens = avg(rows, "tokens");
+    return `| ${model} | ${rate(rows.filter((r) => r.split === "train"))} | ${rate(rows.filter((r) => r.split === "test"))} | ${avg(rows, "toolCalls")} | ${rows.reduce((sum, r) => sum + r.toolErrors, 0)} | ${tokens === "-" ? "-" : Math.round(Number(tokens))} |`;
   }),
   "",
   `| Task | ${models.join(" | ")} |`,

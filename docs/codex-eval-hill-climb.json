@@ -1,0 +1,328 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "baseCommit": "51baddb29fa7b20b13d657809fffdcc7040dc2d9",
+  "model": "codex/session",
+  "interpretation": "The training score increase corrects a grading false negative. The same training actions, answers, and feedback were replayed; it is not a model-performance gain. Codex had repository context, so this is developer diagnostic evidence, not a blind small-model benchmark.",
+  "runs": {
+    "baseline": {
+      "directory": "eval-results/codex-O2w9rj",
+      "startedAt": "2026-10-02T18:36:55.694Z",
+      "decisionSource": "live Codex decisions",
+      "tasks": [
+        {
+          "id": "cold-start-cart",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 4,
+          "toolErrors": 0,
+          "answer": "Set QFC University Village in 98105 as your preferred store and added a gallon of Kroger 2% milk and one 12-count carton of eggs for pickup. I chose the lower-priced options returned.",
+          "feedback": "The store search gives no distance or ranking evidence, so it cannot establish which store is closest. The cart confirmation lists only UPCs instead of product names or fulfillment.",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "cheaper-milk",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added two gallons of Kroger 2% milk for pickup at $3.49 each, about $6.98 total. Whole milk was $4.19 per gallon.",
+          "feedback": "The cart response says one item when two packages were added. It should distinguish product lines from package quantities and confirm PICKUP or DELIVERY.",
+          "rationale": "all 2 checks passed"
+        },
+        {
+          "id": "budget-basket",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added milk ($3.49), a dozen eggs ($2.99), and bread ($1.79) for pickup. Estimated item total: $8.27. I left butter out because its $4.49 price would bring the total to $12.76, above your $10 budget.",
+          "feedback": "none",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "french-toast-pantry",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Created your French toast list with bread and milk. Your pantry already has 12 eggs and butter, so I left those off. I used quantity 1 for each needed item; your cart is unchanged.",
+          "feedback": "none",
+          "rationale": "all 5 checks passed"
+        },
+        {
+          "id": "append-not-duplicate",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added one 12-count carton of eggs to your existing Weekly list. Its original items are still there.",
+          "feedback": "none",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "edit-weekly-list",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Updated Weekly: milk is now quantity 2, cheese is removed, and bread is checked off.",
+          "feedback": "none",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "log-purchase",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Logged your QFC University Village purchase and added 2 gallons of milk and 12 eggs to your pantry.",
+          "feedback": "none",
+          "rationale": "all 4 checks passed"
+        },
+        {
+          "id": "sale-items-list",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Created Deals with both sale items returned: Kroger 2% milk at $3.49 and Dave's Killer Bread at $5.49, one of each (about $8.98). The weekly circular date lookup failed, so I cannot verify their weekly validity dates.",
+          "feedback": "The weekly-deals warning reflects the fixture's unhandled circular endpoint. The list total renders with a double period after est.",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "missing-item",
+          "split": "train",
+          "status": "failed",
+          "score": 0.5,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added bread to your pickup cart. Kroger returned no products for zzzfrobnut sauce, so I left it out.",
+          "feedback": "The partial search retained the available bread and clearly reported the missing sauce.",
+          "rationale": "✗ tells the user zzzfrobnut wasn't found — Added bread to your pickup cart. Kroger returned no products for zzzfrobnut sauce, so I left it out."
+        },
+        {
+          "id": "use-first",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 1,
+          "toolErrors": 0,
+          "answer": "Use the spinach first; your profile marks it as expiring today. Next use the Greek yogurt, dated October 14. Rice has no recorded expiry. I left your pantry unchanged.",
+          "feedback": "none",
+          "rationale": "all 2 checks passed"
+        }
+      ]
+    },
+    "candidate": {
+      "directory": "eval-results/codex-IihuSD",
+      "startedAt": "2026-10-02T18:48:53.866Z",
+      "decisionSource": "paired training replay; live Codex held-out decisions",
+      "tasks": [
+        {
+          "id": "cold-start-cart",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 4,
+          "toolErrors": 0,
+          "answer": "Set QFC University Village in 98105 as your preferred store and added a gallon of Kroger 2% milk and one 12-count carton of eggs for pickup. I chose the lower-priced options returned.",
+          "feedback": "The store search gives no distance or ranking evidence, so it cannot establish which store is closest. The cart confirmation lists only UPCs instead of product names or fulfillment.",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "cheaper-milk",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added two gallons of Kroger 2% milk for pickup at $3.49 each, about $6.98 total. Whole milk was $4.19 per gallon.",
+          "feedback": "The cart response says one item when two packages were added. It should distinguish product lines from package quantities and confirm PICKUP or DELIVERY.",
+          "rationale": "all 2 checks passed"
+        },
+        {
+          "id": "budget-basket",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added milk ($3.49), a dozen eggs ($2.99), and bread ($1.79) for pickup. Estimated item total: $8.27. I left butter out because its $4.49 price would bring the total to $12.76, above your $10 budget.",
+          "feedback": "none",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "french-toast-pantry",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Created your French toast list with bread and milk. Your pantry already has 12 eggs and butter, so I left those off. I used quantity 1 for each needed item; your cart is unchanged.",
+          "feedback": "none",
+          "rationale": "all 5 checks passed"
+        },
+        {
+          "id": "append-not-duplicate",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added one 12-count carton of eggs to your existing Weekly list. Its original items are still there.",
+          "feedback": "none",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "edit-weekly-list",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Updated Weekly: milk is now quantity 2, cheese is removed, and bread is checked off.",
+          "feedback": "none",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "log-purchase",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Logged your QFC University Village purchase and added 2 gallons of milk and 12 eggs to your pantry.",
+          "feedback": "none",
+          "rationale": "all 4 checks passed"
+        },
+        {
+          "id": "sale-items-list",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Created Deals with both sale items returned: Kroger 2% milk at $3.49 and Dave's Killer Bread at $5.49, one of each (about $8.98). The weekly circular date lookup failed, so I cannot verify their weekly validity dates.",
+          "feedback": "The weekly-deals warning reflects the fixture's unhandled circular endpoint. The list total renders with a double period after est.",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "missing-item",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added bread to your pickup cart. Kroger returned no products for zzzfrobnut sauce, so I left it out.",
+          "feedback": "The partial search retained the available bread and clearly reported the missing sauce.",
+          "rationale": "all 2 checks passed"
+        },
+        {
+          "id": "use-first",
+          "split": "train",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 1,
+          "toolErrors": 0,
+          "answer": "Use the spinach first; your profile marks it as expiring today. Next use the Greek yogurt, dated October 14. Rice has no recorded expiry. I left your pantry unchanged.",
+          "feedback": "none",
+          "rationale": "all 2 checks passed"
+        },
+        {
+          "id": "list-to-cart-delivery",
+          "split": "test",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Added your Party list to the Kroger cart for delivery: 2 cheddar blocks and 1 loaf of Dave's Killer Bread.",
+          "feedback": "none",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "store-close-time",
+          "split": "test",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 2,
+          "toolErrors": 0,
+          "answer": "Your QFC University Village store closes at 11 PM on Tuesdays.",
+          "feedback": "none",
+          "rationale": "all 1 checks passed"
+        },
+        {
+          "id": "aisle-lookup",
+          "split": "test",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 1,
+          "toolErrors": 0,
+          "answer": "The butter is in aisle D3. The listing specifies bay 12, side L, shelf 3.",
+          "feedback": "none",
+          "rationale": "all 1 checks passed"
+        },
+        {
+          "id": "pantry-used-up",
+          "split": "test",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 1,
+          "toolErrors": 0,
+          "answer": "Updated your pantry: 6 eggs remain, milk is removed, and butter is unchanged.",
+          "feedback": "none",
+          "rationale": "all 3 checks passed"
+        },
+        {
+          "id": "no-store-yet",
+          "split": "test",
+          "status": "passed",
+          "score": 1,
+          "toolCalls": 1,
+          "toolErrors": 0,
+          "answer": "There is no preferred store saved. What ZIP code should I use to find your Kroger or QFC?",
+          "feedback": "none",
+          "rationale": "all 2 checks passed"
+        }
+      ]
+    }
+  },
+  "cartConfirmation": {
+    "task": "cheaper-milk",
+    "before": "Added 1 item(s) to cart at QFC - University Village:\n  - 0001111041700 x2",
+    "after": "Added 1 line item(s), 2 package(s) to cart at QFC - University Village for PICKUP (storeId=70500847):\n  - upc=0001111041700 x2"
+  },
+  "candidateSources": {
+    "src/tools/cart.ts": "efd4357996d42cf1047a7869d2b75dc1cdf3157689dff76018078e563f3e65d4",
+    "src/composition.ts": "ed5ed1464e35b8de3c9ded47e59c84b8b26ecc9f80e0339c1dd2ecc1665fd462",
+    "vitest.config.ts": "0e4697bca50be020e4028c8de80a2ea3d0df038f820310ff045af6ab8064dce0",
+    "tests/evals/harness.ts": "8f43c10ad7262eeeb1472aabcf5088b694703b39f03eeae59014e3ae279a34dd",
+    "tests/evals/agent.eval.test.ts": "705b2b8df30f039a8ae89c12b49c079e93459c43517679ec89775cdb555b3b0a",
+    "tests/evals/agent/harness.ts": "2a758050abfeea3b4b78a9d176ec38fcd28cd7ecfd5cbec8124d4598e7e74dfc",
+    "tests/evals/agent/codex-harness.ts": "b96edb0bc9dafc6a97968d59a43cd108a88a0dce59fc8490e2bf315289d0597c",
+    "tests/evals/agent/tasks.ts": "af16627493a7d77af82c3e4038c526096bfc34f75bd62e872b334901e13a94b4",
+    "tests/evals/agent/judges.ts": "21a29cc721c6d717f58e155df851324c1183b2f9f78f49f8335c7f47793b79a6",
+    "scripts/eval-agent-codex.mjs": "f3e2821af1c2b7cfca086d35909b10462677e526b7c4efbd59e27c8e729045f7"
+  },
+  "validation": {
+    "targetedTests": {
+      "command": "EVAL_LOG=1 pnpm exec vitest run tests/evals tests/tools/cart.test.ts",
+      "passed": 127,
+      "skipped": 60
+    },
+    "lint": "passed",
+    "typecheck": "passed",
+    "driverGuardChecks": {
+      "staleIdStatus": 409,
+      "concurrentActionStatuses": [200, 409]
+    }
+  }
+}

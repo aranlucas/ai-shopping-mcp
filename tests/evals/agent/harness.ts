@@ -34,11 +34,11 @@ export type AgentInput = { taskId: string; prompt: string };
 /** Per-test MCP connection; the eval file swaps it in `beforeEach`. */
 export type AgentSession = { client: Client; stub: KrogerFetchStub };
 
-const SYSTEM_PREAMBLE = `You are a grocery shopping assistant with tools connected to the user's Kroger account.
+export const SYSTEM_PREAMBLE = `You are a grocery shopping assistant with tools connected to the user's Kroger account.
 Complete the user's request end to end with the tools. Do not ask follow-up questions unless the request is impossible without the answer; otherwise make reasonable assumptions and say what you assumed.
 When finished, give the user a concise final answer. Then add a line "TOOL FEEDBACK:" followed by 1-3 sentences on any tool that was confusing, missing, or returned unhelpful output (write "none" if nothing).`;
 
-const MAX_STEPS = 16;
+export const MAX_STEPS = 16;
 
 // Captured at import, before the Kroger stub replaces global fetch per test.
 const realFetch = globalThis.fetch.bind(globalThis);
@@ -47,13 +47,13 @@ export function taskInput(task: AgentTask): AgentInput {
   return { taskId: task.id, prompt: task.prompt };
 }
 
-function findTask(taskId: string): AgentTask {
+export function findTask(taskId: string): AgentTask {
   const task = AGENT_TASKS.find((candidate) => candidate.id === taskId);
   if (!task) throw new Error(`Unknown agent task ${taskId}`);
   return task;
 }
 
-async function callTool(
+export async function callTool(
   client: Client,
   name: string,
   args: Record<string, unknown>,
@@ -88,7 +88,9 @@ async function mcpToolSet(client: Client): Promise<ToolSet> {
   return Object.fromEntries(entries);
 }
 
-async function snapshotLists(client: Client): Promise<AgentOutput["lists"]> {
+export async function snapshotLists(
+  client: Client,
+): Promise<AgentOutput["lists"]> {
   const summary = await callTool(client, "get_shopping_list", {});
   const lists =
     (summary.structuredContent as { lists?: Array<{ id: string }> } | undefined)
@@ -115,7 +117,9 @@ async function snapshotLists(client: Client): Promise<AgentOutput["lists"]> {
   );
 }
 
-async function snapshotPantry(client: Client): Promise<AgentOutput["pantry"]> {
+export async function snapshotPantry(
+  client: Client,
+): Promise<AgentOutput["pantry"]> {
   const profile = await callTool(client, "get_shopping_profile", {});
   const structured = profile.structuredContent as
     | { pantry?: AgentOutput["pantry"] }

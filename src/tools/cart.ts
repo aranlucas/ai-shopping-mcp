@@ -47,6 +47,13 @@ export type CartToolDependencies = {
 
 export type LineItem = { upc: string; quantity: number; productName?: string };
 
+function cartQuantitySummary(
+  items: ReadonlyArray<{ quantity: number }>,
+): string {
+  const packages = items.reduce((sum, item) => sum + item.quantity, 0);
+  return `${items.length} line item(s), ${packages} package(s)`;
+}
+
 const inlineCartItemSchema = z.object({
   upc: upcSchema.describe("UPC from search_products"),
   quantity: z.coerce
@@ -290,7 +297,7 @@ async function handleInlineItemsCart(
       content: [
         {
           type: "text" as const,
-          text: "These items were already added to your Kroger cart for this operation. Check the cart before adding more.",
+          text: `These ${cartQuantitySummary(items)} were already added to your Kroger cart for this operation (${modality}). Check the cart before adding more.`,
         },
       ],
       ...cartResultPayload({
@@ -312,7 +319,7 @@ async function handleInlineItemsCart(
     content: [
       {
         type: "text" as const,
-        text: `Added ${items.length} item(s) to cart${locationInfo}:\n${items.map((i) => `  - ${i.upc} x${i.quantity}`).join("\n")}`,
+        text: `Added ${cartQuantitySummary(items)} to cart${locationInfo} for ${modality} (storeId=${resolved.locationId}):\n${items.map((i) => `  - upc=${i.upc} x${i.quantity}`).join("\n")}`,
       },
     ],
     ...cartResultPayload({
@@ -322,7 +329,7 @@ async function handleInlineItemsCart(
       needsUpc: [],
       outcome: "added",
       requestedCount: items.length,
-      actionDetail: `Added ${items.length} item(s) to cart`,
+      actionDetail: `Added ${cartQuantitySummary(items)} to cart for ${modality}`,
     }),
   };
 }
@@ -424,8 +431,8 @@ async function handleListIdCart(
 
   const resultParts: string[] = [
     alreadyAdded
-      ? `These ${cartable.length} item(s) were already added to your Kroger cart from list "${list.name}".`
-      : `Added ${cartable.length} item(s) from list "${list.name}" to cart${locationInfo}:\n${cartable.map(({ item }) => `  - ${item.productName} x${item.quantity}`).join("\n")}`,
+      ? `These ${cartQuantitySummary(lineItems)} were already added to your Kroger cart from list "${list.name}" for ${modality}.`
+      : `Added ${cartQuantitySummary(lineItems)} from list "${list.name}" to cart${locationInfo} for ${modality} (storeId=${resolved.locationId}):\n${cartable.map(({ item, upc }) => `  - ${item.productName} x${item.quantity} | upc=${upc}`).join("\n")}`,
   ];
 
   if (withoutUpc.length > 0) {
@@ -447,8 +454,8 @@ async function handleListIdCart(
       outcome: alreadyAdded ? "already_added" : "added",
       requestedCount: list.items.length,
       actionDetail: alreadyAdded
-        ? `Already added ${cartable.length} item(s) from list "${list.name}"`
-        : `Added ${cartable.length} item(s) from list "${list.name}" to cart`,
+        ? `Already added ${cartQuantitySummary(lineItems)} from list "${list.name}" for ${modality}`
+        : `Added ${cartQuantitySummary(lineItems)} from list "${list.name}" to cart for ${modality}`,
     }),
   };
 }
