@@ -1,3 +1,4 @@
+import { ok } from "neverthrow";
 import { cartOperationStore } from "../cart-operation-store.js";
 import { vi } from "vitest";
 
@@ -244,20 +245,26 @@ export function makeStorage(
 
 /**
  * Builds a `ProductService` stub for tests that don't need a real
- * `productClient`. `enrichProductName` resolves from `nameByUpc`, falling
+ * `productClient`. `enrichProductNames` resolves from `nameByUpc`, falling
  * back to `null` (the same fallback-to-upc behavior production code gets)
  * for any upc not in the map.
  */
 export function makeProductService(
   nameByUpc: Record<string, string> = {},
-): Pick<ProductService, "getProduct" | "enrichProductName"> {
+): Pick<
+  ProductService,
+  "getProduct" | "enrichProductNames" | "resolveProducts"
+> {
   return {
     getProduct: () => {
       throw new Error(
         "ProductService.getProduct stub not configured for this test",
       );
     },
-    enrichProductName: async (upc: string) => nameByUpc[upc] ?? null,
+    enrichProductNames: async (upcs: string[]) =>
+      ok(upcs.map((upc) => nameByUpc[upc] ?? null)),
+    resolveProducts: async () =>
+      ok({ results: [], exactUpcs: new Set<string>() }),
   };
 }
 
@@ -266,7 +273,10 @@ export type ToolTestContext = {
   cartClient: KrogerClients["cartClient"];
   productClient: KrogerClients["productClient"];
   locationClient: KrogerClients["locationClient"];
-  productService: Pick<ProductService, "getProduct" | "enrichProductName">;
+  productService: Pick<
+    ProductService,
+    "getProduct" | "enrichProductNames" | "resolveProducts"
+  >;
   storage: ShoppingStore & CartStore;
   carts: CartStore;
   preferredLocation: PreferredLocationStore;
