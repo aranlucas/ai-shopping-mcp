@@ -65,7 +65,8 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/token",
   clientRegistrationEndpoint: "/register",
-  allowPlainPKCE: false,
+  // Preserve native MCP clients such as Claude alongside HTTPS and loopback callbacks.
+  allowPrivateUseRedirectUris: true,
   clientIdMetadataDocumentEnabled: true,
   scopesSupported: ["profile.compact", "cart.basic:write", "product.compact"],
 
