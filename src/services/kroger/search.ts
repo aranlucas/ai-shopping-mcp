@@ -10,6 +10,8 @@ import type { components as ProductComponents } from "./product.js";
 import { validationError } from "../../errors.js";
 import { fromApiResponse } from "../../utils/result.js";
 
+import { MAX_TEXT_TERMS, mapCatalogRequests } from "./catalog-workload.js";
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 export type ProductSearchRequest = {
@@ -49,10 +51,19 @@ export async function searchProductsForTerms(
   params: { locationId?: string; limitPerTerm: number },
   onSearchComplete?: (completed: number, total: number) => Promise<void> | void,
 ): Promise<ProductSearchResult[]> {
+  if (requests.length > MAX_TEXT_TERMS) {
+    return requests.map((request) => ({
+      ...request,
+      status: "failed" as const,
+      error: validationError(
+        `Maximum ${MAX_TEXT_TERMS} text search terms per call.`,
+      ),
+    }));
+  }
   let completedSearches = 0;
   const totalSearches = requests.length;
 
-  const searchPromises = requests.map(async (request) => {
+  const results = await mapCatalogRequests(requests, async (request) => {
     const term = toKrogerTerm(request.term);
     if (term.length < MIN_TERM_CHARS) {
       completedSearches++;
@@ -108,8 +119,6 @@ export async function searchProductsForTerms(
         (error) => ({ ...request, status: "failed" as const, error }),
       );
   });
-
-  const results = await Promise.all(searchPromises);
 
   for (const result of results) {
     if (result.status === "success" && result.products.length > 0) {

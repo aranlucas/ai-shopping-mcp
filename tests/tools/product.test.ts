@@ -912,7 +912,7 @@ describe("search_products UPC terms", () => {
     expect(text).toContain("storage: Refrigerated");
   });
 
-  it("looks up any number of UPCs, five Kroger calls at a time", async () => {
+  it("looks up supported UPC batches, five Kroger calls at a time", async () => {
     let inFlight = 0;
     let maxInFlight = 0;
     let calls = 0;
@@ -935,6 +935,50 @@ describe("search_products UPC terms", () => {
     expect(isErrorResult(result)).toBe(false);
     expect(calls).toBe(12);
     expect(maxInFlight).toBeLessThanOrEqual(5);
+  });
+
+  it("rejects more than forty UPC terms before looking anything up", async () => {
+    const get = vi.fn<ProductGetFn>(async () =>
+      makeDetailResponse(makeProduct()),
+    );
+    registerProducts(get);
+    const terms = Array.from({ length: 41 }, (_, index) =>
+      String(index).padStart(13, "0"),
+    );
+
+    await expect(
+      getCapturedHandler("search_products")({ terms }),
+    ).rejects.toThrow("Maximum 40 product requests");
+
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("shares five lookup slots across mixed UPC and text terms", async () => {
+    let active = 0;
+    let peak = 0;
+    registerProducts(async (path) => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1);
+      });
+      active--;
+      return path === "/v1/products"
+        ? makeSearchResponse([makeProduct()])
+        : makeDetailResponse(makeProduct());
+    });
+    const terms = [
+      "milk",
+      "bread",
+      ...Array.from({ length: 8 }, (_, index) =>
+        String(index).padStart(13, "0"),
+      ),
+    ];
+
+    const result = await getCapturedHandler("search_products")({ terms });
+
+    expect(isErrorResult(result)).toBe(false);
+    expect(peak).toBe(5);
   });
 
   it("still caps text search terms at ten per call", () => {

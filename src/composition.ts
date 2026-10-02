@@ -127,7 +127,6 @@ export function buildServer(
   });
   registerOrderTools(server, { orderHistory, preferredLocation });
   registerProductTools(server, {
-    productClient: clients.productClient,
     productService,
     preferredLocation,
   });

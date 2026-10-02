@@ -3,13 +3,13 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import { appResult } from "../app-results.js";
-import type { KrogerClients } from "../services/kroger/client.js";
 import { toProductData } from "../services/kroger/product-data.js";
 import type { ProductService } from "../services/kroger/product-service.js";
 import {
-  type ProductSearchResult,
-  searchProductsForTerms,
-} from "../services/kroger/search.js";
+  MAX_CATALOG_REQUESTS,
+  MAX_TEXT_TERMS,
+  isUpcTerm,
+} from "../services/kroger/catalog-workload.js";
 import { formatProductSearchMarkdown } from "../utils/format-response.js";
 import { safeStorage, toMcpError } from "../utils/result.js";
 import type { PreferredLocationStore } from "../utils/shopping-store.js";
@@ -22,42 +22,17 @@ export {
   searchProductsForTerms,
 } from "../services/kroger/search.js";
 
-/** An all-digit term is a UPC (copied from earlier results), not a search. */
-const UPC_TERM = /^\d{8,13}$/;
-const MAX_TEXT_TERMS = 10;
-/** UPC detail calls in flight at once; there is no cap on how many are asked. */
-const UPC_LOOKUP_BATCH = 5;
-
-/** Runs `fn` over `items` a batch at a time, preserving order. */
-async function mapInBatches<T, R>(
-  items: T[],
-  size: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  for (let start = 0; start < items.length; start += size) {
-    const batch = items
-      .slice(start, start + size)
-      .map((item, offset) => fn(item, start + offset));
-    // oxlint-disable-next-line eslint/no-await-in-loop -- batches are sequential to bound concurrent Kroger calls
-    const settled = await Promise.all(batch);
-    results.push(...settled);
-  }
-  return results;
-}
-
 const NO_STORE_NOTICE =
   "No preferred store is set, so prices and availability are not for a specific store, and cart adds will fail. Use search_stores and set_preferred_store first when the user wants to buy.";
 
 export type ProductToolDependencies = {
-  productClient: KrogerClients["productClient"];
-  productService: Pick<ProductService, "getProduct">;
+  productService: Pick<ProductService, "resolveProducts">;
   preferredLocation: PreferredLocationStore;
 };
 
 export function registerProductTools(
   server: McpServer,
-  { productClient, productService, preferredLocation }: ProductToolDependencies,
+  { productService, preferredLocation }: ProductToolDependencies,
 ): void {
   registerAppTool(
     server,
@@ -77,10 +52,12 @@ export function registerProductTools(
         terms: z
           .array(z.string().trim().min(1).max(100))
           .min(1, { message: "At least one search term is required" })
+          .max(MAX_CATALOG_REQUESTS, {
+            message: `Maximum ${MAX_CATALOG_REQUESTS} product requests per call.`,
+          })
           .refine(
             (terms) =>
-              terms.filter((term) => !UPC_TERM.test(term)).length <=
-              MAX_TEXT_TERMS,
+              terms.filter((term) => !isUpcTerm(term)).length <= MAX_TEXT_TERMS,
             {
               message: `Maximum ${MAX_TEXT_TERMS} text search terms per call (UPC terms don't count).`,
             },
@@ -122,63 +99,20 @@ export function registerProductTools(
         locationId = preferred.value?.locationId;
       }
 
-      const uniqueTerms = [
-        ...new Set(
-          terms.map((term) =>
-            UPC_TERM.test(term) ? term.padStart(13, "0") : term,
-          ),
-        ),
-      ];
-      const upcs = uniqueTerms.filter((term) => UPC_TERM.test(term));
-      const textTerms = uniqueTerms.filter((term) => !UPC_TERM.test(term));
-
       const progressToken = requestContext.mcpReq._meta?.progressToken;
-      const [lookups, searches] = await Promise.all([
-        mapInBatches(
-          upcs,
-          UPC_LOOKUP_BATCH,
-          async (upc, index): Promise<ProductSearchResult> =>
-            (await productService.getProduct(upc, locationId)).match(
-              (product) => ({
-                requestId: `upc_${index}`,
-                term: upc,
-                status: "success" as const,
-                products: [product],
-              }),
-              (error) => ({
-                requestId: `upc_${index}`,
-                term: upc,
-                status: "failed" as const,
-                error,
-              }),
-            ),
-        ),
-        textTerms.length === 0
-          ? Promise.resolve([])
-          : searchProductsForTerms(
-              productClient,
-              textTerms.map((term, index) => ({
-                requestId: `term_${index}`,
-                term,
-              })),
-              { locationId, limitPerTerm },
-              async (completed, total) => {
-                if (progressToken === undefined) return;
-                await requestContext.mcpReq.notify({
-                  method: "notifications/progress",
-                  params: { progressToken, progress: completed, total },
-                });
-              },
-            ),
-      ]);
-      // Report in the order the terms were asked.
-      const byTerm = new Map(
-        [...lookups, ...searches].map((result) => [result.term, result]),
+      const resolved = await productService.resolveProducts(
+        terms,
+        { locationId, limitPerTerm },
+        async (completed, total) => {
+          if (progressToken === undefined) return;
+          await requestContext.mcpReq.notify({
+            method: "notifications/progress",
+            params: { progressToken, progress: completed, total },
+          });
+        },
       );
-      const results = uniqueTerms.flatMap((term) => {
-        const result = byTerm.get(term);
-        return result ? [result] : [];
-      });
+      if (resolved.isErr()) return toMcpError(resolved.error);
+      const { results, exactUpcs } = resolved.value;
 
       const totalProducts = results.reduce(
         (sum, result) =>
@@ -191,7 +125,6 @@ export function registerProductTools(
         failures[0];
       if (totalProducts === 0 && failure) return toMcpError(failure.error);
 
-      const exactUpcs = new Set(upcs);
       const text = `${locationId ? "" : `${NO_STORE_NOTICE}\n\n`}${formatProductSearchMarkdown(results, { includeLocation, exactUpcs })}`;
 
       // A single exact lookup opens the product detail view in the app.

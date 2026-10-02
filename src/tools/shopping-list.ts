@@ -1,6 +1,6 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
-import { type ResultAsync, errAsync, okAsync } from "neverthrow";
+import { type Result, type ResultAsync, errAsync, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
@@ -12,6 +12,7 @@ import type {
 
 import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
+import { MAX_CATALOG_REQUESTS } from "../services/kroger/catalog-workload.js";
 import type { ProductService } from "../services/kroger/product-service.js";
 import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
 import {
@@ -75,7 +76,8 @@ export const createShoppingListInputSchema = z.object({
     .describe("List label, e.g. 'Tuesday dinner'."),
   items: z
     .array(shoppingListItemInputSchema)
-    .min(1, { message: "Shopping list must include at least one item" }),
+    .min(1, { message: "Shopping list must include at least one item" })
+    .max(MAX_CATALOG_REQUESTS),
 });
 
 const shoppingListItemChangeSchema = z.object({
@@ -94,7 +96,11 @@ const shoppingListItemChangeSchema = z.object({
 export const updateShoppingListInputSchema = z
   .object({
     listId: listIdSchema,
-    add: z.array(shoppingListItemInputSchema).min(1).optional(),
+    add: z
+      .array(shoppingListItemInputSchema)
+      .min(1)
+      .max(MAX_CATALOG_REQUESTS)
+      .optional(),
     change: z
       .array(shoppingListItemChangeSchema)
       .min(1)
@@ -125,7 +131,7 @@ type ShoppingListItemInput = z.output<typeof shoppingListItemInputSchema>;
 
 export type ShoppingListProductService = Pick<
   ProductService,
-  "enrichProductName"
+  "enrichProductNames"
 >;
 
 export type ShoppingListToolDependencies = {
@@ -143,23 +149,28 @@ export type ShoppingListToolDependencies = {
 async function toStoredItems(
   productService: ShoppingListProductService,
   items: ShoppingListItemInput[],
-): Promise<ShoppingListItem[]> {
-  return Promise.all(
-    items.map(async (item) => {
-      const productName =
-        item.productName ??
-        (item.upc
-          ? ((await productService.enrichProductName(item.upc)) ?? item.upc)
-          : "");
-      return {
-        productName,
-        ...(item.upc === undefined ? {} : { upc: item.upc }),
-        quantity: item.quantity,
-        ...(item.notes === undefined ? {} : { notes: item.notes }),
-        ...(item.price === undefined ? {} : { price: item.price }),
-      } satisfies ShoppingListItem;
-    }),
+): Promise<Result<ShoppingListItem[], AppError>> {
+  const missingUpcs = items.flatMap((item) =>
+    !item.productName && item.upc ? [item.upc] : [],
   );
+  const enriched = await productService.enrichProductNames(missingUpcs);
+  return enriched.map((names) => {
+    const nameByUpc = new Map(
+      missingUpcs.map((upc, index) => [upc, names[index]]),
+    );
+    return items.map(
+      (item) =>
+        ({
+          productName:
+            item.productName ??
+            (item.upc ? (nameByUpc.get(item.upc) ?? item.upc) : ""),
+          ...(item.upc === undefined ? {} : { upc: item.upc }),
+          quantity: item.quantity,
+          ...(item.notes === undefined ? {} : { notes: item.notes }),
+          ...(item.price === undefined ? {} : { price: item.price }),
+        }) satisfies ShoppingListItem,
+    );
+  });
 }
 
 export type CreateShoppingListResult = { listId: string; list: ShoppingList };
@@ -275,7 +286,9 @@ export function registerShoppingListTools(
     async ({ name: listName, items }) => {
       getProps();
 
-      const enrichedItems = await toStoredItems(productService, items);
+      const enriched = await toStoredItems(productService, items);
+      if (enriched.isErr()) return toMcpError(enriched.error);
+      const enrichedItems = enriched.value;
 
       // Best-effort pantry/deal flags (see item-flags.ts): a storage/cache
       // miss or error yields no flag, never a failed tool call. Location is
@@ -468,8 +481,10 @@ export function registerShoppingListTools(
 
       if (add) {
         const storedItems = await toStoredItems(productService, add);
+        if (storedItems.isErr())
+          return partialFailure(storedItems.error, summary);
         const added = await safeStorage(
-          () => shoppingList.addItems(listId, storedItems),
+          () => shoppingList.addItems(listId, storedItems.value),
           "add shopping list items",
         );
         if (added.isErr()) return partialFailure(added.error, summary);

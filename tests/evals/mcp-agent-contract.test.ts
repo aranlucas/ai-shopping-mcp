@@ -1,3 +1,4 @@
+import { ok } from "neverthrow";
 import { describe, expect, it } from "vitest";
 
 import type { McpServer } from "@modelcontextprotocol/server";
@@ -89,8 +90,13 @@ function makeDependencies() {
       getProduct: () => {
         throw new Error("productService not used in this test");
       },
-      enrichProductName: async () => null,
-    } satisfies Pick<ProductService, "getProduct" | "enrichProductName">,
+      enrichProductNames: async (upcs: string[]) => ok(upcs.map(() => null)),
+      resolveProducts: async () =>
+        ok({ results: [], exactUpcs: new Set<string>() }),
+    } satisfies Pick<
+      ProductService,
+      "getProduct" | "enrichProductNames" | "resolveProducts"
+    >,
     preferredLocation,
     pantry,
     equipment,

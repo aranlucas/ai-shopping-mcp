@@ -1,3 +1,4 @@
+import { ok } from "neverthrow";
 /**
  * Covers the human-editable list surface: reading lists and their item ids,
  * and update_shopping_list's add / change / remove batch.
@@ -168,8 +169,14 @@ describe("shopping list editing tools", () => {
       getProduct: () => {
         throw new Error("productService not used in this test");
       },
-      enrichProductName: async () => "Whole Milk",
-    } as unknown as Pick<ProductService, "getProduct" | "enrichProductName">;
+      enrichProductNames: async (upcs: string[]) =>
+        ok(upcs.map(() => "Whole Milk")),
+      resolveProducts: async () =>
+        ok({ results: [], exactUpcs: new Set<string>() }),
+    } as unknown as Pick<
+      ProductService,
+      "getProduct" | "enrichProductNames" | "resolveProducts"
+    >;
     registerShoppingListTools(ctx.server, ctx);
 
     await getCapturedHandler("update_shopping_list")({
@@ -184,6 +191,31 @@ describe("shopping list editing tools", () => {
         quantity: 2,
       },
     ]);
+  });
+
+  it("rejects oversized create and add batches before catalog or storage work", async () => {
+    const fixture = makeContext();
+    registerShoppingListTools(fixture.server, fixture);
+    const enrich = vi.spyOn(fixture.productService, "enrichProductNames");
+    const create = vi.spyOn(fixture.shoppingList, "create");
+    const add = vi.spyOn(fixture.shoppingList, "addItems");
+    const items = Array.from({ length: 41 }, (_, index) => ({
+      upc: String(index),
+    }));
+
+    await expect(
+      getCapturedHandler("create_shopping_list")({ name: "Large list", items }),
+    ).rejects.toThrow("Too big");
+    await expect(
+      getCapturedHandler("update_shopping_list")({
+        listId: "list-a",
+        add: items,
+      }),
+    ).rejects.toThrow("Too big");
+
+    expect(enrich).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
   });
 
   it("rejects an item with neither a UPC nor a name", () => {

@@ -123,3 +123,61 @@ describe("searchProductsForTerms", () => {
     );
   });
 });
+
+describe("text search workload budget", () => {
+  it("rejects more than ten requests without contacting the provider", async () => {
+    const get = vi.fn<SearchGet>(async () => ({
+      data: { data: [] },
+      response: new Response(null, { status: 200 }),
+    }));
+    const input = Array.from({ length: 11 }, (_, index) => ({
+      requestId: String(index),
+      term: `item ${index}`,
+    }));
+
+    const results = await searchProductsForTerms(productClient(get), input, {
+      limitPerTerm: 5,
+    });
+
+    expect(results).toHaveLength(11);
+    expect(
+      results.every(
+        (result) =>
+          result.status === "failed" &&
+          result.error.type === "VALIDATION_ERROR",
+      ),
+    ).toBe(true);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("limits simultaneous searches to five and keeps input identities", async () => {
+    let active = 0;
+    let peak = 0;
+    const get = vi.fn<SearchGet>(async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1);
+      });
+      active--;
+      return {
+        data: { data: [] },
+        response: new Response(null, { status: 200 }),
+      };
+    });
+    const input = Array.from({ length: 10 }, (_, index) => ({
+      requestId: String(index),
+      term: `item ${index}`,
+    }));
+
+    const results = await searchProductsForTerms(productClient(get), input, {
+      limitPerTerm: 20,
+    });
+
+    expect(results.map((result) => result.requestId)).toEqual(
+      input.map((request) => request.requestId),
+    );
+    expect(get).toHaveBeenCalledTimes(10);
+    expect(peak).toBe(5);
+  });
+});
