@@ -17,6 +17,7 @@
     "eval:agent:summary": "node scripts/eval-agent-summary.mjs",
     "test:selector:live": "node scripts/test-selector-live.mjs",
     "deploy": "pnpm build:worker && cf deploy --prebuilt",
+    "deploy:preview": "pnpm build:views && cf previews deploy",
     "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
     "start": "cf dev",
     "cf-typegen": "cf workers types",
