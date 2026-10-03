@@ -3,7 +3,7 @@ import { bindings, defineConfig, exports, triggers } from "cf/config";
 import * as entrypoint from "./src/server" with { type: "cf-worker" };
 
 export default defineConfig({
-  worker: {
+  worker: ({ isPreview }) => ({
     exports: {
       MyMCP: exports.durableObject({ state: "deleted" }),
       CartOperations: exports.durableObject({ storage: "sqlite" }),
@@ -19,11 +19,10 @@ export default defineConfig({
     observability: {
       enabled: true,
     },
-    triggers: [
-      triggers.scheduled({
-        schedule: "0 2 * * *",
-      }),
-    ],
+    // Worker Previews reject cron triggers.
+    ...(!isPreview && {
+      triggers: [triggers.scheduled({ schedule: "0 2 * * *" })],
+    }),
     env: {
       MCP_RESOURCE_URL: bindings.text(
         "https://ai-meal-planner-mcp.aranlucas.workers.dev",
@@ -45,5 +44,5 @@ export default defineConfig({
       }),
       ASSETS: bindings.assets(),
     },
-  },
+  }),
 });
