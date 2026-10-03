@@ -62,6 +62,7 @@ describe("findDealForItem", () => {
       makeDeal({ title: "###" }),
       makeDeal({ id: "d2", title: "Whole Milk Gallon" }),
     ];
+
     expect(findDealForItem("milk", deals)?.id).toBe("d2");
   });
 

@@ -1,3 +1,4 @@
+import type { ToolArguments } from "../v2-tool-handler.js";
 /**
  * Eval: golden-path machine-extractability ("scripted small model").
  *
@@ -42,17 +43,20 @@ describe("golden path (scripted agent, text-only)", () => {
 
   async function call(
     name: string,
-    args: Record<string, unknown>,
+    args: ToolArguments,
   ): Promise<ToolCallResult> {
     toolCalls++;
-    const result = (await client.callTool({
+
+    const result = await client.callTool({
       name,
       arguments: args,
-    })) as ToolCallResult;
+    });
+
     expect(
       result.isError,
       `${name} failed: ${contentText(result)}`,
     ).toBeFalsy();
+
     return result;
   }
 
@@ -65,11 +69,14 @@ describe("golden path (scripted agent, text-only)", () => {
     expect(extractListIds(text)).toHaveLength(0);
     expect(stub.cartPuts).toHaveLength(0);
     const groups = text.split(/item_\d+: requested qty=/).slice(1);
+
     const chosen = items.map((item, index) => {
       const [upc] = extractUpcs(groups[index]);
       expect(upc).toBeDefined();
+
       return { upc, quantity: item.quantity ?? 1 };
     });
+
     return call("create_shopping_list", {
       name: "Chosen groceries",
       items: chosen,
@@ -81,15 +88,19 @@ describe("golden path (scripted agent, text-only)", () => {
     const storeIds = extractStoreIds(contentText(stores));
     expect(storeIds.length).toBeGreaterThan(0);
     await call("set_preferred_store", { storeId: storeIds[0] });
+
     const created = await chooseAndCreate([
       { name: "milk" },
       { name: "eggs", quantity: 2 },
     ]);
+
     const listIds = extractListIds(contentText(created));
     expect(listIds).toHaveLength(1);
+
     const added = await call("add_shopping_list_to_cart", {
       listId: listIds[0],
     });
+
     expect(contentText(added)).toContain("Added");
     const items = stub.allCartItems();
     expect(items).toHaveLength(2);
@@ -105,6 +116,7 @@ describe("golden path (scripted agent, text-only)", () => {
     const search = await call("search_products", {
       terms: ["bread"],
     });
+
     const searchText = contentText(search);
     const upcs = extractUpcs(searchText);
     expect(upcs.length).toBeGreaterThan(0);
@@ -115,6 +127,7 @@ describe("golden path (scripted agent, text-only)", () => {
       name: "Bread run",
       items: [{ upc: upcs[0], quantity: 1 }],
     });
+
     const listIds = extractListIds(contentText(created));
     expect(listIds).toHaveLength(1);
 
@@ -173,9 +186,11 @@ describe("golden path (scripted agent, text-only)", () => {
 
   it("no-results terms are reported per term without failing the whole search", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
+
     const result = await call("search_products", {
       terms: ["milk", "zzz-unfindable"],
     });
+
     const text = contentText(result);
 
     expect(extractUpcs(text).length).toBeGreaterThan(0);

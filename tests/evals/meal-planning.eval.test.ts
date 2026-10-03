@@ -1,3 +1,4 @@
+import type { ToolArguments } from "../v2-tool-handler.js";
 /**
  * Eval: meal planning from get_shopping_profile with weekly deals.
  *
@@ -34,6 +35,7 @@ const CACHE_KEY = buildWeeklyDealsCacheKey({
 });
 
 const DEAL_START = "2026-09-09";
+
 const DEAL_END = "2026-09-15";
 
 function dealsData(
@@ -76,6 +78,7 @@ async function seedDeals(
   data: QfcDealsApiResponse = dealsData(),
 ) {
   const now = Date.now();
+
   const entry: WeeklyDealsCacheEntry = {
     version: 1,
     createdAt: now,
@@ -84,6 +87,7 @@ async function seedDeals(
     data,
     ...overrides,
   };
+
   await env.USER_DATA_KV.put(CACHE_KEY, JSON.stringify(entry));
 }
 
@@ -95,8 +99,10 @@ function failKrogerFetches() {
       const url = new URL(
         input instanceof Request ? input.url : input.toString(),
       );
+
       if (url.hostname === "api.kroger.com")
         throw new Error("fixture Kroger outage");
+
       return originalFetch(input, init);
     }),
   );
@@ -120,17 +126,20 @@ describe("meal planning weekly deals (wire eval)", () => {
 
   async function call(
     name: string,
-    args: Record<string, unknown>,
+    args: ToolArguments,
   ): Promise<ToolCallResult> {
     toolCalls++;
-    const result = (await client.callTool({
+
+    const result = await client.callTool({
       name,
       arguments: args,
-    })) as ToolCallResult;
+    });
+
     expect(
       result.isError,
       `${name} failed: ${contentText(result)}`,
     ).toBeFalsy();
+
     return result;
   }
 
@@ -148,6 +157,7 @@ describe("meal planning weekly deals (wire eval)", () => {
       includeWeeklyDeals: true,
       storeId: DEFAULT_STORE_ID,
     });
+
     const contextText = contentText(context);
     const [storeId] = extractStoreIds(contextText);
     expect(storeId).toBe(DEFAULT_STORE_ID);
@@ -167,6 +177,7 @@ describe("meal planning weekly deals (wire eval)", () => {
       name: "Milk dinner plan",
       items: [{ upc, quantity: 1 }],
     });
+
     expect(extractListIds(contentText(list))).toHaveLength(1);
     expect(toolCalls).toBeLessThanOrEqual(3);
 
@@ -190,6 +201,7 @@ describe("meal planning weekly deals (wire eval)", () => {
       includeWeeklyDeals: true,
       storeId: DEFAULT_STORE_ID,
     });
+
     const text = contentText(result);
     // Failed product searches must not become a cacheable empty success. The
     // shared loader preserves the usable stale entry and exposes the refresh

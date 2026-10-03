@@ -1,12 +1,15 @@
+import type { MockInstance } from "vitest";
+import type { ToolArguments } from "../v2-tool-handler.js";
+import { memoryKv } from "../memory-kv.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type * as z from "zod/v4";
 
-import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
+import type {
+  QfcDealsApiResponse,
+  getQfcWeeklyDeals,
+} from "../../src/services/qfc-weekly-deals.js";
 import type { WeeklyDealWarning } from "../../src/services/weekly-deals/schema.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
-import type { KvLike } from "../../src/utils/kv.js";
 
-// Install the auth mock before loading tool modules.
 import {
   getCapturedHandler,
   getCapturedTool,
@@ -14,15 +17,13 @@ import {
   makeStorage,
   resetToolTestHarness,
 } from "./tool-test-harness.js";
-import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
 import { registerInventoryTools } from "../../src/tools/inventory.js";
 import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 
-vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
-  getQfcWeeklyDeals: vi.fn<typeof getQfcWeeklyDeals>(),
-}));
+const fetchDeals = vi.fn<typeof getQfcWeeklyDeals>();
 
 const STORE_ID = "70500847";
+
 const PREFERRED_STORE = {
   locationId: STORE_ID,
   locationName: "QFC",
@@ -30,10 +31,12 @@ const PREFERRED_STORE = {
   chain: "QFC",
   setAt: "2026-09-12T00:00:00Z",
 };
+
 const OTHER_STORE = {
   ...PREFERRED_STORE,
   locationId: "70500123",
 };
+
 const CACHE_KEY = buildWeeklyDealsCacheKey({
   locationId: STORE_ID,
   limit: 50,
@@ -59,24 +62,23 @@ function legacyWarning(message: string): WeeklyDealWarning {
   return { code: "legacy", details: { message } };
 }
 
-function call(args: Record<string, unknown> = {}) {
-  const { inputSchema } = getCapturedTool("get_shopping_profile").config as {
-    inputSchema: z.ZodType<Record<string, unknown>>;
-  };
+function call(args: ToolArguments = {}) {
+  const { inputSchema } = getCapturedTool("get_shopping_profile").config;
+
   return getCapturedHandler("get_shopping_profile")(inputSchema.parse(args));
 }
 
 describe("shopping profile with weekly deals", () => {
   let context: ReturnType<typeof makeContext>;
   let cache: Map<string, string>;
-  let readCache: ReturnType<
-    typeof vi.fn<(key: string) => Promise<string | null>>
-  >;
+
+  let readCache: MockInstance<KVNamespace["get"]>;
 
   beforeEach(async () => {
     resetToolTestHarness();
-    vi.mocked(getQfcWeeklyDeals).mockReset().mockResolvedValue(dealsResponse());
+    fetchDeals.mockReset().mockResolvedValue(dealsResponse());
     context = makeContext(makeStorage());
+    context.fetchDeals = fetchDeals;
     await context.pantry.add({
       productName: "Rice",
       quantity: 2,
@@ -84,15 +86,9 @@ describe("shopping profile with weekly deals", () => {
     });
     await context.preferredLocation.set(PREFERRED_STORE);
     cache = new Map();
-    readCache = vi.fn<(key: string) => Promise<string | null>>(
-      async (key) => cache.get(key) ?? null,
-    );
-    context.cache = {
-      get: readCache,
-      put: async (key: string, value: string) => {
-        cache.set(key, value);
-      },
-    } as unknown as KvLike;
+    const kv = memoryKv(cache);
+    readCache = vi.spyOn(kv, "get");
+    context.cache = kv;
     registerInventoryTools(context.server, context);
   });
 
@@ -102,6 +98,7 @@ describe("shopping profile with weekly deals", () => {
 
   function seedCache(overrides: Partial<WeeklyDealsCacheEntry> = {}) {
     const now = Date.now();
+
     const entry: WeeklyDealsCacheEntry = {
       version: 1,
       createdAt: now,
@@ -110,6 +107,7 @@ describe("shopping profile with weekly deals", () => {
       data: dealsResponse(),
       ...overrides,
     };
+
     cache.set(CACHE_KEY, JSON.stringify(entry));
   }
 
@@ -118,7 +116,7 @@ describe("shopping profile with weekly deals", () => {
     expect(result.isError).toBe(false);
     expect(result.text).toContain("Rice x2");
     expect(result.text).not.toContain("Weekly deals");
-    expect(getQfcWeeklyDeals).not.toHaveBeenCalled();
+    expect(fetchDeals).not.toHaveBeenCalled();
     expect(readCache).not.toHaveBeenCalled();
   });
 
@@ -133,7 +131,7 @@ describe("shopping profile with weekly deals", () => {
     expect(result.text).toContain("create_shopping_list");
     expect(result.text).toContain("Sale items are not in the pantry");
     expect(result._meta).toBeUndefined();
-    expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
+    expect(fetchDeals).toHaveBeenCalledWith(
       expect.objectContaining({
         locationId: STORE_ID,
         limit: 50,
@@ -148,14 +146,14 @@ describe("shopping profile with weekly deals", () => {
     const result = await call({ includeWeeklyDeals: true });
     expect(result.text).toContain("Black beans | $0.99");
     expect(result.text).toContain("cache=fresh");
-    expect(getQfcWeeklyDeals).not.toHaveBeenCalled();
+    expect(fetchDeals).not.toHaveBeenCalled();
     expect(readCache).toHaveBeenCalledWith(CACHE_KEY);
   });
 
   it("honors an explicit Kroger store without changing the preferred store", async () => {
     await context.preferredLocation.set(OTHER_STORE);
     await call({ includeWeeklyDeals: true, storeId: ` ${STORE_ID} ` });
-    expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
+    expect(fetchDeals).toHaveBeenCalledWith(
       expect.objectContaining({ locationId: STORE_ID }),
     );
     expect(await context.preferredLocation.get()).toMatchObject({
@@ -171,7 +169,7 @@ describe("shopping profile with weekly deals", () => {
     expect(result.text).toContain("Rice x2");
     expect(result.text).toContain("search_stores");
     expect(result.text).toContain("set_preferred_store");
-    expect(getQfcWeeklyDeals).not.toHaveBeenCalled();
+    expect(fetchDeals).not.toHaveBeenCalled();
   });
 
   it("supports planning from deals with an empty pantry", async () => {
@@ -183,9 +181,7 @@ describe("shopping profile with weekly deals", () => {
   });
 
   it("handles empty ads without suggesting that discounts exist", async () => {
-    vi.mocked(getQfcWeeklyDeals).mockResolvedValue(
-      dealsResponse({ deals: [] }),
-    );
+    fetchDeals.mockResolvedValue(dealsResponse({ deals: [] }));
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("No weekly offers found");
@@ -199,9 +195,7 @@ describe("shopping profile with weekly deals", () => {
         warnings: [legacyWarning("Member prices require a loyalty card.")],
       }),
     });
-    vi.mocked(getQfcWeeklyDeals).mockRejectedValue(
-      new Error("Service unavailable"),
-    );
+    fetchDeals.mockRejectedValue(new Error("Service unavailable"));
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("cache=stale");
@@ -215,9 +209,7 @@ describe("shopping profile with weekly deals", () => {
       freshUntil: Date.now() - 120_000,
       staleUntil: Date.now() - 60_000,
     });
-    vi.mocked(getQfcWeeklyDeals).mockRejectedValue(
-      new Error("Service unavailable"),
-    );
+    fetchDeals.mockRejectedValue(new Error("Service unavailable"));
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("Weekly deals unavailable");
@@ -258,7 +250,7 @@ describe("shopping profile with weekly deals", () => {
   it("normalizes string booleans without treating false as an opt-in", async () => {
     const disabled = await call({ includeWeeklyDeals: " FALSE " });
     expect(disabled.text).not.toContain("Weekly deals");
-    expect(getQfcWeeklyDeals).not.toHaveBeenCalled();
+    expect(fetchDeals).not.toHaveBeenCalled();
     const enabled = await call({ includeWeeklyDeals: "true" });
     expect(enabled.text).toContain("Black beans");
   });
@@ -266,18 +258,18 @@ describe("shopping profile with weekly deals", () => {
   it("keeps stale fallback when the refresh exceeds its deadline instead of caching partial data", async () => {
     seedCache({ freshUntil: Date.now() - 60_000 });
     const originalCache = cache.get(CACHE_KEY);
+
     const signal = AbortSignal.abort(
       new DOMException("Deal request timed out", "TimeoutError"),
     );
+
     vi.spyOn(AbortSignal, "timeout").mockReturnValue(signal);
-    vi.mocked(getQfcWeeklyDeals).mockResolvedValue(
-      dealsResponse({ deals: [] }),
-    );
+    fetchDeals.mockResolvedValue(dealsResponse({ deals: [] }));
     const result = await call({ includeWeeklyDeals: true });
     expect(result.isError).toBe(false);
     expect(result.text).toContain("cache=stale");
     expect(result.text).toContain("Black beans");
-    expect(getQfcWeeklyDeals).toHaveBeenCalledWith(
+    expect(fetchDeals).toHaveBeenCalledWith(
       expect.objectContaining({ signal }),
     );
     expect(cache.get(CACHE_KEY)).toBe(originalCache);

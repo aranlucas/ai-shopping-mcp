@@ -2,6 +2,7 @@ import type { CallToolResult } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 const APP_VIEW_META_KEY = "dev.aranlucas/view";
+
 const dealSchema = z.object({
   title: z.string(),
   details: z.string().optional(),
@@ -11,6 +12,7 @@ const dealSchema = z.object({
   validTill: z.string().optional(),
   category: z.string(),
 });
+
 const locationSchema = z.object({
   locationId: z.string().optional(),
   name: z.string().optional(),
@@ -30,6 +32,7 @@ const locationSchema = z.object({
     )
     .optional(),
 });
+
 const productSchema = z.object({
   upc: z.string().trim().min(1),
   name: z.string(),
@@ -64,11 +67,13 @@ const pantryItemSchema = z.object({
   addedAt: z.string().optional(),
   expiresAt: z.string().optional(),
 });
+
 const equipmentItemSchema = z.object({
   equipmentName: z.string(),
   category: z.string().optional(),
   addedAt: z.string().optional(),
 });
+
 const shoppingListItemSchema = z.object({
   productName: z.string(),
   upc: z.string().optional(),
@@ -78,24 +83,28 @@ const shoppingListItemSchema = z.object({
   id: z.string().optional(),
   checked: z.boolean().optional(),
 });
+
 const shoppingListSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
   itemCount: z.number(),
   updatedAt: z.string(),
 });
+
 const cartViewItemSchema = z.object({
   upc: z.string(),
   productName: z.string().optional(),
   quantity: z.number(),
   modality: z.string().optional(),
 });
+
 const orderItemSchema = z.object({
   upc: z.string().optional(),
   productName: z.string(),
   quantity: z.number(),
   price: z.number().optional(),
 });
+
 const cartResultSchema = z
   .object({
     outcome: z.enum(["added", "already_added", "needs_match"]),
@@ -124,6 +133,7 @@ const cartResultSchema = z
         message: "addedCount must equal the number of returned cart items",
       });
     }
+
     if (value.addedCount > value.requestedCount) {
       ctx.addIssue({
         code: "custom",
@@ -131,6 +141,7 @@ const cartResultSchema = z
         message: "requestedCount cannot be less than addedCount",
       });
     }
+
     if (value.outcome === "needs_match" && value.addedCount !== 0) {
       ctx.addIssue({
         code: "custom",
@@ -138,6 +149,7 @@ const cartResultSchema = z
         message: "needs_match cannot report added cart items",
       });
     }
+
     if (
       (value.outcome === "added" || value.outcome === "already_added") &&
       value.addedCount === 0
@@ -219,15 +231,24 @@ export const appPayloadSchemas = {
     notes: z.string().optional(),
   }),
 };
+
 export type DealData = z.infer<typeof dealSchema>;
+
 export type LocationData = z.infer<typeof locationSchema>;
+
 export type ProductData = z.infer<typeof productSchema>;
+
 export type PantryItemData = z.infer<typeof pantryItemSchema>;
+
 export type KitchenEquipmentItemData = z.infer<typeof equipmentItemSchema>;
+
 export type ShoppingListItemData = z.infer<typeof shoppingListItemSchema>;
+
 export type ShoppingListSummaryData = z.infer<typeof shoppingListSummarySchema>;
+
 export type CartViewItemData = z.infer<typeof cartViewItemSchema>;
-type AppResultPayloads = {
+
+export type AppResultPayloads = {
   [View in keyof typeof appPayloadSchemas]: z.infer<
     (typeof appPayloadSchemas)[View]
   >;
@@ -240,32 +261,44 @@ export type AppData = {
 }[AppViewName];
 
 export type WeeklyDealsContent = Extract<AppData, { view: "get_weekly_deals" }>;
+
 export type StoreResultsContent = Extract<AppData, { view: "search_stores" }>;
+
 export type StoreDetailContent = Extract<AppData, { view: "get_store" }>;
+
 export type PreferredStoreContent = Extract<
   AppData,
   { view: "set_preferred_store" }
 >;
+
 export type ProductSearchResultsContent = Extract<
   AppData,
   { view: "search_products" }
 >;
+
 export type ProductDetailContent = Extract<AppData, { view: "get_product" }>;
+
 export type PantryListContent = Extract<AppData, { view: "pantry" }>;
+
 export type KitchenEquipmentContent = Extract<
   AppData,
   { view: "kitchen_equipment" }
 >;
+
 export type ShoppingListContent = Extract<
   AppData,
   { view: "create_shopping_list" }
 >;
+
 export type AddShoppingListToCartContent = Extract<
   AppData,
   { view: "add_shopping_list_to_cart" }
 >;
+
 export type OrderHistoryContent = Extract<AppData, { view: "record_order" }>;
+
 export type ShoppingListsContent = Extract<AppData, { view: "shopping_lists" }>;
+
 export type CartViewContent = Extract<AppData, { view: "view_cart" }>;
 
 export const APP_VIEW_NAMES: Record<AppViewName, true> = {
@@ -284,7 +317,7 @@ export const APP_VIEW_NAMES: Record<AppViewName, true> = {
   record_order: true,
 };
 
-const APP_VIEW_NAME_SET = new Set(Object.keys(APP_VIEW_NAMES));
+const appViewNameSchema = z.keyof(z.object(appPayloadSchemas));
 
 /** Attach a typed MCP Apps payload and its routing metadata to a tool result. */
 export function appResult<View extends AppViewName>(
@@ -302,18 +335,17 @@ export function parseAppResult(
   result: CallToolResult | null | undefined,
 ): AppData | null {
   const structuredContent = result?.structuredContent;
-  const view = result?._meta?.[APP_VIEW_META_KEY];
-  if (
-    !structuredContent ||
-    typeof view !== "string" ||
-    !APP_VIEW_NAME_SET.has(view as AppViewName)
-  ) {
-    return null;
-  }
 
-  const parsed =
-    appPayloadSchemas[view as AppViewName].safeParse(structuredContent);
+  const parsedView = appViewNameSchema.safeParse(
+    result?._meta?.[APP_VIEW_META_KEY],
+  );
+
+  if (!structuredContent || !parsedView.success) return null;
+  const view = parsedView.data;
+  const parsed = appPayloadSchemas[view].safeParse(structuredContent);
+
   if (!parsed.success) return null;
-  // The validated schema is selected by the same view discriminator.
+
+  // SAFETY: the finite validated view key selects precisely its associated payload schema, preserving the AppData discriminator/payload correlation.
   return { ...parsed.data, view } as AppData;
 }

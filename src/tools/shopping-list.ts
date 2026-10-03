@@ -66,6 +66,7 @@ export const shoppingListItemInputSchema = z
   });
 
 const listIdSchema = z.string().trim().min(1);
+
 const itemIdSchema = z.string().trim().min(1);
 
 export const createShoppingListInputSchema = z.object({
@@ -153,23 +154,30 @@ async function toStoredItems(
   const missingUpcs = items.flatMap((item) =>
     !item.productName && item.upc ? [item.upc] : [],
   );
+
   const enriched = await productService.enrichProductNames(missingUpcs);
+
   return enriched.map((names) => {
     const nameByUpc = new Map(
       missingUpcs.map((upc, index) => [upc, names[index]]),
     );
-    return items.map(
-      (item) =>
-        ({
-          productName:
-            item.productName ??
-            (item.upc ? (nameByUpc.get(item.upc) ?? item.upc) : ""),
-          ...(item.upc === undefined ? {} : { upc: item.upc }),
-          quantity: item.quantity,
-          ...(item.notes === undefined ? {} : { notes: item.notes }),
-          ...(item.price === undefined ? {} : { price: item.price }),
-        }) satisfies ShoppingListItem,
-    );
+
+    return items.map((item) => {
+      const stored: ShoppingListItem = {
+        productName:
+          item.productName ??
+          (item.upc ? (nameByUpc.get(item.upc) ?? item.upc) : ""),
+        quantity: item.quantity,
+      };
+
+      if (item.upc !== undefined) stored.upc = item.upc;
+
+      if (item.notes !== undefined) stored.notes = item.notes;
+
+      if (item.price !== undefined) stored.price = item.price;
+
+      return stored;
+    });
   });
 }
 
@@ -215,6 +223,7 @@ function describeList(list: ShoppingList): string {
   if (list.items.length === 0) {
     return `Shopping list "${list.name}" (listId=${list.id}) is empty. Add items with update_shopping_list.`;
   }
+
   return `Shopping list "${list.name}" (listId=${list.id}) has ${formatListSize(list.items)}.\n\n${listItemLines(list)}`;
 }
 
@@ -244,13 +253,16 @@ export function matchListsByName(
 ): ShoppingListSummary[] {
   const query = name.trim().toLowerCase();
   const exact = lists.filter((list) => list.name.toLowerCase() === query);
+
   if (exact.length > 0) return exact;
+
   return lists.filter((list) => list.name.toLowerCase().includes(query));
 }
 
 /** Earlier edits in a batch already committed; say which before the error. */
 function partialFailure(error: AppError, applied: string[]) {
   if (applied.length === 0) return toMcpError(error);
+
   return toMcpError({
     ...error,
     message: `${error.message} Already applied before the failure:\n${applied.join("\n")}`,
@@ -287,6 +299,7 @@ export function registerShoppingListTools(
       getProps();
 
       const enriched = await toStoredItems(productService, items);
+
       if (enriched.isErr()) return toMcpError(enriched.error);
       const enrichedItems = enriched.value;
 
@@ -298,17 +311,21 @@ export function registerShoppingListTools(
         getPantryForFlags(pantryStore),
         safeResolveLocationId(preferredLocation, undefined),
       ]);
+
       const locationId = resolvedLocation.isOk()
         ? resolvedLocation.value.locationId
         : undefined;
+
       const deals = await getDealsForFlags(weeklyDealsCache, locationId);
 
       const lines = enrichedItems
         .map((item, index) => {
           const flags = itemFlagLabels(item.productName, pantryItems, deals);
           const base = formatShoppingListItemCompact(item);
+
           const suffixed =
             flags.length > 0 ? `${base} | ${flags.join(" | ")}` : base;
+
           return `${index + 1}. ${suffixed}`;
         })
         .join("\n");
@@ -318,8 +335,10 @@ export function registerShoppingListTools(
         listName,
         enrichedItems,
       );
+
       if (result.isErr()) return toMcpError(result.error);
       const { listId, list } = result.value;
+
       return {
         content: [
           {
@@ -354,14 +373,17 @@ export function registerShoppingListTools(
     },
     async ({ listId, name }) => {
       let resolvedId = listId;
+
       if (!resolvedId) {
         const result = await safeStorage(
           () => shoppingList.list(),
           "read shopping lists",
         );
+
         if (result.isErr()) return toMcpError(result.error);
 
         const lists = result.value;
+
         if (!name) {
           if (lists.length === 0) {
             return shoppingListsViewResult(
@@ -369,6 +391,7 @@ export function registerShoppingListTools(
               "No saved lists yet. Create one with create_shopping_list.",
             );
           }
+
           return shoppingListsViewResult(
             lists,
             `${lists.length} shopping list(s).\n\n${listSummaryLines(lists)}`,
@@ -376,6 +399,7 @@ export function registerShoppingListTools(
         }
 
         const matches = matchListsByName(lists, name);
+
         if (matches.length === 0) {
           return toMcpError(
             notFoundError(
@@ -383,24 +407,30 @@ export function registerShoppingListTools(
             ),
           );
         }
+
         const exact = matches[0].name.toLowerCase() === name.toLowerCase();
+
         if (matches.length > 1 && !exact) {
           return shoppingListsViewResult(
             matches,
             `${matches.length} lists match "${name}". Pass the listId you want.\n\n${listSummaryLines(matches)}`,
           );
         }
+
         resolvedId = matches[0].id;
       }
 
       const listIdToRead = resolvedId;
+
       const result = await safeStorage(
         () => shoppingList.get(listIdToRead),
         "read shopping list",
       );
+
       if (result.isErr()) return toMcpError(result.error);
 
       const list = result.value;
+
       if (!list) {
         return toMcpError(
           notFoundError(
@@ -408,6 +438,7 @@ export function registerShoppingListTools(
           ),
         );
       }
+
       return shoppingListViewResult(list, describeList(list));
     },
   );
@@ -436,13 +467,16 @@ export function registerShoppingListTools(
       const change = (requestedChanges ?? []).filter(
         (entry) => entry.quantity !== 0,
       );
+
       const removeRefs = [
         ...(requested ?? []),
         ...(requestedChanges ?? [])
           .filter((entry) => entry.quantity === 0)
           .map((entry) => entry.itemId),
       ];
+
       const resolved = await resolveItemIds(listId, removeRefs);
+
       if (resolved.isErr()) return toMcpError(resolved.error);
 
       for (const itemId of resolved.value) {
@@ -451,6 +485,7 @@ export function registerShoppingListTools(
           () => shoppingList.removeItem(listId, itemId),
           "remove shopping list item",
         );
+
         if (removed.isErr()) return partialFailure(removed.error, summary);
         summary.push(`Removed itemId=${itemId}.`);
       }
@@ -459,6 +494,7 @@ export function registerShoppingListTools(
         const patch = Object.fromEntries(
           Object.entries(fields).filter(([, value]) => value !== undefined),
         );
+
         if (Object.keys(patch).length === 0) {
           return partialFailure(
             validationError(
@@ -467,11 +503,13 @@ export function registerShoppingListTools(
             summary,
           );
         }
+
         // oxlint-disable-next-line eslint/no-await-in-loop -- edits apply in order so a failure reports what already changed
         const updated = await safeStorage(
           () => shoppingList.updateItem(listId, itemId, patch),
           "update shopping list item",
         );
+
         if (updated.isErr()) return partialFailure(updated.error, summary);
         const item = updated.value;
         summary.push(
@@ -481,12 +519,15 @@ export function registerShoppingListTools(
 
       if (add) {
         const storedItems = await toStoredItems(productService, add);
+
         if (storedItems.isErr())
           return partialFailure(storedItems.error, summary);
+
         const added = await safeStorage(
           () => shoppingList.addItems(listId, storedItems.value),
           "add shopping list items",
         );
+
         if (added.isErr()) return partialFailure(added.error, summary);
         summary.push(
           ...added.value.map(
@@ -512,6 +553,7 @@ export function registerShoppingListTools(
     refs: string[],
   ): ResultAsync<string[], AppError> {
     if (refs.length === 0) return okAsync([]);
+
     return safeStorage(
       () => shoppingList.get(listId),
       "read shopping list",
@@ -523,14 +565,18 @@ export function registerShoppingListTools(
           ),
         );
       }
+
       const ids: string[] = [];
+
       for (const ref of refs) {
         const key = ref.trim().toLowerCase();
+
         const item =
           list.items.find((candidate) => candidate.id === ref) ??
           list.items.find(
             (candidate) => candidate.productName.toLowerCase() === key,
           );
+
         if (!item) {
           return errAsync(
             notFoundError(
@@ -543,8 +589,10 @@ export function registerShoppingListTools(
             ),
           );
         }
+
         ids.push(item.id);
       }
+
       return okAsync(ids);
     });
   }
@@ -558,8 +606,11 @@ export function registerShoppingListTools(
       () => shoppingList.get(listId),
       "read updated shopping list",
     );
+
     const list = listResult.isOk() ? listResult.value : null;
+
     if (!list) return textResult(text);
+
     return shoppingListViewResult(
       list,
       `${text}\n\nList now has ${formatListSize(list.items)}.`,

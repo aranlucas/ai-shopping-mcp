@@ -127,6 +127,7 @@ export interface WeeklyDealsResponse {
     };
   };
   meta: {
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Undocumented upstream metadata is intentionally opaque; normalized application contracts do not consume it.
     shoppableWeeklyDeals: Record<string, unknown>;
   };
 }

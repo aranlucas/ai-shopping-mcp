@@ -10,6 +10,7 @@ const candy = {
   description: "Candy",
   items: [{ fulfillment: { curbside: true } }],
 };
+
 const milk = {
   upc: "2",
   description: "Milk",
@@ -35,6 +36,7 @@ async function selectProductMatch(params: {
     ],
     forPickup: params.forPickup,
   });
+
   return selection;
 }
 
@@ -56,7 +58,9 @@ describe("Jev product selection", () => {
       upc: String(index),
       description: `Milk ${index}`,
     }));
+
     const run = vi.fn<JevRun>(stubJevAi("Milk 19").gateway("default").run);
+
     const selections = await selectProductMatches({
       ai: { gateway: () => ({ run }) },
       items: Array.from({ length: 10 }, (_, index) => ({
@@ -66,6 +70,7 @@ describe("Jev product selection", () => {
       })),
       forPickup: true,
     });
+
     expect(run).toHaveBeenCalledTimes(1);
     expect(
       Object.keys(run.mock.calls[0]?.[0].query.questions ?? {}),
@@ -97,6 +102,7 @@ describe("Jev product selection", () => {
         },
       }),
     );
+
     const selections = await selectProductMatches({
       ai: { gateway: () => ({ run }) },
       items: [
@@ -106,6 +112,7 @@ describe("Jev product selection", () => {
       ],
       forPickup: true,
     });
+
     expect(selections).toEqual([
       { requestId: "item_0", status: "unresolved" },
       { requestId: "item_1", status: "selected", product: milk },
@@ -126,6 +133,7 @@ describe("Jev product selection", () => {
         no_match: 0,
         needs_review: 0,
       }).answers.item_0;
+
       const run = vi.fn<JevRun>(async () =>
         Response.json({
           model: "jev-test",
@@ -135,6 +143,7 @@ describe("Jev product selection", () => {
               : { item_0: answer, item_9: answer },
         }),
       );
+
       await expect(
         selectProductMatches({
           ai: { gateway: () => ({ run }) },
@@ -153,12 +162,14 @@ describe("Jev product selection", () => {
     const stub = stubJevAi("Milk");
     const run = vi.fn<JevRun>(stub.gateway("default").run);
     const gateway = vi.fn<SelectorAi["gateway"]>(() => ({ run }));
+
     const result = await selectProductMatch({
       ai: { gateway },
       query: "milk",
       products: [candy, milk],
       forPickup: true,
     });
+
     expect(result).toEqual({
       requestId: "item_0",
       status: "selected",
@@ -194,6 +205,7 @@ describe("Jev product selection", () => {
           }),
         ),
       );
+
       expect(
         await selectProductMatch({
           ai: { gateway: () => ({ run }) },
@@ -221,6 +233,7 @@ describe("Jev product selection", () => {
       { ...milk, upc: undefined },
       milk,
     ];
+
     const run = vi.fn<JevRun>(stubJevAi().gateway("default").run);
     expect(
       await selectProductMatch({
@@ -285,6 +298,7 @@ describe("Jev product selection", () => {
     const run = vi.fn<JevRun>(async () => {
       throw new Error("Provider unavailable");
     });
+
     await expect(
       selectProductMatch({
         ai: { gateway: () => ({ run }) },
@@ -300,6 +314,7 @@ describe("Jev product selection", () => {
     const run = vi.fn<JevRun>(
       async () => new Response("Provider unavailable", { status: 503 }),
     );
+
     await expect(
       selectProductMatch({
         ai: { gateway: () => ({ run }) },
@@ -314,6 +329,7 @@ describe("Jev product selection", () => {
   it("aborts and rejects after the deadline even when the binding ignores cancellation", async () => {
     vi.useFakeTimers();
     const run = vi.fn<JevRun>(() => new Promise(() => {}));
+
     // oxlint-disable-next-line vitest/valid-expect -- attach the rejection handler before advancing fake time; awaited below
     const pending = expect(
       selectProductMatch({
@@ -323,6 +339,7 @@ describe("Jev product selection", () => {
         forPickup: false,
       }),
     ).rejects.toThrow("timed out");
+
     await vi.advanceTimersByTimeAsync(5000);
     await pending;
     expect(run.mock.calls[0]?.[1].signal.aborted).toBe(true);

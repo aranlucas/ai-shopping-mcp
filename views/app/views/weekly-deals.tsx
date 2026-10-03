@@ -1,7 +1,13 @@
-import type {
-  App,
-  McpUiHostContext,
-} from "@modelcontextprotocol/ext-apps/react";
+import {
+  type ShoppingAppClient,
+  type DealData,
+  type ProductSearchResultsContent,
+  type WeeklyDealsContent,
+  callTool,
+  parseToolResult,
+  sendUserMessage,
+} from "../../shared/types.js";
+import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 import {
   type ChangeEvent,
   useCallback,
@@ -20,14 +26,6 @@ import {
 } from "../../shared/components.js";
 import { useResettableState } from "../../shared/hooks.js";
 import { EmptyState } from "../../shared/status.js";
-import {
-  type DealData,
-  type ProductSearchResultsContent,
-  type WeeklyDealsContent,
-  callTool,
-  parseToolResult,
-  sendUserMessage,
-} from "../../shared/types.js";
 import { toolResultErrorMessage } from "../tool-calls.js";
 import { ProductSearchView } from "./product-search.js";
 
@@ -85,13 +83,17 @@ function DealCard({
   const [searchState, setSearchState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+
   const [planState, setPlanState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+
   const [error, setError] = useState<string | null>(null);
+
   const handleSearch = useCallback(async () => {
     setSearchState("loading");
     setError(null);
+
     try {
       await onSearch(deal.title);
       setSearchState("done");
@@ -104,9 +106,11 @@ function DealCard({
       );
     }
   }, [deal.title, onSearch]);
+
   const handlePlanMeal = useCallback(async () => {
     setPlanState("loading");
     setError(null);
+
     try {
       await onPlanMeal(deal.title);
       setPlanState("done");
@@ -185,29 +189,35 @@ export function WeeklyDealsView({
   hostContext,
 }: {
   data: WeeklyDealsContent;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
   hostContext?: McpUiHostContext;
 }) {
   const { deals, validFrom, validTill } = data;
   const [category, setCategory] = useResettableState(data, () => "");
+
   const [searchResult, setSearchResult] = useResettableState(
     data,
     (): ProductSearchResultsContent | null => null,
   );
+
   const contentRef = useRef<HTMLDivElement>(null);
+
   const groups = useMemo(() => {
     const grouped = new Map<string, DealData[]>();
+
     for (const deal of deals) {
       const entries = grouped.get(deal.category) ?? [];
       entries.push(deal);
       grouped.set(deal.category, entries);
     }
+
     return [...grouped].map(([name, entries]) => ({
       category: name,
       deals: entries,
     }));
   }, [deals]);
+
   const visibleGroups = category
     ? groups.filter((group) => group.category === category)
     : groups;
@@ -242,11 +252,13 @@ export function WeeklyDealsView({
         name: "search_products",
         arguments: { terms: [title], storeId: data.storeId },
       });
+
       if (result.isError)
         throw new Error(
           toolResultErrorMessage(result, "Product search failed. Try again."),
         );
       const parsed = parseToolResult(result);
+
       if (parsed?.view !== "search_products")
         throw new Error(
           "No product results were returned. Try searching with your assistant.",
@@ -255,6 +267,7 @@ export function WeeklyDealsView({
     },
     [app, data.storeId, setSearchResult],
   );
+
   const handlePlanMeal = useCallback(
     async (title: string) => {
       await sendUserMessage(
@@ -264,22 +277,27 @@ export function WeeklyDealsView({
     },
     [app],
   );
+
   const handleCategoryChange = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => setCategory(event.target.value),
     [setCategory],
   );
+
   const handleBack = useCallback(
     () => setSearchResult(null),
     [setSearchResult],
   );
+
   const headerBadge = useMemo(
     () => <Badge variant="secondary">{deals.length} deals</Badge>,
     [deals.length],
   );
+
   const headerTrailing = useMemo(
     () => <DisplayModeToggle app={app} hostContext={hostContext} />,
     [app, hostContext],
   );
+
   const warnings = data.warnings?.length
     ? data.warnings
     : data.cache?.state === "stale"

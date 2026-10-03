@@ -54,6 +54,7 @@ export async function loadWeeklyDeals(
   { storeId, limit, pageLimit, signal }: WeeklyDealsLoadParams,
 ): Promise<Result<LoadedWeeklyDeals, AppError>> {
   const locationResult = await deps.resolveLocationId(storeId);
+
   if (locationResult.isErr()) {
     return err(
       locationResult.error.type === "NOT_FOUND"
@@ -70,6 +71,7 @@ export async function loadWeeklyDeals(
   const cacheReadError = cacheResult.isErr() ? cacheResult.error : undefined;
 
   let staleEntry: WeeklyDealsCacheEntry | null = null;
+
   if (cacheResult.isOk()) {
     if (cacheResult.value.kind === "fresh") {
       return ok({
@@ -80,6 +82,7 @@ export async function loadWeeklyDeals(
         cacheState: "fresh",
       });
     }
+
     if (cacheResult.value.kind === "stale") {
       staleEntry = cacheResult.value.entry;
     }
@@ -87,15 +90,17 @@ export async function loadWeeklyDeals(
 
   const liveResult = await ResultAsync.fromPromise(
     (async () => {
-      const liveData = await deps.fetchLive({
-        locationId,
-        limit,
-        pageLimit,
-        ...(signal ? { signal } : {}),
-      });
+      const options: Parameters<
+        WeeklyDealsServiceDependencies["fetchLive"]
+      >[0] = { locationId, limit, pageLimit };
+
+      if (signal) options.signal = signal;
+      const liveData = await deps.fetchLive(options);
+
       // A timed-out source must not replace a usable stale entry or be cached
       // as a successful empty response.
       signal?.throwIfAborted();
+
       return liveData;
     })(),
     (error): AppError =>
@@ -144,6 +149,7 @@ export async function loadWeeklyDeals(
         cacheKey,
         liveData,
       );
+
       if (cacheWriteResult.isErr()) {
         liveData = addWarning(
           liveData,
@@ -183,7 +189,10 @@ export async function getCachedWeeklyDealsForFlags(
 ): Promise<QfcDealsApiResponse | null> {
   const key = buildWeeklyDealsCacheKey(params);
   const result = await weeklyDealsCache.read(key);
+
   if (result.isErr()) return null;
+
   if (result.value.kind === "miss") return null;
+
   return result.value.entry.data;
 }

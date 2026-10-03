@@ -1,8 +1,11 @@
+import { locationClient } from "../kroger-clients.js";
+import { strictFake } from "../strict-fake.js";
+import { appPayloadSchemas } from "../../src/app-results.js";
+import { parseToolPayload } from "../app-payload.js";
 // oxlint-disable perfectionist/sort-imports
-// tool-test-harness installs module mocks before the tool module is imported.
+// oxlint-disable perfectionist/sort-imports
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { KrogerClients } from "../../src/services/kroger/client.js";
 import type { PreferredLocation } from "../../src/domain/shopping.js";
 import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 
@@ -28,7 +31,8 @@ describe("location storage-backed tools", () => {
   });
 
   it("searches stores with query filters and returns structured stores", async () => {
-    const getCalls: unknown[] = [];
+    const getCalls: Request[] = [];
+
     const location = {
       locationId: "70500847",
       name: "QFC Broadway",
@@ -42,16 +46,13 @@ describe("location storage-backed tools", () => {
       geolocation: { latitude: 47.6, longitude: -122.3 },
       hours: { timezone: "America/Los_Angeles" },
     };
+
     const context = makeContext();
-    context.locationClient = {
-      GET: async (_path: string, request: unknown) => {
-        getCalls.push(request);
-        return {
-          data: { data: [location] },
-          response: new Response(null, { status: 200 }),
-        };
-      },
-    } as unknown as KrogerClients["locationClient"];
+    context.locationClient = locationClient(async (request) => {
+      getCalls.push(request);
+
+      return Response.json({ data: [location] });
+    });
     registerLocation(context);
 
     const result = await getCapturedHandler("search_stores")({
@@ -67,21 +68,18 @@ describe("location storage-backed tools", () => {
         stores: [{ locationId: "70500847", name: "QFC Broadway" }],
       },
     });
-    const store = (
-      result as {
-        structuredContent: { stores: Array<Record<string, unknown>> };
-      }
-    ).structuredContent.stores[0];
+
+    const store = parseToolPayload(appPayloadSchemas.search_stores, result)
+      .stores[0];
+
     expect(store).not.toHaveProperty("geolocation");
     expect(store).not.toHaveProperty("hours");
-    expect(getCalls[0]).toMatchObject({
-      params: {
-        query: {
-          "filter.zipCode.near": "98122",
-          "filter.limit": 3,
-          "filter.chain": "QFC",
-        },
-      },
+    expect(
+      Object.fromEntries(new URL(getCalls[0].url).searchParams),
+    ).toMatchObject({
+      "filter.zipCode.near": "98122",
+      "filter.limit": "3",
+      "filter.chain": "QFC",
     });
   });
 
@@ -89,18 +87,15 @@ describe("location storage-backed tools", () => {
     const context = makeContext();
     registerLocation(context);
     const tool = getCapturedTool("search_stores");
-    const config = tool.config as {
-      inputSchema: {
-        safeParse: (v: unknown) => { success: boolean };
-        parse: (v: unknown) => { limit: number };
-      };
-    };
+
+    const config = tool.config;
 
     expect(config.inputSchema.safeParse({}).success).toBe(false);
     expect(config.inputSchema.safeParse({ zipCode: "98122" }).success).toBe(
       true,
     );
     expect(config.inputSchema.parse({ zipCode: "98122" }).limit).toBe(5);
+
     // Misspelled zip keys are read as zipCode rather than rejected.
     for (const key of ["zip", "zipCodeNear", "zipCodeNearv", "postalCode"]) {
       expect
@@ -126,13 +121,11 @@ describe("location storage-backed tools", () => {
       ],
       geolocation: { latitude: 47.6, longitude: -122.3 },
     };
+
     const context = makeContext();
-    context.locationClient = {
-      GET: async () => ({
-        data: { data: location },
-        response: new Response(null, { status: 200 }),
-      }),
-    } as unknown as KrogerClients["locationClient"];
+    context.locationClient = locationClient(async () =>
+      Response.json({ data: location }),
+    );
     registerLocation(context);
 
     const result = await getCapturedHandler("search_stores")({
@@ -152,20 +145,15 @@ describe("location storage-backed tools", () => {
         },
       },
     });
-    const store = (
-      result as { structuredContent: { store: Record<string, unknown> } }
-    ).structuredContent.store;
+
+    const store = parseToolPayload(appPayloadSchemas.get_store, result).store;
+
     expect(store).not.toHaveProperty("geolocation");
   });
 
   it("returns an error when location details are missing", async () => {
     const context = makeContext();
-    context.locationClient = {
-      GET: async () => ({
-        data: {},
-        response: new Response(null, { status: 200 }),
-      }),
-    } as unknown as KrogerClients["locationClient"];
+    context.locationClient = locationClient(async () => Response.json({}));
     registerLocation(context);
 
     const result = await getCapturedHandler("search_stores")({
@@ -180,34 +168,33 @@ describe("location storage-backed tools", () => {
 
   it("saves preferred location details for the authenticated user", async () => {
     const savedLocations: PreferredLocation[] = [];
+
     const context = makeContext(
       makeStorage({
-        preferredLocation: {
+        preferredLocation: strictFake<PreferredLocationStore>({
           set: async (location: PreferredLocation) => {
             savedLocations.push(location);
           },
           get: async () => savedLocations.at(-1) ?? null,
-        } as unknown as PreferredLocationStore,
+        }),
       }),
     );
-    context.locationClient = {
-      GET: async () => ({
+
+    context.locationClient = locationClient(async () =>
+      Response.json({
         data: {
-          data: {
-            locationId: "70500847",
-            name: "QFC Broadway",
-            chain: "QFC",
-            address: {
-              addressLine1: "500 Broadway E",
-              city: "Seattle",
-              state: "WA",
-              zipCode: "98102",
-            },
+          locationId: "70500847",
+          name: "QFC Broadway",
+          chain: "QFC",
+          address: {
+            addressLine1: "500 Broadway E",
+            city: "Seattle",
+            state: "WA",
+            zipCode: "98102",
           },
         },
-        response: new Response(null, { status: 200 }),
       }),
-    } as unknown as KrogerClients["locationClient"];
+    );
     registerLocation(context);
 
     const result = await getCapturedHandler("set_preferred_store")({
@@ -236,12 +223,7 @@ describe("location storage-backed tools", () => {
 
   it("returns an error when the API returns no data for the given storeId", async () => {
     const context = makeContext();
-    context.locationClient = {
-      GET: async () => ({
-        data: {},
-        response: new Response(null, { status: 200 }),
-      }),
-    } as unknown as KrogerClients["locationClient"];
+    context.locationClient = locationClient(async () => Response.json({}));
     registerLocation(context);
 
     const result = await getCapturedHandler("set_preferred_store")({

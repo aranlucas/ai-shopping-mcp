@@ -30,6 +30,7 @@ export const weeklyDealWarningSchema = z.object({
 export type WeeklyDealWarningCode = z.output<
   typeof weeklyDealWarningCodeSchema
 >;
+
 export type WeeklyDealWarning = z.output<typeof weeklyDealWarningSchema>;
 
 /** Construct a warning while keeping the details free of presentation text. */
@@ -153,6 +154,7 @@ export const productSearchProductSchema = z.object({
 });
 
 export const productSearchProductsSchema = z.array(productSearchProductSchema);
+
 export type ProductSearchProduct = z.output<typeof productSearchProductSchema>;
 
 const normalizedDealSchema = z.object({
@@ -193,6 +195,7 @@ export const normalizedWeeklyDealsResultSchema = z.object({
 });
 
 export type NormalizedWeeklyDeal = z.output<typeof normalizedDealSchema>;
+
 export type QfcDealsApiResponse = z.output<
   typeof normalizedWeeklyDealsResultSchema
 >;
@@ -202,13 +205,13 @@ export type QfcDealsApiResponse = z.output<
  * model.  Convert those records to an explicit legacy warning at the cache
  * boundary; every value returned from this parser is still normalized.
  */
-const cacheWarningSchema = z
-  .union([weeklyDealWarningSchema, z.string()])
-  .transform((warning): WeeklyDealWarning =>
-    typeof warning === "string"
-      ? { code: "legacy", details: { message: warning } }
-      : warning,
-  );
+const cacheWarningSchema = z.union([
+  weeklyDealWarningSchema,
+  z.string().transform((message): WeeklyDealWarning => ({
+    code: "legacy",
+    details: { message },
+  })),
+]);
 
 export const cacheWeeklyDealsResultSchema =
   normalizedWeeklyDealsResultSchema.extend({

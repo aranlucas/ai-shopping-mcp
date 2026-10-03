@@ -1,13 +1,14 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
-import { useCallback, useMemo, useState } from "react";
-import { Badge } from "../../shared/ui/badge";
-import { ActionButton, SectionHeader } from "../../shared/components.js";
-import { EmptyState } from "../../shared/status.js";
 import type {
+  ShoppingAppClient,
   AppData,
   ShoppingListSummaryData,
   ShoppingListsContent,
 } from "../../shared/types.js";
+
+import { useCallback, useMemo, useState } from "react";
+import { Badge } from "../../shared/ui/badge";
+import { ActionButton, SectionHeader } from "../../shared/components.js";
+import { EmptyState } from "../../shared/status.js";
 import { openShoppingList } from "../tool-calls.js";
 
 const EMPTY_LISTS_ICON = (
@@ -29,6 +30,7 @@ const EMPTY_LISTS_ICON = (
 
 function formatUpdated(value: string): string {
   const date = new Date(value);
+
   return Number.isNaN(date.getTime())
     ? ""
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -46,14 +48,17 @@ function ListRow({
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">(
     "idle",
   );
+
   const handleOpen = useCallback(async () => {
     setState("loading");
+
     try {
       await onOpen(list.id);
     } catch {
       setState("error");
     }
   }, [list.id, onOpen]);
+
   const updated = formatUpdated(list.updatedAt);
 
   return (
@@ -91,16 +96,18 @@ export function ShoppingListsView({
 }: {
   data: ShoppingListsContent;
   setData: (data: AppData | null) => void;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
 }) {
   const { lists } = data;
+
   const handleOpen = useCallback(
     async (listId: string) => {
       setData(await openShoppingList(app, listId));
     },
     [app, setData],
   );
+
   const headerBadge = useMemo(
     () => <Badge variant="secondary">{lists.length}</Badge>,
     [lists.length],

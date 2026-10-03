@@ -93,8 +93,10 @@ describe("order history insights", () => {
       // Each product: bought every 10 days; "last" varies so overdue amount
       // (daysSinceLast - medianIntervalDays) is 5, 10, 15, 20, 25, 30.
       const lastDays = [15, 20, 25, 30, 35, 40];
+
       const orders = lastDays.flatMap((last, i) => {
         const name = `Product${i + 1}`;
+
         return [
           makeOrder(`${name}-o1`, last + 20, [{ productName: name }]),
           makeOrder(`${name}-o2`, last + 10, [{ productName: name }]),
@@ -121,6 +123,7 @@ describe("order history insights", () => {
         totalItems: 1,
         placedAt: "not-a-date",
       };
+
       const orders = [
         badOrder,
         makeOrder("o1", 50, [{ productName: "Milk" }]),

@@ -1,16 +1,19 @@
+import type { CreateShoppingListArgs } from "../../src/tools/tool-types.js";
+import type { TestToolResult } from "../v2-tool-handler.js";
 /**
  * Covers the app-backed list surface: list tools return the editable list
  * view, lists can be found by name, prices produce an estimated total, and
  * pantry items can be partly used up.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { parseAppResult as parseAppPayload } from "../../src/app-results.js";
 
 /** Test results carry an untyped `_meta`; parse it as the host would. */
-function parseAppResult(result: unknown) {
-  return parseAppPayload(result as Parameters<typeof parseAppPayload>[0]);
+function parseAppResult(result: TestToolResult) {
+  return parseAppPayload(result);
 }
+
 import { registerInventoryTools } from "../../src/tools/inventory.js";
 import {
   matchListsByName,
@@ -25,30 +28,27 @@ import {
   resetToolTestHarness,
 } from "./tool-test-harness.js";
 
-vi.mock("agents/mcp/server", () => ({
-  getMcpAuthContext: () => ({
-    props: {
-      id: "user-123",
-      accessToken: "test-token",
-      tokenExpiresAt: Date.now() + 60_000,
-    },
-  }),
-}));
-
 function setup() {
   const fixture = makeContext(makeStorage());
   registerShoppingListTools(fixture.server, fixture);
   registerInventoryTools(fixture.server, fixture);
+
   return fixture;
 }
 
-async function createList(name: string, items: Record<string, unknown>[]) {
+async function createList(
+  name: string,
+  items: CreateShoppingListArgs["items"],
+) {
   const result = await getCapturedHandler("create_shopping_list")({
     name,
     items,
   });
+
   const data = parseAppResult(result);
+
   if (data?.view !== "create_shopping_list") throw new Error("no list view");
+
   return data;
 }
 
@@ -58,6 +58,7 @@ describe("list totals", () => {
       { productName: "Milk", quantity: 2, price: 3.49 },
       { productName: "Herbs", quantity: 1 },
     ];
+
     expect(estimateListTotal(items)).toEqual({ total: 6.98, pricedCount: 1 });
     expect(formatListSize(items)).toBe("2 item(s), ~$6.98 est., 1 priced");
     expect(formatListSize([{ productName: "Herbs", quantity: 1 }])).toBe(
@@ -93,6 +94,7 @@ describe("app-backed shopping list tools", () => {
 
   it("stores prices and reports an estimated total on create", async () => {
     setup();
+
     const result = await getCapturedHandler("create_shopping_list")({
       name: "Dinner",
       items: [
@@ -121,6 +123,7 @@ describe("app-backed shopping list tools", () => {
 
   it("opens a list by name", async () => {
     setup();
+
     const created = await createList("Tuesday dinner", [
       { productName: "Rice" },
     ]);
@@ -151,6 +154,7 @@ describe("app-backed shopping list tools", () => {
 
   it("reports a missing name as not found", async () => {
     setup();
+
     const result = await getCapturedHandler("get_shopping_list")({
       name: "nothing",
     });
@@ -179,16 +183,19 @@ describe("app-backed shopping list tools", () => {
 
   it("returns the updated list after checking off and removing items", async () => {
     setup();
+
     const created = await createList("Dinner", [
       { productName: "Rice" },
       { productName: "Beans" },
     ]);
+
     const [rice, beans] = created.items;
 
     const checked = await getCapturedHandler("update_shopping_list")({
       listId: created.listId,
       change: [{ itemId: rice.id, checked: true }],
     });
+
     expect(parseAppResult(checked)).toMatchObject({
       items: [{ productName: "Rice", checked: true }, { checked: false }],
     });
@@ -197,6 +204,7 @@ describe("app-backed shopping list tools", () => {
       listId: created.listId,
       remove: [beans.id],
     });
+
     expect(removed.text).toContain(`Removed itemId=${beans.id}`);
     expect(parseAppResult(removed)).toMatchObject({
       items: [{ productName: "Rice" }],

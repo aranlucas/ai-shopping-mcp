@@ -1,5 +1,5 @@
 import { normalizeKrogerPrice } from "./kroger/price.js";
-import type * as z from "zod/v4";
+import * as z from "zod/v4";
 
 import type {
   Circular,
@@ -30,12 +30,15 @@ export type {
 } from "./weekly-deals/schema.js";
 
 const QFC_WEEKLY_AD_BASE = "https://www.qfc.com";
+
 const KROGER_DIGITAL_ADS_BASE = "https://api.kroger.com";
+
 const DACS_BASE = "https://oms-kroger-webapp-da-classic-api-prod.przone.net";
+
 const DACS_PUBLIC_API_KEY = "bqwwosbzrzcvffztxzyczieljzsahmkp";
+
 const DEFAULT_QFC_LOCATION_ID = "70500847";
 
-type JsonRecord = Record<string, unknown>;
 /**
  * Callback for searching Kroger products via the authenticated Product API.
  * Returns an array of products matching the search term at the given location.
@@ -61,7 +64,9 @@ export interface QfcWeeklyDealsOptions {
 }
 
 type DacsListingResponse = z.output<typeof dacsListingResponseSchema>;
+
 type DacsPageResponse = z.output<typeof dacsPageResponseSchema>;
+
 type DacsOfferDetails = z.output<typeof dacsOfferDetailsSchema>;
 
 interface ParsedDacsOffer {
@@ -80,12 +85,14 @@ function getDefaultLocationId(locationId?: string): string {
 
 function inferDivisionCode(locationId: string, explicit?: string): string {
   if (explicit) return explicit;
+
   return locationId.slice(0, 3);
 }
 
-function safeErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
+function safeErrorMessage(cause: unknown): string {
+  if (cause instanceof Error) return cause.message;
+
+  return String(cause);
 }
 
 function normalizedResult(
@@ -98,9 +105,11 @@ function formatPrice(
   value: number | null | undefined,
   uom?: string | null,
 ): string {
-  if (typeof value !== "number" || Number.isNaN(value)) return "";
+  if (value === null || value === undefined || Number.isNaN(value)) return "";
+
   const price =
     value >= 1 ? `$${value.toFixed(2)}` : `${Math.round(value * 100)}¢`;
+
   return uom ? `${price}/${uom}` : price;
 }
 
@@ -110,11 +119,14 @@ async function fetchJson<TSchema extends z.ZodType>(
   init?: RequestInit,
 ): Promise<{ data: z.output<TSchema>; response: Response }> {
   const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+
   const signal = init?.signal
     ? AbortSignal.any([init.signal, timeoutSignal])
     : timeoutSignal;
+
   const response = await fetch(url, { ...init, signal });
   const text = await response.text();
+
   const parsed = text
     ? safeJsonParse(text).match(
         (value) => value,
@@ -127,17 +139,22 @@ async function fetchJson<TSchema extends z.ZodType>(
     : {};
 
   if (!response.ok) {
+    const errorDetails = z.object({ errors: z.unknown() }).safeParse(parsed);
+
     const errorText =
-      typeof parsed === "object" && parsed && "errors" in (parsed as JsonRecord)
-        ? JSON.stringify((parsed as JsonRecord).errors)
+      errorDetails.success && "errors" in errorDetails.data
+        ? JSON.stringify(errorDetails.data.errors)
         : JSON.stringify(parsed).slice(0, 400);
+
     throw new Error(`HTTP ${response.status} for ${url}: ${errorText}`);
   }
 
   const validated = schema.safeParse(parsed);
+
   if (!validated.success) {
     throw new Error(`Invalid response from ${url}: ${validated.error.message}`);
   }
+
   return { data: validated.data, response };
 }
 
@@ -160,9 +177,11 @@ async function fetchQfcWeeklyCirculars(params: {
 
 function selectCurrentCirculars(circulars: Circular[]) {
   const now = Date.now();
+
   const active = circulars.filter((c) => {
     const start = Date.parse(c.eventStartDate);
     const end = Date.parse(c.eventEndDate);
+
     return (
       Number.isFinite(start) &&
       Number.isFinite(end) &&
@@ -214,6 +233,7 @@ function productDealPrice(product: DealProduct) {
   const { price, regularPrice } = normalizeKrogerPrice(
     product.items?.[0]?.price,
   );
+
   return {
     price: price === undefined ? undefined : formatPrice(price),
     savings:
@@ -232,6 +252,7 @@ function normalizeProductAsDeal(product: DealProduct): NormalizedWeeklyDeal {
 
   const defaultImage =
     product.images?.find((img) => img.default) || product.images?.[0];
+
   const imageUrl =
     defaultImage?.sizes?.find((s) => s.size === "medium")?.url ||
     defaultImage?.sizes?.[0]?.url;
@@ -272,27 +293,32 @@ async function fetchDealsBySearchApi(params: {
       .then(
         (products) => {
           const parsed = productSearchProductsSchema.safeParse(products);
+
           if (!parsed.success) {
             throw new Error(
               `Invalid product search response: ${parsed.error.message}`,
             );
           }
+
           return { ok: true as const, products: parsed.data };
         },
-        (error: unknown) => ({
+        (cause: unknown) => ({
           ok: false as const,
           products: [],
-          error,
+          error: cause,
         }),
       ),
   );
 
   const results = await Promise.all(searchPromises);
+
   const failures = results.flatMap((result) =>
     result.ok ? [] : [result.error],
   );
+
   if (failures.length === results.length) {
     const firstFailure = failures[0];
+
     if (firstFailure instanceof AppErrorException) throw firstFailure;
     throw new Error(
       `All weekly deal searches failed: ${safeErrorMessage(firstFailure)}`,
@@ -306,6 +332,7 @@ async function fetchDealsBySearchApi(params: {
     const { price, regularPrice } = normalizeKrogerPrice(
       product.items?.[0]?.price,
     );
+
     return (
       price !== undefined && regularPrice !== undefined && price < regularPrice
     );
@@ -313,14 +340,18 @@ async function fetchDealsBySearchApi(params: {
 
   // Deduplicate by productId / upc
   const seen = new Set<string>();
+
   const unique = onSale.filter((product) => {
     const id = product.productId || product.upc;
+
     if (!id || seen.has(id)) return false;
     seen.add(id);
+
     return true;
   });
 
   const deals = unique.slice(0, limit).map(normalizeProductAsDeal);
+
   return {
     deals,
     termCount: DEAL_SEARCH_TERMS.length,
@@ -366,6 +397,7 @@ async function fetchPrintAdPage(params: {
     `/api/dacs/${params.eventId}/pages/${params.eventPageId}`,
     DACS_BASE,
   );
+
   url.searchParams.set("location", params.locationId);
 
   const { data } = await fetchJson(url.toString(), dacsPageResponseSchema, {
@@ -393,6 +425,7 @@ async function fetchPrintAdOfferDetails(params: {
     `/api/dacs/${params.eventId}/offers/${params.offerVersionProductGroupId}`,
     DACS_BASE,
   );
+
   url.searchParams.set("location", params.locationId);
 
   const { data } = await fetchJson(url.toString(), dacsOfferDetailsSchema, {
@@ -406,6 +439,7 @@ async function fetchPrintAdOfferDetails(params: {
     },
     signal: params.signal,
   });
+
   return data;
 }
 
@@ -416,20 +450,17 @@ function parseDacsOfferFromMapConfig(
     (value) => dacsMapConfigSchema.safeParse(value),
     () => null,
   );
+
   if (!parsed || !parsed.success) return null;
 
   const { content } = parsed.data;
   const title = content.headline.trim();
+
   if (!title) return null;
 
-  const bodyCopy =
-    typeof content.bodyCopy === "string" && content.bodyCopy.trim()
-      ? content.bodyCopy
-      : undefined;
-  const imageURL =
-    typeof content.imageURL === "string" && content.imageURL.trim()
-      ? content.imageURL
-      : undefined;
+  const bodyCopy = content.bodyCopy?.trim() ? content.bodyCopy : undefined;
+
+  const imageURL = content.imageURL?.trim() ? content.imageURL : undefined;
 
   return {
     id: String(content.id),
@@ -447,6 +478,7 @@ function normalizeDacsText(
   value: string | null | undefined,
 ): string | undefined {
   const normalized = value?.replace(/\s+/g, " ").trim();
+
   return normalized || undefined;
 }
 
@@ -456,9 +488,11 @@ function applyDacsOfferDetails(
 ): NormalizedWeeklyDeal {
   const bodyCopy = normalizeDacsText(offer.bodyCopy);
   const disclaimer = normalizeDacsText(offer.disclaimer);
+
   const details = [bodyCopy, disclaimer].filter((value): value is string =>
     Boolean(value),
   );
+
   const pricingText = normalizeDacsText(offer.pricingText);
 
   return {
@@ -475,11 +509,13 @@ function applyDacsOfferDetails(
 function dedupeDealsById<T extends { id: string }>(deals: T[]): T[] {
   const seen = new Set<string>();
   const unique: T[] = [];
+
   for (const deal of deals) {
     if (seen.has(deal.id)) continue;
     seen.add(deal.id);
     unique.push(deal);
   }
+
   return unique;
 }
 
@@ -505,9 +541,11 @@ async function normalizePrintDeals(params: {
   const limit = Math.max(1, Math.min(params.limit || 50, 200));
 
   const selectedPages = pages.slice(0, pageLimit);
+
   const pageResponses = await Promise.all(
     selectedPages.map(async (page) => {
       if (!page.eventPageId) return { contents: [], error: undefined };
+
       try {
         const response = await fetchPrintAdPage({
           eventId: params.printCircular.eventId,
@@ -515,6 +553,7 @@ async function normalizePrintDeals(params: {
           locationId: params.locationId,
           signal: params.signal,
         });
+
         return { contents: response.contents ?? [], error: undefined };
       } catch (error) {
         return { contents: [], error };
@@ -525,26 +564,31 @@ async function normalizePrintDeals(params: {
   const failedPageCount = pageResponses.filter(
     (page) => page.error !== undefined,
   ).length;
+
   if (selectedPages.length > 0 && failedPageCount === selectedPages.length) {
     const firstFailure = pageResponses.find(
       (page) => page.error !== undefined,
     )?.error;
+
     throw new Error(
       `All print-ad pages failed: ${safeErrorMessage(firstFailure)}`,
     );
   }
 
   const parsedOffers: ParsedDacsOffer[] = [];
+
   for (const page of pageResponses) {
     for (const content of page.contents || []) {
       if (content.contentType !== "Offer" || !content.mapConfig) continue;
       const parsed = parseDacsOfferFromMapConfig(content.mapConfig);
+
       if (!parsed) continue;
       parsedOffers.push(parsed);
     }
   }
 
   const selectedOffers = dedupeDealsById(parsedOffers).slice(0, limit);
+
   const offers = await Promise.all(
     selectedOffers.map(async (parsed): Promise<NormalizedWeeklyDeal> => {
       const deal: NormalizedWeeklyDeal = {
@@ -567,6 +611,7 @@ async function normalizePrintDeals(params: {
           locationId: params.locationId,
           signal: params.signal,
         });
+
         return applyDacsOfferDetails(deal, offer);
       } catch {
         // Offer details are enrichment; keep the page-level deal if one offer
@@ -601,8 +646,9 @@ async function augmentPrintDealsWithSearchApi(
 ): Promise<{ augmented: NormalizedWeeklyDeal[]; augmentedCount: number }> {
   const augmentPromises = deals.map(async (deal) => {
     const rawProducts = await searchProducts(deal.title, locationId, 5).catch(
-      () => [] as unknown[],
+      () => [],
     );
+
     const parsedProducts = productSearchProductsSchema.safeParse(rawProducts);
     const products = parsedProducts.success ? parsedProducts.data : [];
 
@@ -621,10 +667,12 @@ async function augmentPrintDealsWithSearchApi(
     const { price, savings } = productDealPrice(match);
 
     if (!price) return deal;
+
     return { ...deal, price, savings };
   });
 
   const augmented = await Promise.all(augmentPromises);
+
   const augmentedCount = augmented.filter(
     (d, i) => d.price !== deals[i].price,
   ).length;
@@ -646,11 +694,13 @@ export async function getQfcWeeklyDeals(
   // Fetch circular metadata for date context (no auth required)
   let shoppableCircular: Circular | undefined;
   let printCircular: Circular | undefined;
+
   try {
     const circulars = await fetchQfcWeeklyCirculars({
       divisionCode,
       signal: options.signal,
     });
+
     const selected = selectCurrentCirculars(circulars);
     shoppableCircular = selected.shoppable;
     printCircular = selected.print;
@@ -676,6 +726,7 @@ export async function getQfcWeeklyDeals(
       // Augment print deals with real pricing from the Kroger Search API
       let finalDeals = deals;
       let augmentedCount: number | undefined;
+
       if (options.searchProducts && deals.length > 0) {
         try {
           const result = await augmentPrintDealsWithSearchApi(
@@ -683,6 +734,7 @@ export async function getQfcWeeklyDeals(
             options.searchProducts,
             locationId,
           );
+
           finalDeals = result.augmented;
           augmentedCount = result.augmentedCount;
         } catch (error) {
@@ -703,6 +755,13 @@ export async function getQfcWeeklyDeals(
         );
       }
 
+      const meta: NonNullable<QfcDealsApiResponse["meta"]> = {
+        pageCount,
+        augmentedCount,
+      };
+
+      if (failedPageCount > 0) meta.degraded = true;
+
       return normalizedResult({
         sourceMode: "print_fallback",
         locationId,
@@ -711,11 +770,7 @@ export async function getQfcWeeklyDeals(
         printCircular,
         warnings,
         deals: finalDeals,
-        meta: {
-          pageCount,
-          augmentedCount,
-          ...(failedPageCount > 0 ? { degraded: true } : {}),
-        },
+        meta,
       });
     } catch (error) {
       warnings.push(
@@ -745,6 +800,18 @@ export async function getQfcWeeklyDeals(
         );
       }
 
+      const meta: NonNullable<QfcDealsApiResponse["meta"]> = { termCount };
+
+      if (failedTermCount > 0) {
+        meta.degraded = true;
+        meta.failedTermCount = failedTermCount;
+      }
+
+      if (failures.length > 0)
+        meta.failureMessages = failures
+          .map((failure) => safeErrorMessage(failure))
+          .slice(0, 3);
+
       return normalizedResult({
         sourceMode: "search_api",
         locationId,
@@ -753,17 +820,7 @@ export async function getQfcWeeklyDeals(
         printCircular,
         warnings,
         deals,
-        meta: {
-          termCount,
-          ...(failedTermCount > 0 ? { degraded: true, failedTermCount } : {}),
-          ...(failures.length > 0
-            ? {
-                failureMessages: failures
-                  .map((failure) => safeErrorMessage(failure))
-                  .slice(0, 3),
-              }
-            : {}),
-        },
+        meta,
       });
     } catch (error) {
       warnings.push(
@@ -771,12 +828,14 @@ export async function getQfcWeeklyDeals(
           error: safeErrorMessage(error),
         }),
       );
+
       if (error instanceof AppErrorException) {
         throw new AppErrorException({
           ...error.appError,
           message: error.appError.message,
         });
       }
+
       throw new Error(
         `Failed to fetch deals from all sources (division ${divisionCode}). ${safeErrorMessage(error)}`.trim(),
         { cause: error },

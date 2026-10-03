@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { wrapV2ToolHandler, wrapRawV2ToolHandler } from "./v2-tool-handler.js";
+import {
+  wrapV2ToolHandler,
+  wrapRawV2ToolHandler,
+  type RawToolHandler,
+} from "./v2-tool-handler.js";
 
 describe("tool test input boundary", () => {
   const config = {
@@ -18,13 +22,10 @@ describe("tool test input boundary", () => {
   };
 
   it("applies defaults, coercions and transformations before invoking the callback", async () => {
-    const handler = vi.fn<
-      (
-        args: Record<string, unknown>,
-      ) => Promise<{ content: Array<{ type: string; text: string }> }>
-    >(async (_args) => ({
+    const handler = vi.fn<RawToolHandler>(async (_args) => ({
       content: [{ type: "text", text: "ok" }],
     }));
+
     const call = wrapV2ToolHandler(handler, config);
     await call({ code: " milk " });
     expect(handler.mock.calls[0]?.[0]).toEqual({ quantity: 1, code: "MILK" });
@@ -33,13 +34,10 @@ describe("tool test input boundary", () => {
   });
 
   it("rejects invalid input before any callback side effect", async () => {
-    const handler = vi.fn<
-      (
-        args: Record<string, unknown>,
-      ) => Promise<{ content: Array<{ type: string; text: string }> }>
-    >(async (_args) => ({
+    const handler = vi.fn<RawToolHandler>(async (_args) => ({
       content: [],
     }));
+
     const call = wrapV2ToolHandler(handler, config);
     await expect(call({ code: "FORBIDDEN" })).rejects.toThrow("Forbidden code");
     await expect(call({ code: "milk", quantity: 0 })).rejects.toThrow(
@@ -49,13 +47,10 @@ describe("tool test input boundary", () => {
   });
 
   it("makes raw callback testing an explicit separate choice", async () => {
-    const handler = vi.fn<
-      (
-        args: Record<string, unknown>,
-      ) => Promise<{ content: Array<{ type: string; text: string }> }>
-    >(async (_args) => ({
+    const handler = vi.fn<RawToolHandler>(async (_args) => ({
       content: [],
     }));
+
     await wrapRawV2ToolHandler(handler)({ quantity: "unparsed" });
     expect(handler.mock.calls[0]?.[0]).toEqual({ quantity: "unparsed" });
   });

@@ -13,7 +13,9 @@ import { storageError } from "../../errors.js";
 import { weeklyDealCacheEntrySchema } from "./schema.js";
 
 export const WEEKLY_DEALS_CACHE_VERSION = 1;
+
 export const FALLBACK_FRESH_CACHE_MS = 6 * 60 * 60 * 1000;
+
 export const STALE_GRACE_MS = 48 * 60 * 60 * 1000;
 
 export type CacheReadResult =
@@ -39,6 +41,7 @@ export function buildWeeklyDealsCacheKey(params: {
   pageLimit: number;
 }): string {
   const locationId = params.locationId || "default";
+
   return [
     "qfc",
     "weekly-deals",
@@ -54,6 +57,7 @@ export function parseWeeklyDealsCacheEntry(
   raw: string | null,
 ): WeeklyDealsCacheEntry | null {
   if (!raw) return null;
+
   return safeJsonParseWithSchema(raw, weeklyDealCacheEntrySchema).match(
     (entry) => entry,
     () => null,
@@ -73,11 +77,15 @@ export function readWeeklyDealsCache(
       ),
   )().map((raw) => {
     const entry = parseWeeklyDealsCacheEntry(raw);
+
     if (!entry) return { kind: "miss" as const };
 
     const now = Date.now();
+
     if (now <= entry.freshUntil) return { kind: "fresh" as const, entry };
+
     if (now <= entry.staleUntil) return { kind: "stale" as const, entry };
+
     return { kind: "miss" as const };
   });
 }
@@ -88,9 +96,11 @@ export function getLatestCircularEndTime(
   const candidates = [
     result.shoppableCircular?.eventEndDate,
     result.printCircular?.eventEndDate,
-  ]
-    .map((value) => (value ? Date.parse(value) : Number.NaN))
-    .filter((value) => Number.isFinite(value));
+  ].flatMap((value) => {
+    const timestamp = value ? Date.parse(value) : Number.NaN;
+
+    return Number.isFinite(timestamp) ? [timestamp] : [];
+  });
 
   return candidates.length > 0 ? Math.max(...candidates) : null;
 }
@@ -104,6 +114,7 @@ export function writeWeeklyDealsCache(
   const eventEnd = getLatestCircularEndTime(data);
   const freshUntil = eventEnd ?? now + FALLBACK_FRESH_CACHE_MS;
   const staleUntil = freshUntil + STALE_GRACE_MS;
+
   const entry: WeeklyDealsCacheEntry = {
     version: WEEKLY_DEALS_CACHE_VERSION,
     createdAt: now,
@@ -116,6 +127,7 @@ export function writeWeeklyDealsCache(
     Math.ceil(staleUntil / 1000),
     Math.ceil(now / 1000) + 60,
   );
+
   return ResultAsync.fromThrowable(
     () => kv.put(key, JSON.stringify(entry), { expiration }),
     (error) =>

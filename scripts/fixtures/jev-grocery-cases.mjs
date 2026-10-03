@@ -1,5 +1,6 @@
 // Synthetic, hand-labeled challenge set. Labels are fixed before live inference.
 let nextId = 4000000000000;
+
 function product(
   name,
   {
@@ -30,7 +31,9 @@ function product(
     ],
   };
 }
+
 const p = product;
+
 function test(id, category, query, candidates, acceptableIndexes, note = "") {
   return {
     id,
@@ -41,6 +44,7 @@ function test(id, category, query, candidates, acceptableIndexes, note = "") {
     note,
   };
 }
+
 export const cases = [
   test(
     "milk-not-candy",
@@ -437,6 +441,7 @@ const fillerNames = [
   "Ice Cream Sandwiches",
   "Lemon Candy",
 ];
+
 export function expandedCandidates(testCase) {
   return [
     ...testCase.candidates,
@@ -445,13 +450,16 @@ export function expandedCandidates(testCase) {
       .map((name) => p(name)),
   ];
 }
+
 export function shuffled(values, seed) {
   const result = [...values];
   let state = seed;
+
   for (let i = result.length - 1; i > 0; i--) {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
     const j = state % (i + 1);
     [result[i], result[j]] = [result[j], result[i]];
   }
+
   return result;
 }

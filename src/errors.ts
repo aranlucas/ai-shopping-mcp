@@ -4,6 +4,7 @@
  */
 
 /** Narrowed cause type for error context — captures Error instances, strings, or structured data */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Error context intentionally retains opaque upstream objects and their identity; it is never trusted as domain data.
 export type ErrorCause = Error | string | Record<string, unknown> | undefined;
 
 /** API call to Kroger or external service failed */
@@ -81,22 +82,32 @@ export class AppErrorException extends Error {
 // --- Error constructors ---
 
 /** Coerce an unknown value into an ErrorCause for safe storage */
-function toErrorCause(value: unknown): ErrorCause {
-  if (value === undefined || value === null) return undefined;
-  if (value instanceof Error) return value;
-  if (typeof value === "string") return value;
-  if (typeof value === "object") return value as Record<string, unknown>;
-  return String(value);
+function toErrorCause(cause: unknown): ErrorCause {
+  if (cause === undefined || cause === null) return undefined;
+
+  if (cause instanceof Error) return cause;
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Opaque error retention distinguishes primitives without interpreting or cloning third-party objects.
+  if (typeof cause === "string") return cause;
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Preserve arbitrary non-null error objects, including arrays, without inspecting their contents.
+  if (typeof cause === "object") {
+    // SAFETY: the non-null object above is retained opaquely; the dictionary contract permits only unknown property values.
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve the exported opaque ErrorCause contract, including object identity.
+    return cause as Record<string, unknown>;
+  }
+
+  return String(cause);
 }
 
 export const apiError = (
   message: string,
-  detail?: unknown,
+  cause?: unknown,
   status?: number,
 ): ApiError => ({
   type: "API_ERROR",
   message,
-  detail: toErrorCause(detail),
+  detail: toErrorCause(cause),
   status,
 });
 
@@ -185,5 +196,6 @@ export function formatAppError(error: AppError): string {
   if (error.type === "API_ERROR" && error.detail) {
     return `${error.message}: ${JSON.stringify(error.detail)}`;
   }
+
   return error.message;
 }

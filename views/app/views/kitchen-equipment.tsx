@@ -1,4 +1,11 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import {
+  type ShoppingAppClient,
+  type AppData,
+  type KitchenEquipmentContent,
+  type KitchenEquipmentItemData,
+  callTool,
+  parseToolResult,
+} from "../../shared/types.js";
 
 import { useCallback, useMemo, useState } from "react";
 
@@ -6,13 +13,6 @@ import { Badge } from "../../shared/ui/badge";
 
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import {
-  type AppData,
-  type KitchenEquipmentContent,
-  type KitchenEquipmentItemData,
-  callTool,
-  parseToolResult,
-} from "../../shared/types.js";
 
 const REMOVE_ICON = (
   <svg
@@ -63,6 +63,7 @@ function KitchenEquipmentRow({
 
   const handleRemove = useCallback(async () => {
     setRemoveState("loading");
+
     try {
       await onRemove(item.equipmentName);
       setRemoveState("done");
@@ -129,7 +130,7 @@ export function KitchenEquipmentView({
 }: {
   data: KitchenEquipmentContent;
   setData: (data: AppData | null) => void;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
 }) {
   const { items, actionDetail } = data;
@@ -140,8 +141,10 @@ export function KitchenEquipmentView({
         name: "update_inventory",
         arguments: { equipment: { remove: [name] } },
       });
+
       if (result?.isError) throw new Error("Failed to remove equipment");
       const updated = parseToolResult(result);
+
       if (updated) setData(updated);
     },
     [app, setData],

@@ -15,6 +15,7 @@ describe("D1 shopping storage", () => {
     const user = shopper();
     const other = shopper();
     const now = "2026-09-23T00:00:00.000Z";
+
     const location = {
       locationId: "70500847",
       locationName: "QFC",
@@ -72,7 +73,8 @@ describe("D1 shopping storage", () => {
         // NOT NULL violation fails the whole batch.
         {
           productName: "Beans",
-          quantity: null as unknown as number,
+          // @ts-expect-error Deliberately violate the SQL NOT NULL contract to verify whole-batch rollback.
+          quantity: null,
           addedAt: now,
         },
       ]),
@@ -83,10 +85,12 @@ describe("D1 shopping storage", () => {
   it("edits lists and keeps list IDs inaccessible to another shopper", async () => {
     const user = shopper();
     const other = shopper();
+
     const created = await user.shoppingList.create({
       name: "Dinner",
       items: [{ productName: "Tomatoes", quantity: 2 }],
     });
+
     expect(created.items[0]).toMatchObject({ checked: false, quantity: 2 });
     expect(await other.shoppingList.get(created.id)).toBeNull();
     await expect(
@@ -98,12 +102,16 @@ describe("D1 shopping storage", () => {
     const [added] = await user.shoppingList.addItems(created.id, [
       { productName: "Onions", quantity: 1 },
     ]);
+
     expect(added).toBeDefined();
+
     if (!added) throw new Error("Expected the added item");
+
     const edited = await user.shoppingList.updateItem(created.id, added.id, {
       quantity: 3,
       checked: true,
     });
+
     expect(edited).toMatchObject({ quantity: 3, checked: true });
     expect((await user.shoppingList.get(created.id))?.items).toHaveLength(2);
     expect(await user.shoppingList.list()).toMatchObject([
@@ -117,12 +125,14 @@ describe("D1 shopping storage", () => {
   it("persists order history by shopper", async () => {
     const user = shopper();
     const other = shopper();
+
     const order = {
       orderId: crypto.randomUUID(),
       items: [{ productName: "Milk", quantity: 1, upc: "0001111042578" }],
       totalItems: 1,
       placedAt: "2026-09-23T00:00:00.000Z",
     };
+
     await user.orderHistory.add(order);
     expect(await user.orderHistory.getRecent()).toEqual([order]);
     expect(await other.orderHistory.getAll()).toEqual([]);

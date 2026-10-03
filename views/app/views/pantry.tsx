@@ -1,4 +1,12 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import {
+  type ShoppingAppClient,
+  type AppData,
+  type PantryItemData,
+  type PantryListContent,
+  callTool,
+  parseToolResult,
+  sendUserMessage,
+} from "../../shared/types.js";
 
 import { useCallback, useMemo, useState } from "react";
 
@@ -8,14 +16,6 @@ import { Separator } from "../../shared/ui/separator";
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import { classifyExpiry } from "../../../src/services/expiry.js";
-import {
-  type AppData,
-  type PantryItemData,
-  type PantryListContent,
-  callTool,
-  parseToolResult,
-  sendUserMessage,
-} from "../../shared/types.js";
 
 const REMOVE_ICON = (
   <svg
@@ -59,25 +59,30 @@ function ExpiryBadge({
   now: number;
 }) {
   const expiry = classifyExpiry(expiresAt, now);
+
   if (expiry.status === "none" || expiry.status === "invalid") return null;
+
   if (expiry.status === "expired")
     return (
       <Badge variant="outline" tone="danger">
         Expired
       </Badge>
     );
+
   if (expiry.status === "today")
     return (
       <Badge variant="outline" tone="danger">
         Today
       </Badge>
     );
+
   if (expiry.status === "soon")
     return (
       <Badge variant="outline" tone="warning">
         {expiry.daysUntil}d left
       </Badge>
     );
+
   return (
     <span className="text-xs text-gray-400">
       Exp{" "}
@@ -105,12 +110,14 @@ function PantryItemRow({
   const [removeState, setRemoveState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+
   const [consumeState, setConsumeState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
 
   const handleUse = useCallback(async () => {
     setConsumeState("loading");
+
     try {
       await onUse(item.productName);
       setConsumeState("idle");
@@ -122,6 +129,7 @@ function PantryItemRow({
 
   const handleRemove = useCallback(async () => {
     setRemoveState("loading");
+
     try {
       await onRemove(item.productName);
       setRemoveState("done");
@@ -209,7 +217,7 @@ export function PantryView({
 }: {
   data: PantryListContent;
   setData: (data: AppData | null) => void;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
 }) {
   const { items, actionDetail } = data;
@@ -219,10 +227,12 @@ export function PantryView({
     () =>
       items.filter((i) => {
         const expiry = classifyExpiry(i.expiresAt, now);
+
         return expiry.status === "today" || expiry.status === "soon";
       }),
     [items, now],
   );
+
   const nonExpiring = useMemo(
     () => items.filter((i) => !expiring.includes(i)),
     [items, expiring],
@@ -234,8 +244,10 @@ export function PantryView({
         name: "update_inventory",
         arguments: { pantry: { remove: [{ name }] } },
       });
+
       if (result?.isError) throw new Error("Failed to remove item");
       const updated = parseToolResult(result);
+
       if (updated) setData(updated);
     },
     [app, setData],
@@ -247,8 +259,10 @@ export function PantryView({
         name: "update_inventory",
         arguments: { pantry: { remove: [{ name, quantity: 1 }] } },
       });
+
       if (result?.isError) throw new Error("Failed to update item");
       const updated = parseToolResult(result);
+
       if (updated) setData(updated);
     },
     [app, setData],
@@ -257,6 +271,7 @@ export function PantryView({
   const handleSuggestRecipes = useCallback(() => {
     const focus =
       expiring.length > 0 ? " Prioritize what's expiring soon." : "";
+
     sendUserMessage(
       app,
       `Suggest a few recipes I can make from what's currently in my pantry.${focus}`,

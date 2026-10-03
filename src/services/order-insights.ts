@@ -9,12 +9,14 @@ export function computeFrequentlyPurchasedItems(
   limit = 10,
 ): Array<{ name: string; count: number }> {
   const itemFrequency = new Map<string, number>();
+
   for (const order of recentOrders) {
     for (const item of order.items) {
       const name = item.productName.toLowerCase();
       itemFrequency.set(name, (itemFrequency.get(name) ?? 0) + 1);
     }
   }
+
   return [...itemFrequency.entries()]
     .toSorted((a, b) => b[1] - a[1])
     .slice(0, limit)
@@ -32,6 +34,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 function median(values: number[]): number {
   const sorted = [...values].toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
+
   return sorted.length % 2 === 0
     ? (sorted[mid - 1] + sorted[mid]) / 2
     : sorted[mid];
@@ -55,11 +58,13 @@ export function computeRestockSuggestions(
 
   for (const order of orders) {
     const placedAt = new Date(order.placedAt).getTime();
+
     if (Number.isNaN(placedAt)) continue;
 
     for (const item of order.items) {
       const key = item.productName.toLowerCase();
       const existing = purchasesByName.get(key);
+
       if (existing) {
         existing.timestamps.push(placedAt);
       } else {
@@ -78,6 +83,7 @@ export function computeRestockSuggestions(
 
     const sorted = [...timestamps].toSorted((a, b) => a - b);
     const intervals: number[] = [];
+
     for (let i = 1; i < sorted.length; i++) {
       intervals.push(sorted[i] - sorted[i - 1]);
     }
@@ -102,6 +108,7 @@ export function computeRestockSuggestions(
     .toSorted((a, b) => {
       const overdueA = a.daysSinceLast - a.medianIntervalDays;
       const overdueB = b.daysSinceLast - b.medianIntervalDays;
+
       return overdueB - overdueA;
     })
     .slice(0, 5);

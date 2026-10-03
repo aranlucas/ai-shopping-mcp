@@ -1,4 +1,7 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import {
+  type ShoppingAppClient,
+  type ProductDetailContent,
+} from "../../shared/types.js";
 
 import { useCallback } from "react";
 
@@ -10,7 +13,6 @@ import {
   ProductActions,
   type SaveProductToList,
 } from "../../shared/components.js";
-import { type ProductDetailContent } from "../../shared/types.js";
 import { saveProductToList } from "../tool-calls.js";
 
 export function ProductDetailView({
@@ -19,7 +21,7 @@ export function ProductDetailView({
   canCallTools,
 }: {
   data: ProductDetailContent;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
 }) {
   const { product } = data;

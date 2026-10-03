@@ -8,19 +8,25 @@ import {
 
 function createMockKV(initialData: Record<string, string> = {}) {
   const store = new Map<string, string>(Object.entries(initialData));
+
   const get = vi.fn<(key: string) => Promise<string | null>>((key: string) =>
     Promise.resolve(store.get(key) ?? null),
   );
+
   const put = vi.fn<(key: string, value: string) => Promise<void>>(
     (key: string, value: string) => {
       store.set(key, value);
+
       return Promise.resolve();
     },
   );
+
   const del = vi.fn<(key: string) => Promise<void>>((key: string) => {
     store.delete(key);
+
     return Promise.resolve();
   });
+
   return {
     kv: { get, put, delete: del },
     store,
@@ -44,9 +50,11 @@ describe("CartPersistence", () => {
       identity,
       cartOperationStore(),
     );
+
     const items = [
       { upc: "0001111042578", quantity: 1, modality: "PICKUP" as const },
     ];
+
     await carts.cartSnapshot.set("list_deadbeef", items);
     expect(mock.put).toHaveBeenCalledWith(
       "user:user1:client:client1:list:list_deadbeef:cart_snapshot",
@@ -61,11 +69,13 @@ describe("CartPersistence", () => {
       identity,
       cartOperationStore(),
     );
+
     const second = createCartPersistence(
       mock.kv,
       { ...identity, clientId: "client2" },
       cartOperationStore(),
     );
+
     await first.cartSnapshot.set("list_deadbeef", [
       { upc: "0001111042578", quantity: 1, modality: "PICKUP" },
     ]);
@@ -79,16 +89,20 @@ describe("CartPersistence", () => {
       modality: "PICKUP",
       addedAt: "old",
     }));
+
     mock = createMockKV({ "user:user1:cart_mirror": JSON.stringify(initial) });
+
     const carts = createCartPersistence(
       mock.kv,
       identity,
       cartOperationStore(),
     );
+
     const result = await carts.cartMirror.append(
       [{ upc: "9999999999999", quantity: 1, modality: "DELIVERY" }],
       "new",
     );
+
     expect(result).toHaveLength(100);
     expect(result.at(-1)?.upc).toBe("9999999999999");
     expect(mock.put).toHaveBeenCalledWith(
@@ -104,11 +118,13 @@ describe("CartPersistence", () => {
     mock = createMockKV({
       "user:user1:client:client1:list:list_deadbeef:cart_snapshot": "{broken",
     });
+
     const carts = createCartPersistence(
       mock.kv,
       identity,
       cartOperationStore(),
     );
+
     await expect(
       carts.cartSnapshot.get("list_deadbeef"),
     ).rejects.toBeInstanceOf(CorruptPersistenceEntryError);
@@ -116,22 +132,26 @@ describe("CartPersistence", () => {
 
   it("tolerates a corrupt cart mirror read without overwriting it", async () => {
     mock = createMockKV({ "user:user1:cart_mirror": "{broken" });
+
     const carts = createCartPersistence(
       mock.kv,
       identity,
       cartOperationStore(),
     );
+
     expect(await carts.cartMirror.getAll()).toEqual([]);
     expect(mock.put).not.toHaveBeenCalled();
   });
 
   it("resolves identity lazily for request-scoped Worker auth", async () => {
     let current = identity;
+
     const carts = createCartPersistence(
       mock.kv,
       () => current,
       cartOperationStore(),
     );
+
     await carts.cartId.set("cart-a");
     current = { userId: "user2", clientId: "client2" };
     expect(await carts.cartId.get()).toBeNull();

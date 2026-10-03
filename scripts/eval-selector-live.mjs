@@ -1,3 +1,10 @@
+import { z } from "zod/v4";
+
+const selectedActualSchema = z.object({
+  upc: z.string().optional(),
+  name: z.string().optional(),
+});
+
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,18 +28,24 @@ const cases = process.argv.includes("--all")
   : process.argv.includes("--holdout")
     ? holdoutCases
     : tuningCases;
+
 const compact = process.argv.includes("--compact");
+
 const rankedControl = process.argv.includes("--ranked-control");
+
 const orders = rankedControl
   ? ["acceptable-first"]
   : ["original", "reversed", "shuffled"];
+
 const outputPath =
   process.argv.slice(2).find((arg) => !arg.startsWith("--")) ??
   "jev-evaluation-latest.json";
+
 const selectorSource = await readFile(
   new URL("./fixtures/jev-product-selector.ts", import.meta.url),
   "utf8",
 );
+
 const report = {
   startedAt: new Date().toISOString(),
   dataset: `${cases.length} synthetic hand-labeled grocery cases, ${orders.length} candidate order(s); labels fixed before inference`,
@@ -51,8 +64,11 @@ const report = {
   batches: [],
   results: [],
 };
+
 const directory = await mkdtemp(join(tmpdir(), "jev-selector-eval-"));
+
 let worker;
+
 try {
   const configPath = join(directory, "wrangler.json");
   await writeFile(
@@ -75,13 +91,16 @@ try {
       experimental: { disableExperimentalWarning: true, watch: false },
     },
   );
+
   const expanded = cases.map((testCase) => ({
     ...testCase,
     products: compact ? testCase.candidates : expandedCandidates(testCase),
   }));
+
   for (const order of orders) {
     for (let offset = 0; offset < expanded.length; offset += 10) {
       const batch = expanded.slice(offset, offset + 10);
+
       const items = batch.map((testCase, index) => ({
         requestId: `item_${index}`,
         query: testCase.query,
@@ -98,6 +117,7 @@ try {
                 ? shuffled(testCase.products, 42 + offset + index)
                 : testCase.products,
       }));
+
       // Deliberately serial: measure isolated latency without bursts or application retries.
       // oxlint-disable-next-line eslint/no-await-in-loop -- isolate latency and avoid inference bursts
       const response = await worker.fetch("http://localhost/?diagnostics=1", {
@@ -105,6 +125,7 @@ try {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items, forPickup: true }),
       });
+
       // oxlint-disable-next-line eslint/no-await-in-loop -- score each completed batch before the next
       const body = await response.json();
       const batchIndex = report.batches.length;
@@ -113,9 +134,11 @@ try {
         ids: batch.map((testCase) => testCase.id),
         ...body,
       });
+
       for (const [index, testCase] of batch.entries()) {
         const selection = body.selections?.[index];
         const expectedAbstention = testCase.acceptableUpcs.length === 0;
+
         const correct = Boolean(
           selection &&
           (expectedAbstention
@@ -123,20 +146,24 @@ try {
             : selection.status === "selected" &&
               testCase.acceptableUpcs.includes(selection.product.upc)),
         );
+
         const firstEligible = items[index].products.find((product) => {
           const variant = product.items?.[0];
+
           return (
             variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
             Boolean(product.upc) &&
             variant?.fulfillment?.curbside === true
           );
         });
+
         const baselineCorrect = expectedAbstention
           ? !firstEligible
           : Boolean(
               firstEligible &&
               testCase.acceptableUpcs.includes(firstEligible.upc),
             );
+
         const answer = body.calls?.[0]?.response?.answers?.[`item_${index}`];
         report.results.push({
           id: testCase.id,
@@ -174,21 +201,27 @@ try {
           error: body.error,
         });
       }
+
       console.log(
         `${order} batch ${offset / 10 + 1}: ${report.results.slice(-batch.length).filter((result) => result.correct).length}/${batch.length}, ${body.elapsedMs}ms${body.error ? `, ${body.error}` : ""}`,
       );
     }
   }
+
   const results = report.results;
+
   const selections = results.filter(
-    (result) => typeof result.actual === "object",
+    (result) => selectedActualSchema.safeParse(result.actual).success,
   );
+
   const expectedAbstentions = results.filter(
     (result) => result.expected === "unresolved",
   );
+
   const durations = report.batches
     .map((batch) => batch.elapsedMs)
     .toSorted((a, b) => a - b);
+
   report.summary = {
     ...summarize(results),
     uniqueCases: cases.length,
@@ -206,10 +239,13 @@ try {
       correct: results.filter((row) => row.baselineCorrect).length,
       total: results.length,
       wrongSelections: results.filter(
-        (row) => typeof row.baselineActual === "object" && !row.baselineCorrect,
+        (row) =>
+          selectedActualSchema.safeParse(row.baselineActual).success &&
+          !row.baselineCorrect,
       ).length,
-      selected: results.filter((row) => typeof row.baselineActual === "object")
-        .length,
+      selected: results.filter(
+        (row) => selectedActualSchema.safeParse(row.baselineActual).success,
+      ).length,
     },
     paired: {
       jevWins: results.filter((row) => row.correct && !row.baselineCorrect)
@@ -229,6 +265,7 @@ try {
     byOrder: Object.fromEntries(
       orders.map((order) => {
         const rows = results.filter((row) => row.order === order);
+
         return [
           order,
           {

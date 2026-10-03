@@ -105,9 +105,10 @@ async function consumePantryItems(
   items: Array<{ name: string; quantity?: number }>,
 ): Promise<PantryItem[]> {
   const partial = items.filter((item) => item.quantity !== undefined);
-  const removeNames = items
-    .filter((item) => item.quantity === undefined)
-    .map((item) => item.name);
+
+  const removeNames = items.flatMap((item) =>
+    item.quantity === undefined ? [item.name] : [],
+  );
 
   if (partial.length > 0) {
     const current = new Map(
@@ -116,14 +117,19 @@ async function consumePantryItems(
         item,
       ]),
     );
+
     const updates: Array<{ name: string; quantity: number }> = [];
+
     for (const item of partial) {
       const stored = current.get(item.name.trim().toLowerCase());
+
       if (!stored) continue;
       const remaining = stored.quantity - (item.quantity ?? 0);
+
       if (remaining > 0) updates.push({ name: item.name, quantity: remaining });
       else removeNames.push(item.name);
     }
+
     await Promise.all(
       updates.map((update) =>
         pantry.updateQuantity(update.name, update.quantity),
@@ -202,8 +208,10 @@ export function registerInventoryTools(
       const summary: string[] = [];
 
       let pantryItems: PantryItem[] | undefined;
+
       if (pantryChanges?.add) {
         const additions = pantryChanges.add;
+
         const added = await safeStorage(
           () =>
             pantry.add(
@@ -216,24 +224,30 @@ export function registerInventoryTools(
             ),
           "add pantry items",
         );
+
         if (added.isErr()) return toMcpError(added.error);
         pantryItems = added.value;
         summary.push(`Added ${additions.length} pantry item(s).`);
       }
+
       if (pantryChanges?.remove) {
         const removals = pantryChanges.remove;
+
         const removed = await safeStorage(
           () => consumePantryItems(pantry, removals),
           "remove pantry items",
         );
+
         if (removed.isErr()) return toMcpError(removed.error);
         pantryItems = removed.value;
         summary.push(`Used or removed ${removals.length} pantry item(s).`);
       }
 
       let equipmentItems: EquipmentItem[] | undefined;
+
       if (equipmentChanges?.add) {
         const additions = equipmentChanges.add;
+
         const added = await safeStorage(
           () =>
             equipment.add(
@@ -245,32 +259,40 @@ export function registerInventoryTools(
             ),
           "add equipment items",
         );
+
         if (added.isErr()) return toMcpError(added.error);
         equipmentItems = added.value;
         summary.push(`Added ${additions.length} equipment item(s).`);
       }
+
       if (equipmentChanges?.remove) {
         const names = equipmentChanges.remove;
+
         const removed = await safeStorage(
           () => equipment.remove(names),
           "remove equipment items",
         );
+
         if (removed.isErr()) return toMcpError(removed.error);
         equipmentItems = removed.value;
         summary.push(`Removed ${names.length} equipment item(s).`);
       }
 
       const sections = [summary.join(" ")];
+
       if (pantryItems) {
         sections.push(`Pantry now:\n${formatPantryListCompact(pantryItems)}`);
       }
+
       if (equipmentItems) {
         sections.push(
           `Equipment now:\n${formatEquipmentListCompact(equipmentItems)}`,
         );
       }
+
       const text = sections.join("\n\n");
       const actionDetail = summary.join(" ");
+
       return pantryItems
         ? pantryResponse(text, pantryItems, actionDetail)
         : equipmentResponse(text, equipmentItems ?? [], actionDetail);
@@ -313,14 +335,18 @@ export function registerInventoryTools(
           ? getMealPlanningDeals(loadWeeklyDeals, storeId)
           : Promise.resolve(undefined),
       ]);
+
       if (profileResult.isErr()) return toMcpError(profileResult.error);
+
       const [preferredStore, pantryItems, equipmentItems, recentOrders] =
         profileResult.value;
 
       const now = Date.now();
+
       const pantryView = pantryItems
         .map((item) => {
           const expiry = classifyExpiry(item.expiresAt, now);
+
           return {
             name: item.productName,
             quantity: item.quantity,
@@ -334,6 +360,7 @@ export function registerInventoryTools(
             (a.daysUntil ?? Number.POSITIVE_INFINITY) -
             (b.daysUntil ?? Number.POSITIVE_INFINITY),
         );
+
       const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
       const restockSuggestions = computeRestockSuggestions(recentOrders);
 
@@ -346,7 +373,9 @@ export function registerInventoryTools(
         "",
         "Pantry:",
       ];
+
       if (pantryView.length === 0) parts.push("- empty");
+
       for (const item of pantryView) {
         const note =
           item.expiry === "expired"
@@ -356,11 +385,14 @@ export function registerInventoryTools(
               : item.expiresAt
                 ? ` (expires ${item.expiresAt}${item.expiry === "soon" ? ", use soon" : ""})`
                 : "";
+
         parts.push(`- ${item.name} x${item.quantity}${note}`);
       }
 
       parts.push("", "Kitchen equipment:");
+
       if (equipmentItems.length === 0) parts.push("- none");
+
       for (const item of equipmentItems) {
         parts.push(
           `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
@@ -368,13 +400,17 @@ export function registerInventoryTools(
       }
 
       parts.push("", "Frequently purchased:");
+
       if (frequentItems.length === 0) parts.push("- no order history yet");
+
       for (const { name, count } of frequentItems) {
         parts.push(`- ${name} (ordered ${count}x)`);
       }
 
       parts.push("", "Due to restock:");
+
       if (restockSuggestions.length === 0) parts.push("- nothing due");
+
       for (const {
         name,
         daysSinceLast,

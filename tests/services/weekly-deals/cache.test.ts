@@ -1,3 +1,4 @@
+import { memoryKv } from "../../memory-kv.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { QfcDealsApiResponse } from "../../../src/services/weekly-deals/schema.js";
@@ -5,7 +6,6 @@ import {
   buildWeeklyDealsCacheKey,
   createWeeklyDealsCache,
 } from "../../../src/services/weekly-deals/cache.js";
-import type { KvLike } from "../../../src/utils/kv.js";
 
 const weeklyDeals: QfcDealsApiResponse = {
   sourceMode: "search_api",
@@ -28,21 +28,13 @@ describe("createWeeklyDealsCache", () => {
 
   it("adapts KV reads and writes while preserving the cache freshness policy", async () => {
     const values = new Map<string, string>();
-    const kv = {
-      get: vi.fn<(key: string) => Promise<string | null>>(
-        async (key: string) => values.get(key) ?? null,
-      ),
-      put: vi.fn<
-        (
-          key: string,
-          value: string,
-          options?: KVNamespacePutOptions,
-        ) => Promise<void>
-      >(async (key: string, value: string) => {
-        values.set(key, value);
-      }),
-    } as unknown as KvLike;
+
+    const kv = memoryKv(values);
+    vi.spyOn(kv, "get");
+    vi.spyOn(kv, "put");
+
     const cache = createWeeklyDealsCache(kv);
+
     const key = buildWeeklyDealsCacheKey({
       locationId: weeklyDeals.locationId,
       limit: 50,
@@ -62,16 +54,7 @@ describe("createWeeklyDealsCache", () => {
   });
 
   it("treats malformed values as misses at the adapter boundary", async () => {
-    const kv = {
-      get: vi.fn<() => Promise<string | null>>(async () => "not-json"),
-      put: vi.fn<
-        (
-          key: string,
-          value: string,
-          options?: KVNamespacePutOptions,
-        ) => Promise<void>
-      >(async () => {}),
-    } as unknown as KvLike;
+    const kv = memoryKv(new Map([["bad-entry", "not-json"]]));
 
     const result = await createWeeklyDealsCache(kv).read("bad-entry");
 

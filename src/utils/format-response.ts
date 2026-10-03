@@ -23,6 +23,7 @@ import type {
 } from "../domain/shopping.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+
 type Location = LocationComponents["schemas"]["locations.location"];
 
 /**
@@ -38,6 +39,7 @@ export function formatPantryItemCompact(item: PantryItem): string {
   // Expiry with urgency indicator
   if (item.expiresAt) {
     const expiry = classifyExpiry(item.expiresAt);
+
     if (expiry.status === "expired") {
       parts.push("❌EXPIRED");
     } else if (expiry.status === "today") {
@@ -145,9 +147,12 @@ export function formatPreferredLocationCompact(
 export function formatListSize(items: readonly ShoppingListItem[]): string {
   const count = `${items.length} item(s)`;
   const { total, pricedCount } = estimateListTotal(items);
+
   if (pricedCount === 0) return count;
+
   const coverage =
     pricedCount === items.length ? "" : `, ${pricedCount} priced`;
+
   return `${count}, ~$${total.toFixed(2)} est.${coverage}`;
 }
 
@@ -203,6 +208,7 @@ export function formatProductLine(
   const parts: string[] = [`upc=${product.upc}`, product.name];
 
   if (product.brand) parts.push(product.brand);
+
   if (product.size) parts.push(product.size);
 
   if (product.price !== undefined) {
@@ -214,22 +220,31 @@ export function formatProductLine(
   }
 
   parts.push(`pickup: ${product.pickup ? "yes" : "no"}`);
+
   if (!product.available) parts.push("out of stock");
 
   const aisle = product.aisle;
+
   if (options.includeLocation && aisle) {
     const description = aisle.description?.trim();
     const number = aisle.number?.trim();
+
     const locationLabel =
       description && number && !description.split(/\s+/).includes(number)
         ? `${description} ${number}`
         : (description ?? number);
+
     if (locationLabel) parts.push(`location: ${locationLabel}`);
+
     if (aisle.sequenceNumber)
       parts.push(`route sequence: ${aisle.sequenceNumber}`);
+
     if (aisle.bayNumber) parts.push(`bay: ${aisle.bayNumber}`);
+
     if (aisle.side) parts.push(`side: ${aisle.side}`);
+
     if (aisle.shelfNumber) parts.push(`shelf: ${aisle.shelfNumber}`);
+
     if (aisle.shelfPositionInBay)
       parts.push(`shelf position: ${aisle.shelfPositionInBay}`);
   }
@@ -255,9 +270,11 @@ export function formatProductSearchMarkdown(
   } = {},
 ): string {
   const lines: string[] = [];
+
   for (const result of results) {
     lines.push(`${result.term}:`);
     const exact = options.exactUpcs?.has(result.term) ?? false;
+
     if (
       exact &&
       result.status === "failed" &&
@@ -295,15 +312,18 @@ export function formatProductSearchMarkdown(
       );
     }
   }
+
   if (options.includeNextStep !== false)
     lines.push(
       "",
       "Next: pass these UPCs to create_shopping_list or add_shopping_list_to_cart.",
     );
+
   return lines.join("\n");
 }
 
 const MAX_INGREDIENT_CHARS = 300;
+
 const MAX_NUTRIENTS = 8;
 
 /**
@@ -313,6 +333,7 @@ const MAX_NUTRIENTS = 8;
  */
 function formatProductFacts(product: Product): string[] {
   const lines: string[] = [];
+
   const claims = [
     product.organicClaimName ?? undefined,
     product.nonGmo ? (product.nonGmoClaimName ?? "non-GMO") : undefined,
@@ -321,6 +342,7 @@ function formatProductFacts(product: Product): string[] {
     product.snapEligible ? "SNAP eligible" : undefined,
     ...(product.manufacturerDeclarations ?? []),
   ].filter(Boolean);
+
   if (claims.length > 0) lines.push(`  claims: ${claims.join(", ")}`);
 
   const allergens =
@@ -333,10 +355,12 @@ function formatProductFacts(product: Product): string[] {
       )
       .filter(Boolean)
       .join(", ");
+
   if (allergens) lines.push(`  allergens: ${allergens}`);
 
   const nutrition = product.nutritionInformation;
   const ingredients = nutrition?.ingredientStatement?.trim();
+
   if (ingredients) {
     lines.push(
       `  ingredients: ${
@@ -346,15 +370,19 @@ function formatProductFacts(product: Product): string[] {
       }`,
     );
   }
+
   const nutrients = (nutrition?.nutrients ?? [])
     .slice(0, MAX_NUTRIENTS)
     .flatMap((nutrient) => {
       const name = nutrient.displayName ?? nutrient.description;
+
       if (!name || nutrient.quantity === undefined) return [];
+
       return [
         `${name} ${nutrient.quantity}${nutrient.unitOfMeasure?.abbreviation ?? ""}`,
       ];
     });
+
   if (nutrients.length > 0) {
     const serving = nutrition?.servingSize?.description;
     lines.push(
@@ -363,6 +391,7 @@ function formatProductFacts(product: Product): string[] {
   }
 
   const rating = product.ratingsAndReviews;
+
   if (rating?.averageOverallRating !== undefined) {
     lines.push(
       `  rating: ${rating.averageOverallRating}/5${
@@ -370,6 +399,7 @@ function formatProductFacts(product: Product): string[] {
       }`,
     );
   }
+
   if (product.temperature?.indicator) {
     lines.push(`  storage: ${product.temperature.indicator}`);
   }
@@ -381,10 +411,13 @@ function formatProductFacts(product: Product): string[] {
       ? `max ${product.retstrictions.maximumOrderQuantity} per order`
       : undefined,
   ].filter(Boolean);
+
   if (restrictions.length > 0) {
     lines.push(`  restrictions: ${restrictions.join(", ")}`);
   }
+
   if (product.countryOrigin) lines.push(`  origin: ${product.countryOrigin}`);
+
   return lines;
 }
 
@@ -398,25 +431,35 @@ function formatExactProductLines(product: Product, upc: string): string[] {
       includeLocation: true,
     }),
   ];
+
   const [first, ...variants] = product.items ?? [];
+
   if (first?.soldBy?.toLowerCase() === "weight") {
     lines.push("  sold by weight; price is an estimate");
   }
+
   if (variants.length > 0) {
     lines.push("  other variants:");
+
     for (const item of variants) {
       const parts: string[] = [];
+
       if (item.itemId) parts.push(`upc=${item.itemId}`);
+
       if (item.size) parts.push(item.size);
       const price = formatKrogerPrice(item.price);
+
       if (price) parts.push(price);
       parts.push(`pickup: ${item.fulfillment?.curbside ? "yes" : "no"}`);
+
       if (item.inventory?.stockLevel === "TEMPORARILY_OUT_OF_STOCK")
         parts.push("out of stock");
       lines.push(`  - ${parts.join(" | ")}`);
     }
   }
+
   lines.push(...formatProductFacts(product));
+
   return lines;
 }
 
@@ -429,10 +472,13 @@ export function formatStoreLineMarkdown(location: Location): string {
 
   if (location.address) {
     const { addressLine1, city, state, zipCode } = location.address;
+
     const cityStateZip = [[city, state].filter(Boolean).join(" "), zipCode]
       .filter(Boolean)
       .join(" ");
+
     const full = [addressLine1, cityStateZip].filter(Boolean).join(", ");
+
     if (full) parts.push(full);
   }
 
@@ -444,6 +490,7 @@ export function formatStoreLineMarkdown(location: Location): string {
 /** Markdown for search_stores: one line per store. */
 export function formatStoreListMarkdown(stores: Location[]): string {
   if (stores.length === 0) return "No stores found.";
+
   return stores.map(formatStoreLineMarkdown).join("\n");
 }
 
@@ -462,8 +509,10 @@ function formatStoreHoursMarkdown(location: Location): string {
   ] as const;
 
   const lines = ["hours:"];
+
   for (const day of days) {
     const hours = location.hours[day];
+
     if (hours)
       lines.push(`- ${day}: ${hours.open ?? "?"}-${hours.close ?? "?"}`);
   }
@@ -475,7 +524,9 @@ function formatStoreHoursMarkdown(location: Location): string {
 export function formatStoreDetailMarkdown(location: Location): string {
   const lines = [formatStoreLineMarkdown(location)];
   const hours = formatStoreHoursMarkdown(location);
+
   if (hours) lines.push(hours);
+
   return lines.join("\n");
 }
 
@@ -491,9 +542,13 @@ export type WeeklyDealMarkdownItem = {
 /** One markdown line for a weekly deal: title, details, price, savings. */
 function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
   const parts: string[] = [deal.title];
+
   if (deal.details) parts.push(deal.details);
+
   if (deal.price) parts.push(deal.price);
+
   if (deal.savings) parts.push(deal.savings);
+
   return `- ${parts.join(" | ")}`;
 }
 
@@ -524,11 +579,13 @@ export function formatWeeklyDealsMarkdown(
   if (deals.length === 0) return lines.join("\n");
 
   let lastCategory: string | undefined;
+
   for (const deal of deals) {
     if (deal.category !== lastCategory) {
       lines.push(`${deal.category}:`);
       lastCategory = deal.category;
     }
+
     lines.push(formatWeeklyDealLineMarkdown(deal));
   }
 

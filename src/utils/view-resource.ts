@@ -37,6 +37,7 @@ Error loading view</div></body></html>`;
 async function loadViewHtml(env: Env, htmlPath: string): Promise<string> {
   try {
     const assets = env.ASSETS;
+
     if (!assets) {
       throw new Error("ASSETS binding not available");
     }
@@ -51,6 +52,7 @@ async function loadViewHtml(env: Env, htmlPath: string): Promise<string> {
     return await response.text();
   } catch (error) {
     console.error(`Failed to load view ${htmlPath}:`, error);
+
     return ERROR_HTML;
   }
 }
@@ -74,6 +76,7 @@ export function registerViewResource(
     { mimeType: RESOURCE_MIME_TYPE },
     async () => {
       const html = await loadViewHtml(getEnv(), `/${filename}`);
+
       return {
         contents: [
           {

@@ -23,7 +23,9 @@ export type {
   LoadedWeeklyDeals,
   WeeklyDealsLoader,
 } from "../services/weekly-deals/service.js";
+
 export type { WeeklyDealsCacheEntry } from "../services/weekly-deals/schema.js";
+
 export {
   addWeeklyDealsWarning as addCacheWarning,
   buildWeeklyDealsCacheKey,
@@ -86,7 +88,9 @@ export function registerWeeklyDealsTools(
         ...WEEKLY_DEALS_FETCH,
         signal: requestContext.mcpReq.signal,
       });
+
       if (result.isErr()) return toMcpError(result.error);
+
       return formatWeeklyDealsToolResponse(
         result.value.data,
         result.value.cacheState,
@@ -100,7 +104,9 @@ export function registerWeeklyDealsTools(
 function formatDealsPage(offset: number, shown: number, total: number) {
   if (shown === total) return "";
   const end = offset + shown;
+
   if (shown === 0) return `\nNo deals at offset ${offset}; there are ${total}.`;
+
   return end < total
     ? `\nDeals ${offset + 1}-${end} of ${total}. More: nextOffset=${end}`
     : `\nDeals ${offset + 1}-${end} of ${total} (last page).`;
@@ -121,6 +127,7 @@ export function formatWeeklyDealsToolResponse(
     result.printCircular?.eventStartDate ??
     result.shoppableCircular?.eventStartDate ??
     result.deals.find((d) => d.validFrom)?.validFrom;
+
   const validTill =
     result.printCircular?.eventEndDate ??
     result.shoppableCircular?.eventEndDate ??

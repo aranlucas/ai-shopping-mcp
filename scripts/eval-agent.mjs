@@ -21,10 +21,13 @@ const DEFAULT_MODELS = [
 
 const models =
   process.env.EVAL_MODELS?.split(",").filter(Boolean) ?? DEFAULT_MODELS;
+
 const slug = (model) => model.replace(/[^a-z0-9]+/gi, "-");
+
 const concurrency = Math.max(1, Number(process.env.EVAL_CONCURRENCY ?? 2));
 
 await mkdir("eval-results", { recursive: true });
+
 await Promise.all(
   (await readdir("eval-results"))
     .filter((file) => /^agent.*\.json$/.test(file))
@@ -49,12 +52,14 @@ function runModel(model) {
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
+
     const prefix = (chunk) =>
       String(chunk)
         .split("\n")
         .filter((line) => line.trim())
         .map((line) => `[${model}] ${line}\n`)
         .join("");
+
     child.stdout.on("data", (chunk) => process.stdout.write(prefix(chunk)));
     child.stderr.on("data", (chunk) => process.stderr.write(prefix(chunk)));
     child.on("close", (code) => resolve(code ?? 1));
@@ -63,7 +68,9 @@ function runModel(model) {
 
 // A small worker pool: each worker takes the next model when it finishes one.
 const queue = [...models];
+
 const codes = [];
+
 await Promise.all(
   Array.from({ length: Math.min(concurrency, models.length) }, async () => {
     for (let model = queue.shift(); model; model = queue.shift()) {
@@ -72,6 +79,7 @@ await Promise.all(
     }
   }),
 );
+
 console.log(
   `\nFinished ${models.length} model(s); ${codes.filter((code) => code !== 0).length} with failing tasks. Summary: pnpm eval:agent:summary`,
 );

@@ -9,10 +9,13 @@ describe("selective read retry", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
       .mockResolvedValueOnce(Response.json({ items: [] }));
+
     vi.stubGlobal("fetch", fetcher);
+
     const response = await fetchWithReadRetry(
       new Request("https://gateway.example/pantry"),
     );
+
     expect(response.status).toBe(200);
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
@@ -23,6 +26,7 @@ describe("selective read retry", () => {
       const fetcher = vi
         .fn<typeof fetch>()
         .mockResolvedValue(new Response(null, { status: 503 }));
+
       vi.stubGlobal("fetch", fetcher);
       expect(
         (
@@ -41,6 +45,7 @@ describe("selective read retry", () => {
       .mockResolvedValue(
         new Response(null, { status: 503, headers: { "retry-after": "60" } }),
       );
+
     vi.stubGlobal("fetch", fetcher);
     await fetchWithReadRetry(new Request("https://gateway.example/pantry"));
     expect(fetcher).toHaveBeenCalledTimes(1);
@@ -48,10 +53,13 @@ describe("selective read retry", () => {
 
   it("cancels before a delayed retry", async () => {
     const controller = new AbortController();
+
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => {
       controller.abort(new Error("request cancelled"));
+
       return new Response(null, { status: 503 });
     });
+
     vi.stubGlobal("fetch", fetcher);
     await expect(
       fetchWithReadRetry(

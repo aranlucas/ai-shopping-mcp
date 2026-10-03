@@ -1,9 +1,12 @@
+import { appPayloadSchemas } from "../../src/app-results.js";
+import { parseToolPayload } from "../app-payload.js";
+import { memoryKv } from "../memory-kv.js";
+import { strictFake } from "../strict-fake.js";
 // oxlint-disable perfectionist/sort-imports
-// tool-test-harness installs module mocks before the tool modules are imported.
+// oxlint-disable perfectionist/sort-imports
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ShoppingStore } from "../../src/utils/shopping-store.js";
-import type { KvLike } from "../../src/utils/kv.js";
 
 import {
   getCapturedHandler,
@@ -54,18 +57,17 @@ describe("storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(false);
-    const sc = (result as { structuredContent: Record<string, unknown> })
-      .structuredContent;
+
+    const sc = parseToolPayload(appPayloadSchemas.create_shopping_list, result);
+
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "create_shopping_list" },
     });
-    expect(
-      await storage.shoppingList.get(sc["listId"] as string),
-    ).toMatchObject({ name: "Tuesday Dinner" });
+    expect(await storage.shoppingList.get(sc.listId)).toMatchObject({
+      name: "Tuesday Dinner",
+    });
     expect(sc["name"]).toBe("Tuesday Dinner");
-    expect(
-      (sc["items"] as Array<{ productName: string }>).map((i) => i.productName),
-    ).toEqual(["Milk", "Bread"]);
+    expect(sc.items.map((i) => i.productName)).toEqual(["Milk", "Bread"]);
   });
 
   it("rejects shopping list creation with empty items before touching storage", async () => {
@@ -87,29 +89,35 @@ describe("storage-backed tools", () => {
       name: "First",
       items: [{ upc: "0001111000001", quantity: 1 }],
     });
+
     const second = await handler({
       name: "Second",
       items: [{ upc: "0001111000002", quantity: 2 }],
     });
 
-    const firstId = (first as { structuredContent: { listId: string } })
-      .structuredContent.listId;
-    const secondId = (second as { structuredContent: { listId: string } })
-      .structuredContent.listId;
+    const firstId = parseToolPayload(
+      appPayloadSchemas.create_shopping_list,
+      first,
+    ).listId;
+
+    const secondId = parseToolPayload(
+      appPayloadSchemas.create_shopping_list,
+      second,
+    ).listId;
+
     expect(firstId).not.toBe(secondId);
     expect(
-      (first as { structuredContent: { name: string } }).structuredContent.name,
+      parseToolPayload(appPayloadSchemas.create_shopping_list, first).name,
     ).toBe("First");
     expect(
-      (second as { structuredContent: { name: string } }).structuredContent
-        .name,
+      parseToolPayload(appPayloadSchemas.create_shopping_list, second).name,
     ).toBe("Second");
   });
 
   describe("create_shopping_list pantry/deal flags", () => {
     it("flags an item already in the pantry", async () => {
       const storage = makeStorage({
-        pantry: {
+        pantry: strictFake<ShoppingStore["pantry"]>({
           getAll: async () => [
             {
               productName: "Milk",
@@ -117,8 +125,9 @@ describe("storage-backed tools", () => {
               addedAt: new Date().toISOString(),
             },
           ],
-        } as unknown as ShoppingStore["pantry"],
+        }),
       });
+
       registerShoppingListTools(
         makeContext(storage, makeProductService({ "0001111000001": "Milk" })),
       );
@@ -134,7 +143,7 @@ describe("storage-backed tools", () => {
 
     it("does not flag an item that isn't in the pantry", async () => {
       const storage = makeStorage({
-        pantry: {
+        pantry: strictFake<ShoppingStore["pantry"]>({
           getAll: async () => [
             {
               productName: "Bread",
@@ -142,8 +151,9 @@ describe("storage-backed tools", () => {
               addedAt: new Date().toISOString(),
             },
           ],
-        } as unknown as ShoppingStore["pantry"],
+        }),
       });
+
       registerShoppingListTools(
         makeContext(storage, makeProductService({ "0001111000001": "Milk" })),
       );
@@ -158,11 +168,13 @@ describe("storage-backed tools", () => {
 
     it("flags an item on sale using the weekly-deals KV cache", async () => {
       const store = new Map<string, string>();
+
       const cacheKey = buildWeeklyDealsCacheKey({
         locationId: undefined,
         limit: 50,
         pageLimit: 2,
       });
+
       const now = Date.now();
       store.set(
         cacheKey,
@@ -192,12 +204,8 @@ describe("storage-backed tools", () => {
         undefined,
         makeProductService({ "0001111000001": "Whole Milk" }),
       );
-      context.cache = {
-        get: async (key: string) => store.get(key) ?? null,
-        put: async (key: string, value: string) => {
-          store.set(key, value);
-        },
-      } as unknown as KvLike;
+
+      context.cache = memoryKv(store);
       registerShoppingListTools(context);
 
       const result = await getCapturedHandler("create_shopping_list")({
@@ -211,23 +219,21 @@ describe("storage-backed tools", () => {
 
     it("yields no flag (and no error) for a corrupted weekly-deals cache entry", async () => {
       const store = new Map<string, string>();
+
       const cacheKey = buildWeeklyDealsCacheKey({
         locationId: undefined,
         limit: 50,
         pageLimit: 2,
       });
+
       store.set(cacheKey, "{not-valid-json");
 
       const context = makeContext(
         undefined,
         makeProductService({ "0001111000001": "Whole Milk" }),
       );
-      context.cache = {
-        get: async (key: string) => store.get(key) ?? null,
-        put: async (key: string, value: string) => {
-          store.set(key, value);
-        },
-      } as unknown as KvLike;
+
+      context.cache = memoryKv(store);
       registerShoppingListTools(context);
 
       const result = await getCapturedHandler("create_shopping_list")({
@@ -242,7 +248,7 @@ describe("storage-backed tools", () => {
 
   it("adds items from a persisted shopping list to the Kroger cart by listId", async () => {
     const storage = makeStorage();
-    storage.preferredLocation = {
+    storage.preferredLocation = strictFake<ShoppingStore["preferredLocation"]>({
       get: async () => ({
         locationId: "70500847",
         locationName: "QFC Broadway",
@@ -251,18 +257,22 @@ describe("storage-backed tools", () => {
         setAt: new Date().toISOString(),
       }),
       set: async () => {},
-    } as unknown as ShoppingStore["preferredLocation"];
+    });
 
     const ctx = makeCartContext(storage, 204);
 
     registerShoppingListTools(ctx);
     const createHandler = getCapturedHandler("create_shopping_list");
+
     const createResult = await createHandler({
       name: "Dinner",
       items: [{ upc: "0001111042578", quantity: 2 }],
     });
-    const listId = (createResult as { structuredContent: { listId: string } })
-      .structuredContent.listId;
+
+    const listId = parseToolPayload(
+      appPayloadSchemas.create_shopping_list,
+      createResult,
+    ).listId;
 
     registerCartTools(ctx);
     const addHandler = getCapturedHandler("add_shopping_list_to_cart");
@@ -270,20 +280,24 @@ describe("storage-backed tools", () => {
     const result = await addHandler({ listId });
 
     expect(result.isError).toBe(false);
-    const sc = (result as { structuredContent: Record<string, unknown> })
-      .structuredContent;
+
+    const sc = parseToolPayload(
+      appPayloadSchemas.add_shopping_list_to_cart,
+      result,
+    );
+
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
     });
     expect(sc["listId"]).toBe(listId);
     expect(sc["name"]).toBe("Dinner");
-    expect((sc["items"] as unknown[]).length).toBe(1);
+    expect(sc.items.length).toBe(1);
     expect(result.text).toContain("at QFC Broadway");
   });
 
   it("short-circuits a retried add_shopping_list_to_cart call instead of re-adding", async () => {
     const storage = makeStorage();
-    storage.preferredLocation = {
+    storage.preferredLocation = strictFake<ShoppingStore["preferredLocation"]>({
       get: async () => ({
         locationId: "70500847",
         locationName: "QFC Broadway",
@@ -292,7 +306,7 @@ describe("storage-backed tools", () => {
         setAt: new Date().toISOString(),
       }),
       set: async () => {},
-    } as unknown as ShoppingStore["preferredLocation"];
+    });
 
     const ctx = makeCartContext(storage, 204);
 
@@ -305,14 +319,21 @@ describe("storage-backed tools", () => {
       name: "Dinner",
       items: [{ upc: "0001111042578", quantity: 2 }],
     });
-    const listId = (createResult as { structuredContent: { listId: string } })
-      .structuredContent.listId;
 
-    const putCalls: unknown[] = [];
-    ctx.cartClient.PUT = (async (...args: unknown[]) => {
-      putCalls.push(args);
-      return { data: undefined, response: new Response(null, { status: 204 }) };
-    }) as typeof ctx.cartClient.PUT;
+    const listId = parseToolPayload(
+      appPayloadSchemas.create_shopping_list,
+      createResult,
+    ).listId;
+
+    const putCalls: Request[] = [];
+    ctx.cartClient.use({
+      onRequest: ({ request }) => {
+        if (request.method !== "PUT") return undefined;
+        putCalls.push(request);
+
+        return new Response(null, { status: 204 });
+      },
+    });
 
     const first = await addHandler({ listId });
     expect(first.isError).toBe(false);
@@ -328,9 +349,11 @@ describe("storage-backed tools", () => {
     const gatewayListId = `list_${"a".repeat(32)}`;
     const lookups: string[] = [];
     const storage = makeStorage();
+
     let savedList: Awaited<
       ReturnType<typeof storage.shoppingList.create>
     > | null = null;
+
     storage.shoppingList = {
       create: async ({ name, items }) => {
         savedList = {
@@ -343,10 +366,12 @@ describe("storage-backed tools", () => {
           })),
           createdAt: "2026-07-18T00:00:00.000Z",
         };
+
         return savedList;
       },
       get: async (id) => {
         lookups.push(id);
+
         return id === gatewayListId ? savedList : null;
       },
       // This test only covers create-then-look-up, so the editing operations
@@ -370,6 +395,7 @@ describe("storage-backed tools", () => {
       204,
       makeProductService({ "0001111042578": "Milk" }),
     );
+
     registerShoppingListTools(ctx);
     registerCartTools(ctx);
 
@@ -377,12 +403,14 @@ describe("storage-backed tools", () => {
       name: "Dinner",
       items: [{ upc: "0001111042578", quantity: 1 }],
     });
+
     expect(created.text).toContain(`listId=${gatewayListId}`);
 
     const added = await getCapturedHandler("add_shopping_list_to_cart")({
       listId: gatewayListId,
       storeId: "70500847",
     });
+
     expect(added.isError).toBe(false);
     expect(lookups).toEqual([gatewayListId]);
   });
@@ -390,10 +418,10 @@ describe("storage-backed tools", () => {
   it("bails when the shopping list has no items with UPCs", async () => {
     // Name-only list items need matching before they can enter the cart.
     const storage = makeStorage();
-    storage.preferredLocation = {
+    storage.preferredLocation = strictFake<ShoppingStore["preferredLocation"]>({
       get: async () => null,
       set: async () => {},
-    } as unknown as ShoppingStore["preferredLocation"];
+    });
 
     const ctx = makeCartContext(storage);
     registerCartTools(ctx);
@@ -407,14 +435,14 @@ describe("storage-backed tools", () => {
     const result = await handler({ listId, storeId: "70500847" });
 
     expect(result.isError).toBe(false);
-    const sc = (result as { structuredContent: Record<string, unknown> })
-      .structuredContent;
-    expect((sc["items"] as unknown[]).length).toBe(0);
-    expect(
-      (sc["needsUpc"] as Array<{ productName: string }>).map(
-        (i) => i.productName,
-      ),
-    ).toEqual(["Strawberries"]);
+
+    const sc = parseToolPayload(
+      appPayloadSchemas.add_shopping_list_to_cart,
+      result,
+    );
+
+    expect(sc.items.length).toBe(0);
+    expect(sc.needsUpc.map((i) => i.productName)).toEqual(["Strawberries"]);
     expect(result.text).toContain("no matched Kroger UPCs");
   });
 
@@ -430,7 +458,7 @@ describe("storage-backed tools", () => {
 
   it("adds inline items to the cart without a shopping list", async () => {
     const storage = makeStorage();
-    storage.preferredLocation = {
+    storage.preferredLocation = strictFake<ShoppingStore["preferredLocation"]>({
       get: async () => ({
         locationId: "70500847",
         locationName: "QFC Broadway",
@@ -439,7 +467,7 @@ describe("storage-backed tools", () => {
         setAt: new Date().toISOString(),
       }),
       set: async () => {},
-    } as unknown as ShoppingStore["preferredLocation"];
+    });
 
     const ctx = makeCartContext(storage, 204);
     registerCartTools(ctx);
@@ -450,14 +478,16 @@ describe("storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(false);
-    const sc = (result as { structuredContent: Record<string, unknown> })
-      .structuredContent;
+
+    const sc = parseToolPayload(
+      appPayloadSchemas.add_shopping_list_to_cart,
+      result,
+    );
+
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
     });
-    expect(
-      (sc["items"] as Array<{ upc: string; quantity: number }>)[0],
-    ).toMatchObject({
+    expect(sc.items[0]).toMatchObject({
       upc: "0001111042578",
       quantity: 3,
     });

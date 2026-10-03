@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
+import type { ShoppingAppClient, ToolCall } from "./shared/types.js";
 /** Local fixture preview. Excluded from the production HTML entry in vite.config.ts. */
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+
 import {
   type ChangeEvent,
   useCallback,
@@ -25,7 +26,6 @@ import { ShoppingListView } from "./app/views/shopping-list.js";
 import { ShoppingListsView } from "./app/views/shopping-lists.js";
 import { WeeklyDealsView } from "./app/views/weekly-deals.js";
 import { ErrorDisplay, ProductSearchSkeleton } from "./shared/status.js";
-import type { ToolCall } from "./shared/types.js";
 
 const PRODUCTS: ProductSearchResultsContent = {
   view: "search_products",
@@ -72,6 +72,7 @@ const PRODUCTS: ProductSearchResultsContent = {
     },
   ],
 };
+
 const DEALS: WeeklyDealsContent = {
   view: "get_weekly_deals",
   validFrom: "Sep 9",
@@ -119,6 +120,7 @@ const DEALS: WeeklyDealsContent = {
     },
   ],
 };
+
 const LIST: ShoppingListContent = {
   view: "create_shopping_list",
   listId: "preview-list",
@@ -184,6 +186,7 @@ const LISTS: ShoppingListsContent = {
     },
   ],
 };
+
 const CART: CartViewContent = {
   view: "view_cart",
   source: "assistant",
@@ -215,16 +218,20 @@ function updatePreviewList(
   args: Extract<ToolCall, { name: "update_shopping_list" }>["arguments"],
 ): ShoppingListContent {
   const removed = new Set(args.remove ?? []);
+
   const changes = new Map(
     (args.change ?? []).map((change) => [change.itemId, change]),
   );
+
   return {
     ...list,
     items: list.items
       .filter((item) => !item.id || !removed.has(item.id))
       .map((item) => {
         const change = item.id ? changes.get(item.id) : undefined;
+
         if (!change) return item;
+
         return Object.assign(
           {},
           item,
@@ -242,138 +249,160 @@ function Preview() {
   const [theme, setTheme] = useState("light");
   const [fail, setFail] = useState(false);
   const [unknownCart, setUnknownCart] = useState(false);
+
   const handleUnknownCart = useCallback(
     (event: ChangeEvent<HTMLInputElement>) =>
       setUnknownCart(event.target.checked),
     [],
   );
+
   const [lastAction, setLastAction] = useState("No actions yet.");
   const [listData, setListData] = useState<AppData | null>(LIST);
   const listRef = useRef<ShoppingListContent>(LIST);
+
   const handleView = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value;
     setView(next);
     listRef.current = LIST;
     setListData(next === "lists" ? LISTS : LIST);
   }, []);
+
   const handleTheme = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => setTheme(event.target.value),
     [],
   );
+
   const handleFail = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => setFail(event.target.checked),
     [],
   );
+
   useEffect(() => {
     document.documentElement.style.colorScheme = theme;
     document.documentElement.dataset.theme = theme;
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
-  const app = useMemo(
-    () =>
-      ({
-        callServerTool: async (call: ToolCall) => {
-          setLastAction(`Calling ${call.name}…`);
-          await new Promise((resolve) => setTimeout(resolve, 600));
-          if (unknownCart && call.name === "add_shopping_list_to_cart")
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: "Preview: cart confirmation was lost. Check your Kroger cart before adding again.",
-                },
-              ],
-              isError: true,
-              structuredContent: {
-                error: {
-                  code: "MUTATION_OUTCOME_UNKNOWN",
-                  recovery: "check_cart",
-                },
+
+  const app = useMemo<ShoppingAppClient>(
+    () => ({
+      callServerTool: async (call: ToolCall) => {
+        setLastAction(`Calling ${call.name}…`);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        if (unknownCart && call.name === "add_shopping_list_to_cart")
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Preview: cart confirmation was lost. Check your Kroger cart before adding again.",
               },
-            };
-          if (fail)
-            return {
-              content: [
+            ],
+            isError: true,
+            structuredContent: {
+              error: {
+                code: "MUTATION_OUTCOME_UNKNOWN",
+                recovery: "check_cart",
+              },
+            },
+          };
+
+        if (fail)
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Preview: your session expired. Reconnect your account and try again.",
+              },
+            ],
+            isError: true,
+          };
+        setLastAction(`Completed ${call.name}.`);
+
+        if (call.name === "search_products")
+          return { content: [], ...appResult("search_products", PRODUCTS) };
+
+        if (call.name === "create_shopping_list")
+          return {
+            content: [],
+            structuredContent: { listId: "preview-created-list" },
+          };
+
+        if (call.name === "get_shopping_list")
+          return call.arguments.listId
+            ? {
+                content: [],
+                ...appResult("create_shopping_list", listRef.current),
+              }
+            : { content: [], ...appResult("shopping_lists", LISTS) };
+
+        if (call.name === "update_shopping_list") {
+          listRef.current = updatePreviewList(listRef.current, call.arguments);
+
+          return {
+            content: [],
+            ...appResult("create_shopping_list", listRef.current),
+          };
+        }
+
+        if (call.name === "record_order")
+          return {
+            content: [],
+            ...appResult("record_order", {
+              orderId: "preview-order",
+              items: [],
+              totalItems: 0,
+              placedAt: new Date().toISOString(),
+            }),
+          };
+
+        if (call.name === "update_inventory")
+          return {
+            content: [],
+            ...appResult("pantry", { items: [] }),
+          };
+
+        if (call.name === "add_shopping_list_to_cart")
+          return {
+            content: [],
+            ...appResult("add_shopping_list_to_cart", {
+              outcome: "added",
+              addedCount: 1,
+              requestedCount: 1,
+              listId: "preview-list",
+              name: "Preview cart",
+              items: [
                 {
-                  type: "text",
-                  text: "Preview: your session expired. Reconnect your account and try again.",
+                  upc: "0001111042578",
+                  quantity: 1,
+                  modality: "PICKUP",
                 },
               ],
-              isError: true,
-            };
-          setLastAction(`Completed ${call.name}.`);
-          if (call.name === "search_products")
-            return { content: [], ...appResult("search_products", PRODUCTS) };
-          if (call.name === "create_shopping_list")
-            return {
-              content: [],
-              structuredContent: { listId: "preview-created-list" },
-            };
-          if (call.name === "get_shopping_list")
-            return call.arguments.listId
-              ? {
-                  content: [],
-                  ...appResult("create_shopping_list", listRef.current),
-                }
-              : { content: [], ...appResult("shopping_lists", LISTS) };
-          if (call.name === "update_shopping_list") {
-            listRef.current = updatePreviewList(
-              listRef.current,
-              call.arguments,
-            );
-            return {
-              content: [],
-              ...appResult("create_shopping_list", listRef.current),
-            };
-          }
-          if (call.name === "record_order")
-            return {
-              content: [],
-              ...appResult("record_order", {
-                orderId: "preview-order",
-                items: [],
-                totalItems: 0,
-                placedAt: new Date().toISOString(),
-              }),
-            };
-          if (call.name === "update_inventory")
-            return {
-              content: [],
-              ...appResult("pantry", { items: [] }),
-            };
-          if (call.name === "add_shopping_list_to_cart")
-            return {
-              content: [],
-              ...appResult("add_shopping_list_to_cart", {
-                outcome: "added",
-                addedCount: 1,
-                requestedCount: 1,
-                listId: "preview-list",
-                name: "Preview cart",
-                items: [
-                  {
-                    upc: "0001111042578",
-                    quantity: 1,
-                    modality: "PICKUP",
-                  },
-                ],
-                needsUpc: [],
-                actionDetail: "Added 1 item(s) to cart",
-              }),
-            };
-          return { content: [] };
-        },
-        sendMessage: async () => {
-          setLastAction("Asking assistant…");
-          await new Promise((resolve) => setTimeout(resolve, 600));
-          if (fail) return { isError: true };
-          setLastAction("Message received by preview assistant.");
-          return {};
-        },
-        updateModelContext: async () => ({}),
-      }) as unknown as App,
+              needsUpc: [],
+              actionDetail: "Added 1 item(s) to cart",
+            }),
+          };
+
+        return { content: [] };
+      },
+      sendMessage: async () => {
+        setLastAction("Asking assistant…");
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        if (fail) return { isError: true };
+        setLastAction("Message received by preview assistant.");
+
+        return {};
+      },
+      updateModelContext: async () => ({}),
+      getHostCapabilities: () => undefined,
+      openLink: async () => {
+        throw new Error("Preview host does not support external links");
+      },
+      requestDisplayMode: async ({ mode }) => ({ mode }),
+    }),
     [fail, unknownCart],
   );
+
   const staleDeals = useMemo(
     () => ({
       ...DEALS,
@@ -384,7 +413,9 @@ function Preview() {
     }),
     [],
   );
+
   const emptyDeals = useMemo(() => ({ ...DEALS, deals: [] }), []);
+
   const failedProducts = useMemo(
     () => ({
       ...PRODUCTS,
@@ -499,7 +530,10 @@ function Preview() {
 }
 
 if (import.meta.env.DEV) {
-  const root = createRoot(document.getElementById("root") as HTMLElement);
+  const element = document.getElementById("root");
+
+  if (!element) throw new Error("Preview root element is missing");
+  const root = createRoot(element);
   root.render(<Preview />);
   import.meta.hot?.dispose(() => root.unmount());
 }

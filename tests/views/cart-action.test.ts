@@ -1,4 +1,4 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import { App } from "@modelcontextprotocol/ext-apps";
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -15,15 +15,18 @@ const productRequest: CartRequest = {
   },
   modality: "PICKUP",
 };
+
 const listRequest: CartRequest = {
   kind: "list",
   listId: "original-list",
   modality: "PICKUP",
 };
+
 const listCreated = {
   content: [],
   structuredContent: { listId: "original-list" },
 };
+
 function cartSuccess(
   outcome: "added" | "already_added" | "needs_match" = "added",
 ): CallToolResult {
@@ -51,20 +54,31 @@ function cartSuccess(
     },
   };
 }
+
 const success = cartSuccess();
+
 const failure = (code: string, recovery: string): CallToolResult => ({
   content: [{ type: "text", text: "Cart request failed" }],
   isError: true,
   structuredContent: { error: { code, recovery } },
 });
+
 function makeApp(results: Array<CallToolResult | Error>) {
-  const callServerTool = vi.fn<App["callServerTool"]>(async () => {
-    const result = results.shift();
-    if (result instanceof Error) throw result;
-    if (!result) throw new Error("Unexpected tool call");
-    return result;
-  });
-  return { app: { callServerTool } as unknown as App, callServerTool };
+  const app = new App({ name: "cart-action-test", version: "1.0.0" });
+
+  const callServerTool = vi
+    .spyOn(app, "callServerTool")
+    .mockImplementation(async () => {
+      const result = results.shift();
+
+      if (result instanceof Error) throw result;
+
+      if (!result) throw new Error("Unexpected tool call");
+
+      return result;
+    });
+
+  return { app, callServerTool };
 }
 
 describe("cart action state transitions", () => {
@@ -186,6 +200,7 @@ describe("cart action state transitions", () => {
     async (request) => {
       const results =
         request.kind === "product" ? [listCreated, success] : [success];
+
       const expectedCalls = results.length;
       const { app, callServerTool } = makeApp(results);
       const action = createCartAction(request);
@@ -205,6 +220,7 @@ describe("cart action state transitions", () => {
       { content: [], structuredContent: { listId: "new-list" } },
       success,
     ]);
+
     const action = createCartAction(productRequest);
     await action.submit(app);
     action.reset();
@@ -220,6 +236,7 @@ describe("cart action state transitions", () => {
     const { app, callServerTool } = makeApp([
       new Error("list service unavailable"),
     ]);
+
     const action = createCartAction(productRequest);
     await action.submit(app);
     expect(action.getSnapshot()).toMatchObject({
@@ -235,6 +252,7 @@ describe("cart action state transitions", () => {
   it("snapshots the input so caller mutations cannot change a pending request", async () => {
     const request = structuredClone(productRequest);
     const action = createCartAction(request);
+
     if (request.kind !== "product") throw new Error("Expected product fixture");
     request.product.quantity = 99;
     const { app, callServerTool } = makeApp([listCreated, success]);

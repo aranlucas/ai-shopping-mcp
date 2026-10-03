@@ -1,13 +1,13 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
-
-import { useCallback, useMemo, useState } from "react";
-
-import { ActionButton, Badge } from "../../shared/components.js";
 import {
+  type ShoppingAppClient,
   type StoreDetailContent,
   callTool,
   openExternalLink,
 } from "../../shared/types.js";
+
+import { useCallback, useMemo, useState } from "react";
+
+import { ActionButton, Badge } from "../../shared/components.js";
 
 const PREFERRED_STAR_ICON = (
   <svg
@@ -31,30 +31,37 @@ export function LocationDetailView({
   canCallTools,
 }: {
   data: StoreDetailContent;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
 }) {
   const [prefState, setPrefState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+
   const { store: location } = data;
   const id = location.locationId || "";
+
   const mapsUrl = useMemo(() => {
     const a = location.address;
+
     if (!a?.addressLine1) return null;
+
     const parts = [a.addressLine1, a.city, a.state, a.zipCode]
       .filter(Boolean)
       .join(", ");
+
     return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
   }, [location.address]);
 
   const handleSetPreferred = useCallback(async () => {
     setPrefState("loading");
+
     try {
       const result = await callTool(app, {
         name: "set_preferred_store",
         arguments: { storeId: id },
       });
+
       if (result?.isError) throw new Error("Failed");
       setPrefState("done");
     } catch {

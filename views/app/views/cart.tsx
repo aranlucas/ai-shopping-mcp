@@ -1,9 +1,13 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import type {
+  ShoppingAppClient,
+  CartViewContent,
+  CartViewItemData,
+} from "../../shared/types.js";
+
 import { useMemo } from "react";
 import { Badge } from "../../shared/ui/badge";
 import { CartCheckLink, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import type { CartViewContent, CartViewItemData } from "../../shared/types.js";
 
 const EMPTY_CART_ICON = (
   <svg
@@ -27,13 +31,15 @@ export function CartView({
   app,
 }: {
   data: CartViewContent;
-  app: App | null;
+  app: ShoppingAppClient | null;
 }) {
   const { source, note } = data;
+
   // The assistant mirror records each add separately; show one line per
   // product and fulfillment method.
   const items = useMemo(() => {
     const grouped = new Map<string, CartViewItemData>();
+
     for (const item of data.items) {
       const key = `${item.upc}:${item.modality ?? ""}`;
       const existing = grouped.get(key);
@@ -44,12 +50,15 @@ export function CartView({
           : item,
       );
     }
+
     return [...grouped.values()];
   }, [data.items]);
+
   const units = useMemo(
     () => items.reduce((sum, item) => sum + item.quantity, 0),
     [items],
   );
+
   const headerBadge = useMemo(
     () => (
       <Badge variant="secondary">
@@ -58,6 +67,7 @@ export function CartView({
     ),
     [units],
   );
+
   const subtitle =
     source === "live"
       ? "Live from your Kroger cart"

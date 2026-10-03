@@ -1,13 +1,16 @@
 import type { ProductData } from "../../app-results.js";
 import type { components } from "./product.js";
 import { normalizeKrogerPrice } from "./price.js";
+
 type Product = components["schemas"]["products.productModel"];
 
 function toAisle(
   product: Product,
 ): NonNullable<ProductData["aisle"]> | undefined {
   const location = product.aisleLocations?.[0];
+
   if (!location) return undefined;
+
   return {
     description: location.description,
     number: location.number,
@@ -22,10 +25,12 @@ function toAisle(
 function toImageUrl(product: Product): string | undefined {
   const images = (product.images ?? []).map((image) => {
     const sizes = image.sizes?.filter((size) => size.url) ?? [];
+
     const url =
       sizes.find((size) => size.size === "thumbnail")?.url ??
       sizes.find((size) => size.size === "small")?.url ??
       sizes[0]?.url;
+
     return { default: image.default, perspective: image.perspective, url };
   });
 
@@ -41,9 +46,12 @@ const KROGER_ORIGIN = "https://www.kroger.com";
 /** Kroger returns a site-relative page path; never follow it off kroger.com. */
 export function toProductPageUrl(path: string | undefined): string | undefined {
   if (!path?.startsWith("/")) return undefined;
+
   try {
     const url = new URL(path, KROGER_ORIGIN);
+
     if (url.origin !== KROGER_ORIGIN) return undefined;
+
     return `${url.origin}${url.pathname}`;
   } catch {
     return undefined;
@@ -57,9 +65,10 @@ export function toProductData(
 ): ProductData {
   const item = product.items?.[0];
   const upc = product.upc?.trim() || fallbackUpc?.trim();
+
   if (!upc) throw new Error("Kroger product response is missing a UPC");
 
-  return {
+  const data: ProductData = {
     upc,
     name: product.description ?? "Unknown product",
     brand: product.brand,
@@ -68,9 +77,12 @@ export function toProductData(
     category: product.categories?.[0],
     imageUrl: toImageUrl(product),
     url: toProductPageUrl(product.productPageURI),
-    ...(includeLocation ? { aisle: toAisle(product) } : {}),
     // Missing stock data is not evidence that a listed product is unavailable.
     available: item?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK",
     pickup: item?.fulfillment?.curbside === true,
   };
+
+  if (includeLocation) data.aisle = toAisle(product);
+
+  return data;
 }

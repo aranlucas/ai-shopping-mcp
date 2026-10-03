@@ -12,9 +12,11 @@ export const TaskChecksJudge = createJudge<AgentInput, AgentOutput>(
   "TaskChecksJudge",
   ({ input, output, toolCalls }) => {
     const task = AGENT_TASKS.find((candidate) => candidate.id === input.taskId);
+
     if (!task) return { score: 0, metadata: { rationale: "unknown task" } };
     const checks = task.checks(output, toolCalls);
     const failed = checks.filter((entry) => !entry.pass);
+
     return {
       score: checks.length
         ? (checks.length - failed.length) / checks.length

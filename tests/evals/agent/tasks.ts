@@ -1,3 +1,5 @@
+import { recordOrderInputSchema } from "../../../src/tools/orders.js";
+import type { ToolArguments } from "../../v2-tool-handler.js";
 /**
  * Realistic multi-step shopping tasks for the agent eval (agent.eval.test.ts),
  * following Anthropic's "writing tools for agents" methodology: prompts come
@@ -13,12 +15,14 @@ import type { ToolCall } from "vitest-evals";
 import { DEFAULT_STORE_ID, upcsForTerm } from "../harness.js";
 
 export type CartItem = { upc: string; quantity: number; modality: string };
+
 export type ListItem = {
   productName: string;
   upc: string | null;
   quantity: number;
   checked: boolean;
 };
+
 export type PantryItem = { name: string; quantity: number };
 
 /** What the harness observed after the agent finished; judges read only this. */
@@ -32,10 +36,7 @@ export type AgentOutput = {
 
 export type Check = { name: string; pass: boolean; detail?: string };
 
-export type Seeder = (
-  name: string,
-  args: Record<string, unknown>,
-) => Promise<void>;
+export type Seeder = (name: string, args: ToolArguments) => Promise<void>;
 
 export type AgentTask = {
   id: string;
@@ -46,11 +47,17 @@ export type AgentTask = {
 };
 
 const MILK_2PCT = "0001111041700";
+
 const MILK_WHOLE = "0001111042850";
+
 const EGGS = "0001111060933";
+
 const BREAD = "0001111008728";
+
 const DKB_BREAD = "0007294760112";
+
 const BUTTER = "0001111042372";
+
 const CHEESE = "0001111098765";
 
 const WRITE_TOOLS = new Set([
@@ -94,8 +101,10 @@ const cartText = (cart: CartItem[]) =>
   cart
     .map((item) => `${item.upc}x${item.quantity} ${item.modality}`)
     .join(", ") || "empty cart";
+
 const cartHas = (cart: CartItem[], upcs: string[]) =>
   cart.some((item) => upcs.includes(item.upc));
+
 const cartQuantity = (cart: CartItem[], upc: string) =>
   cart
     .filter((item) => item.upc === upc)
@@ -107,6 +116,7 @@ function findList(output: AgentOutput, name: string): ListItem[] | null {
       ?.items ?? null
   );
 }
+
 const listText = (items: ListItem[] | null) =>
   items
     ? items
@@ -116,6 +126,7 @@ const listText = (items: ListItem[] | null) =>
         )
         .join(", ") || "empty list"
     : "list not found";
+
 const listHas = (items: ListItem[] | null, upcs: string[], name: RegExp) =>
   (items ?? []).some(
     (item) =>
@@ -130,15 +141,12 @@ const pantryText = (pantry: PantryItem[]) =>
 function recordedOrderItems(toolCalls: ToolCall[]) {
   return toolCalls
     .filter((call) => call.name === "record_order" && call.status === "ok")
-    .flatMap((call) =>
-      Array.isArray(call.arguments?.items)
-        ? (call.arguments.items as Array<{
-            upc?: string;
-            productName?: string;
-            quantity?: number;
-          }>)
-        : [],
-    );
+    .flatMap((call) => {
+      if (!Array.isArray(call.arguments?.items)) return [];
+
+      // A successful tool call has passed this same input contract, including coercions.
+      return recordOrderInputSchema.parse(call.arguments).items;
+    });
 }
 
 const seedStore = (seed: Seeder) =>
@@ -231,6 +239,7 @@ export const AGENT_TASKS: AgentTask[] = [
     },
     checks: (output) => {
       const list = findList(output, "French toast");
+
       return [
         check("list created", list !== null),
         check(
@@ -267,6 +276,7 @@ export const AGENT_TASKS: AgentTask[] = [
     checks: (output) => {
       const weekly = output.lists.filter((list) => /weekly/i.test(list.name));
       const list = findList(output, "Weekly");
+
       return [
         check(
           "still exactly one Weekly list",
@@ -300,6 +310,7 @@ export const AGENT_TASKS: AgentTask[] = [
       const list = findList(output, "Weekly");
       const milk = list?.find((item) => item.upc === MILK_2PCT);
       const bread = list?.find((item) => item.upc === BREAD);
+
       return [
         check("milk quantity is 2", milk?.quantity === 2, listText(list)),
         check(
@@ -319,6 +330,7 @@ export const AGENT_TASKS: AgentTask[] = [
     setup: seedStore,
     checks: ({ pantry }, toolCalls) => {
       const ordered = recordedOrderItems(toolCalls);
+
       return [
         check(
           "order has 2x milk",
@@ -358,6 +370,7 @@ export const AGENT_TASKS: AgentTask[] = [
     setup: seedStore,
     checks: (output) => {
       const list = findList(output, "Deals");
+
       return [
         check("list created", list !== null),
         check(

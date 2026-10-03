@@ -1,22 +1,25 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import type { ShoppingAppClient } from "../shared/types.js";
+
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useResettableState } from "../shared/hooks.js";
 import { createCartAction, type CartRequest } from "./cart-action.js";
 
 /** Keep the operation across rerenders and reconnects; reset only for a new request. */
 export function useCartAction(
-  app: App | null,
+  app: ShoppingAppClient | null,
   request: CartRequest,
   resetAfterMs?: number,
 ) {
   const [action] = useResettableState(JSON.stringify(request), () =>
     createCartAction(request),
   );
+
   const state = useSyncExternalStore(
     action.subscribe,
     action.getSnapshot,
     action.getSnapshot,
   );
+
   const submit = useCallback(() => action.submit(app), [action, app]);
 
   useEffect(() => {
@@ -26,6 +29,7 @@ export function useCartAction(
     )
       return;
     const timer = setTimeout(action.reset, resetAfterMs);
+
     return () => clearTimeout(timer);
   }, [action, state.status, resetAfterMs]);
 

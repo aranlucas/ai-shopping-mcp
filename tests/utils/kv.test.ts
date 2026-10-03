@@ -30,17 +30,17 @@ describe("isKvLike", () => {
 describe("getUserDataKv", () => {
   it("returns the KV binding when present and KV-shaped", () => {
     const kv = makeKv();
-    const env = { USER_DATA_KV: kv } as unknown as Env;
+    const env = { USER_DATA_KV: kv };
     expect(getUserDataKv(env)).toBe(kv);
   });
 
   it("returns null when USER_DATA_KV is absent", () => {
-    const env = {} as unknown as Env;
+    const env = {};
     expect(getUserDataKv(env)).toBeNull();
   });
 
   it("returns null when USER_DATA_KV is not KV-shaped", () => {
-    const env = { USER_DATA_KV: "not-kv" } as unknown as Env;
+    const env = { USER_DATA_KV: "not-kv" };
     expect(getUserDataKv(env)).toBeNull();
   });
 });

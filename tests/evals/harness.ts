@@ -1,3 +1,4 @@
+import { z } from "zod";
 /**
  * Shared harness for the small-model MCP evals.
  *
@@ -17,8 +18,11 @@ import { expect, vi } from "vitest";
 import { ensureShoppingSchema } from "../d1-schema.js";
 
 const CLIENT_REDIRECT_URI = "https://client.example/callback";
+
 const MCP_BASE_URL = env.MCP_RESOURCE_URL;
+
 const MCP_URL = `${MCP_BASE_URL}/mcp`;
+
 const SCOPES = "profile.compact cart.basic:write product.compact";
 
 // ---------------------------------------------------------------------------
@@ -42,7 +46,7 @@ type FixtureProductSpec = {
  * live-model runs can search freely. Terms starting with "zzz" return no
  * results (for not-found paths).
  */
-const FIXTURE_CATALOG: Record<string, FixtureProductSpec[]> = {
+const FIXTURE_CATALOG = {
   milk: [
     {
       upc: "0001111041700",
@@ -139,10 +143,16 @@ const FIXTURE_CATALOG: Record<string, FixtureProductSpec[]> = {
   ],
 };
 
+const fixtureCatalog = new Map<string, FixtureProductSpec[]>(
+  Object.entries(FIXTURE_CATALOG),
+);
+
 /** All acceptable fixture UPCs for a term (any is a valid model pick). */
 export function upcsForTerm(term: string): string[] {
-  const specs = FIXTURE_CATALOG[term.toLowerCase()];
+  const specs = fixtureCatalog.get(term.toLowerCase());
+
   if (!specs) throw new Error(`No fixture catalog entry for term "${term}"`);
+
   return specs.map((spec) => spec.upc);
 }
 
@@ -258,24 +268,31 @@ function productsForTerm(
   term: string,
 ): ReturnType<typeof makeFixtureProduct>[] {
   const normalized = term.toLowerCase().trim();
+
   // "zzz…" terms (and the "frobnut" in them, if a model retries a shorter
   // term) have no products, for not-found paths.
   if (normalized.startsWith("zzz") || normalized.includes("frobnut")) return [];
 
-  const exact = FIXTURE_CATALOG[normalized];
+  const exact = fixtureCatalog.get(normalized);
+
   if (exact) return exact.map(makeFixtureProduct);
 
   const partialKey = Object.keys(FIXTURE_CATALOG).find(
     (key) => normalized.includes(key) || key.includes(normalized),
   );
-  if (partialKey) return FIXTURE_CATALOG[partialKey].map(makeFixtureProduct);
+
+  const partial = partialKey ? fixtureCatalog.get(partialKey) : undefined;
+
+  if (partial) return partial.map(makeFixtureProduct);
 
   // Synthesize a deterministic generic product so open-ended (live-model)
   // searches always find something.
   let hash = 0;
+
   for (const char of normalized)
     hash = (hash * 31 + char.charCodeAt(0)) % 1_000_000;
   const upc = String(2_000_000_000_000 + hash).padStart(13, "0");
+
   return [
     makeFixtureProduct({
       upc,
@@ -292,9 +309,12 @@ function productsForTerm(
 function findProductByUpc(upc: string) {
   for (const specs of Object.values(FIXTURE_CATALOG)) {
     const spec = specs.find((candidate) => candidate.upc === upc);
+
     if (spec) return makeFixtureProduct(spec);
   }
+
   if (upc.startsWith("9")) return null; // reserved for not-found tests
+
   return makeFixtureProduct({
     upc,
     description: "Generic Fixture Product",
@@ -310,6 +330,7 @@ function findProductByUpc(upc: string) {
 // ---------------------------------------------------------------------------
 
 type CapturedCartItem = { upc?: string; quantity?: number; modality?: string };
+
 export type KrogerFetchStub = {
   /** Every PUT /v1/cart/add body, in call order. */
   cartPuts: Array<{ items: CapturedCartItem[] }>;
@@ -347,6 +368,7 @@ export function installKrogerFetchStub(): KrogerFetchStub {
       ) {
         const term = url.searchParams.get("filter.term") ?? "";
         const limit = Number(url.searchParams.get("filter.limit") ?? "5");
+
         return Response.json({ data: productsForTerm(term).slice(0, limit) });
       }
 
@@ -356,6 +378,7 @@ export function installKrogerFetchStub(): KrogerFetchStub {
       ) {
         const upc = url.pathname.split("/").pop() ?? "";
         const product = findProductByUpc(upc);
+
         return Response.json({ data: product });
       }
 
@@ -364,6 +387,7 @@ export function installKrogerFetchStub(): KrogerFetchStub {
         url.pathname === "/v1/locations"
       ) {
         const limit = Number(url.searchParams.get("filter.limit") ?? "5");
+
         return Response.json({ data: FIXTURE_STORES.slice(0, limit) });
       }
 
@@ -372,19 +396,36 @@ export function installKrogerFetchStub(): KrogerFetchStub {
         /^\/v1\/locations\/[^/]+$/.test(url.pathname)
       ) {
         const locationId = url.pathname.split("/").pop();
+
         const store = FIXTURE_STORES.find(
           (candidate) => candidate.locationId === locationId,
         );
+
         return Response.json({ data: store ?? null });
       }
 
       if (url.href === "https://api.kroger.com/v1/cart/add") {
         const method = (request ? request.method : init?.method) ?? "GET";
+
         if (method.toUpperCase() === "PUT") {
           const bodyText = request
             ? await request.text()
             : String(init?.body ?? "{}");
-          cartPuts.push(JSON.parse(bodyText) as { items: CapturedCartItem[] });
+
+          cartPuts.push(
+            z
+              .object({
+                items: z.array(
+                  z.object({
+                    upc: z.string().optional(),
+                    quantity: z.number().optional(),
+                    modality: z.string().optional(),
+                  }),
+                ),
+              })
+              .parse(JSON.parse(bodyText)),
+          );
+
           return new Response(null, { status: 204 });
         }
       }
@@ -410,7 +451,9 @@ type RegisteredClient = { client_id: string; client_secret: string };
 
 function base64Url(bytes: ArrayBuffer): string {
   let binary = "";
+
   for (const byte of new Uint8Array(bytes)) binary += String.fromCharCode(byte);
+
   return btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -425,13 +468,17 @@ async function pkceChallenge(verifier: string): Promise<string> {
 
 function cookieValue(setCookie: string, name: string): string {
   const match = setCookie.match(new RegExp(`${name}=([^;]+)`));
+
   if (!match) throw new Error(`Missing ${name} cookie`);
+
   return match[1];
 }
 
 function hiddenInputValue(html: string, name: string): string {
   const match = html.match(new RegExp(`name="${name}" value="([^"]+)"`));
+
   if (!match) throw new Error(`Missing ${name} input`);
+
   return match[1];
 }
 
@@ -443,6 +490,7 @@ function fetchThroughSelf(
     input instanceof Request
       ? new Request(input, init)
       : new Request(input, init);
+
   return SELF.fetch(request);
 }
 
@@ -458,8 +506,12 @@ async function registerOAuthClient(): Promise<RegisteredClient> {
       }),
     }),
   );
+
   expect(response.status).toBe(201);
-  return (await response.json()) as RegisteredClient;
+
+  return z
+    .object({ client_id: z.string(), client_secret: z.string() })
+    .parse(await response.json());
 }
 
 async function authorizeOAuthClient(client: RegisteredClient) {
@@ -476,10 +528,12 @@ async function authorizeOAuthClient(client: RegisteredClient) {
   const approvalResponse = await SELF.fetch(
     new Request(authUrl, { redirect: "manual" }),
   );
+
   expect(approvalResponse.status).toBe(200);
   const approvalHtml = await approvalResponse.text();
   const approvalState = hiddenInputValue(approvalHtml, "state");
   const csrfToken = hiddenInputValue(approvalHtml, "csrf_token");
+
   const csrfCookie = cookieValue(
     approvalResponse.headers.get("Set-Cookie") ?? "",
     "__Host-CSRF_TOKEN",
@@ -499,12 +553,15 @@ async function authorizeOAuthClient(client: RegisteredClient) {
       redirect: "manual",
     }),
   );
+
   expect(authorizeResponse.status).toBe(302);
 
   const krogerRedirect = new URL(
     authorizeResponse.headers.get("Location") ?? "",
   );
+
   const krogerState = krogerRedirect.searchParams.get("state");
+
   const oauthCookie = cookieValue(
     authorizeResponse.headers.get("Set-Cookie") ?? "",
     "kroger_oauth_state",
@@ -519,14 +576,19 @@ async function authorizeOAuthClient(client: RegisteredClient) {
       },
     ),
   );
+
   expect(callbackResponse.status).toBe(302);
 
   const clientRedirect = new URL(
     callbackResponse.headers.get("Location") ?? "",
   );
+
   const authorizationCode = clientRedirect.searchParams.get("code");
   expect(authorizationCode).toBeTruthy();
-  return { authorizationCode: authorizationCode as string, codeVerifier };
+
+  if (!authorizationCode) throw new Error("OAuth callback contained no code");
+
+  return { authorizationCode, codeVerifier };
 }
 
 async function exchangeCodeForToken(
@@ -549,8 +611,13 @@ async function exchangeCodeForToken(
       }),
     }),
   );
+
   expect(response.status).toBe(200);
-  const token = (await response.json()) as { access_token: string };
+
+  const token = z
+    .object({ access_token: z.string() })
+    .parse(await response.json());
+
   return token.access_token;
 }
 
@@ -561,8 +628,10 @@ async function exchangeCodeForToken(
 export async function createEvalMcpClient(): Promise<Client> {
   await ensureShoppingSchema();
   const registered = await registerOAuthClient();
+
   const { authorizationCode, codeVerifier } =
     await authorizeOAuthClient(registered);
+
   const accessToken = await exchangeCodeForToken(
     registered,
     authorizationCode,
@@ -573,6 +642,7 @@ export async function createEvalMcpClient(): Promise<Client> {
     fetch: fetchThroughSelf,
     requestInit: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
+
   const client = new Client(
     { name: "eval-client", version: "1.0.0" },
     {
@@ -580,11 +650,13 @@ export async function createEvalMcpClient(): Promise<Client> {
       versionNegotiation: { mode: "auto" },
     },
   );
+
   client.setRequestHandler("elicitation/create", async () => ({
     action: "accept",
     content: { confirm: true },
   }));
   await client.connect(transport);
+
   return client;
 }
 
@@ -592,16 +664,12 @@ export async function createEvalMcpClient(): Promise<Client> {
 // Result helpers + token estimation
 // ---------------------------------------------------------------------------
 
-export type ToolCallResult = {
-  content?: Array<{ type?: string; text?: string }>;
-  structuredContent?: unknown;
-  isError?: boolean;
-};
+export type ToolCallResult = Awaited<ReturnType<Client["callTool"]>>;
 
 /** The text a host model actually reads from a tool result. */
 export function contentText(result: ToolCallResult): string {
   return (result.content ?? [])
-    .map((block) => (typeof block.text === "string" ? block.text : ""))
+    .map((block) => (block.type === "text" ? block.text : ""))
     .join("\n");
 }
 
@@ -614,6 +682,7 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Token estimation deliberately delegates arbitrary values to JSON.stringify, without treating them as validated application data.
 export function estimateJsonTokens(value: unknown): number {
   return estimateTokens(JSON.stringify(value) ?? "");
 }

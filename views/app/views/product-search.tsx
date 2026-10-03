@@ -1,7 +1,9 @@
-import type {
-  App,
-  McpUiHostContext,
-} from "@modelcontextprotocol/ext-apps/react";
+import {
+  type ShoppingAppClient,
+  type ProductData,
+  type ProductSearchResultsContent,
+} from "../../shared/types.js";
+import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useMemo } from "react";
 
@@ -21,10 +23,6 @@ import {
   SectionHeader,
 } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import {
-  type ProductData,
-  type ProductSearchResultsContent,
-} from "../../shared/types.js";
 import { saveProductToList } from "../tool-calls.js";
 
 const CAROUSEL_OPTS = { align: "start" } as const;
@@ -52,7 +50,7 @@ function ProductCarousel({
   onAddToList,
   canCallTools,
 }: {
-  app: App | null;
+  app: ShoppingAppClient | null;
   products: ProductData[];
   onAddToList: SaveProductToList;
   canCallTools: boolean;
@@ -91,7 +89,7 @@ export function ProductSearchView({
   hostContext,
 }: {
   data: ProductSearchResultsContent;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
   hostContext?: McpUiHostContext;
 }) {
@@ -108,10 +106,12 @@ export function ProductSearchView({
     () => <Badge variant="secondary">{totalProducts} items</Badge>,
     [totalProducts],
   );
+
   const headerTrailing = useMemo(
     () => <DisplayModeToggle app={app} hostContext={hostContext} />,
     [app, hostContext],
   );
+
   const headerSubtitle = useMemo(
     () => `${results.length} search term${results.length !== 1 ? "s" : ""}`,
     [results.length],
@@ -165,6 +165,7 @@ export function ProductSearchView({
             </div>
           );
         }
+
         if (result.products.length === 0) {
           return (
             <div key={result.requestId ?? result.term} className="mb-5">
@@ -178,6 +179,7 @@ export function ProductSearchView({
             </div>
           );
         }
+
         return (
           <section
             key={result.requestId ?? result.term}
