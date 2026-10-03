@@ -3,8 +3,8 @@
   "install": "export NVM_DIR=\"$HOME/.nvm\" && . \"$NVM_DIR/nvm.sh\" && nvm install 24 && nvm alias default 24 && corepack enable && pnpm install --frozen-lockfile",
   "terminals": [
     {
-      "name": "wrangler-dev",
-      "command": "corepack pnpm exec wrangler dev --local"
+      "name": "cf-dev",
+      "command": "corepack pnpm exec cf dev"
     }
   ],
   "ports": [8788]

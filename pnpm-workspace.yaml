@@ -16,3 +16,10 @@ overrides:
   "@esbuild-kit/core-utils>esbuild": "0.25.0"
 
 pmOnFail: ignore
+
+packageExtensions:
+  # Its types import @ai-sdk/provider without declaring it, so they resolve
+  # the hoisted v4 copy from agents instead of the v3 copy ai@6 uses.
+  "@openrouter/ai-sdk-provider@2":
+    dependencies:
+      "@ai-sdk/provider": "^3.0.0"

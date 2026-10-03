@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["views/**/*", "worker-configuration.d.ts"]
+  "include": ["views/**/*", ".cloudflare/types/index.d.ts"]
 }

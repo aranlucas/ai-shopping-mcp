@@ -40,7 +40,7 @@ flowchart LR
 
 ## Run locally
 
-Requires Node.js 24.18.1 or newer and pnpm 12.6. Wrangler runs the Worker locally; set Kroger client credentials in the ignored `.dev.vars` file before testing OAuth or shopping requests.
+Requires Node.js 24.18.1 or newer and pnpm 12.8. `cf dev` runs the Worker locally; set Kroger client credentials in the ignored `.dev.vars` file before testing OAuth or shopping requests.
 
 ```sh
 pnpm install
@@ -344,7 +344,7 @@ items and add matched items to the pickup cart. The user completes the purchase 
 pnpm build
 pnpm test
 pnpm eval:mcp
-pnpm cf-typegen
+pnpm cf-typegen  # writes .cloudflare/types; typecheck and lint run it first
 ```
 
 `pnpm lint` runs both the standard rules and a focused type-aware pass via `oxlint-tsgolint`.
