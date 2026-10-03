@@ -1,3 +1,4 @@
+import { z } from "zod/v4";
 // Summarizes the vitest-evals JSON reports from `pnpm eval:agent` (one per
 // model) as Markdown, e.g. for the GitHub Actions step summary.
 //
@@ -5,14 +6,17 @@
 import { readFile, readdir } from "node:fs/promises";
 
 const directory = process.argv[2] ?? "eval-results";
+
 const files = (await readdir(directory)).filter((file) =>
   /^agent.*\.json$/.test(file),
 );
+
 const reports = await Promise.all(
   files.map(async (file) =>
     JSON.parse(await readFile(`${directory}/${file}`, "utf8")),
   ),
 );
+
 const testResults = reports.flatMap((report) => report.testResults);
 
 const runs = testResults
@@ -21,6 +25,7 @@ const runs = testResults
   .map((test) => {
     const score = test.meta.eval.scores[0] ?? {};
     const usage = test.meta.harness?.run?.usage ?? {};
+
     return {
       model: test.ancestorTitles.at(-1),
       task: test.title.replace(/^\[\w+\] /, ""),
@@ -40,17 +45,22 @@ const errored = testResults
   .filter((test) => !test.meta?.eval && test.status === "failed");
 
 const models = [...new Set(runs.map((run) => run.model))];
+
 const tasks = [...new Set(runs.map((run) => run.task))];
+
 const rate = (rows) =>
   rows.length ? `${rows.filter((row) => row.pass).length}/${rows.length}` : "-";
+
 const avg = (rows, key) => {
-  const measured = rows.filter((row) => typeof row[key] === "number");
+  const measured = rows.filter((row) => z.number().safeParse(row[key]).success);
+
   return measured.length
     ? (
         measured.reduce((sum, row) => sum + row[key], 0) / measured.length
       ).toFixed(1)
     : "-";
 };
+
 const oneLine = (text) => text.replace(/\s+/g, " ").trim();
 
 const lines = [
@@ -61,6 +71,7 @@ const lines = [
   ...models.map((model) => {
     const rows = runs.filter((run) => run.model === model);
     const tokens = avg(rows, "tokens");
+
     return `| ${model} | ${rate(rows.filter((r) => r.split === "train"))} | ${rate(rows.filter((r) => r.split === "test"))} | ${avg(rows, "toolCalls")} | ${rows.reduce((sum, r) => sum + r.toolErrors, 0)} | ${tokens === "-" ? "-" : Math.round(Number(tokens))} |`;
   }),
   "",
@@ -69,19 +80,25 @@ const lines = [
   ...tasks.map((task) => {
     const cells = models.map((model) => {
       const run = runs.find((r) => r.model === model && r.task === task);
+
       return run ? `${run.pass ? "✅" : "❌"} ${run.toolCalls} calls` : "-";
     });
+
     const split = runs.find((r) => r.task === task)?.split;
+
     return `| ${task}${split === "test" ? " (held-out)" : ""} | ${cells.join(" | ")} |`;
   }),
 ];
 
 const failures = runs.filter((run) => !run.pass);
+
 if (failures.length || errored.length) {
   lines.push("", "### Failures", "");
+
   for (const run of failures) {
     lines.push(`- **${run.model} / ${run.task}**: ${oneLine(run.rationale)}`);
   }
+
   for (const test of errored) {
     lines.push(
       `- **${test.ancestorTitles.at(-1)} / ${test.title}** errored: ${oneLine(test.failureMessages.join(" ")).slice(0, 300)}`,
@@ -92,8 +109,10 @@ if (failures.length || errored.length) {
 const feedback = runs.filter(
   (run) => run.feedback && !/^none\.?$/i.test(run.feedback),
 );
+
 if (feedback.length) {
   lines.push("", "### Model tool feedback", "");
+
   for (const run of feedback) {
     lines.push(`- ${run.model} / ${run.task}: ${oneLine(run.feedback)}`);
   }

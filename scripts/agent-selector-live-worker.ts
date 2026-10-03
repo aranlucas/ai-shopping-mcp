@@ -23,12 +23,15 @@ export default {
   async fetch(request: Request, env: { AI: Ai }): Promise<Response> {
     const started = Date.now();
     let raw: unknown;
+
     try {
       const input = await request.json<Input>();
+
       const entries = input.items.map((entry) => ({
         ...entry,
         products: entry.products.filter((product) => {
           const variant = product.items?.[0];
+
           return (
             variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
             (!input.forPickup ||
@@ -36,7 +39,9 @@ export default {
           );
         }),
       }));
+
       const questions = entries.filter((entry) => entry.products.length > 0);
+
       const prompt = questions.map((entry) => ({
         requestId: entry.requestId,
         requestedItem: entry.query,
@@ -56,6 +61,7 @@ export default {
           ]),
         ),
       }));
+
       const properties = Object.fromEntries(
         questions.map((entry) => [
           entry.requestId,
@@ -69,6 +75,7 @@ export default {
           },
         ]),
       );
+
       const response = await env.AI.gateway("default").run(
         {
           provider: "openrouter",
@@ -111,9 +118,12 @@ export default {
         },
         { signal: AbortSignal.timeout(60000) },
       );
+
       raw = await response.json();
+
       if (!response.ok)
         throw new Error(`Agent request failed with HTTP ${response.status}`);
+
       const parsed = z
         .object({
           choices: z
@@ -136,6 +146,7 @@ export default {
             .length(1),
         })
         .parse(raw);
+
       const choices = z
         .record(z.string(), z.string())
         .parse(
@@ -143,14 +154,17 @@ export default {
             parsed.choices[0].message.tool_calls[0].function.arguments,
           ),
         );
+
       if (
         Object.keys(choices).length !== questions.length ||
         questions.some((entry) => !Object.hasOwn(choices, entry.requestId))
       ) {
         throw new Error("Agent must answer exactly the requested items");
       }
+
       const selections = entries.map((entry) => {
         const choice = choices[entry.requestId];
+
         if (
           entry.products.length === 0 ||
           choice === "no_match" ||
@@ -158,16 +172,20 @@ export default {
         ) {
           return { requestId: entry.requestId, status: "unresolved" };
         }
+
         const index = entry.products.findIndex(
           (_, candidateIndex) => choice === `candidate_${candidateIndex}`,
         );
+
         if (index < 0) throw new Error("Invalid agent candidate choice");
+
         return {
           requestId: entry.requestId,
           status: "selected",
           product: entry.products[index],
         };
       });
+
       return Response.json({
         selections,
         choices,

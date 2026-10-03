@@ -28,6 +28,7 @@ export class ProductService {
 
   getProduct(upc: string, locationId?: string): ResultAsync<Product, AppError> {
     const queryParams: Record<string, string> = {};
+
     if (locationId) {
       queryParams["filter.locationId"] = locationId;
     }
@@ -40,9 +41,11 @@ export class ProductService {
       "get product details",
     ).andThen((data) => {
       const product = data?.data;
+
       if (!product) {
         return err(notFoundError(`No information found for UPC: ${upc}`));
       }
+
       return ok(product);
     });
   }
@@ -62,7 +65,9 @@ export class ProductService {
         ),
       );
     }
+
     const normalized = terms.map(normalizeProductTerm);
+
     if (normalized.filter((term) => !isUpcTerm(term)).length > MAX_TEXT_TERMS) {
       return err(
         validationError(
@@ -70,14 +75,17 @@ export class ProductService {
         ),
       );
     }
+
     const uniqueTerms = [...new Set(normalized)];
     const exactUpcs = new Set(uniqueTerms.filter(isUpcTerm));
     let completed = 0;
+
     const results = await mapCatalogRequests(
       uniqueTerms,
       async (term, index) => {
         const request = { requestId: `product_${index}`, term };
         let result: ProductSearchResult;
+
         if (exactUpcs.has(term)) {
           result = (await this.getProduct(term, params.locationId)).match(
             (product) => ({
@@ -94,15 +102,19 @@ export class ProductService {
             params,
           );
         }
+
         completed++;
+
         try {
           await onComplete?.(completed, uniqueTerms.length);
         } catch (cause) {
           console.warn("Search progress notification failed:", cause);
         }
+
         return result;
       },
     );
+
     return ok({ results, exactUpcs });
   }
 
@@ -112,10 +124,12 @@ export class ProductService {
     locationId?: string,
   ): Promise<Result<Array<string | null>, AppError>> {
     const normalized = upcs.map((upc) => upc.trim().padStart(13, "0"));
+
     const resolved = await this.resolveProducts(normalized, {
       locationId,
       limitPerTerm: 1,
     });
+
     return resolved.map(({ results }) => {
       const names = new Map(
         results.map((result) => [
@@ -125,6 +139,7 @@ export class ProductService {
             : null,
         ]),
       );
+
       return normalized.map((upc) => names.get(upc) ?? null);
     });
   }

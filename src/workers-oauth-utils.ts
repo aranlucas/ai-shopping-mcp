@@ -1,12 +1,19 @@
-import type { ClientInfo } from "@cloudflare/workers-oauth-provider"; // Adjust path if necessary
+import { z } from "zod/v4";
+import type {
+  AuthRequest,
+  ClientInfo,
+} from "@cloudflare/workers-oauth-provider"; // Adjust path if necessary
 import { generateCookie, generateSignedCookie } from "hono/cookie";
 import { parse, parseSigned } from "hono/utils/cookie";
 
 import { safeJsonParse } from "./utils/json.js";
 
 const COOKIE_NAME = "__Host-mcp-approved-clients";
+
 const CSRF_COOKIE_NAME = "__Host-CSRF_TOKEN";
+
 const ONE_YEAR_IN_SECONDS = 31536000;
+
 const TEN_MINUTES_IN_SECONDS = 600;
 
 // --- Helper Functions ---
@@ -23,46 +30,73 @@ type ApprovedClientRecord = {
   scope: string;
 };
 
-function normalizeScope(scope: unknown): string {
-  if (Array.isArray(scope)) {
-    return scope
-      .filter((item): item is string => typeof item === "string")
-      .flatMap((item) => item.split(/\s+/))
-      .filter(Boolean)
-      .toSorted()
-      .join(" ");
-  }
+const approvedClientSchema = z.object({
+  clientId: z.string(),
+  redirectUri: z.string(),
+  scope: z.string(),
+});
 
-  if (typeof scope === "string") {
-    return scope.split(/\s+/).filter(Boolean).toSorted().join(" ");
-  }
+const approvalRequestSchema = z.looseObject({
+  clientId: z.string().optional(),
+  redirectUri: z.string().optional(),
+  scope: z
+    .union([z.string(), z.array(z.string().catch(""))])
+    .catch("")
+    .optional(),
+});
 
-  return "";
+const approvalStateFieldsSchema = z.looseObject({
+  oauthReqInfo: z.unknown().optional(),
+});
+
+// Validate the envelope without cloning its opaque extension bag. Returning the
+// original JSON value preserves own special keys, nested values, and key order.
+const approvalStateSchema = z.custom<z.input<typeof approvalStateFieldsSchema>>(
+  (value) => approvalStateFieldsSchema.safeParse(value).success,
+);
+
+/** OAuth provider contract, validated when crossing the form/cookie JSON boundary. */
+const authRequestFieldsSchema = z.looseObject({
+  responseType: z.string(),
+  clientId: z.string(),
+  redirectUri: z.string(),
+  scope: z.array(z.string()),
+  state: z.string(),
+  codeChallenge: z.string().optional(),
+  codeChallengeMethod: z.string().optional(),
+  resource: z.string().optional(),
+  issuer: z.string().optional(),
+}) satisfies z.ZodType<AuthRequest>;
+
+// AuthRequest also carries provider-owned extensions. Validate known fields
+// while retaining the exact input passed between consent, cookies and provider.
+export const authRequestSchema = z.custom<
+  z.input<typeof authRequestFieldsSchema>
+>((value) => authRequestFieldsSchema.safeParse(value).success);
+
+function normalizeScope(scope: ApprovalRequest["scope"]): string {
+  const terms = Array.isArray(scope) ? scope : [scope ?? ""];
+
+  return terms
+    .flatMap((item) => item.split(/\s+/))
+    .filter(Boolean)
+    .toSorted()
+    .join(" ");
 }
 
 function toApprovalRecord(
   request: ApprovalRequest,
 ): ApprovedClientRecord | null {
-  if (!request.clientId || !request.redirectUri) return null;
+  const parsed = approvalRequestSchema.safeParse(request);
+
+  if (!parsed.success || !parsed.data.clientId || !parsed.data.redirectUri)
+    return null;
 
   return {
-    clientId: request.clientId,
-    redirectUri: request.redirectUri,
-    scope: normalizeScope(request.scope),
+    clientId: parsed.data.clientId,
+    redirectUri: parsed.data.redirectUri,
+    scope: normalizeScope(parsed.data.scope),
   };
-}
-
-function isApprovedClientRecord(value: unknown): value is ApprovedClientRecord {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "clientId" in value &&
-    "redirectUri" in value &&
-    "scope" in value &&
-    typeof value.clientId === "string" &&
-    typeof value.redirectUri === "string" &&
-    typeof value.scope === "string"
-  );
 }
 
 function approvalRecordsMatch(
@@ -81,11 +115,15 @@ function approvalRecordsMatch(
  * @param encoded - The URL-safe base64 encoded string.
  * @returns The original data.
  */
-function decodeState<T = unknown>(encoded: string): T {
+function decodeState<TSchema extends z.ZodType>(
+  encoded: string,
+  schema: TSchema,
+): z.output<TSchema> {
   try {
     const jsonString = atob(encoded);
+
     return safeJsonParse(jsonString).match(
-      (state) => state as T,
+      (state) => schema.parse(state),
       (error) => {
         throw error;
       },
@@ -96,11 +134,12 @@ function decodeState<T = unknown>(encoded: string): T {
   }
 }
 
-async function parseSignedCookieJson<T>(
+async function parseSignedCookieJson<TSchema extends z.ZodType>(
   cookieHeader: string,
   cookieName: string,
   cookieSecret: string,
-): Promise<T | null> {
+  schema: TSchema,
+): Promise<z.output<TSchema> | null> {
   if (!cookieSecret) {
     throw new Error(
       "COOKIE_ENCRYPTION_KEY is not defined. A secret key is required for signing cookies.",
@@ -112,13 +151,20 @@ async function parseSignedCookieJson<T>(
     cookieSecret,
     cookieName,
   );
+
   const payload = signedCookies[cookieName];
-  if (typeof payload !== "string") return null;
+
+  if (payload === false || payload === undefined) return null;
 
   return safeJsonParse(payload).match(
-    (parsed) => parsed as T,
+    (parsed) => {
+      const validated = schema.safeParse(parsed);
+
+      return validated.success ? validated.data : null;
+    },
     (error) => {
       console.error("Error parsing cookie payload:", error);
+
       return null;
     },
   );
@@ -136,25 +182,17 @@ async function getApprovedClientsFromCookie(
 ): Promise<ApprovedClientRecord[] | null> {
   if (!cookieHeader) return null;
 
-  const approvedClients = await parseSignedCookieJson<unknown>(
+  return parseSignedCookieJson(
     cookieHeader,
     COOKIE_NAME,
     secret,
+    z.array(approvedClientSchema),
   );
-
-  if (!Array.isArray(approvedClients)) {
-    return null;
-  }
-
-  if (!approvedClients.every(isApprovedClientRecord)) {
-    return null;
-  }
-
-  return approvedClients;
 }
 
 function generateCSRFProtection() {
   const token = crypto.randomUUID();
+
   const setCookie = generateCookie(CSRF_COOKIE_NAME, token, {
     httpOnly: true,
     maxAge: TEN_MINUTES_IN_SECONDS,
@@ -162,22 +200,27 @@ function generateCSRFProtection() {
     sameSite: "Lax",
     secure: true,
   });
+
   return { setCookie, token };
 }
 
 function validateCSRFToken(formData: FormData, request: Request) {
-  const tokenFromForm = formData.get("csrf_token");
-  if (typeof tokenFromForm !== "string" || !tokenFromForm) {
+  const token = z.string().min(1).safeParse(formData.get("csrf_token"));
+
+  if (!token.success) {
     throw new Error("Missing or invalid CSRF token.");
   }
 
+  const tokenFromForm = token.data;
   const cookieHeader = request.headers.get("Cookie") || "";
+
   const tokenMatchesCookie = cookieHeader
     .split(";")
     .some(
       (cookie) =>
         parse(cookie, CSRF_COOKIE_NAME)[CSRF_COOKIE_NAME] === tokenFromForm,
     );
+
   if (!tokenMatchesCookie) {
     throw new Error("CSRF token mismatch.");
   }
@@ -208,9 +251,11 @@ export async function clientIdAlreadyApproved(
   cookieSecret: string,
 ): Promise<boolean> {
   const requestedApproval = toApprovalRecord(oauthRequest);
+
   if (!requestedApproval) return false;
 
   const cookieHeader = request.headers.get("Cookie");
+
   const approvedClients = await getApprovedClientsFromCookie(
     cookieHeader,
     cookieSecret,
@@ -230,6 +275,7 @@ export interface ApprovalDialogOptions {
     logo?: string;
     description?: string;
   };
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- OAuth form state is an opaque extension bag that must round-trip arbitrary caller fields.
   state: Record<string, unknown>;
 }
 
@@ -254,21 +300,26 @@ export function renderApprovalDialog(
 
   // Sanitize any untrusted content
   const serverName = sanitizeHtml(server.name);
+
   const clientName = client?.clientName
     ? sanitizeHtml(client.clientName)
     : "Unknown MCP Client";
+
   const serverDescription = server.description
     ? sanitizeHtml(server.description)
     : "";
 
   // Safe URLs
   const logoUrl = server.logo ? sanitizeHtml(sanitizeUrl(server.logo)) : "";
+
   const clientUri = client?.clientUri
     ? sanitizeHtml(sanitizeUrl(client.clientUri))
     : "";
+
   const policyUri = client?.policyUri
     ? sanitizeHtml(sanitizeUrl(client.policyUri))
     : "";
+
   const tosUri = client?.tosUri ? sanitizeHtml(sanitizeUrl(client.tosUri)) : "";
 
   // Client contacts
@@ -593,6 +644,7 @@ export function renderApprovalDialog(
  */
 export interface ParsedApprovalResult {
   /** The original state object passed through the form. */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- OAuth form state is an opaque extension bag that must round-trip arbitrary caller fields.
   state: Record<string, unknown>;
   /** Headers to set on the redirect response, including the Set-Cookie header. */
   headers: Headers;
@@ -615,26 +667,23 @@ export async function parseRedirectApproval(
     throw new Error("Invalid request method. Expected POST.");
   }
 
-  interface DecodedState extends Record<string, unknown> {
-    oauthReqInfo?: ApprovalRequest;
-  }
-
-  let state: DecodedState;
+  let state: z.output<typeof approvalStateSchema>;
   let approvedClient: ApprovedClientRecord | null;
   let clearCsrfCookie: string;
 
   try {
     const formData = await request.formData();
     clearCsrfCookie = validateCSRFToken(formData, request);
-    const encodedState = formData.get("state");
+    const encodedState = z.string().min(1).safeParse(formData.get("state"));
 
-    if (typeof encodedState !== "string" || !encodedState) {
+    if (!encodedState.success) {
       throw new Error("Missing or invalid 'state' in form data.");
     }
 
-    state = decodeState<DecodedState>(encodedState);
-    approvedClient = state.oauthReqInfo
-      ? toApprovalRecord(state.oauthReqInfo)
+    state = decodeState(encodedState.data, approvalStateSchema);
+    const approvedRequest = approvalRequestSchema.safeParse(state.oauthReqInfo);
+    approvedClient = approvedRequest.success
+      ? toApprovalRecord(approvedRequest.data)
       : null;
 
     if (!approvedClient) {
@@ -653,6 +702,7 @@ export async function parseRedirectApproval(
 
   // Get existing approved clients
   const cookieHeader = request.headers.get("Cookie");
+
   const existingApprovedClients =
     (await getApprovedClientsFromCookie(cookieHeader, cookieSecret)) || [];
 
@@ -702,6 +752,7 @@ function sanitizeHtml(unsafe: string): string {
 function sanitizeUrl(unsafe: string): string {
   try {
     const parsed = new URL(unsafe);
+
     return ["http:", "https:"].includes(parsed.protocol) ? unsafe : "";
   } catch {
     return "";

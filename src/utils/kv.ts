@@ -1,3 +1,5 @@
+import { z } from "zod/v4";
+
 /** Minimal KV surface shared by every KV-backed cache in this codebase. */
 export type KvLike = Pick<KVNamespace, "get" | "put">;
 
@@ -13,12 +15,11 @@ export interface PersistenceKv {
 }
 
 export function isKvLike(value: unknown): value is KvLike {
-  return (
-    !!value && typeof value === "object" && "get" in value && "put" in value
-  );
+  return z.object({ get: z.function(), put: z.function() }).safeParse(value)
+    .success;
 }
 
 /** Resolves the shared user-data KV binding, or null when absent/malformed. */
-export function getUserDataKv(env: Env): KvLike | null {
+export function getUserDataKv(env: { USER_DATA_KV?: unknown }): KvLike | null {
   return isKvLike(env?.USER_DATA_KV) ? env.USER_DATA_KV : null;
 }

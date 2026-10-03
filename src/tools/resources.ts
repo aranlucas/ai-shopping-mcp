@@ -45,6 +45,7 @@ export function registerResources(
           error: "Failed to fetch pantry data",
         });
       }
+
       return toonResource("shopping://user/pantry", {
         itemCount: result.value.length,
         items: result.value,
@@ -74,6 +75,7 @@ export function registerResources(
           error: "Failed to fetch equipment data",
         });
       }
+
       return toonResource("shopping://user/kitchen-equipment", {
         itemCount: result.value.length,
         items: result.value,
@@ -103,6 +105,7 @@ export function registerResources(
           error: "Failed to fetch preferred store data",
         });
       }
+
       if (!result.value) {
         return toonResource("shopping://user/preferred-store", {
           message: "No preferred store set",
@@ -110,6 +113,7 @@ export function registerResources(
             "Ask the user for their zip code, then use search_stores to find nearby stores and set_preferred_store to save their choice.",
         });
       }
+
       return toonResource("shopping://user/preferred-store", result.value);
     },
   );
@@ -135,6 +139,7 @@ export function registerResources(
           error: "Failed to fetch order data",
         });
       }
+
       return toonResource("shopping://user/order-history", {
         orderCount: result.value.length,
         orders: result.value,
@@ -166,6 +171,7 @@ export function registerResources(
             for (const order of orders) {
               for (const item of order.items) {
                 const upc = item.upc;
+
                 if (upc && /^\d{13}$/.test(upc)) {
                   upcs.add(upc);
                 }
@@ -176,6 +182,7 @@ export function registerResources(
           const matches = [...upcs].filter(
             (upc) => !prefix || upc.startsWith(prefix),
           );
+
           return matches.slice(0, 50);
         },
       },
@@ -187,6 +194,7 @@ export function registerResources(
     },
     async (uri: URL) => {
       const match = uri.href.match(/shopping:\/\/product\/([0-9]{13})/);
+
       if (!match) {
         return toonResource(uri.href, {
           error:
@@ -197,10 +205,12 @@ export function registerResources(
       const upc = match[1];
 
       getProps();
+
       const locationResult = await safeStorage(
         () => preferredLocation.get(),
         "fetch preferred location",
       );
+
       const locationId = locationResult.isOk()
         ? locationResult.value?.locationId
         : undefined;
@@ -208,11 +218,13 @@ export function registerResources(
       const result = await productService.getProduct(upc, locationId);
 
       if (result.isOk()) return toonResource(uri.href, result.value);
+
       if (result.error.type === "NOT_FOUND") {
         return toonResource(uri.href, {
           error: `No product found with UPC: ${upc}`,
         });
       }
+
       return toonResource(uri.href, {
         error: `Failed to fetch product: ${result.error.message}`,
       });

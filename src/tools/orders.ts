@@ -63,6 +63,7 @@ export function registerOrderTools(
     },
     async ({ items, storeId, notes }) => {
       getProps();
+
       const locationId =
         storeId ??
         (await safeStorage(
@@ -72,8 +73,10 @@ export function registerOrderTools(
           (store) => store?.locationId,
           () => undefined,
         ));
+
       const orderId = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+
       const estimatedTotal = items.reduce(
         (sum, item) => sum + (item.price || 0) * item.quantity,
         0,

@@ -5,7 +5,10 @@ import * as z from "zod/v4";
 
 import type { PreferredLocation } from "../domain/shopping.js";
 import type { KrogerClients } from "../services/kroger/client.js";
-import type { components as LocationComponents } from "../services/kroger/location.js";
+import type {
+  components as LocationComponents,
+  operations,
+} from "../services/kroger/location.js";
 import type { LocationData } from "../app-results.js";
 import type { PreferredLocationStore } from "../utils/shopping-store.js";
 
@@ -44,12 +47,20 @@ function compactLocation(location: Location): LocationData {
 }
 
 /** zipCode, or the value of any zip-like key a model misspelled it as. */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The deliberately loose MCP input accepts misspelled zip keys; each candidate is parsed before use.
 function zipCodeFrom(input: Record<string, unknown>): string | undefined {
-  if (typeof input.zipCode === "string") return input.zipCode.trim();
-  const alias = Object.entries(input).find(
-    ([key, value]) => /^(zip|postal)/i.test(key) && typeof value === "string",
-  );
-  return typeof alias?.[1] === "string" ? alias[1].trim() : undefined;
+  const direct = z.string().safeParse(input.zipCode);
+
+  if (direct.success) return direct.data.trim();
+
+  for (const [key, value] of Object.entries(input)) {
+    if (!/^(zip|postal)/i.test(key)) continue;
+    const parsed = z.string().safeParse(value);
+
+    if (parsed.success) return parsed.data.trim();
+  }
+
+  return undefined;
 }
 
 export type LocationToolDependencies = {
@@ -110,8 +121,10 @@ export function registerLocationTools(
     },
     async (input) => {
       const { storeId, limit, chain } = input;
+
       if (storeId) return getStoreDetails(storeId);
       const zipCodeNear = zipCodeFrom(input);
+
       if (!zipCodeNear || !/^\d{5}$/.test(zipCodeNear)) {
         return toMcpError(
           validationError(
@@ -120,10 +133,12 @@ export function registerLocationTools(
         );
       }
 
-      const queryParams: Record<string, string | number> = {
-        "filter.limit": limit,
-        "filter.zipCode.near": zipCodeNear,
-      };
+      const queryParams: operations["SearchLocations"]["parameters"]["query"] =
+        {
+          "filter.limit": limit,
+          "filter.zipCode.near": zipCodeNear,
+        };
+
       if (chain) queryParams["filter.chain"] = chain;
 
       const result = await fromApiResponse(
@@ -136,6 +151,7 @@ export function registerLocationTools(
 
       if (result.isErr()) return toMcpError(result.error);
       const stores = result.value;
+
       return {
         content: [
           { type: "text" as const, text: formatStoreListMarkdown(stores) },
@@ -156,16 +172,19 @@ export function registerLocationTools(
       "get location details",
     ).andThen((data) => {
       const location = data?.data;
+
       if (!location) {
         return err(
           notFoundError(`No information found for location ID: ${storeId}`),
         );
       }
+
       return ok(location);
     });
 
     if (result.isErr()) return toMcpError(result.error);
     const location = result.value;
+
     return {
       content: [
         {
@@ -206,6 +225,7 @@ export function registerLocationTools(
         "get location details",
       ).andThen((data) => {
         const location = data?.data;
+
         if (!location) {
           return err(
             notFoundError(`No information found for location ID: ${storeId}`),

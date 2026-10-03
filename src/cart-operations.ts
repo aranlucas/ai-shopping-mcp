@@ -58,9 +58,11 @@ export async function claimCartOperation(
   readLegacy?: () => Promise<CartReceiptItem[] | null>,
 ): Promise<CartClaim> {
   const claim = await operations.begin(key, fingerprint);
+
   if (claim.status !== "started" || !readLegacy) return claim;
 
   let legacy: CartReceiptItem[] | null;
+
   try {
     legacy = await readLegacy();
   } catch (error) {
@@ -73,6 +75,7 @@ export async function claimCartOperation(
   if (!legacy || legacy.length === 0) return claim;
 
   const legacyFingerprint = cartItemsFingerprint(legacy);
+
   return operations.reconcileLegacy(
     key,
     claim.attempt,
@@ -89,6 +92,7 @@ export class CartOperations
   async begin(key: string, fingerprint: string): Promise<CartClaim> {
     return this.ctx.storage.transaction(async (txn) => {
       const existing = await txn.get<CartOperation>(key);
+
       if (existing)
         return existing.fingerprint === fingerprint
           ? existing
@@ -99,6 +103,7 @@ export class CartOperations
         attempt,
         fingerprint,
       } satisfies CartOperation);
+
       return { status: "started", attempt, fingerprint };
     });
   }
@@ -111,12 +116,14 @@ export class CartOperations
   ): Promise<CartClaim> {
     return this.ctx.storage.transaction(async (txn) => {
       const operation = await txn.get<CartOperation>(key);
+
       if (
         !operation ||
         operation.status !== "pending" ||
         operation.attempt !== attempt
       ) {
         if (!operation) return { status: "conflict" };
+
         return operation.fingerprint === fingerprint
           ? operation
           : { status: "conflict" };
@@ -128,7 +135,9 @@ export class CartOperations
           attempt,
           fingerprint,
         } satisfies CartOperation;
+
         await txn.put(key, completed);
+
         return completed;
       }
 
@@ -140,7 +149,9 @@ export class CartOperations
         attempt: `legacy:${crypto.randomUUID()}`,
         fingerprint: legacyFingerprint,
       } satisfies CartOperation;
+
       await txn.put(key, migrated);
+
       return { status: "conflict" };
     });
   }
@@ -148,12 +159,14 @@ export class CartOperations
   async complete(key: string, attempt: string): Promise<boolean> {
     return this.ctx.storage.transaction(async (txn) => {
       const operation = await txn.get<CartOperation>(key);
+
       if (!operation || operation.attempt !== attempt) return false;
       await txn.put(key, {
         status: "completed",
         attempt,
         fingerprint: operation.fingerprint,
       } satisfies CartOperation);
+
       return true;
     });
   }
@@ -162,6 +175,7 @@ export class CartOperations
   async reject(key: string, attempt: string): Promise<void> {
     await this.ctx.storage.transaction(async (txn) => {
       const operation = await txn.get<CartOperation>(key);
+
       if (operation?.status === "pending" && operation.attempt === attempt)
         await txn.delete(key);
     });

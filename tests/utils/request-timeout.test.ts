@@ -6,11 +6,14 @@ import { requestTimeoutMiddleware } from "../../src/utils/request-timeout.js";
 describe("request deadlines", () => {
   it("aborts a stalled request and creates an independent deadline for the next request", async () => {
     const signals: AbortSignal[] = [];
+
     const client = createClient<paths>({
       baseUrl: "https://api.kroger.com",
       fetch: async (request) => {
         signals.push(request.signal);
+
         if (signals.length > 1) return Response.json({ data: [] });
+
         return new Promise<Response>((_resolve, reject) => {
           request.signal.addEventListener(
             "abort",
@@ -22,6 +25,7 @@ describe("request deadlines", () => {
         });
       },
     });
+
     client.use(requestTimeoutMiddleware(undefined, 10));
     await expect(
       client.GET("/v1/products", {
@@ -45,13 +49,16 @@ describe("request deadlines", () => {
     const controller = new AbortController();
     const reason = new Error("caller cancelled");
     controller.abort(reason);
+
     const client = createClient<paths>({
       baseUrl: "https://api.kroger.com",
       fetch: async (request) => {
         request.signal.throwIfAborted();
+
         return Response.json({ data: [] });
       },
     });
+
     client.use(requestTimeoutMiddleware(controller.signal));
     await expect(
       client.GET("/v1/products", {

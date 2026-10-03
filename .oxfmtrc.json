@@ -22,6 +22,18 @@
   "ignorePatterns": [
     "worker-configuration.d.ts",
     "src/services/gateway/schema.d.ts",
-    "views/shared/ui/**"
+    "views/shared/ui/**",
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".continue/**",
+    ".cursor/**",
+    ".gemini/**",
+    ".opencode/**",
+    ".pi/**",
+    ".roo/**",
+    ".windsurf/**",
+    "tools/oxlint/anti-slop/**"
   ]
 }

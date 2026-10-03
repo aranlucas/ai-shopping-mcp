@@ -36,6 +36,15 @@ export interface KrogerTokenResponse {
   error_description?: string;
 }
 
+export const krogerTokenResponseSchema = z.looseObject({
+  access_token: z.string().optional(),
+  refresh_token: z.string().optional(),
+  expires_in: z.number().optional(),
+  token_type: z.string().optional(),
+  error: z.string().optional(),
+  error_description: z.string().optional(),
+}) satisfies z.ZodType<KrogerTokenResponse>;
+
 /**
  * Refreshes a Kroger access token using a refresh token.
  * Returns ResultAsync instead of throwing for consistent error handling.
@@ -67,7 +76,9 @@ export function refreshKrogerToken(
       ),
   ).andThen((refreshResponse) =>
     ResultAsync.fromPromise(
-      refreshResponse.json() as Promise<KrogerTokenResponse>,
+      refreshResponse
+        .json()
+        .then((value) => krogerTokenResponseSchema.parse(value)),
       (e) =>
         networkError(
           `Failed to parse token refresh response: ${e instanceof Error ? e.message : String(e)}`,
@@ -81,6 +92,7 @@ export function refreshKrogerToken(
           error: responseData.error,
           errorDescription: responseData.error_description,
         });
+
         return err(
           apiError(
             `Failed to refresh Kroger access token: ${responseData.error_description || responseData.error || "Unknown error"}`,
@@ -139,6 +151,7 @@ export function createKrogerAuthMiddleware(
   return {
     async onRequest({ request }) {
       const tokenInfo = getTokenInfo();
+
       if (!tokenInfo) {
         throw new KrogerTokenExpiredError(
           `No Kroger token available. ${REAUTH_MSG}`,
@@ -153,6 +166,7 @@ export function createKrogerAuthMiddleware(
       }
 
       request.headers.set("Authorization", `Bearer ${tokenInfo.accessToken}`);
+
       return request;
     },
 
@@ -162,6 +176,7 @@ export function createKrogerAuthMiddleware(
           `Kroger rejected the access token. ${REAUTH_MSG}`,
         );
       }
+
       return response;
     },
   };
@@ -180,6 +195,7 @@ const krogerCacheEntrySchema = z.object({
 function krogerCacheKeyFor(url: string): string {
   const parsed = new URL(url);
   parsed.searchParams.sort();
+
   return `kroger-cache|v1|${parsed.href}`;
 }
 
@@ -204,17 +220,22 @@ export function createKrogerCacheMiddleware(
       if (!kv || request.method !== "GET") return;
 
       const key = krogerCacheKeyFor(request.url);
+
       const cacheResult = await safeStorage(
         () => kv.get(key),
         "read Kroger response cache",
       );
+
       const raw = cacheResult.isOk() ? cacheResult.value : null;
+
       if (!raw) return;
 
       const parseResult = safeJsonParseWithSchema(raw, krogerCacheEntrySchema);
+
       const entry: KrogerCacheEntry | null = parseResult.isOk()
         ? parseResult.value
         : null;
+
       if (!entry) return;
 
       return new Response(entry.body, {
@@ -229,6 +250,7 @@ export function createKrogerCacheMiddleware(
       const key = krogerCacheKeyFor(request.url);
       const copy = response.clone();
       const { status } = response;
+
       const write = safeStorage(async () => {
         const entry: KrogerCacheEntry = { status, body: await copy.text() };
         await kv.put(key, JSON.stringify(entry), {
@@ -240,6 +262,7 @@ export function createKrogerCacheMiddleware(
           error.message,
         ),
       );
+
       if (waitUntil) waitUntil(Promise.resolve(write));
       else await write;
     },
@@ -263,11 +286,13 @@ export function createKrogerClients(
   waitUntil?: WaitUntil,
 ) {
   const authMiddleware = createKrogerAuthMiddleware(getTokenInfo);
+
   const cacheMiddleware = createKrogerCacheMiddleware(
     kv,
     KROGER_CACHE_TTL_SECONDS,
     waitUntil,
   );
+
   const base = { baseUrl: "https://api.kroger.com", fetch: fetchWithReadRetry };
 
   const cartClient = createClient<CartPaths>(base);

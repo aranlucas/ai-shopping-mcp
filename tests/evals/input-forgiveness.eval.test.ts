@@ -1,3 +1,4 @@
+import type { ToolArguments } from "../v2-tool-handler.js";
 /**
  * Eval: input forgiveness (the small-model mistake matrix).
  *
@@ -36,13 +37,13 @@ describe("input forgiveness", () => {
   /** callTool never throws here — schema failures come back as isError results. */
   async function call(
     name: string,
-    args: Record<string, unknown>,
+    args: ToolArguments,
   ): Promise<ToolCallResult> {
     try {
-      return (await client.callTool({
+      return await client.callTool({
         name,
         arguments: args,
-      })) as ToolCallResult;
+      });
     } catch (error) {
       return {
         isError: true,
@@ -67,6 +68,7 @@ describe("input forgiveness", () => {
       const result = await call("search_products", {
         terms: [" 0001111041700 "],
       });
+
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
@@ -74,6 +76,7 @@ describe("input forgiveness", () => {
       const result = await call("record_order", {
         items: [{ upc: "0001111041700", productName: "Milk", quantity: 1 }],
       });
+
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
@@ -83,6 +86,7 @@ describe("input forgiveness", () => {
           { productId: "0001111041700", productName: "Milk", quantity: 1 },
         ],
       });
+
       expect(result.isError, `${contentText(result)}`).toBeTruthy();
     });
 
@@ -90,15 +94,18 @@ describe("input forgiveness", () => {
       const result = await call("set_preferred_store", {
         storeId: " 70500847 ",
       });
+
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
 
     it("accepts lowercase modality and quantities as strings, padding inline UPCs", async () => {
       await call("set_preferred_store", { storeId: "70500847" });
+
       const result = await call("add_shopping_list_to_cart", {
         items: [{ upc: "1111041700", quantity: "2" }],
         modality: "pickup",
       });
+
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
 
       const items = stub.allCartItems();
@@ -113,6 +120,7 @@ describe("input forgiveness", () => {
         terms: ["milk"],
         limitPerTerm: "3",
       });
+
       expect(result.isError, `${contentText(result)}`).toBeFalsy();
     });
   });
@@ -123,6 +131,7 @@ describe("input forgiveness", () => {
         terms: ["milk"],
         reasoning: "the user asked for milk",
       });
+
       expect(result.isError, `${contentText(result)}`).toBeTruthy();
     });
 
@@ -130,6 +139,7 @@ describe("input forgiveness", () => {
       const result = await call("search_products", {
         productId: "1111041700",
       });
+
       expect(result.isError).toBe(true);
     });
 
@@ -137,6 +147,7 @@ describe("input forgiveness", () => {
       const result = await call("search_products", {
         productRef: "kroger:0001111041700",
       });
+
       expect(result.isError).toBe(true);
     });
 
@@ -164,6 +175,7 @@ describe("input forgiveness", () => {
         name: "Empty",
         items: [],
       });
+
       expect(result.isError).toBe(true);
       expect(contentText(result)).toContain("at least one item");
     });
@@ -172,6 +184,7 @@ describe("input forgiveness", () => {
       const result = await call("search_products", {
         terms: Array.from({ length: 11 }, (_, index) => `term-${index}`),
       });
+
       expect(result.isError).toBe(true);
       expect(contentText(result)).toContain("10");
     });

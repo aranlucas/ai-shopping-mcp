@@ -102,6 +102,7 @@ describe("MCP App view routing", () => {
         ],
       }),
     };
+
     expect(parseAppResult(result)).toMatchObject({
       items: [{ id: "item-1", checked: true }],
     });

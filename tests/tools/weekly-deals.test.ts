@@ -1,11 +1,20 @@
+import { productClient as createProductClient } from "../kroger-clients.js";
+import { appPayloadSchemas } from "../../src/app-results.js";
+import { parseToolPayload } from "../app-payload.js";
+import type { Props } from "../../src/tools/types.js";
+import { memoryKv } from "../memory-kv.js";
+import {
+  type TestToolResult,
+  type TestToolConfig,
+  type TestToolHandler as ToolHandler,
+} from "../v2-tool-handler.js";
+import type {
+  getQfcWeeklyDeals,
+  QfcDealsApiResponse,
+} from "../../src/services/qfc-weekly-deals.js";
+import { capturingServer } from "../capturing-server.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { McpServer } from "@modelcontextprotocol/server";
-
-import type { QfcDealsApiResponse } from "../../src/services/qfc-weekly-deals.js";
-import type { KrogerClients } from "../../src/services/kroger/client.js";
-import type { WeeklyDealsLoader } from "../../src/services/weekly-deals/service.js";
-import type { WeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
 import { type WeeklyDealWarning } from "../../src/services/weekly-deals/schema.js";
 import type { WeeklyDealsCacheEntry } from "../../src/tools/weekly-deals.js";
 import type { PreferredLocation } from "../../src/domain/shopping.js";
@@ -23,27 +32,10 @@ import {
 } from "../../src/tools/weekly-deals.js";
 import { createWeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
 import { createWeeklyDealsLoader } from "../../src/services/weekly-deals/runtime.js";
-import {
-  type TestToolConfig,
-  type TestToolHandler as ToolHandler,
-  wrapV2ToolHandler,
-} from "../v2-tool-handler.js";
 
-const weeklyDealsAuthState = vi.hoisted(() => ({
-  authContext: {
-    props: {
-      id: "user-weekly-deals",
-      accessToken: "token",
-      tokenExpiresAt: Date.now() + 60_000,
-    },
-  } as
-    | { props?: { id: string; accessToken: string; tokenExpiresAt: number } }
-    | undefined,
-}));
+type AuthState = { authContext: { props: Props } | undefined };
 
-vi.mock("agents/mcp/server", () => ({
-  getMcpAuthContext: () => weeklyDealsAuthState.authContext,
-}));
+const weeklyDealsAuthState: AuthState = { authContext: undefined };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,6 +49,7 @@ function getTextContent(
     (c): c is { type: "text"; text: string } =>
       "type" in c && c.type === "text",
   );
+
   return textItem?.text ?? "";
 }
 
@@ -100,6 +93,7 @@ function makeCacheEntry(
   overrides: Partial<WeeklyDealsCacheEntry> = {},
 ): WeeklyDealsCacheEntry {
   const now = Date.now();
+
   return {
     version: 1,
     createdAt: now,
@@ -121,6 +115,7 @@ describe("buildWeeklyDealsCacheKey", () => {
       limit: 50,
       pageLimit: 2,
     });
+
     expect(key).toBe("qfc|weekly-deals|v1|loc:70500847|limit:50|pages:2");
   });
 
@@ -187,17 +182,22 @@ describe("parseCacheEntry", () => {
   });
 
   it("rejects a deal whose optional fields have the wrong runtime type", () => {
-    const entry = JSON.parse(JSON.stringify(makeCacheEntry())) as {
-      data: { deals: unknown[] };
-    };
-    entry.data.deals = [
-      {
-        id: "deal-1",
-        title: "Milk",
-        source: "print",
-        price: { malformed: true },
+    const original = makeCacheEntry();
+
+    const entry = {
+      ...original,
+      data: {
+        ...original.data,
+        deals: [
+          {
+            id: "deal-1",
+            title: "Milk",
+            source: "print",
+            price: { malformed: true },
+          },
+        ],
       },
-    ];
+    };
 
     expect(parseCacheEntry(JSON.stringify(entry))).toBeNull();
   });
@@ -215,27 +215,33 @@ describe("getLatestCircularEndTime", () => {
 
   it("returns end time from printCircular when only print exists", () => {
     const endDate = "2025-01-07T00:00:00Z";
+
     const result = makeMinimalResult({
       printCircular: makeCircular(endDate),
     });
+
     expect(getLatestCircularEndTime(result)).toBe(Date.parse(endDate));
   });
 
   it("returns end time from shoppableCircular when only shoppable exists", () => {
     const endDate = "2025-01-08T00:00:00Z";
+
     const result = makeMinimalResult({
       shoppableCircular: makeCircular(endDate),
     });
+
     expect(getLatestCircularEndTime(result)).toBe(Date.parse(endDate));
   });
 
   it("returns the later end time when both circulars exist", () => {
     const printEnd = "2025-01-07T00:00:00Z";
     const shoppableEnd = "2025-01-09T00:00:00Z";
+
     const result = makeMinimalResult({
       printCircular: makeCircular(printEnd),
       shoppableCircular: makeCircular(shoppableEnd),
     });
+
     expect(getLatestCircularEndTime(result)).toBe(Date.parse(shoppableEnd));
   });
 });
@@ -271,6 +277,7 @@ describe("addCacheWarning", () => {
       sourceMode: "search_api",
       locationId: "12345678",
     });
+
     const updated = addCacheWarning(result, legacyWarning("msg"));
     expect(updated.sourceMode).toBe("search_api");
     expect(updated.locationId).toBe("12345678");
@@ -288,6 +295,7 @@ describe("formatWeeklyDealsToolResponse", () => {
         { id: "1", title: "Bananas", price: "$0.59/lb", source: "print" },
       ],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("Bananas");
     expect(text).toContain("dealCount: 1");
@@ -303,6 +311,7 @@ describe("formatWeeklyDealsToolResponse", () => {
       ),
       deals: [{ id: "1", title: "Apples", price: "$1.99/lb", source: "print" }],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("Deals valid");
     expect(text).toContain("2025-01-01T00:00:00Z");
@@ -318,6 +327,7 @@ describe("formatWeeklyDealsToolResponse", () => {
       ),
       deals: [{ id: "1", title: "Milk", price: "$3.49", source: "search_api" }],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("Deals valid");
     expect(text).toContain("2025-01-02T00:00:00Z");
@@ -337,6 +347,7 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("2025-01-01");
     expect(text).toContain("2025-01-07");
@@ -354,6 +365,7 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).not.toContain("Deals valid");
   });
@@ -368,6 +380,7 @@ describe("formatWeeklyDealsToolResponse", () => {
         { id: "1", title: "Chicken", price: "$4.99", source: "search_api" },
       ],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("Print-ad parsing failed");
     expect(text).toContain("Using fallback");
@@ -383,6 +396,7 @@ describe("formatWeeklyDealsToolResponse", () => {
       warnings: [legacyWarning("Some warning")],
       deals: [{ id: "1", title: "Beef", price: "$5.99", source: "print" }],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("Deals valid");
     expect(text).toContain("Some warning");
@@ -393,6 +407,7 @@ describe("formatWeeklyDealsToolResponse", () => {
       sourceMode: "print_fallback",
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).not.toContain("Weekly deals source:");
     expect(text).not.toContain("print_fallback");
@@ -404,6 +419,7 @@ describe("formatWeeklyDealsToolResponse", () => {
       divisionCode: "705",
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).not.toContain("Location:");
     expect(text).not.toContain("division");
@@ -413,13 +429,17 @@ describe("formatWeeklyDealsToolResponse", () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
+
     const freshText = getTextContent(
       formatWeeklyDealsToolResponse(result, "fresh"),
     );
+
     expect(freshText).not.toContain("Cache:");
+
     const staleText = getTextContent(
       formatWeeklyDealsToolResponse(result, "stale"),
     );
+
     expect(staleText).not.toContain("Cache:");
   });
 
@@ -428,7 +448,8 @@ describe("formatWeeklyDealsToolResponse", () => {
     const response = formatWeeklyDealsToolResponse(result, "fresh");
     expect(response.structuredContent).toBeDefined();
     expect(
-      (response.structuredContent as { cache: { state: string } }).cache.state,
+      parseToolPayload(appPayloadSchemas.get_weekly_deals, response).cache
+        ?.state,
     ).toBe("fresh");
   });
 
@@ -478,6 +499,7 @@ describe("formatWeeklyDealsToolResponse", () => {
         },
       ],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("- Ground Beef | 80% Lean | $3.99/lb | Save $2.00");
   });
@@ -486,6 +508,7 @@ describe("formatWeeklyDealsToolResponse", () => {
     const result = makeMinimalResult({
       deals: [{ id: "1", title: "Special Item", source: "print" }],
     });
+
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
     expect(text).toContain("Special Item");
     expect(text).not.toContain("See weekly ad");
@@ -505,6 +528,7 @@ describe("formatWeeklyDealsToolResponse", () => {
         { id: "3", title: "Doritos", price: "$3.99", source: "print" },
       ],
     });
+
     const response = formatWeeklyDealsToolResponse(result, "miss");
     const text = getTextContent(response);
 
@@ -518,9 +542,11 @@ describe("formatWeeklyDealsToolResponse", () => {
     expect(text).toContain("Produce:");
     expect(text).toContain("Pantry, Snacks & Beverages:");
 
-    const structured = response.structuredContent as {
-      deals: Array<{ title: string; category: string }>;
-    };
+    const structured = parseToolPayload(
+      appPayloadSchemas.get_weekly_deals,
+      response,
+    );
+
     expect(structured.deals.map((d) => d.title)).toEqual([
       "Flank Steaks",
       "Zucchini",
@@ -545,10 +571,14 @@ describe("formatWeeklyDealsToolResponse", () => {
         { id: "2", title: "Ground Beef", price: "$4.99/lb", source: "print" },
       ],
     });
+
     const response = formatWeeklyDealsToolResponse(result, "miss");
-    const structured = response.structuredContent as {
-      deals: Array<{ title: string }>;
-    };
+
+    const structured = parseToolPayload(
+      appPayloadSchemas.get_weekly_deals,
+      response,
+    );
+
     expect(structured.deals.map((d) => d.title)).toEqual([
       "Chicken Breast",
       "Ground Beef",
@@ -566,15 +596,9 @@ type CapturedTool = {
   handler: ToolHandler;
 };
 
-const mockGetQfcWeeklyDeals = vi.hoisted(() =>
-  vi.fn<(...args: unknown[]) => unknown>(),
-);
+const mockGetQfcWeeklyDeals = vi.fn<typeof getQfcWeeklyDeals>();
 
-vi.mock("../../src/services/qfc-weekly-deals.js", () => ({
-  getQfcWeeklyDeals: mockGetQfcWeeklyDeals,
-}));
-
-const capturedWeeklyDealsTools = vi.hoisted(() => [] as CapturedTool[]);
+const capturedWeeklyDealsTools: CapturedTool[] = [];
 
 function makeMinimalDealsResponse(
   overrides: Partial<QfcDealsApiResponse> = {},
@@ -591,6 +615,7 @@ function makeMinimalDealsResponse(
 
 function makeFreshCacheEntry(data: QfcDealsApiResponse): WeeklyDealsCacheEntry {
   const now = Date.now();
+
   return {
     version: 1,
     createdAt: now,
@@ -602,6 +627,7 @@ function makeFreshCacheEntry(data: QfcDealsApiResponse): WeeklyDealsCacheEntry {
 
 function makeStaleCacheEntry(data: QfcDealsApiResponse): WeeklyDealsCacheEntry {
   const now = Date.now();
+
   return {
     version: 1,
     createdAt: now - 200_000,
@@ -611,27 +637,14 @@ function makeStaleCacheEntry(data: QfcDealsApiResponse): WeeklyDealsCacheEntry {
   };
 }
 
-function makeKV(initialData: Map<string, string> = new Map()): {
-  kv: KVNamespace;
-  store: Map<string, string>;
-} {
+function makeKV(initialData: Map<string, string> = new Map()) {
   const store = new Map(initialData);
-  return {
-    kv: {
-      get: vi.fn<(key: string) => unknown>(
-        async (key: string) => store.get(key) ?? null,
-      ),
-      put: vi.fn<(key: string, value: string, _opts?: unknown) => unknown>(
-        async (key: string, value: string, _opts?: unknown) => {
-          store.set(key, value);
-        },
-      ),
-      delete: vi.fn<(...args: unknown[]) => unknown>(),
-      list: vi.fn<(...args: unknown[]) => unknown>(),
-      getWithMetadata: vi.fn<(...args: unknown[]) => unknown>(),
-    } as unknown as KVNamespace,
-    store,
-  };
+
+  const kv = memoryKv(store);
+  vi.spyOn(kv, "get");
+  vi.spyOn(kv, "put");
+
+  return { kv, store };
 }
 
 const DEFAULT_PREFERRED_LOCATION: PreferredLocation = {
@@ -645,44 +658,31 @@ const DEFAULT_PREFERRED_LOCATION: PreferredLocation = {
 function makeWeeklyDealsContext(
   kv: KvLike | null = null,
   preferredLocation: PreferredLocation | null = DEFAULT_PREFERRED_LOCATION,
-): {
-  server: McpServer;
-  preferredLocation: PreferredLocationStore;
-  productClient: KrogerClients["productClient"];
-  weeklyDealsCache: WeeklyDealsCache;
-  loadWeeklyDeals: WeeklyDealsLoader;
-} {
-  const server = {
-    registerTool: (
-      name: string,
-      config: TestToolConfig,
-      handler: Parameters<typeof wrapV2ToolHandler>[0],
-    ) => {
-      capturedWeeklyDealsTools.push({
-        name,
-        config,
-        handler: wrapV2ToolHandler(handler, config),
-      });
-    },
-  } as unknown as McpServer;
-  const productClient = {
-    GET: vi.fn<() => unknown>(async () => ({
-      data: { data: [] },
-      response: new Response(null, { status: 200 }),
-    })),
-  } as unknown as KrogerClients["productClient"];
+) {
+  const server = capturingServer(
+    capturedWeeklyDealsTools,
+    () => weeklyDealsAuthState.authContext,
+  );
+
+  const productClient = createProductClient(async () =>
+    Response.json({ data: [] }),
+  );
+
   const preferredLocationStore: PreferredLocationStore = {
     get: async () => preferredLocation,
     set: async () => {},
     delete: async () => {},
   };
+
   const weeklyDealsCache = createWeeklyDealsCache(kv);
+
   return {
     server,
     preferredLocation: preferredLocationStore,
     productClient,
     weeklyDealsCache,
     loadWeeklyDeals: createWeeklyDealsLoader({
+      fetchDeals: mockGetQfcWeeklyDeals,
       preferredLocation: preferredLocationStore,
       productClient,
       weeklyDealsCache,
@@ -694,7 +694,9 @@ function getWeeklyDealsHandler(): ToolHandler {
   const tool = capturedWeeklyDealsTools.find(
     (t) => t.name === "get_weekly_deals",
   );
+
   if (!tool) throw new Error("get_weekly_deals not captured");
+
   return tool.handler;
 }
 
@@ -706,13 +708,12 @@ function registerWeeklyDealsForTest(
   });
 }
 
-function textFromResult(result: unknown): string {
-  const r = result as { content?: Array<{ type: string; text: string }> };
-  return r.content?.[0]?.text ?? "";
+function textFromResult(result: TestToolResult): string {
+  return result.text;
 }
 
-function isErrorResult(result: unknown): boolean {
-  return Boolean((result as { isError?: boolean }).isError);
+function isErrorResult(result: TestToolResult): boolean {
+  return result.isError;
 }
 
 describe("get_weekly_deals handler", () => {
@@ -731,6 +732,7 @@ describe("get_weekly_deals handler", () => {
   const TEST_STORE_ID = DEFAULT_PREFERRED_LOCATION.locationId;
   // Explicit storeId bypasses preferred-store resolution for tests that don't care about it.
   const DEFAULT_ARGS = { storeId: TEST_STORE_ID, limit: 50, pageLimit: 2 };
+
   const CACHE_KEY_PARAMS = {
     locationId: TEST_STORE_ID,
     limit: 50,
@@ -743,6 +745,7 @@ describe("get_weekly_deals handler", () => {
         { id: "cached", title: "Cached Deal", price: "$1.00", source: "print" },
       ],
     });
+
     const { kv, store } = makeKV();
     const cacheKey = buildWeeklyDealsCacheKey(CACHE_KEY_PARAMS);
     store.set(cacheKey, JSON.stringify(makeFreshCacheEntry(cachedData)));
@@ -774,9 +777,11 @@ describe("get_weekly_deals handler", () => {
     const eventEnd = new Date(
       Date.now() + 7 * 24 * 60 * 60 * 1000,
     ).toISOString();
+
     const liveData = makeMinimalDealsResponse({
       printCircular: makeCircular(eventEnd),
     });
+
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv, store } = makeKV();
 
@@ -806,6 +811,7 @@ describe("get_weekly_deals handler", () => {
         { id: "s1", title: "Stale Deal", price: "$2.00", source: "print" },
       ],
     });
+
     const { kv, store } = makeKV();
     const cacheKey = buildWeeklyDealsCacheKey(CACHE_KEY_PARAMS);
     store.set(cacheKey, JSON.stringify(makeStaleCacheEntry(staleData)));
@@ -827,6 +833,7 @@ describe("get_weekly_deals handler", () => {
         { id: "s1", title: "Stale Deal", price: "$2.00", source: "print" },
       ],
     });
+
     const { kv, store } = makeKV();
     const cacheKey = buildWeeklyDealsCacheKey(CACHE_KEY_PARAMS);
     store.set(cacheKey, JSON.stringify(makeStaleCacheEntry(staleData)));
@@ -878,15 +885,15 @@ describe("get_weekly_deals handler", () => {
     registerWeeklyDealsForTest(makeWeeklyDealsContext(kv));
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
-    const structured = result as {
-      isError?: boolean;
-      structuredContent?: { error?: { code?: string; recovery?: string } };
-    };
+
+    const structured = result;
 
     expect(structured.isError).toBe(true);
-    expect(structured.structuredContent?.error).toMatchObject({
-      code: "AUTH_ERROR",
-      recovery: "reconnect",
+    expect(structured.structuredContent).toMatchObject({
+      error: {
+        code: "AUTH_ERROR",
+        recovery: "reconnect",
+      },
     });
   });
 
@@ -965,12 +972,12 @@ describe("get_weekly_deals handler", () => {
 
     const result = await getWeeklyDealsHandler()(DEFAULT_ARGS);
 
-    const sc = (result as { structuredContent?: { cache: { state: string } } })
-      .structuredContent;
+    const sc = parseToolPayload(appPayloadSchemas.get_weekly_deals, result);
+
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "get_weekly_deals" },
     });
-    expect(sc?.cache.state).toBe("miss");
+    expect(sc.cache?.state).toBe("miss");
   });
 
   it("resolves the preferred store when storeId is omitted", async () => {

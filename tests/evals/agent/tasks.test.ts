@@ -11,6 +11,7 @@ describe("missing-item grading", () => {
 
   function missingItemPasses(answer: string): boolean {
     if (!task) throw new Error("Missing training task");
+
     return task.checks(emptyOutput(answer), [])[1]?.pass ?? false;
   }
 
@@ -46,23 +47,29 @@ describe("missing-item grading", () => {
 
 it("allows read-only product discovery but still detects cart writes", () => {
   const task = AGENT_TASKS.find((candidate) => candidate.id === "use-first");
+
   if (!task) throw new Error("Missing training task");
   const output = emptyOutput("Use spinach first, then yogurt.");
+
   const readOnly = task.checks(output, [
     { name: "shop_for_items", status: "ok" },
   ]);
+
   const write = task.checks(output, [
     { name: "add_shopping_list_to_cart", status: "ok" },
   ]);
+
   expect(readOnly.find((entry) => entry.name === "made no writes")?.pass).toBe(
     true,
   );
   expect(write.find((entry) => entry.name === "made no writes")?.pass).toBe(
     false,
   );
+
   const storeWrite = task.checks(output, [
     { name: "set_preferred_store", status: "ok" },
   ]);
+
   expect(
     storeWrite.find((entry) => entry.name === "made no writes")?.pass,
   ).toBe(false);

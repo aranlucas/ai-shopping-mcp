@@ -1,3 +1,4 @@
+import { z } from "zod/v4";
 /**
  * @file MCP Apps React view for the AI Shopping MCP server.
  */
@@ -31,12 +32,17 @@ import {
 } from "./shared/status.js";
 import { parseToolResult } from "./shared/types.js";
 
+const partialToolInputSchema = z.object({
+  terms: z.array(z.string()).optional().catch(undefined),
+});
+
+type PartialToolInput = z.output<typeof partialToolInputSchema>;
+
 function ShoppingApp() {
   const [toolResult, setToolResult] = useState<CallToolResult | null>(null);
-  const [partialArgs, setPartialArgs] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+
+  const [partialArgs, setPartialArgs] = useState<PartialToolInput | null>(null);
+
   const [hostContext, setHostContext] = useState<
     McpUiHostContext | undefined
   >();
@@ -48,18 +54,22 @@ function ShoppingApp() {
       createdApp.onteardown = async () => {
         return {};
       };
+
       createdApp.ontoolinputpartial = (params) => {
         setToolResult(null);
-        setPartialArgs(params.arguments ?? {});
+        setPartialArgs(partialToolInputSchema.parse(params.arguments ?? {}));
       };
+
       createdApp.ontoolinput = () => {
         setToolResult(null);
         setPartialArgs(null);
       };
+
       createdApp.ontoolresult = (result) => {
         setPartialArgs(null);
         setToolResult(result);
       };
+
       createdApp.ontoolcancelled = () => {
         setPartialArgs(null);
         setToolResult({
@@ -72,6 +82,7 @@ function ShoppingApp() {
           ],
         });
       };
+
       // oxlint-disable-next-line unicorn/prefer-add-event-listener -- MCP Apps SDK uses `onerror` property assignment, not DOM EventTarget
       createdApp.onerror = console.error;
       createdApp.onhostcontextchanged = (params) => {
@@ -89,6 +100,7 @@ function ShoppingApp() {
   useHostStyles(app, app?.getHostContext());
 
   if (error) return <ErrorDisplay message={error.message} />;
+
   if (!app) return <Loading />;
 
   return (
@@ -104,20 +116,23 @@ function ShoppingApp() {
 interface ShoppingAppInnerProps {
   app: App;
   toolResult: CallToolResult | null;
-  partialArgs: Record<string, unknown> | null;
+  partialArgs: PartialToolInput | null;
   hostContext?: McpUiHostContext;
 }
 
 function getPartialLoadingMessage(
   viewKey: string | null,
-  args: Record<string, unknown>,
+  args: PartialToolInput,
 ): string {
   switch (viewKey) {
     case "search_products": {
-      const terms = args.terms as string[] | undefined;
+      const terms = args.terms;
+
       if (terms?.length) return `Searching for ${terms.join(", ")}…`;
+
       return "Searching products…";
     }
+
     case "search_stores":
       return "Searching stores…";
     case "set_preferred_store":
@@ -185,10 +200,12 @@ function ShoppingAppInner({
           return <ListSkeleton />;
         default: {
           const message = getPartialLoadingMessage(toolName, partialArgs);
+
           return <Loading message={message} />;
         }
       }
     }
+
     return toolResult ? (
       <ErrorDisplay message="This result has no valid shopping view. Ask your assistant for the result details." />
     ) : (
@@ -284,6 +301,8 @@ function ShoppingAppInner({
   }
 }
 
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <ShoppingApp />,
-);
+const rootElement = document.getElementById("root");
+
+if (!rootElement) throw new Error("Shopping app root element is missing");
+
+createRoot(rootElement).render(<ShoppingApp />);

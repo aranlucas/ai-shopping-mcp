@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { SelectorAi } from "../scripts/fixtures/jev-product-selector.js";
 
 export type JevRun = ReturnType<SelectorAi["gateway"]>["run"];
@@ -8,24 +9,38 @@ export function stubJevAi(preferredName?: string): SelectorAi {
     gateway() {
       return {
         async run({ query: input }) {
-          const questions = input.questions as {
-            [id: string]: {
-              criteria: Record<string, { name?: string } | string>;
-            };
-          };
+          const questions = z
+            .record(
+              z.string(),
+              z.object({
+                criteria: z.record(
+                  z.string(),
+                  z.union([
+                    z.string(),
+                    z.object({ name: z.string().optional() }),
+                  ]),
+                ),
+              }),
+            )
+            .parse(input.questions);
+
           return Response.json({
             model: "jev-test-fixture",
             answers: Object.fromEntries(
               Object.entries(questions).map(([id, question]) => {
                 const criteria = question.criteria;
+
                 const choice =
                   Object.keys(criteria).find((key) => {
                     const candidate = criteria[key];
-                    return (
-                      typeof candidate === "object" &&
-                      candidate.name === preferredName
-                    );
+
+                    const named = z
+                      .object({ name: z.string().optional() })
+                      .safeParse(candidate);
+
+                    return named.success && named.data.name === preferredName;
                   }) ?? "candidate_0";
+
                 return [
                   id,
                   {

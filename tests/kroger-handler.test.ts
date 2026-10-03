@@ -1,9 +1,27 @@
+import type {
+  AuthRequest,
+  OAuthHelpers,
+} from "@cloudflare/workers-oauth-provider";
+
+// Partial replies are intentional here: the handler must reject malformed provider data.
+type ParseAuthFixture = (request: Request) => Promise<Partial<AuthRequest>>;
+
+const validAuthRequest: AuthRequest = {
+  responseType: "code",
+  clientId: "mcp-client",
+  redirectUri: "https://mcp.test/callback",
+  scope: ["tools"],
+  state: "test-state",
+  codeChallenge: "challenge",
+};
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateSignedCookie } from "hono/cookie";
 
 import { KrogerHandler } from "../src/kroger-handler.js";
 
 const COOKIE_SECRET = "test-cookie-secret";
+
 const BASE_URL = "https://worker.test";
 
 // ---------------------------------------------------------------------------
@@ -17,26 +35,27 @@ function makeEnv() {
     KROGER_CLIENT_SECRET: "test-client-secret",
     OAUTH_PROVIDER: {
       completeAuthorization: vi
-        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .fn<OAuthHelpers["completeAuthorization"]>()
         .mockResolvedValue({ redirectTo: "https://mcp.test/done" }),
       lookupClient: vi
-        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .fn<OAuthHelpers["lookupClient"]>()
         .mockResolvedValue(null),
-      parseAuthRequest: vi
-        .fn<(...args: unknown[]) => Promise<unknown>>()
-        .mockResolvedValue({
-          clientId: "mcp-client",
-          codeChallenge: "challenge",
-          redirectUri: "https://mcp.test/callback",
-          scope: "tools",
-        }),
+      parseAuthRequest: vi.fn<ParseAuthFixture>().mockResolvedValue({
+        ...validAuthRequest,
+        clientId: "mcp-client",
+        codeChallenge: "challenge",
+        redirectUri: "https://mcp.test/callback",
+        scope: ["tools"],
+      }),
     },
   };
 }
 
 function extractHiddenInput(html: string, name: string): string {
   const match = html.match(new RegExp(`name="${name}" value="([^"]+)"`));
+
   if (!match) throw new Error(`Missing hidden input: ${name}`);
+
   return match[1];
 }
 
@@ -55,7 +74,9 @@ async function getConsentFormData(env: ReturnType<typeof makeEnv>) {
     undefined,
     env,
   );
+
   const consentHtml = await consentResponse.text();
+
   return {
     csrfToken: extractHiddenInput(consentHtml, "csrf_token"),
     state: extractHiddenInput(consentHtml, "state"),
@@ -68,6 +89,7 @@ async function approveClient(
   env: ReturnType<typeof makeEnv>,
 ): Promise<Response> {
   const { csrfToken, state, csrfCookieValue } = await getConsentFormData(env);
+
   return KrogerHandler.request(
     `${BASE_URL}/authorize`,
     {
@@ -93,6 +115,7 @@ async function getCallbackSetup(
     approveResponse.headers
       .getSetCookie()
       .find((c) => c.startsWith("kroger_oauth_state=")) ?? "";
+
   const stateCookieValue = stateCookieHeader
     .split(";")[0]
     .replace("kroger_oauth_state=", "");
@@ -110,18 +133,14 @@ async function getCallbackSetup(
  */
 async function makeStateCookie(
   csrfState: string,
-  oauthReqInfo: Record<string, unknown> = {
-    clientId: "mcp-client",
-    redirectUri: "https://mcp.test/callback",
-    scope: "tools",
-    codeChallenge: "challenge",
-  },
+  oauthReqInfo: Partial<AuthRequest> = validAuthRequest,
 ): Promise<string> {
   const cookie = await generateSignedCookie(
     "kroger_oauth_state",
     JSON.stringify({ csrfState, oauthReqInfo }),
     COOKIE_SECRET,
   );
+
   return cookie.slice("kroger_oauth_state=".length).split(";")[0] ?? "";
 }
 
@@ -143,7 +162,7 @@ describe("Kroger OAuth handler", () => {
     it("returns 400 when parseAuthRequest throws", async () => {
       const env = makeEnv();
       env.OAUTH_PROVIDER.parseAuthRequest = vi
-        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .fn<ParseAuthFixture>()
         .mockRejectedValue(new Error("bad request params"));
 
       const response = await KrogerHandler.request(
@@ -159,11 +178,11 @@ describe("Kroger OAuth handler", () => {
     it("returns 400 when parsed auth request has no clientId", async () => {
       const env = makeEnv();
       env.OAUTH_PROVIDER.parseAuthRequest = vi
-        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .fn<ParseAuthFixture>()
         .mockResolvedValue({
           clientId: undefined,
           redirectUri: "https://mcp.test/callback",
-          scope: "tools",
+          scope: ["tools"],
         });
 
       const response = await KrogerHandler.request(
@@ -207,6 +226,7 @@ describe("Kroger OAuth handler", () => {
     it("skips dialog and redirects to Kroger when client is already approved", async () => {
       const env = makeEnv();
       const approvedResponse = await approveClient(env);
+
       const approvedClientCookie =
         approvedResponse.headers
           .getSetCookie()
@@ -227,6 +247,7 @@ describe("Kroger OAuth handler", () => {
     it("shows dialog again when an approved client changes its redirect URI", async () => {
       const env = makeEnv();
       const approvedResponse = await approveClient(env);
+
       const approvedCookie =
         approvedResponse.headers
           .getSetCookie()
@@ -235,12 +256,13 @@ describe("Kroger OAuth handler", () => {
           ) ?? "";
 
       env.OAUTH_PROVIDER.parseAuthRequest = vi
-        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .fn<ParseAuthFixture>()
         .mockResolvedValue({
+          ...validAuthRequest,
           clientId: "mcp-client",
           codeChallenge: "challenge",
           redirectUri: "https://attacker.test/callback",
-          scope: "tools",
+          scope: ["tools"],
         });
 
       const response = await KrogerHandler.request(
@@ -262,11 +284,12 @@ describe("Kroger OAuth handler", () => {
   describe("POST /authorize", () => {
     it("returns 400 when CSRF token is absent from form submission", async () => {
       const env = makeEnv();
+
       const oauthReqInfo = {
         clientId: "mcp-client",
         codeChallenge: "challenge",
         redirectUri: "https://mcp.test/callback",
-        scope: "tools",
+        scope: ["tools"],
       };
 
       const response = await KrogerHandler.request(
@@ -285,6 +308,7 @@ describe("Kroger OAuth handler", () => {
 
     it("returns 400 when form state has no oauthReqInfo", async () => {
       const env = makeEnv();
+
       // Get a valid CSRF token from the consent page without going through the
       // full approval so we can craft a custom state.
       const consentResponse = await KrogerHandler.request(
@@ -292,6 +316,7 @@ describe("Kroger OAuth handler", () => {
         undefined,
         env,
       );
+
       const consentHtml = await consentResponse.text();
       const csrfToken = extractHiddenInput(consentHtml, "csrf_token");
 
@@ -326,13 +351,16 @@ describe("Kroger OAuth handler", () => {
 
     it("accepts approval when duplicate CSRF cookies include the matching form token", async () => {
       const env = makeEnv();
+
       const consentResponse = await KrogerHandler.request(
         `${BASE_URL}/authorize?client_id=mcp-client`,
         undefined,
         env,
       );
+
       const consentHtml = await consentResponse.text();
       const csrfToken = extractHiddenInput(consentHtml, "csrf_token");
+
       const csrfCookie = consentResponse.headers
         .getSetCookie()
         .find((cookie) => cookie.startsWith("__Host-CSRF_TOKEN="));
@@ -364,6 +392,7 @@ describe("Kroger OAuth handler", () => {
     it("returns 500 when KROGER_CLIENT_ID is missing from env", async () => {
       const env = makeEnv();
       env.KROGER_CLIENT_ID = "";
+
       const { csrfToken, state, csrfCookieValue } =
         await getConsentFormData(env);
 
@@ -384,6 +413,7 @@ describe("Kroger OAuth handler", () => {
     it("returns 500 when KROGER_CLIENT_SECRET is missing from env", async () => {
       const env = makeEnv();
       env.KROGER_CLIENT_SECRET = "";
+
       const { csrfToken, state, csrfCookieValue } =
         await getConsentFormData(env);
 
@@ -523,9 +553,10 @@ describe("Kroger OAuth handler", () => {
     it("returns 400 when oauthReqInfo in state cookie has no clientId", async () => {
       const env = makeEnv();
       const csrfState = "csrf-no-client-id";
+
       const cookieValue = await makeStateCookie(csrfState, {
         redirectUri: "https://mcp.test/callback",
-        scope: "tools",
+        scope: ["tools"],
         // clientId intentionally omitted
       });
 
@@ -606,6 +637,35 @@ describe("Kroger OAuth handler", () => {
       expect(await response.text()).toContain("Missing access token");
     });
 
+    it.each([
+      { access_token: 42 },
+      { access_token: "token", refresh_token: [] },
+      { access_token: "token", expires_in: "not-a-number" },
+    ])(
+      "rejects malformed token fields %j before profile fetch or grant creation",
+      async (token) => {
+        const env = makeEnv();
+        const csrfState = "malformed-token";
+        const cookie = await makeStateCookie(csrfState);
+
+        const fetch = vi
+          .fn<typeof globalThis.fetch>()
+          .mockResolvedValue(Response.json(token));
+
+        vi.stubGlobal("fetch", fetch);
+
+        const response = await KrogerHandler.request(
+          `${BASE_URL}/callback?code=code&state=${csrfState}`,
+          { headers: { Cookie: `kroger_oauth_state=${cookie}` } },
+          env,
+        );
+
+        expect(response.status).toBeGreaterThanOrEqual(400);
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(env.OAUTH_PROVIDER.completeAuthorization).not.toHaveBeenCalled();
+      },
+    );
+
     it("does not authorize when the user profile fetch fails", async () => {
       const env = makeEnv();
       const csrfState = "csrf-profile-fail";
@@ -662,11 +722,13 @@ describe("Kroger OAuth handler", () => {
             )
             .mockResolvedValueOnce(Response.json(profile)),
         );
+
         const response = await KrogerHandler.request(
           `${BASE_URL}/callback?code=code&state=${csrfState}`,
           { headers: { Cookie: `kroger_oauth_state=${cookie}` } },
           env,
         );
+
         expect(response.status).toBe(502);
         expect(env.OAUTH_PROVIDER.completeAuthorization).not.toHaveBeenCalled();
       },
@@ -678,18 +740,22 @@ describe("Kroger OAuth handler", () => {
         const env = makeEnv();
         const csrfState = "failed-profile";
         const cookie = await makeStateCookie(csrfState);
+
         const fetchMock = vi
           .fn<typeof fetch>()
           .mockResolvedValueOnce(Response.json({ access_token: "token" }));
+
         if (failure === "network")
           fetchMock.mockRejectedValueOnce(new Error("timeout"));
         else fetchMock.mockResolvedValueOnce(new Response("not json"));
         vi.stubGlobal("fetch", fetchMock);
+
         const response = await KrogerHandler.request(
           `${BASE_URL}/callback?code=code&state=${csrfState}`,
           { headers: { Cookie: `kroger_oauth_state=${cookie}` } },
           env,
         );
+
         expect(response.status).toBe(503);
         expect(env.OAUTH_PROVIDER.completeAuthorization).not.toHaveBeenCalled();
       },
@@ -811,7 +877,7 @@ describe("Kroger OAuth handler", () => {
           ),
       );
       env.OAUTH_PROVIDER.completeAuthorization = vi
-        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .fn<OAuthHelpers["completeAuthorization"]>()
         .mockRejectedValue(new Error("authorization server rejected"));
 
       const response = await KrogerHandler.request(

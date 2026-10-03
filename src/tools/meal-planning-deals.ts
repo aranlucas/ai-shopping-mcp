@@ -17,24 +17,29 @@ export async function getMealPlanningDeals(
     pageLimit: 2,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
+
   if (result.isErr()) {
     return `\nWeekly deals unavailable: ${result.error.message}\nContinue with pantry context; use get_weekly_deals to retry.`;
   }
 
   const { data, cacheState } = result.value;
   const deals = data.deals.slice(0, MEAL_PLANNING_DEAL_LIMIT);
+
   const parts = [
     `\nWeekly deals (QFC/Kroger): storeId=${data.locationId} | cache=${cacheState}`,
     `Showing ${deals.length} of ${data.deals.length} offers. Sale items are not in the pantry; confirm exact products and prices with search_products before create_shopping_list.`,
   ];
+
   if (cacheState === "stale") {
     parts.push(
       "This cached ad is stale; offers may have ended. Confirm current prices with search_products.",
     );
   }
+
   for (const warning of formatWeeklyDealWarnings(data.warnings)) {
     parts.push(`Warning: ${warning}`);
   }
+
   if (deals.length === 0)
     parts.push(
       "No weekly offers found. Plan from pantry and regular-price ingredients.",
@@ -43,8 +48,10 @@ export async function getMealPlanningDeals(
   for (const deal of deals) {
     const circular =
       deal.source === "print" ? data.printCircular : data.shoppableCircular;
+
     const validFrom = deal.validFrom ?? circular?.eventStartDate;
     const validTill = deal.validTill ?? circular?.eventEndDate;
+
     const fields = [
       deal.title,
       deal.details,
@@ -55,9 +62,12 @@ export async function getMealPlanningDeals(
       validFrom ? `from ${validFrom}` : undefined,
       validTill ? `until ${validTill}` : undefined,
     ];
+
     parts.push(`- ${fields.filter(Boolean).join(" | ")}`);
   }
+
   if (data.deals.length > deals.length)
     parts.push("Use get_weekly_deals for more offers.");
+
   return parts.join("\n");
 }

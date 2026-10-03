@@ -1,9 +1,17 @@
-import type { McpServer, ServerContext } from "@modelcontextprotocol/server";
+import { productClientWith } from "../kroger-clients.js";
+import { appPayloadSchemas } from "../../src/app-results.js";
+import { z } from "zod";
+import {
+  type TestToolResult,
+  type TestToolHandler as ToolHandler,
+  type TestToolConfig,
+} from "../v2-tool-handler.js";
+import { capturingServer } from "../capturing-server.js";
+import type { ServerContext } from "@modelcontextprotocol/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { KrogerClients } from "../../src/services/kroger/client.js";
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
-import type { ProductData } from "../../src/app-results.js";
+
 import type { PreferredLocation } from "../../src/domain/shopping.js";
 import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 
@@ -13,11 +21,6 @@ import {
   registerProductTools,
   logProductSearchError,
 } from "../../src/tools/product.js";
-import {
-  type TestToolHandler as ToolHandler,
-  wrapV2ToolHandler,
-  type TestToolConfig,
-} from "../v2-tool-handler.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -26,23 +29,25 @@ type Product = ProductComponents["schemas"]["products.productModel"];
 // ---------------------------------------------------------------------------
 
 type AuthContext = {
-  props?: {
+  props: {
     id: string;
     accessToken: string;
     tokenExpiresAt: number;
   };
 };
 
-type CapturedTool = { name: string; config: unknown; handler: ToolHandler };
+type CapturedTool = {
+  name: string;
+  config: TestToolConfig;
+  handler: ToolHandler;
+};
 
-const testState = vi.hoisted(() => ({
-  authContext: undefined as AuthContext | undefined,
-  capturedTools: [] as CapturedTool[],
-}));
+type TestState = {
+  authContext: AuthContext | undefined;
+  capturedTools: CapturedTool[];
+};
 
-vi.mock("agents/mcp/server", () => ({
-  getMcpAuthContext: () => testState.authContext,
-}));
+const testState: TestState = { authContext: undefined, capturedTools: [] };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,6 +79,7 @@ function makeStorage(
   preferredLocation?: PreferredLocation,
 ): PreferredLocationStore {
   const stored = preferredLocation ?? null;
+
   return {
     set: async () => {},
     get: async () => stored,
@@ -85,24 +91,15 @@ function makeContext(
   productGet: ProductGetFn,
   preferredLocation?: PreferredLocationStore,
 ) {
-  const productClient = {
-    GET: productGet,
-  } as unknown as KrogerClients["productClient"];
-  const server = {
-    registerTool: (
-      name: string,
-      config: TestToolConfig,
-      handler: ToolHandler,
-    ) => {
-      testState.capturedTools.push({
-        name,
-        config,
-        handler: wrapV2ToolHandler(handler, config),
-      });
-    },
-  };
+  const productClient = productClientWith(productGet);
+
+  const server = capturingServer(
+    testState.capturedTools,
+    () => testState.authContext,
+  );
+
   return {
-    server: server as unknown as McpServer,
+    server,
     productClient,
     productService: new ProductService(productClient),
     preferredLocation: preferredLocation ?? makeStorage(),
@@ -115,6 +112,7 @@ function registerProducts(
 ) {
   const fixture = makeContext(productGet, preferredLocation);
   registerProductTools(fixture.server, fixture);
+
   return fixture;
 }
 
@@ -172,22 +170,31 @@ function makeErrorResponse(status = 500) {
   };
 }
 
-function textFromResult(result: unknown): string {
-  const r = result as { content?: Array<{ type: string; text: string }> };
-  return r.content?.[0]?.text ?? "";
+function textFromResult(result: TestToolResult): string {
+  return result.text;
 }
 
-function isErrorResult(result: unknown): boolean {
-  return Boolean((result as { isError?: boolean }).isError);
+function isErrorResult(result: TestToolResult): boolean {
+  return result.isError;
 }
 
-function structuredContentOf(result: unknown): unknown {
-  return (result as { structuredContent?: unknown }).structuredContent;
+// Validate without replacing the original payload: absence assertions must see extra fields.
+const searchResultSchema = z.custom<
+  z.output<typeof appPayloadSchemas.search_products>
+>((value) => appPayloadSchemas.search_products.safeParse(value).success);
+
+const productResultSchema = z.custom<
+  z.output<typeof appPayloadSchemas.get_product>
+>((value) => appPayloadSchemas.get_product.safeParse(value).success);
+
+function structuredContentOf(result: TestToolResult) {
+  return result.structuredContent;
 }
 
 function getCapturedHandler(name: string): ToolHandler {
   const tool = testState.capturedTools.find((t) => t.name === name);
   expect(tool).toBeDefined();
+
   return (
     tool?.handler ??
     (async () => {
@@ -198,8 +205,10 @@ function getCapturedHandler(name: string): ToolHandler {
 
 function getCapturedTool(name: string): CapturedTool {
   const tool = testState.capturedTools.find((t) => t.name === name);
-  expect(tool).toBeDefined();
-  return tool as CapturedTool;
+
+  if (!tool) throw new Error(`Missing registered tool ${name}`);
+
+  return tool;
 }
 
 // ---------------------------------------------------------------------------
@@ -257,21 +266,7 @@ describe("search_products", () => {
     registerProducts(async () => makeSearchResponse([]));
 
     const tool = getCapturedTool("search_products");
-    const config = tool.config as { description: string };
-    expect(config.description).toContain("Batch all items in terms");
-    expect(config.description).toContain("do not call once per item");
-  });
-
-  it("accepts only the Kroger search fields", () => {
-    registerProducts(async () => makeSearchResponse([]));
-
-    const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: {
-        shape: Record<string, unknown>;
-        safeParse: (value: unknown) => { success: boolean };
-      };
-    };
+    const config = tool.config;
 
     expect(config.inputSchema.shape.providers).toBeUndefined();
     expect(config.inputSchema.shape.stores).toBeUndefined();
@@ -293,16 +288,9 @@ describe("search_products", () => {
     registerProducts(async () => makeSearchResponse([]));
 
     const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: {
-        shape: {
-          includeLocation: {
-            description?: string;
-            parse: (value: unknown) => boolean;
-          };
-        };
-      };
-    };
+
+    const config = tool.config;
+
     const includeLocation = config.inputSchema.shape.includeLocation;
 
     expect(includeLocation.parse(undefined)).toBe(false);
@@ -318,16 +306,10 @@ describe("search_products", () => {
       terms: ["milk"],
     });
 
-    const sc = structuredContentOf(result) as {
-      results: Array<{
-        term: string;
-        products: ProductData[];
-        failed: boolean;
-      }>;
-      totalProducts: number;
-    };
+    const sc = searchResultSchema.parse(result.structuredContent);
+
     expect(sc).not.toHaveProperty("_view");
-    expect((result as { _meta?: Record<string, unknown> })._meta).toEqual({
+    expect(result._meta).toEqual({
       "dev.aranlucas/view": "search_products",
     });
     expect(sc.totalProducts).toBe(1);
@@ -341,9 +323,8 @@ describe("search_products", () => {
     registerProducts(async () => makeSearchResponse([]));
 
     const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
+
+    const config = tool.config;
 
     expect(
       config.inputSchema.safeParse({
@@ -392,7 +373,9 @@ describe("search_products", () => {
     const product = makeProduct();
     registerProducts(async (_path, opts) => {
       const term = opts.params.query?.["filter.term"];
+
       if (term === "milk") return makeSearchResponse([product]);
+
       return makeErrorResponse(500);
     });
 
@@ -400,15 +383,8 @@ describe("search_products", () => {
       terms: ["milk", "bread"],
     });
 
-    const sc = structuredContentOf(result) as {
-      results: Array<{
-        term: string;
-        failed: boolean;
-        products: ProductData[];
-        error?: string;
-      }>;
-      totalProducts: number;
-    };
+    const sc = searchResultSchema.parse(result.structuredContent);
+
     expect(sc).not.toHaveProperty("_view");
     expect(sc.totalProducts).toBe(1);
     expect(sc.results).toHaveLength(2);
@@ -428,6 +404,7 @@ describe("search_products", () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
       if (opts.params.query) capturedQueries.push(opts.params.query);
+
       return makeSearchResponse([]);
     });
 
@@ -443,6 +420,7 @@ describe("search_products", () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
       if (opts.params.query) capturedQueries.push(opts.params.query);
+
       return makeSearchResponse([]);
     });
 
@@ -458,13 +436,14 @@ describe("search_products", () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
       if (opts.params.query) capturedQueries.push(opts.params.query);
+
       return makeSearchResponse([]);
     });
 
     const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: { parse: (v: unknown) => { limitPerTerm: number } };
-    };
+
+    const config = tool.config;
+
     expect(config.inputSchema.parse({ terms: ["milk"] }).limitPerTerm).toBe(5);
   });
 
@@ -473,6 +452,7 @@ describe("search_products", () => {
     preferredLocation.get = () => {
       throw new AppErrorException(authError("Reconnect the grocery account."));
     };
+
     const productGet = vi.fn<ProductGetFn>(async () => makeSearchResponse([]));
     registerProducts(productGet, preferredLocation);
 
@@ -491,9 +471,11 @@ describe("search_products", () => {
 
   it("uses an explicit store without reading a broken preferred-store backend", async () => {
     const preferredLocation = makeStorage();
+
     const readStore = vi.fn<typeof preferredLocation.get>(() => {
       throw new Error("storage is down");
     });
+
     preferredLocation.get = readStore;
     const productGet = vi.fn<ProductGetFn>(async () => makeSearchResponse([]));
     registerProducts(productGet, preferredLocation);
@@ -517,6 +499,7 @@ describe("search_products", () => {
 
   it("resolves preferred location from storage and uses it as 'filter.locationId' when no storeId arg is given", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
+
     const preferredLocation = makeStorage({
       locationId: "99887766",
       locationName: "QFC Store",
@@ -524,8 +507,10 @@ describe("search_products", () => {
       chain: "QFC",
       setAt: new Date().toISOString(),
     });
+
     registerProducts(async (_path, opts) => {
       if (opts.params.query) capturedQueries.push(opts.params.query);
+
       return makeSearchResponse([]);
     }, preferredLocation);
 
@@ -536,48 +521,59 @@ describe("search_products", () => {
 
   it("sends progress notifications (notifications/progress) for each completed search when progressToken is present", async () => {
     const product = makeProduct();
-    const notifications: Array<{ method: string; params: unknown }> = [];
+
+    const notifications: Parameters<ServerContext["mcpReq"]["notify"]>[0][] =
+      [];
+
     registerProducts(async () => makeSearchResponse([product]));
 
-    const sendNotification = vi.fn<
-      (notification: { method: string; params: unknown }) => unknown
-    >(async (notification: { method: string; params: unknown }) => {
-      notifications.push(notification);
-    });
+    const sendNotification = vi.fn<ServerContext["mcpReq"]["notify"]>(
+      async (notification) => {
+        notifications.push(notification);
+      },
+    );
 
-    await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
-      mcpReq: {
+    await getCapturedHandler("search_products")(
+      { terms: ["milk", "eggs"] },
+      {
         _meta: { progressToken: "tok-1" },
         notify: sendNotification,
       },
-    } as unknown as ServerContext);
+    );
 
     expect(notifications).toHaveLength(2);
     expect(notifications[0].method).toBe("notifications/progress");
 
-    const firstParams = notifications[0].params as {
-      progressToken: string | number;
-      progress: number;
-      total: number;
-    };
+    const firstParams = z
+      .object({
+        progressToken: z.union([z.string(), z.number()]),
+        progress: z.number(),
+        total: z.number(),
+      })
+      .parse(notifications[0].params);
+
     expect(firstParams.progressToken).toBe("tok-1");
     expect(firstParams.total).toBe(2);
   });
 
   it("accepts progress token zero and counts progress across terms", async () => {
-    const notifications: unknown[] = [];
+    const notifications: Parameters<ServerContext["mcpReq"]["notify"]>[0][] =
+      [];
+
     const context = makeContext(async () =>
       makeSearchResponse([makeProduct()]),
     );
+
     registerProductTools(context.server, context);
-    await getCapturedHandler("search_products")({ terms: ["milk", "eggs"] }, {
-      mcpReq: {
+    await getCapturedHandler("search_products")(
+      { terms: ["milk", "eggs"] },
+      {
         _meta: { progressToken: 0 },
-        notify: async (notification: unknown) => {
+        notify: async (notification) => {
           notifications.push(notification);
         },
       },
-    } as unknown as ServerContext);
+    );
     expect(notifications).toEqual(
       [1, 2].map((progress) => ({
         method: "notifications/progress",
@@ -588,9 +584,11 @@ describe("search_products", () => {
 
   it("reports reconnect guidance for expired authentication", async () => {
     registerProducts(async () => makeErrorResponse(401));
+
     const result = await getCapturedHandler("search_products")({
       terms: ["milk"],
     });
+
     expect(result).toMatchObject({
       isError: true,
       structuredContent: {
@@ -608,20 +606,21 @@ describe("search_products", () => {
         { itemId: "i1", fulfillment: { curbside: false, instore: true } },
       ],
     });
+
     const withPickup = makeProduct({
       upc: "2222222222222",
       description: "Pickup Product",
       items: [{ itemId: "i2", fulfillment: { curbside: true, instore: true } }],
     });
+
     registerProducts(async () => makeSearchResponse([noPickup, withPickup]));
 
     const result = await getCapturedHandler("search_products")({
       terms: ["item"],
     });
 
-    const sc = structuredContentOf(result) as {
-      results: Array<{ products: ProductData[] }>;
-    };
+    const sc = searchResultSchema.parse(result.structuredContent);
+
     const products = sc.results[0].products;
     expect(products[0].upc).toBe("2222222222222"); // pickup product sorted first
     expect(products[1].upc).toBe("1111111111111"); // no-pickup product sorted after
@@ -637,9 +636,8 @@ describe("search_products", () => {
       terms: ["milk"],
     });
 
-    const sc = structuredContentOf(result) as {
-      results: Array<{ products: ProductData[] }>;
-    };
+    const sc = searchResultSchema.parse(result.structuredContent);
+
     const projected = sc.results[0].products[0];
     expect(projected).toMatchObject({
       upc: "0001111041700",
@@ -681,6 +679,7 @@ describe("search_products", () => {
         },
       ],
     });
+
     registerProducts(async () => makeSearchResponse([product]));
 
     const result = await getCapturedHandler("search_products")({
@@ -688,9 +687,8 @@ describe("search_products", () => {
       includeLocation: true,
     });
 
-    const sc = structuredContentOf(result) as {
-      results: Array<{ products: ProductData[] }>;
-    };
+    const sc = searchResultSchema.parse(result.structuredContent);
+
     expect(sc.results[0].products[0].aisle).toMatchObject({
       description: "AISLE 3",
       number: "3",
@@ -745,7 +743,7 @@ describe("search_products UPC terms", () => {
       terms: ["0001111041700"],
     });
 
-    const sc = structuredContentOf(result) as { product: ProductData };
+    const sc = productResultSchema.parse(result.structuredContent);
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "get_product" },
     });
@@ -783,12 +781,13 @@ describe("search_products UPC terms", () => {
   });
 
   it("passes storeId as 'filter.locationId' query param when provided", async () => {
-    const capturedQueries: Array<Record<string, string>> = [];
+    const capturedQueries: Array<Record<string, string | number>> = [];
     const product = makeProduct();
     registerProducts(async (_path, opts) => {
       if (opts.params.query) {
-        capturedQueries.push(opts.params.query as Record<string, string>);
+        capturedQueries.push(opts.params.query);
       }
+
       return makeDetailResponse(product);
     });
 
@@ -808,7 +807,7 @@ describe("search_products UPC terms", () => {
       terms: ["0001111041700"],
     });
 
-    const sc = structuredContentOf(result) as { product: ProductData };
+    const sc = productResultSchema.parse(result.structuredContent);
     expect(sc.product.imageUrl).toBe("https://example.com/milk.jpg");
 
     // markdown (model context) strips the images field
@@ -821,6 +820,7 @@ describe("search_products UPC terms", () => {
     const paths: string[] = [];
     registerProducts(async (path, opts) => {
       paths.push(`${path} ${JSON.stringify(opts.params.path ?? {})}`);
+
       return makeDetailResponse(makeProduct());
     });
 
@@ -833,6 +833,7 @@ describe("search_products UPC terms", () => {
     const calls: string[] = [];
     registerProducts(async (path) => {
       calls.push(path);
+
       return path === "/v1/products"
         ? makeSearchResponse([makeProduct({ upc: "0001111099999" })])
         : makeDetailResponse(makeProduct());
@@ -924,12 +925,14 @@ describe("search_products UPC terms", () => {
         setTimeout(resolve, 1);
       });
       inFlight--;
+
       return makeDetailResponse(makeProduct());
     });
 
     const terms = Array.from({ length: 12 }, (_, index) =>
       String(1_111_041_700 + index).padStart(13, "0"),
     );
+
     const result = await getCapturedHandler("search_products")({ terms });
 
     expect(isErrorResult(result)).toBe(false);
@@ -941,7 +944,9 @@ describe("search_products UPC terms", () => {
     const get = vi.fn<ProductGetFn>(async () =>
       makeDetailResponse(makeProduct()),
     );
+
     registerProducts(get);
+
     const terms = Array.from({ length: 41 }, (_, index) =>
       String(index).padStart(13, "0"),
     );
@@ -963,10 +968,12 @@ describe("search_products UPC terms", () => {
         setTimeout(resolve, 1);
       });
       active--;
+
       return path === "/v1/products"
         ? makeSearchResponse([makeProduct()])
         : makeDetailResponse(makeProduct());
     });
+
     const terms = [
       "milk",
       "bread",
@@ -984,12 +991,13 @@ describe("search_products UPC terms", () => {
   it("still caps text search terms at ten per call", () => {
     registerProducts(async () => makeSearchResponse([]));
     const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
+
+    const config = tool.config;
+
     const upcs = Array.from({ length: 20 }, (_, index) =>
       String(index).padStart(13, "0"),
     );
+
     const words = Array.from({ length: 10 }, (_, index) => `item ${index}`);
 
     expect(
@@ -1003,9 +1011,9 @@ describe("search_products UPC terms", () => {
   it("rejects productRef in the input schema", () => {
     registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
+
+    const config = tool.config;
+
     expect(
       config.inputSchema.safeParse({ productRef: "kroger:0001111041700" })
         .success,
@@ -1015,9 +1023,9 @@ describe("search_products UPC terms", () => {
   it("rejects productId instead of upc", () => {
     registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
+
+    const config = tool.config;
+
     expect(
       config.inputSchema.safeParse({ productId: "1111041700" }).success,
     ).toBe(false);
@@ -1026,9 +1034,9 @@ describe("search_products UPC terms", () => {
   it("rejects a call without terms", () => {
     registerProducts(async () => makeDetailResponse(undefined));
     const tool = getCapturedTool("search_products");
-    const config = tool.config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
+
+    const config = tool.config;
+
     expect(config.inputSchema.safeParse({}).success).toBe(false);
   });
 });

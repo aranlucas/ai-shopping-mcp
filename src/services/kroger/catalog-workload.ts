@@ -3,7 +3,9 @@
  * text search remains capped at ten, with at most five requests in flight.
  */
 export const MAX_CATALOG_REQUESTS = 40;
+
 export const MAX_TEXT_TERMS = 10;
+
 export const CATALOG_CONCURRENCY = 5;
 
 /** Preserve the search tool's distinction between names and copied UPCs. */
@@ -13,6 +15,7 @@ export function isUpcTerm(term: string): boolean {
 
 export function normalizeProductTerm(term: string): string {
   const trimmed = term.trim();
+
   return isUpcTerm(trimmed) ? trimmed.padStart(13, "0") : trimmed;
 }
 
@@ -22,6 +25,7 @@ export async function mapCatalogRequests<T, R>(
   resolve: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
   const results: R[] = [];
+
   for (let start = 0; start < items.length; start += CATALOG_CONCURRENCY) {
     // oxlint-disable-next-line eslint/no-await-in-loop -- batches bound concurrent provider requests
     const batch = await Promise.all(
@@ -29,7 +33,9 @@ export async function mapCatalogRequests<T, R>(
         .slice(start, start + CATALOG_CONCURRENCY)
         .map((item, offset) => resolve(item, start + offset)),
     );
+
     results.push(...batch);
   }
+
   return results;
 }

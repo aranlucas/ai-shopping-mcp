@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   Client,
   StreamableHTTPClientTransport,
@@ -9,8 +10,11 @@ import { createD1ShoppingStore } from "../../src/utils/d1-shopping-storage.js";
 import { ensureShoppingSchema } from "../d1-schema.js";
 
 const CLIENT_REDIRECT_URI = "https://client.example/callback";
+
 const MCP_BASE_URL = env.MCP_RESOURCE_URL;
+
 const MCP_URL = `${MCP_BASE_URL}/mcp`;
+
 const SCOPES = "profile.compact cart.basic:write product.compact";
 
 type RegisteredClient = {
@@ -25,9 +29,11 @@ type TokenResponse = {
 
 function base64Url(bytes: ArrayBuffer): string {
   let binary = "";
+
   for (const byte of new Uint8Array(bytes)) {
     binary += String.fromCharCode(byte);
   }
+
   return btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -42,13 +48,17 @@ async function pkceChallenge(verifier: string): Promise<string> {
 
 function cookieValue(setCookie: string, name: string): string {
   const match = setCookie.match(new RegExp(`${name}=([^;]+)`));
+
   if (!match) throw new Error(`Missing ${name} cookie`);
+
   return match[1];
 }
 
 function hiddenInputValue(html: string, name: string): string {
   const match = html.match(new RegExp(`name="${name}" value="([^"]+)"`));
+
   if (!match) throw new Error(`Missing ${name} input`);
+
   return match[1];
 }
 
@@ -60,6 +70,7 @@ function fetchThroughSelf(
     input instanceof Request
       ? new Request(input, init)
       : new Request(input, init);
+
   return SELF.fetch(request);
 }
 
@@ -77,7 +88,10 @@ async function registerClient(): Promise<RegisteredClient> {
   );
 
   expect(response.status).toBe(201);
-  return (await response.json()) as RegisteredClient;
+
+  return z
+    .object({ client_id: z.string(), client_secret: z.string() })
+    .parse(await response.json());
 }
 
 async function authorizeClient(client: RegisteredClient): Promise<{
@@ -102,6 +116,7 @@ async function authorizeClient(client: RegisteredClient): Promise<{
   const approvalHtml = await approvalResponse.text();
   const approvalState = hiddenInputValue(approvalHtml, "state");
   const csrfToken = hiddenInputValue(approvalHtml, "csrf_token");
+
   const csrfCookie = cookieValue(
     approvalResponse.headers.get("Set-Cookie") ?? "",
     "__Host-CSRF_TOKEN",
@@ -123,9 +138,11 @@ async function authorizeClient(client: RegisteredClient): Promise<{
   );
 
   expect(authorizeResponse.status).toBe(302);
+
   const krogerRedirect = new URL(
     authorizeResponse.headers.get("Location") ?? "",
   );
+
   const krogerState = krogerRedirect.searchParams.get("state");
   expect(krogerState).toBeTruthy();
 
@@ -145,16 +162,21 @@ async function authorizeClient(client: RegisteredClient): Promise<{
   );
 
   expect(callbackResponse.status).toBe(302);
+
   const clientRedirect = new URL(
     callbackResponse.headers.get("Location") ?? "",
   );
+
   expect(clientRedirect.origin + clientRedirect.pathname).toBe(
     CLIENT_REDIRECT_URI,
   );
 
   const authorizationCode = clientRedirect.searchParams.get("code");
   expect(authorizationCode).toBeTruthy();
-  return { authorizationCode: authorizationCode as string, codeVerifier };
+
+  if (!authorizationCode) throw new Error("Missing authorization code");
+
+  return { authorizationCode, codeVerifier };
 }
 
 async function exchangeCodeForToken(
@@ -179,7 +201,10 @@ async function exchangeCodeForToken(
   );
 
   expect(response.status).toBe(200);
-  return (await response.json()) as TokenResponse;
+
+  return z
+    .object({ access_token: z.string(), refresh_token: z.string() })
+    .parse(await response.json());
 }
 
 async function refreshAccessToken(
@@ -214,6 +239,7 @@ function stubExpiringKrogerGrant(
 
       if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
         tokenRequests += 1;
+
         if (tokenRequests === 1) {
           return Response.json({
             access_token: "expiring-kroger-access-token",
@@ -221,6 +247,7 @@ function stubExpiringKrogerGrant(
             expires_in: 1,
           });
         }
+
         return refresh();
       }
 
@@ -240,6 +267,7 @@ async function createAuthorizedMcpClient(accessToken: string): Promise<Client> {
       headers: { Authorization: `Bearer ${accessToken}` },
     },
   });
+
   const client = new Client(
     { name: "vitest-client", version: "1.0.0" },
     {
@@ -247,11 +275,13 @@ async function createAuthorizedMcpClient(accessToken: string): Promise<Client> {
       versionNegotiation: { mode: "auto" },
     },
   );
+
   client.setRequestHandler("elicitation/create", async () => ({
     action: "accept",
     content: { confirm: true },
   }));
   await client.connect(transport);
+
   return client;
 }
 
@@ -325,13 +355,16 @@ describe("MCP client over Worker OAuth integration", () => {
 
   it("authorizes through OAuth and calls app tools through the MCP client", async () => {
     const registeredClient = await registerClient();
+
     const { authorizationCode, codeVerifier } =
       await authorizeClient(registeredClient);
+
     const token = await exchangeCodeForToken(
       registeredClient,
       authorizationCode,
       codeVerifier,
     );
+
     const client = await createAuthorizedMcpClient(token.access_token);
 
     const tools = await client.listTools();
@@ -341,6 +374,7 @@ describe("MCP client over Worker OAuth integration", () => {
     expect(toolNames).toContain("get_shopping_profile");
     // Text-only tools: their results are read by the model, not rendered.
     const textOnlyTools = new Set(["get_shopping_profile"]);
+
     const uiMismatches = tools.tools
       .filter(
         (tool) =>
@@ -348,7 +382,9 @@ describe("MCP client over Worker OAuth integration", () => {
           (!textOnlyTools.has(tool.name) && tool._meta?.ui === undefined),
       )
       .map((tool) => tool.name);
+
     expect(uiMismatches).toEqual([]);
+
     for (const tool of tools.tools.filter(
       (candidate) => !textOnlyTools.has(candidate.name),
     )) {
@@ -357,6 +393,7 @@ describe("MCP client over Worker OAuth integration", () => {
         "ui/resourceUri": "ui://shopping-app",
       });
     }
+
     expect(client.getInstructions()).toContain("create_shopping_list");
     expect(client.getInstructions()).toContain("add_shopping_list_to_cart");
     expect(client.getInstructions()).toContain("get_shopping_list");
@@ -387,13 +424,16 @@ describe("MCP client over Worker OAuth integration", () => {
   // hit this path and the bug shipped.
   it("resolves auth props for tool calls and resource reads (getProps path)", async () => {
     const registeredClient = await registerClient();
+
     const { authorizationCode, codeVerifier } =
       await authorizeClient(registeredClient);
+
     const token = await exchangeCodeForToken(
       registeredClient,
       authorizationCode,
       codeVerifier,
     );
+
     const client = await createAuthorizedMcpClient(token.access_token);
 
     // No storeId → handler falls back to getProps().id to resolve the
@@ -415,26 +455,36 @@ describe("MCP client over Worker OAuth integration", () => {
 
     expect(resourceResult.contents).toBeDefined();
     expect(resourceResult.contents.length).toBeGreaterThan(0);
+
     const pantryText = resourceResult.contents
-      .map((entry) =>
-        "text" in entry && typeof entry.text === "string" ? entry.text : "",
-      )
+      .map((entry) => {
+        const text = z
+          .string()
+          .safeParse("text" in entry ? entry.text : undefined);
+
+        return text.success ? text.data : "";
+      })
       .join("");
+
     expect(pantryText).not.toContain("outside an authenticated MCP request");
   });
 
   it("keeps dependencies scoped to concurrent authenticated shoppers", async () => {
     const krogerFetch = vi.mocked(fetch).getMockImplementation();
+
     if (!krogerFetch) throw new Error("Missing Kroger fetch stub");
     let shopperId = "shopper-alice";
+
     const productRequests: Array<{
       term: string | null;
       locationId: string | null;
       authorization: string | null;
     }> = [];
+
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const request = new Request(input, init);
       const url = new URL(request.url);
+
       if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
         return Response.json({
           access_token: `kroger-access-token-${shopperId}`,
@@ -442,9 +492,11 @@ describe("MCP client over Worker OAuth integration", () => {
           expires_in: 1800,
         });
       }
+
       if (url.href === "https://api.kroger.com/v1/identity/profile") {
         return Response.json({ data: { id: shopperId } });
       }
+
       if (url.pathname === "/v1/products") {
         productRequests.push({
           term: url.searchParams.get("filter.term"),
@@ -452,6 +504,7 @@ describe("MCP client over Worker OAuth integration", () => {
           authorization: request.headers.get("Authorization"),
         });
       }
+
       return krogerFetch(input, init);
     });
 
@@ -465,18 +518,22 @@ describe("MCP client over Worker OAuth integration", () => {
         setAt: new Date().toISOString(),
       });
       const registered = await registerClient();
+
       const { authorizationCode, codeVerifier } =
         await authorizeClient(registered);
+
       const token = await exchangeCodeForToken(
         registered,
         authorizationCode,
         codeVerifier,
       );
+
       return createAuthorizedMcpClient(token.access_token);
     }
 
     const alice = await connectShopper("shopper-alice", "70500847");
     const bob = await connectShopper("shopper-bob", "70500034");
+
     try {
       const searches = await Promise.all([
         alice.callTool({
@@ -488,6 +545,7 @@ describe("MCP client over Worker OAuth integration", () => {
           arguments: { terms: ["bob-milk"] },
         }),
       ]);
+
       for (const search of searches) expect(search.isError).toBeFalsy();
       expect(productRequests).toHaveLength(2);
       expect(productRequests).toEqual(
@@ -519,12 +577,14 @@ describe("MCP client over Worker OAuth integration", () => {
           },
         }),
       ]);
+
       for (const write of writes) expect(write.isError).toBeFalsy();
 
       const [alicePantry, bobPantry] = await Promise.all([
         alice.readResource({ uri: "shopping://user/pantry" }),
         bob.readResource({ uri: "shopping://user/pantry" }),
       ]);
+
       expect(JSON.stringify(alicePantry.contents)).toContain("Alice rice");
       expect(JSON.stringify(alicePantry.contents)).not.toContain("Bob beans");
       expect(JSON.stringify(bobPantry.contents)).toContain("Bob beans");
@@ -536,8 +596,10 @@ describe("MCP client over Worker OAuth integration", () => {
 
   it("does not require persisted MCP session state", async () => {
     const registeredClient = await registerClient();
+
     const { authorizationCode, codeVerifier } =
       await authorizeClient(registeredClient);
+
     const token = await exchangeCodeForToken(
       registeredClient,
       authorizationCode,
@@ -577,8 +639,10 @@ describe("MCP client over Worker OAuth integration", () => {
       ),
     );
     const registeredClient = await registerClient();
+
     const { authorizationCode, codeVerifier } =
       await authorizeClient(registeredClient);
+
     const token = await exchangeCodeForToken(
       registeredClient,
       authorizationCode,
@@ -607,8 +671,10 @@ describe("MCP client over Worker OAuth integration", () => {
       ),
     );
     const registeredClient = await registerClient();
+
     const { authorizationCode, codeVerifier } =
       await authorizeClient(registeredClient);
+
     const token = await exchangeCodeForToken(
       registeredClient,
       authorizationCode,
@@ -638,8 +704,10 @@ describe("MCP client over Worker OAuth integration", () => {
       ),
     );
     const registeredClient = await registerClient();
+
     const { authorizationCode, codeVerifier } =
       await authorizeClient(registeredClient);
+
     const token = await exchangeCodeForToken(
       registeredClient,
       authorizationCode,
@@ -663,8 +731,10 @@ describe("MCP client over Worker OAuth integration", () => {
       Response.json({ access_token: "new-access-token", expires_in: 1800 }),
     );
     const registeredClient = await registerClient();
+
     const { authorizationCode, codeVerifier } =
       await authorizeClient(registeredClient);
+
     const token = await exchangeCodeForToken(
       registeredClient,
       authorizationCode,

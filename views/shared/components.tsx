@@ -1,9 +1,11 @@
+import type {
+  ShoppingAppClient,
+  ProductData,
+  ShoppingListSummaryData,
+} from "./types.js";
 import type { CartState } from "../app/cart-action.js";
 import { useCartAction } from "../app/use-cart-action.js";
-import type {
-  App,
-  McpUiHostContext,
-} from "@modelcontextprotocol/ext-apps/react";
+import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useId, useMemo, useState } from "react";
 import type { ChangeEvent, MouseEvent, ReactNode } from "react";
@@ -13,8 +15,6 @@ import { loadShoppingLists } from "../app/tool-calls.js";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardFooter } from "./ui/card";
-
-import type { ProductData, ShoppingListSummaryData } from "./types.js";
 
 export { Badge };
 
@@ -81,7 +81,7 @@ export function DisplayModeToggle({
   app,
   hostContext,
 }: {
-  app: App | null | undefined;
+  app: ShoppingAppClient | null | undefined;
   hostContext: McpUiHostContext | undefined;
 }) {
   const current = hostContext?.displayMode;
@@ -90,9 +90,11 @@ export function DisplayModeToggle({
   const supportsInline = available.includes("inline");
   const isFullscreen = current === "fullscreen";
   const next = isFullscreen ? "inline" : "fullscreen";
+
   const handleToggleDisplayMode = useCallback(() => {
     app?.requestDisplayMode({ mode: next }).catch(console.error);
   }, [app, next]);
+
   if (!app || !supportsFullscreen || !supportsInline) return null;
 
   return (
@@ -133,7 +135,9 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   const tags: Array<{ label: string; tone: "info" | "danger" }> = product.pickup
     ? [{ label: "Pickup", tone: "info" }]
     : [];
+
   if (!product.available) tags.push({ label: "Out of Stock", tone: "danger" });
+
   if (tags.length === 0) return null;
 
   return (
@@ -151,6 +155,7 @@ export function PriceDisplay({ product }: { product: ProductData }) {
   if (product.price === undefined) {
     return <span className="text-xs text-gray-500">Price unavailable</span>;
   }
+
   const hasPromo =
     product.regularPrice !== undefined && product.regularPrice > product.price;
 
@@ -204,17 +209,21 @@ export function ActionButton({
     // catches unexpected throws and rejected promises before returning to React.
     Promise.resolve().then(onClick).catch(console.error);
   }, [onClick]);
+
   const label = {
     idle: idleLabel,
     loading: loadingLabel ?? "Loading...",
     done: doneLabel ?? "Done!",
     error: failLabel ?? "Failed",
   }[state];
+
   const baseVariant = { primary: "default", secondary: "outline" } as const;
+
   const successVariant = {
     primary: "success",
     secondary: "success-outline",
   } as const;
+
   const shadcnVariant = {
     idle: baseVariant[variant],
     loading: baseVariant[variant],
@@ -269,11 +278,12 @@ export function ExternalLink({
   href,
   children,
 }: {
-  app: App | null;
+  app: ShoppingAppClient | null;
   href: string;
   children: ReactNode;
 }) {
   const [error, setError] = useState<string | null>(null);
+
   const handleClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
       if (!app?.getHostCapabilities?.()?.openLinks) return;
@@ -284,6 +294,7 @@ export function ExternalLink({
         .then((result) => {
           if (result.isError)
             setError("Could not open Kroger. Open it in your browser instead.");
+
           return result;
         })
         .catch(() =>
@@ -292,6 +303,7 @@ export function ExternalLink({
     },
     [app, href],
   );
+
   return (
     <>
       <a
@@ -312,7 +324,7 @@ export function CartCheckLink({
   app,
   label = "Check Kroger cart",
 }: {
-  app: App | null;
+  app: ShoppingAppClient | null;
   label?: string;
 }) {
   return (
@@ -337,7 +349,7 @@ export function CartActionControl({
   onSubmit,
   ...labels
 }: {
-  app: App | null;
+  app: ShoppingAppClient | null;
   state: CartState;
   onSubmit: () => Promise<void>;
   disabled?: boolean;
@@ -430,28 +442,34 @@ function SaveToListControl({
   disabled,
   onSave,
 }: {
-  app: App | null;
+  app: ShoppingAppClient | null;
   product: SaveableProduct;
   disabled?: boolean;
   onSave: SaveProductToList;
 }) {
   const [open, setOpen] = useState(false);
   const [lists, setLists] = useState<ShoppingListSummaryData[] | null>(null);
+
   const [listsState, setListsState] = useState<"idle" | "loading" | "error">(
     "idle",
   );
+
   const [target, setTarget] = useState(NEW_LIST);
+
   const [saveState, setSaveState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+
   const [error, setError] = useState<string | null>(null);
   const selectId = useId();
 
   const handleOpen = useCallback(async () => {
     setOpen(true);
     setError(null);
+
     if (lists !== null) return;
     setListsState("loading");
+
     try {
       setLists(await loadShoppingLists(app));
       setListsState("idle");
@@ -474,9 +492,11 @@ function SaveToListControl({
   const handleSave = useCallback(async () => {
     setSaveState("loading");
     setError(null);
+
     try {
       await onSave(product, target || undefined);
       setSaveState("done");
+
       // A new list now exists; reload next time the picker opens.
       if (!target) setLists(null);
       setTimeout(() => {
@@ -564,7 +584,7 @@ export function ProductActions({
   cartDisabled,
   onAddToList,
 }: {
-  app: App | null;
+  app: ShoppingAppClient | null;
   upc: string;
   name: string;
   price?: number;
@@ -587,6 +607,7 @@ export function ProductActions({
     },
     2000,
   );
+
   const saveable = useMemo(
     () => ({ productName: name, upc, quantity: 1, price }),
     [name, upc, price],
@@ -618,6 +639,7 @@ export function ProductActions({
 function ProductImage({ product }: { product: ProductData }) {
   const thumbnail = product.imageUrl;
   const [failedUrl, setFailedUrl] = useState<string | undefined>();
+
   const handleImageError = useCallback(
     () => setFailedUrl(thumbnail),
     [thumbnail],
@@ -630,6 +652,7 @@ function ProductImage({ product }: { product: ProductData }) {
       .map((w) => w[0])
       .join("")
       .toUpperCase();
+
     return (
       <div className="flex aspect-4/3 w-full flex-col items-center justify-center gap-1 bg-muted">
         <span
@@ -662,7 +685,7 @@ export function ProductCard({
   canCallTools,
   onAddToList,
 }: {
-  app: App | null;
+  app: ShoppingAppClient | null;
   product: ProductData;
   canCallTools: boolean;
   onAddToList: SaveProductToList;
@@ -671,6 +694,7 @@ export function ProductCard({
   const brand = product.brand;
   const upc = product.upc;
   const size = product.size;
+
   const aisle =
     product.aisle?.description ||
     (product.aisle?.number ? `Aisle ${product.aisle.number}` : undefined);

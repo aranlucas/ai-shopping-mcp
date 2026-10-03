@@ -1,3 +1,8 @@
+import type { paths as ProductPaths } from "../kroger/product.js";
+import type { FetchOptions } from "openapi-fetch";
+
+type ProductSearchOptions = FetchOptions<ProductPaths["/v1/products"]["get"]>;
+
 import type { ProductSearchFn } from "../qfc-weekly-deals.js";
 import type { KrogerClients } from "../kroger/client.js";
 import type { PreferredLocationStore } from "../../utils/shopping-store.js";
@@ -16,6 +21,7 @@ export type WeeklyDealsLoaderDependencies = {
   preferredLocation: PreferredLocationStore;
   productClient: KrogerClients["productClient"];
   weeklyDealsCache: WeeklyDealsCache;
+  fetchDeals?: typeof getQfcWeeklyDeals;
 };
 
 /** Binds request-scoped MCP infrastructure to the weekly-deals service. */
@@ -29,13 +35,16 @@ export function createWeeklyDealsLoader(
       ),
     weeklyDealsCache: dependencies.weeklyDealsCache,
     fetchLive: async ({ locationId, limit, pageLimit, signal }) => {
-      return getQfcWeeklyDeals({
+      const options: Parameters<typeof getQfcWeeklyDeals>[0] = {
         locationId,
         limit,
         pageLimit,
-        ...(signal ? { signal } : {}),
         searchProducts: createProductSearch(dependencies.productClient, signal),
-      });
+      };
+
+      if (signal) options.signal = signal;
+
+      return (dependencies.fetchDeals ?? getQfcWeeklyDeals)(options);
     },
   };
 
@@ -47,20 +56,23 @@ function createProductSearch(
   signal?: AbortSignal,
 ): ProductSearchFn {
   return async (term, locationId, limit) => {
+    const options: ProductSearchOptions = {
+      params: {
+        query: {
+          "filter.term": term,
+          "filter.locationId": locationId,
+          "filter.limit": limit,
+        },
+      },
+    };
+
+    if (signal) options.signal = signal;
+
     const apiResult = await fromApiResponse(
-      () =>
-        productClient.GET("/v1/products", {
-          ...(signal ? { signal } : {}),
-          params: {
-            query: {
-              "filter.term": term,
-              "filter.locationId": locationId,
-              "filter.limit": limit,
-            },
-          },
-        }),
+      () => productClient.GET("/v1/products", options),
       `search weekly deals for "${term}"`,
     );
+
     return apiResult.match(
       (value) => value.data ?? [],
       (error) => {

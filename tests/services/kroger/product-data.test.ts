@@ -8,6 +8,7 @@ import {
 } from "../../../src/services/kroger/product-data.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+
 type Inventory =
   ProductComponents["schemas"]["products.productItemInventoryModel"];
 

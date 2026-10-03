@@ -1,5 +1,7 @@
+import { strictFake } from "../strict-fake.js";
+import { parseToolPayload } from "../app-payload.js";
+import { appPayloadSchemas } from "../../src/app-results.js";
 // oxlint-disable perfectionist/sort-imports
-// tool-test-harness installs module mocks before the tool module is imported.
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { OrderRecord } from "../../src/domain/shopping.js";
@@ -31,14 +33,18 @@ describe("order storage-backed tools", () => {
 
   it("records order totals and optional metadata", async () => {
     const storedOrders: OrderRecord[] = [];
+
     const storage = makeStorage({
-      orderHistory: {
+      orderHistory: strictFake<OrderHistoryStore>({
         add: async (order: OrderRecord) => {
           storedOrders.push(order);
+
+          return order;
         },
         getAll: async () => storedOrders,
-      } as unknown as OrderHistoryStore,
+      }),
     });
+
     const fixture = makeContext(storage);
     registerOrders(fixture);
 
@@ -107,9 +113,9 @@ describe("order storage-backed tools", () => {
         notes: "Test note",
       },
     });
-    const sc = (
-      result as { structuredContent: { orderId: string; placedAt: string } }
-    ).structuredContent;
+
+    const sc = parseToolPayload(appPayloadSchemas.record_order, result);
+
     expect(sc.orderId).toMatch(/^ORD-/);
     expect(sc.placedAt).toMatch(/^\d{4}-/);
   });
@@ -126,11 +132,9 @@ describe("order storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(false);
-    const sc = (
-      result as {
-        structuredContent: { estimatedTotal?: number; totalItems: number };
-      }
-    ).structuredContent;
+
+    const sc = parseToolPayload(appPayloadSchemas.record_order, result);
+
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "record_order" },
     });
@@ -143,9 +147,8 @@ describe("order storage-backed tools", () => {
     registerOrders(fixture);
 
     const tool = getCapturedTool("record_order");
-    const config = tool.config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
+
+    const config = tool.config;
 
     expect(
       config.inputSchema.safeParse({

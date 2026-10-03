@@ -1,3 +1,4 @@
+import { z } from "zod/v4";
 import {
   GrantType,
   OAuthError,
@@ -8,7 +9,7 @@ import { createMcpHandler } from "agents/mcp/server";
 import { WorkerEntrypoint, env as workerEnv } from "cloudflare:workers";
 
 import type { AppEnv } from "./env.js";
-import type { GrantProps, Props } from "./tools/types.js";
+import type { Props } from "./tools/types.js";
 
 import { buildServer } from "./composition.js";
 import { KrogerWorker } from "./kroger-handler.js";
@@ -48,12 +49,30 @@ class UserInfoHandler extends WorkerEntrypoint<AppEnv, Props> {
   fetch() {
     if (!isVerifiedShopperId(this.ctx.props.id))
       return Response.json({ error: "invalid_token" }, { status: 401 });
+
     return Response.json({
       sub: this.ctx.props.id,
       id: this.ctx.props.id,
     });
   }
 }
+
+const grantPropsFieldsSchema = z.looseObject({
+  id: z.string().refine(isVerifiedShopperId),
+  accessToken: z.string().optional(),
+  tokenExpiresAt: z
+    .union([z.number(), z.nan(), z.literal(Infinity), z.literal(-Infinity)])
+    .optional(),
+  refreshToken: z.string().optional(),
+  krogerClientId: z.string().optional(),
+  krogerClientSecret: z.string().optional(),
+});
+
+// Validation must not clone/drop opaque provider extensions. Credential fields
+// are still checked before the original object is separated into grant/access props.
+const grantPropsSchema = z.custom<z.input<typeof grantPropsFieldsSchema>>(
+  (value) => grantPropsFieldsSchema.safeParse(value).success,
+);
 
 export const oauthProvider = new OAuthProvider<AppEnv>({
   resourceMetadata: { resource: workerEnv.MCP_RESOURCE_URL },
@@ -81,13 +100,22 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
           "Kroger identity could not be verified. Reconnect the MCP server.",
       });
     }
-    // Destructure grant-only fields; rest is exactly the access token props (Props type)
+
+    const parsedGrant = grantPropsSchema.safeParse(props);
+
+    if (!parsedGrant.success)
+      throw new OAuthError("invalid_grant", {
+        description:
+          "Kroger authorization is invalid. Reconnect the MCP server.",
+      });
+
+    // Keep provider extensions, but never expose refresh credentials in access props.
     const {
       refreshToken,
       krogerClientId,
       krogerClientSecret,
       ...accessTokenProps
-    } = props as GrantProps;
+    } = parsedGrant.data;
 
     if (grantType === GrantType.AUTHORIZATION_CODE) {
       const ttl = accessTokenProps.tokenExpiresAt
@@ -96,6 +124,7 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
             60,
           )
         : 1800;
+
       return { accessTokenProps, accessTokenTTL: ttl };
     }
 
@@ -108,11 +137,14 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
       });
     }
 
-    if (!isKrogerTokenExpiring(accessTokenProps.tokenExpiresAt)) {
+    if (!isKrogerTokenExpiring(accessTokenProps.tokenExpiresAt ?? Number.NaN)) {
       const ttl = Math.max(
-        Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000),
+        Math.floor(
+          ((accessTokenProps.tokenExpiresAt ?? Number.NaN) - Date.now()) / 1000,
+        ),
         60,
       );
+
       return { accessTokenProps, accessTokenTTL: ttl };
     }
 
@@ -121,18 +153,19 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
       krogerClientId,
       krogerClientSecret,
     );
+
     if (refreshResult.isErr()) {
       const error = refreshResult.error;
       console.error("Kroger token refresh failed:", error.message);
 
-      const upstreamCode =
-        error.type === "API_ERROR" &&
-        error.detail &&
-        typeof error.detail === "object" &&
-        !(error.detail instanceof Error) &&
-        typeof error.detail.error === "string"
-          ? error.detail.error
-          : undefined;
+      const upstreamError =
+        error.type === "API_ERROR" && !(error.detail instanceof Error)
+          ? z.object({ error: z.string() }).safeParse(error.detail)
+          : null;
+
+      const upstreamCode = upstreamError?.success
+        ? upstreamError.data.error
+        : undefined;
 
       if (
         upstreamCode === "invalid_grant" ||
@@ -162,6 +195,7 @@ export const oauthProvider = new OAuthProvider<AppEnv>({
     }
 
     const result = refreshResult.value;
+
     if (!result.refreshToken) {
       console.error(
         "Kroger refresh missing new refresh token (single-use). Re-auth required.",
@@ -214,6 +248,7 @@ export default Sentry.withSentry(
       const result = await oauthProvider.purgeExpiredData(env, {
         batchSize: 100,
       });
+
       console.log("OAuth KV cleanup complete:", result);
     },
   } satisfies ExportedHandler<AppEnv>,

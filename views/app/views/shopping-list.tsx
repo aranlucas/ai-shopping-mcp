@@ -1,4 +1,11 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import {
+  type ShoppingAppClient,
+  type AppData,
+  type ShoppingListContent,
+  type ShoppingListItemData,
+  sendUserMessage,
+} from "../../shared/types.js";
+
 import {
   type ChangeEvent,
   useCallback,
@@ -16,12 +23,6 @@ import {
 } from "../../shared/components.js";
 import { useResettableState } from "../../shared/hooks.js";
 import { EmptyState } from "../../shared/status.js";
-import {
-  type AppData,
-  type ShoppingListContent,
-  type ShoppingListItemData,
-  sendUserMessage,
-} from "../../shared/types.js";
 import { editShoppingListItem, recordPurchase } from "../tool-calls.js";
 import { useCartAction } from "../use-cart-action.js";
 
@@ -77,19 +78,19 @@ function applyItemEdit(
 ): ShoppingListContent {
   if (edit.remove)
     return { ...list, items: list.items.filter((item) => item.id !== itemId) };
+
   return {
     ...list,
-    items: list.items.map((item) =>
-      item.id === itemId
-        ? {
-            ...item,
-            ...(edit.checked === undefined ? {} : { checked: edit.checked }),
-            ...(edit.quantity === undefined
-              ? {}
-              : { quantity: Number(edit.quantity) }),
-          }
-        : item,
-    ),
+    items: list.items.map((item) => {
+      if (item.id !== itemId) return item;
+      const updated = { ...item };
+
+      if (edit.checked !== undefined) updated.checked = edit.checked;
+
+      if (edit.quantity !== undefined) updated.quantity = Number(edit.quantity);
+
+      return updated;
+    }),
   };
 }
 
@@ -113,6 +114,7 @@ function ShoppingItemRow({
       if (itemId === undefined) return;
       setPending(true);
       setError(null);
+
       try {
         await onEdit(itemId, edit);
       } catch (e) {
@@ -131,19 +133,23 @@ function ShoppingItemRow({
     },
     [apply],
   );
+
   const handleChecked = useCallback(
     (event: ChangeEvent<HTMLInputElement>) =>
       run({ checked: event.target.checked }),
     [run],
   );
+
   const handleDecrease = useCallback(
     () => run({ quantity: item.quantity - 1 }),
     [run, item.quantity],
   );
+
   const handleIncrease = useCallback(
     () => run({ quantity: item.quantity + 1 }),
     [run, item.quantity],
   );
+
   const handleRemove = useCallback(() => run({ remove: true }), [run]);
 
   const checkboxId = `list-item-${itemId ?? name}`;
@@ -240,25 +246,29 @@ export function ShoppingListView({
 }: {
   data: ShoppingListContent;
   setData?: (data: AppData | null) => void;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
 }) {
   const { name, items, listId } = data;
   const cart = useCartAction(app, { kind: "list", listId, modality: "PICKUP" });
+
   // Keyed by list, not by list contents: editing an item must not re-enable
   // an action that already ran (for example recording the purchase twice).
   const [matchState, setMatchState] = useResettableState(
     listId,
     (): "idle" | "loading" | "done" | "error" => "idle",
   );
+
   const [matchError, setMatchError] = useResettableState(
     listId,
     (): string | null => null,
   );
+
   const [purchaseState, setPurchaseState] = useResettableState(
     listId,
     (): "idle" | "loading" | "done" | "error" => "idle",
   );
+
   const [purchaseError, setPurchaseError] = useResettableState(
     listId,
     (): string | null => null,
@@ -268,10 +278,12 @@ export function ShoppingListView({
     () => items.filter((item) => Boolean(item.upc)),
     [items],
   );
+
   const unmatchedItems = useMemo(
     () => items.filter((item) => !item.upc),
     [items],
   );
+
   // Checked items sink to the bottom so the list reads as what's left to buy.
   const sortedItems = useMemo(
     () => [
@@ -280,10 +292,12 @@ export function ShoppingListView({
     ],
     [items],
   );
+
   const checkedCount = useMemo(
     () => items.filter((item) => item.checked).length,
     [items],
   );
+
   const { total, pricedCount } = useMemo(
     () => estimateListTotal(items),
     [items],
@@ -294,16 +308,19 @@ export function ShoppingListView({
   // Only the newest edit's response is applied, so responses that arrive out
   // of order cannot replace a newer list with an older one.
   const latestEdit = useRef(0);
+
   const handleEdit = useCallback(
     async (itemId: string, edit: ItemEdit) => {
       const editNumber = ++latestEdit.current;
       setData?.(applyItemEdit(data, itemId, edit));
+
       try {
         const updated = await editShoppingListItem(app, {
           listId,
           itemId,
           ...edit,
         });
+
         if (editNumber === latestEdit.current) setData?.(updated);
       } catch (error) {
         if (editNumber === latestEdit.current) setData?.(data);
@@ -316,6 +333,7 @@ export function ShoppingListView({
   const handleFindMatches = useCallback(async () => {
     setMatchState("loading");
     setMatchError(null);
+
     try {
       const names = unmatchedItems.map((item) => item.productName).join(", ");
       await sendUserMessage(
@@ -336,6 +354,7 @@ export function ShoppingListView({
   const handleMarkPurchased = useCallback(async () => {
     setPurchaseState("loading");
     setPurchaseError(null);
+
     try {
       await recordPurchase(app, readyItems);
       setPurchaseState("done");
@@ -362,6 +381,7 @@ export function ShoppingListView({
   );
 
   const canEdit = canCallTools && setData !== undefined;
+
   const cartDone =
     cart.state.status === "added" || cart.state.status === "already_added";
 

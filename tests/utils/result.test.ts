@@ -1,3 +1,5 @@
+import type { PreferredLocation } from "../../src/domain/shopping.js";
+import { strictFake } from "../strict-fake.js";
 import { err, ok } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
 import * as z from "zod/v4";
@@ -14,7 +16,7 @@ import { KrogerTokenExpiredError } from "../../src/services/kroger/client.js";
 import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 import {
   fromApiResponse,
-  getProps,
+  parseAuthenticatedProps,
   safeJsonParse,
   safeJsonParseWithSchema,
   safeResolveLocationId,
@@ -22,13 +24,9 @@ import {
   toMcpError,
 } from "../../src/utils/result.js";
 
-const authMock = vi.hoisted(() => ({
-  context: undefined as { props?: Record<string, unknown> } | undefined,
-}));
+type AuthTestState = { context: unknown };
 
-vi.mock("agents/mcp/server", () => ({
-  getMcpAuthContext: () => authMock.context,
-}));
+const authMock: AuthTestState = { context: undefined };
 
 describe("toMcpError", () => {
   it("converts AppError to MCP error response", () => {
@@ -118,9 +116,11 @@ describe("fromApiResponse", () => {
 
   it("preserves typed adapter errors for synchronous and asynchronous failures", async () => {
     const failure = authError("Reconnect the grocery account.");
+
     const sync = await fromApiResponse(() => {
       throw new AppErrorException(failure);
     }, "read product");
+
     const async = await fromApiResponse(
       () => Promise.reject(new AppErrorException(failure)),
       "read product",
@@ -139,6 +139,7 @@ describe("fromApiResponse", () => {
       }),
       "test api",
     );
+
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({ items: [1, 2, 3] });
   });
@@ -152,6 +153,7 @@ describe("fromApiResponse", () => {
       }),
       "test api",
     );
+
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toBeUndefined();
   });
@@ -165,6 +167,7 @@ describe("fromApiResponse", () => {
       }),
       "test api",
     );
+
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("API_ERROR");
@@ -181,6 +184,7 @@ describe("fromApiResponse", () => {
       }),
       "test api",
     );
+
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("API_ERROR");
@@ -192,6 +196,7 @@ describe("fromApiResponse", () => {
       Promise.reject(new Error("network fail")),
       "test api",
     );
+
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
@@ -204,6 +209,7 @@ describe("fromApiResponse", () => {
       Promise.reject("plain string rejection"),
       "test api",
     );
+
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("NETWORK_ERROR");
@@ -246,7 +252,9 @@ describe("getProps", () => {
       authMock.context = {
         props: { id, accessToken: "token", tokenExpiresAt: Date.now() + 1000 },
       };
-      expect(() => getProps()).toThrow("outside an authenticated MCP request");
+      expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
+        "outside an authenticated MCP request",
+      );
     },
   );
   it("returns the props when the request is authenticated", () => {
@@ -255,18 +263,23 @@ describe("getProps", () => {
       accessToken: "token",
       tokenExpiresAt: Date.now() + 30 * 60 * 1000,
     };
+
     authMock.context = { props };
-    expect(getProps()).toEqual(props);
+    expect(parseAuthenticatedProps(authMock.context)).toEqual(props);
   });
 
   it("throws when there is no auth context (cannot happen behind OAuthProvider)", () => {
     authMock.context = undefined;
-    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+    expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 
   it("throws when the auth context has no props", () => {
     authMock.context = {};
-    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+    expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 
   it("throws when id is a number instead of a string", () => {
@@ -277,14 +290,18 @@ describe("getProps", () => {
         tokenExpiresAt: Date.now() + 1000,
       },
     };
-    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+    expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 
   it("throws when tokenExpiresAt is missing", () => {
     authMock.context = {
       props: { id: "user-1", accessToken: "token" },
     };
-    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+    expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 
   it("throws when tokenExpiresAt is a string instead of a number", () => {
@@ -295,31 +312,35 @@ describe("getProps", () => {
         tokenExpiresAt: "not-a-number",
       },
     };
-    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+    expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 
   it("throws when accessToken is missing", () => {
     authMock.context = {
       props: { id: "user-1", tokenExpiresAt: Date.now() + 1000 },
     };
-    expect(() => getProps()).toThrow("outside an authenticated MCP request");
+    expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
+      "outside an authenticated MCP request",
+    );
   });
 });
 
 // --- safeResolveLocationId ---
 
-function makeMockUserStorage(preferredLocation: unknown = null) {
+function makeMockUserStorage(
+  preferredLocation: PreferredLocation | null = null,
+) {
   return {
     preferredLocation: {
-      get: vi.fn<() => Promise<unknown>>().mockResolvedValue(preferredLocation),
-      set: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
-      delete: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
+      get: vi
+        .fn<PreferredLocationStore["get"]>()
+        .mockResolvedValue(preferredLocation),
+      set: vi.fn<PreferredLocationStore["set"]>(async () => {}),
+      delete: vi.fn<PreferredLocationStore["delete"]>(async () => {}),
     },
-    pantry: {},
-    equipment: {},
-    orderHistory: {},
-    shoppingList: {},
-  } as unknown as { preferredLocation: PreferredLocationStore };
+  };
 }
 
 describe("safeResolveLocationId", () => {
@@ -327,10 +348,12 @@ describe("safeResolveLocationId", () => {
 
   it("returns Ok with provided locationId without touching storage", async () => {
     const storage = mockStorage();
+
     const result = await safeResolveLocationId(
       storage.preferredLocation,
       "70500847",
     );
+
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({ locationId: "70500847" });
   });
@@ -339,7 +362,11 @@ describe("safeResolveLocationId", () => {
     const storage = mockStorage({
       locationId: "70500847",
       locationName: "QFC #815",
+      address: "",
+      chain: "QFC",
+      setAt: "2026-01-01",
     });
+
     const result = await safeResolveLocationId(storage.preferredLocation);
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({
@@ -359,12 +386,13 @@ describe("safeResolveLocationId", () => {
 
   it("returns STORAGE_ERROR when storage read fails", async () => {
     const storage = {
-      preferredLocation: {
+      preferredLocation: strictFake<PreferredLocationStore>({
         get: vi
-          .fn<() => Promise<unknown>>()
+          .fn<PreferredLocationStore["get"]>()
           .mockRejectedValue(new Error("KV unavailable")),
-      },
-    } as unknown as { preferredLocation: PreferredLocationStore };
+      }),
+    };
+
     const result = await safeResolveLocationId(storage.preferredLocation);
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
@@ -380,6 +408,7 @@ describe("safeStorage", () => {
     const result = await safeStorage(() => {
       throw new Error("sync failure");
     }, "read");
+
     expect(result._unsafeUnwrapErr()).toMatchObject({
       type: "STORAGE_ERROR",
       message: "read: sync failure",
@@ -388,9 +417,11 @@ describe("safeStorage", () => {
 
   it("preserves typed adapter failures", async () => {
     const failure = authError("Reconnect the MCP server.");
+
     const result = await safeStorage(() => {
       throw new AppErrorException(failure);
     }, "read");
+
     expect(result._unsafeUnwrapErr()).toBe(failure);
     expect(toMcpError(result._unsafeUnwrapErr())).toMatchObject({
       structuredContent: {
@@ -409,6 +440,7 @@ describe("safeStorage", () => {
       () => Promise.reject(new Error("boom")),
       "test op",
     );
+
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");
@@ -421,6 +453,7 @@ describe("safeStorage", () => {
       () => Promise.reject("storage quota exceeded"),
       "save pantry",
     );
+
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");
@@ -433,6 +466,7 @@ describe("safeStorage", () => {
       () => Promise.reject(503),
       "write equipment",
     );
+
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");
@@ -453,11 +487,13 @@ describe("tool handler error path integration", () => {
       }),
       "get product",
     ).andThen((data) => {
-      if (!(data as { item: unknown }).item) {
+      if (!data.item) {
         return err(notFoundError("Product not found"));
       }
+
       return ok("found");
     });
+
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().type).toBe("NOT_FOUND");
     expect(result._unsafeUnwrapErr().message).toBe("Product not found");

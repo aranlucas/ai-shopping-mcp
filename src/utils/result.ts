@@ -1,3 +1,4 @@
+import { z } from "zod/v4";
 /**
  * neverthrow utilities for bridging Result types with MCP tool responses
  * and wrapping common async operations.
@@ -21,6 +22,7 @@ import {
   errorRecovery,
   invalidResponseError,
 } from "../errors.js";
+
 export { safeJsonParse, safeJsonParseWithSchema } from "./json.js";
 
 // --- MCP Response Bridge ---
@@ -71,33 +73,43 @@ export function fromApiResponse<T>(
     | (() => Promise<{ data?: T; error?: unknown; response: Response }>),
   context: string,
 ): ResultAsync<T, AppError> {
-  const mapFailure = (e: unknown): AppError => {
-    if (e instanceof AppErrorException) return e.appError;
-    if (e instanceof SyntaxError)
+  const mapFailure = (cause: unknown): AppError => {
+    if (cause instanceof AppErrorException) return cause.appError;
+
+    if (cause instanceof SyntaxError)
       return invalidResponseError(
         `${context}: upstream returned malformed JSON.`,
-        e,
+        cause,
       );
-    if (e instanceof Error && e.name === "KrogerTokenExpiredError") {
-      return authError(e.message);
+
+    if (cause instanceof Error && cause.name === "KrogerTokenExpiredError") {
+      return authError(cause.message);
     }
+
     return networkError(
-      `${context}: ${e instanceof Error ? e.message : String(e)}`,
-      e,
+      `${context}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      cause,
     );
   };
+
   const result =
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- This typed Promise-or-thunk overload dispatch must recognize cross-realm functions without changing the public API.
     typeof promise === "function"
       ? ResultAsync.fromThrowable(promise, mapFailure)()
       : ResultAsync.fromPromise(promise, mapFailure);
+
   return result.andThen(({ data, error, response }) => {
     if (response.status === 401)
       return err(
         authError("Authentication expired. Reconnect the MCP server."),
       );
+
     if (error !== undefined || !response.ok) {
       return err(apiError(`Failed to ${context}`, error, response.status));
     }
+
+    // SAFETY: Preserve the generated SDK success contract, where no-content endpoints include undefined in T.
+    // This bridge does not validate T at runtime: manually supplied responses with absent data still return undefined (existing behavior).
     return ok(data as T);
   });
 }
@@ -118,21 +130,33 @@ export function fromApiResponse<T>(
  * props are missing the expected fields — both are programming/configuration
  * errors, not reachable runtime states.
  */
-export function getProps(): Props {
-  const props = getMcpAuthContext()?.props;
-  if (
-    !props ||
-    !isVerifiedShopperId(props.id) ||
-    typeof props.accessToken !== "string" ||
-    typeof props.tokenExpiresAt !== "number"
-  ) {
+const authenticatedPropsSchema = z.object({
+  props: z.object({
+    id: z.string().refine(isVerifiedShopperId),
+    accessToken: z.string(),
+    // Preserve the existing number contract; token expiry is enforced by the client.
+    tokenExpiresAt: z.union([
+      z.number(),
+      z.nan(),
+      z.literal(Infinity),
+      z.literal(-Infinity),
+    ]),
+  }),
+});
+
+/** Parse provider-owned request data without trusting its declared extension types. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The provider auth-context boundary is untrusted until authenticatedPropsSchema validates it below.
+export function parseAuthenticatedProps(value: unknown): Props {
+  const parsed = authenticatedPropsSchema.safeParse(value);
+
+  if (!parsed.success)
     throw new Error("getProps() called outside an authenticated MCP request");
-  }
-  return {
-    id: props.id,
-    accessToken: props.accessToken,
-    tokenExpiresAt: props.tokenExpiresAt,
-  };
+
+  return parsed.data.props;
+}
+
+export function getProps(): Props {
+  return parseAuthenticatedProps(getMcpAuthContext());
 }
 
 // --- Location Resolution ---
@@ -162,6 +186,7 @@ export function safeResolveLocationId(
         ),
       );
     }
+
     return ok({
       locationId: location.locationId,
       locationName: location.locationName,

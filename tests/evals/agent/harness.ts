@@ -1,3 +1,5 @@
+import { z } from "zod";
+import type { ToolArguments } from "../../v2-tool-handler.js";
 /**
  * vitest-evals harness for the agent eval: an AI SDK `generateText` tool loop
  * on an OpenRouter model, whose tools are the real MCP tools from the Worker
@@ -22,12 +24,7 @@ import {
   type ToolCallResult,
   contentText,
 } from "../harness.js";
-import {
-  type AgentOutput,
-  type AgentTask,
-  type ListItem,
-  AGENT_TASKS,
-} from "./tasks.js";
+import { type AgentOutput, type AgentTask, AGENT_TASKS } from "./tasks.js";
 
 export type AgentInput = { taskId: string; prompt: string };
 
@@ -49,42 +46,51 @@ export function taskInput(task: AgentTask): AgentInput {
 
 export function findTask(taskId: string): AgentTask {
   const task = AGENT_TASKS.find((candidate) => candidate.id === taskId);
+
   if (!task) throw new Error(`Unknown agent task ${taskId}`);
+
   return task;
 }
 
 export async function callTool(
   client: Client,
   name: string,
-  args: Record<string, unknown>,
+  args: ToolArguments,
 ): Promise<ToolCallResult> {
-  return (await client.callTool({ name, arguments: args })) as ToolCallResult;
+  return client.callTool({ name, arguments: args });
 }
 
 /** Exposes every MCP tool to the AI SDK exactly as a host would see it. */
 async function mcpToolSet(client: Client): Promise<ToolSet> {
   const { tools } = await client.listTools();
+
   const entries = tools.map((mcpTool): [string, Tool] => {
-    const { $schema: _dialect, ...schema } = mcpTool.inputSchema as Record<
-      string,
-      unknown
-    >;
+    const { $schema: _dialect, ...schema } = mcpTool.inputSchema;
+
+    // SAFETY: this harness lists this Worker's Zod-generated tool schemas. MCP's
+    // transport type permits arbitrary JSON under properties, while AI SDK names
+    // the JSON Schema contract. Keep the original keywords instead of coercing them.
+    const inputSchema = schema as Parameters<typeof jsonSchema>[0];
+
     return [
       mcpTool.name,
       tool({
         description: mcpTool.description ?? "",
-        inputSchema: jsonSchema<Record<string, unknown>>(schema),
+        inputSchema: jsonSchema<ToolArguments>(inputSchema),
         execute: async (args) => {
           const result = await callTool(client, mcpTool.name, args);
           const text = contentText(result);
+
           // Thrown errors reach the model as tool errors and are recorded
           // with status "error" on the harness run.
           if (result.isError) throw new Error(text);
+
           return text;
         },
       }),
     ];
   });
+
   return Object.fromEntries(entries);
 }
 
@@ -92,18 +98,33 @@ export async function snapshotLists(
   client: Client,
 ): Promise<AgentOutput["lists"]> {
   const summary = await callTool(client, "get_shopping_list", {});
+
   const lists =
-    (summary.structuredContent as { lists?: Array<{ id: string }> } | undefined)
-      ?.lists ?? [];
+    z
+      .object({ lists: z.array(z.object({ id: z.string() })).optional() })
+      .optional()
+      .parse(summary.structuredContent)?.lists ?? [];
+
   return Promise.all(
     lists.map(async ({ id }) => {
       const detail = await callTool(client, "get_shopping_list", {
         listId: id,
       });
-      const structured = detail.structuredContent as {
-        name: string;
-        items: Array<Omit<ListItem, "upc"> & { upc?: string }>;
-      };
+
+      const structured = z
+        .object({
+          name: z.string(),
+          items: z.array(
+            z.object({
+              productName: z.string(),
+              upc: z.string().optional(),
+              quantity: z.number(),
+              checked: z.boolean(),
+            }),
+          ),
+        })
+        .parse(detail.structuredContent);
+
       return {
         name: structured.name,
         items: structured.items.map((item) => ({
@@ -121,18 +142,29 @@ export async function snapshotPantry(
   client: Client,
 ): Promise<AgentOutput["pantry"]> {
   const profile = await callTool(client, "get_shopping_profile", {});
-  const structured = profile.structuredContent as
-    | { pantry?: AgentOutput["pantry"] }
-    | undefined;
+
+  const structured = z
+    .object({
+      pantry: z
+        .array(z.object({ name: z.string(), quantity: z.number() }))
+        .optional(),
+    })
+    .optional()
+    .parse(profile.structuredContent);
+
   return (structured?.pantry ?? []).map(({ name, quantity }) => ({
     name,
     quantity,
   }));
 }
 
-function splitFeedback(text: string): { answer: string; feedback: string } {
+type FeedbackParts = { answer: string; feedback: string };
+
+function splitFeedback(text: string): FeedbackParts {
   const index = text.search(/TOOL FEEDBACK:/i);
+
   if (index === -1) return { answer: text.trim(), feedback: "" };
+
   return {
     answer: text.slice(0, index).trim(),
     feedback: text
@@ -152,6 +184,7 @@ export function shoppingAgentHarness(options: {
     fetch: realFetch,
     headers: { "X-Title": "ai-shopping-mcp evals" },
   });
+
   let observed: Omit<AgentOutput, "answer" | "feedback"> | undefined;
 
   return aiSdkHarness<
@@ -167,6 +200,7 @@ export function shoppingAgentHarness(options: {
       const task = findTask(input.taskId);
       await task.setup?.(async (name, args) => {
         const result = await callTool(client, name, args);
+
         if (result.isError) {
           throw new Error(`setup ${name} failed: ${contentText(result)}`);
         }
@@ -191,10 +225,12 @@ export function shoppingAgentHarness(options: {
         lists: await snapshotLists(client),
         pantry: await snapshotPantry(client),
       };
+
       return result;
     },
     output: ({ result }): AgentOutput => {
       if (!observed) throw new Error("harness output read before run");
+
       return { ...splitFeedback(result.text), ...observed };
     },
   });

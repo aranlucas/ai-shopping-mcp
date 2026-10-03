@@ -19,12 +19,15 @@ import {
 describe("MCP Apps v2 protocol bridge", () => {
   it("handshakes, routes tool results, and preserves ProtocolError rejections", async () => {
     const [viewTransport, hostTransport] = InMemoryTransport.createLinkedPair();
+
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair();
+
     const server = new McpServer({
       name: "shopping-server-test",
       version: "2.0.0",
     });
+
     server.registerTool(
       "search_products",
       {
@@ -35,10 +38,12 @@ describe("MCP Apps v2 protocol bridge", () => {
         structuredContent: { accepted: true, name: "search_products" },
       }),
     );
+
     const client = new Client({
       name: "shopping-client-test",
       version: "2.0.0",
     });
+
     const app = new App(
       { name: "shopping-app-test", version: "1.0.0" },
       {},
@@ -47,6 +52,7 @@ describe("MCP Apps v2 protocol bridge", () => {
         strict: true,
       },
     );
+
     const bridge = new AppBridge(
       client,
       { name: "shopping-host-test", version: "2.0.0" },
@@ -106,6 +112,7 @@ describe("MCP Apps v2 protocol bridge", () => {
         name: "search_products",
         arguments: { terms: ["milk"] },
       };
+
       await expect(callTool(app, call)).resolves.toMatchObject({
         content: [{ type: "text", text: "called search_products" }],
         structuredContent: { accepted: true, name: "search_products" },
@@ -115,12 +122,13 @@ describe("MCP Apps v2 protocol bridge", () => {
         name: "set_preferred_store",
         arguments: { storeId: "missing" },
       });
+
       await expect(rejectedCall).rejects.toMatchObject({
         code: -32602,
         message: expect.stringContaining("set_preferred_store"),
       });
       await expect(rejectedCall).rejects.toSatisfy(
-        (error: unknown) => error instanceof ProtocolError,
+        (cause) => cause instanceof ProtocolError,
       );
     } finally {
       await Promise.all([

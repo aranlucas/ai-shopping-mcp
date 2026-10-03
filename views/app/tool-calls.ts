@@ -1,3 +1,4 @@
+import { z } from "zod/v4";
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import {
   type AddShoppingListToCartContent,
@@ -31,33 +32,35 @@ export class CartActionError extends Error {
 }
 
 export function cartResultError(result: CallToolResult): CartActionError {
-  const content = result.structuredContent;
-  const error =
-    content && typeof content === "object" && "error" in content
-      ? content.error
-      : undefined;
-  const detail =
-    error && typeof error === "object"
-      ? (error as Record<string, unknown>)
-      : {};
+  const parsed = z
+    .object({
+      error: z.object({
+        code: z.string().optional().catch(undefined),
+        recovery: z.string().optional().catch(undefined),
+      }),
+    })
+    .safeParse(result.structuredContent);
+
+  const detail = parsed.success ? parsed.data.error : undefined;
+
   return new CartActionError(
     toolResultErrorMessage(result, "Failed to add to cart"),
-    typeof detail.code === "string" ? detail.code : undefined,
-    typeof detail.recovery === "string" ? detail.recovery : undefined,
+    detail?.code,
+    detail?.recovery,
   );
 }
 
-export function needsCartCheck(error: unknown): boolean {
+export function needsCartCheck(cause: unknown): boolean {
   return (
-    error instanceof CartActionError &&
-    error.recovery !== "check_list" &&
-    (error.code === "MUTATION_OUTCOME_UNKNOWN" ||
-      error.recovery === "check_cart")
+    cause instanceof CartActionError &&
+    cause.recovery !== "check_list" &&
+    (cause.code === "MUTATION_OUTCOME_UNKNOWN" ||
+      cause.recovery === "check_cart")
   );
 }
 
-export function needsListCheck(error: unknown): boolean {
-  return error instanceof CartActionError && error.recovery === "check_list";
+export function needsListCheck(cause: unknown): boolean {
+  return cause instanceof CartActionError && cause.recovery === "check_list";
 }
 
 /** Validate the structured cart payload before a UI state transition. */
@@ -65,6 +68,7 @@ export function cartResultContent(
   result: CallToolResult,
 ): AddShoppingListToCartContent {
   const data = parseToolResult(result);
+
   if (!data || data.view !== "add_shopping_list_to_cart") {
     throw new CartActionError(
       "The cart response was malformed. Check your Kroger cart before retrying.",
@@ -72,6 +76,7 @@ export function cartResultContent(
       "check_cart",
     );
   }
+
   return data;
 }
 
@@ -79,6 +84,7 @@ type CreateShoppingListCall = Extract<
   ToolCall,
   { name: "create_shopping_list" }
 >;
+
 type AddShoppingListToCartCall = Extract<
   ToolCall,
   { name: "add_shopping_list_to_cart" }
@@ -116,17 +122,13 @@ export function addShoppingListToCartCall(
 export function shoppingListIdFromResult(
   result: CallToolResult | undefined,
 ): string {
-  const structuredContent = result?.structuredContent;
-  if (!structuredContent || typeof structuredContent !== "object") {
-    throw new Error("Shopping list id missing");
-  }
+  const parsed = z
+    .object({ listId: z.string().min(1) })
+    .safeParse(result?.structuredContent);
 
-  const id = (structuredContent as { listId?: unknown }).listId;
-  if (typeof id !== "string" || id.length === 0) {
-    throw new Error("Shopping list id missing");
-  }
+  if (!parsed.success) throw new Error("Shopping list id missing");
 
-  return id;
+  return parsed.data.listId;
 }
 
 export function toolResultErrorMessage(
@@ -151,6 +153,7 @@ export async function createProductList(
     );
 
   let result: CallToolResult;
+
   try {
     result = await callTool(app, createProductShoppingListCall(input));
   } catch {
@@ -189,8 +192,10 @@ export async function saveProductToList(
 ): Promise<void> {
   if (!listId) {
     await createProductList(app, input);
+
     return;
   }
+
   await callForView(
     app,
     {
@@ -218,9 +223,12 @@ export async function callForView(
   fallback: string,
 ): Promise<AppData> {
   const result = await callTool(app, call);
+
   if (result.isError) throw new Error(toolResultErrorMessage(result, fallback));
   const data = parseToolResult(result);
+
   if (!data) throw new Error(fallback);
+
   return data;
 }
 
@@ -232,6 +240,7 @@ export async function loadShoppingLists(
     { name: "get_shopping_list", arguments: {} },
     "Could not load your lists",
   );
+
   return data.view === "shopping_lists" ? data.lists : [];
 }
 
@@ -244,8 +253,10 @@ export async function openShoppingList(
     { name: "get_shopping_list", arguments: { listId } },
     "Could not open that list",
   );
+
   if (data.view !== "create_shopping_list")
     throw new Error("Could not open that list");
+
   return data;
 }
 
@@ -274,8 +285,10 @@ export async function editShoppingListItem(
     },
     "Could not update the list",
   );
+
   if (data.view !== "create_shopping_list")
     throw new Error("Could not update the list");
+
   return data;
 }
 
@@ -296,6 +309,7 @@ export async function recordPurchase(
         ]
       : [],
   );
+
   if (purchased.length === 0)
     throw new Error("No Kroger items to record as purchased");
   await callForView(
@@ -316,6 +330,7 @@ export async function addListToCart(
       "The shopping app is disconnected. Reopen it and try again.",
     );
   let result: CallToolResult;
+
   try {
     result = await callTool(app, addShoppingListToCartCall(listId, modality));
   } catch {
@@ -325,8 +340,10 @@ export async function addListToCart(
       "check_cart",
     );
   }
+
   if (result?.isError) {
     throw cartResultError(result);
   }
+
   return cartResultContent(result);
 }

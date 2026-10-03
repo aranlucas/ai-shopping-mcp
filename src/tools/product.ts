@@ -90,16 +90,19 @@ export function registerProductTools(
       requestContext,
     ) => {
       let locationId = storeId;
+
       if (!locationId) {
         const preferred = await safeStorage(
           () => preferredLocation.get(),
           "fetch preferred location",
         );
+
         if (preferred.isErr()) return toMcpError(preferred.error);
         locationId = preferred.value?.locationId;
       }
 
       const progressToken = requestContext.mcpReq._meta?.progressToken;
+
       const resolved = await productService.resolveProducts(
         terms,
         { locationId, limitPerTerm },
@@ -111,6 +114,7 @@ export function registerProductTools(
           });
         },
       );
+
       if (resolved.isErr()) return toMcpError(resolved.error);
       const { results, exactUpcs } = resolved.value;
 
@@ -119,16 +123,20 @@ export function registerProductTools(
           sum + (result.status === "success" ? result.products.length : 0),
         0,
       );
+
       const failures = results.filter((result) => result.status === "failed");
+
       const failure =
         failures.find((result) => result.error.type === "AUTH_ERROR") ??
         failures[0];
+
       if (totalProducts === 0 && failure) return toMcpError(failure.error);
 
       const text = `${locationId ? "" : `${NO_STORE_NOTICE}\n\n`}${formatProductSearchMarkdown(results, { includeLocation, exactUpcs })}`;
 
       // A single exact lookup opens the product detail view in the app.
       const [only] = results;
+
       if (
         results.length === 1 &&
         exactUpcs.has(only.term) &&

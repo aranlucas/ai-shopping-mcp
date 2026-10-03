@@ -1,8 +1,10 @@
+import { env as workerEnv } from "cloudflare:test";
+import { strictFake } from "../strict-fake.js";
+import { authenticatedRequest } from "../authenticated-request.js";
 import {
   isInputRequiredResult,
   McpServer,
   type RegisteredResource,
-  type ServerContext,
 } from "@modelcontextprotocol/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -23,16 +25,28 @@ type FakeFetcher = {
 };
 
 function makeFakeEnv(assetsFetcher: FakeFetcher | null): Env {
+  if (!assetsFetcher) {
+    // @ts-expect-error Deliberately omit the deployment binding to verify the missing-assets fallback.
+    return { ...workerEnv, ASSETS: undefined };
+  }
+
   return {
-    ASSETS: assetsFetcher as Fetcher,
-  } as Env;
+    ...workerEnv,
+    ASSETS: strictFake<Fetcher>({
+      fetch: (input, init) => assetsFetcher.fetch(new Request(input, init)),
+    }),
+  };
 }
 
 async function readResource(resource: RegisteredResource, uri = APP_VIEW_URI) {
-  const result = await resource.readCallback(new URL(uri), {} as ServerContext);
+  const result = await authenticatedRequest((context) =>
+    Promise.resolve(resource.readCallback(new URL(uri), context)),
+  );
+
   if (isInputRequiredResult(result)) {
     throw new Error("resource returned no content");
   }
+
   return result;
 }
 
@@ -86,10 +100,12 @@ describe("registerViewResource", () => {
   describe("resource handler — happy path", () => {
     it("returns HTML text from ASSETS when fetch succeeds with an ok response", async () => {
       const htmlContent = "<html><body>Shopping App</body></html>";
+
       const fakeAssets: FakeFetcher = {
         fetch: async (_req: Request) =>
           new Response(htmlContent, { status: 200 }),
       };
+
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
@@ -106,10 +122,12 @@ describe("registerViewResource", () => {
 
     it("wraps the HTML in contents[0] with the correct uri, mimeType, and text", async () => {
       const htmlContent = "<!DOCTYPE html><html></html>";
+
       const fakeAssets: FakeFetcher = {
         fetch: async (_req: Request) =>
           new Response(htmlContent, { status: 200 }),
       };
+
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
       const resourceUri = "ui://shopping-app";
@@ -136,12 +154,15 @@ describe("registerViewResource", () => {
 
     it("constructs the ASSETS request URL as /<filename> relative to https://assets.invalid", async () => {
       const requestedUrls: string[] = [];
+
       const fakeAssets: FakeFetcher = {
         fetch: async (req: Request) => {
           requestedUrls.push(req.url);
+
           return new Response("<html></html>", { status: 200 });
         },
       };
+
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
@@ -151,6 +172,7 @@ describe("registerViewResource", () => {
         APP_VIEW_URI,
         "mcp-app.html",
       );
+
       await readResource(resource);
 
       expect(requestedUrls).toHaveLength(1);
@@ -183,6 +205,7 @@ describe("registerViewResource", () => {
         fetch: async (_req: Request) =>
           new Response("Not Found", { status: 404 }),
       };
+
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
@@ -207,6 +230,7 @@ describe("registerViewResource", () => {
           throw new Error("Network error");
         },
       };
+
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
@@ -248,6 +272,7 @@ describe("registerViewResource", () => {
         fetch: async (_req: Request) =>
           new Response("Internal Server Error", { status: 500 }),
       };
+
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 

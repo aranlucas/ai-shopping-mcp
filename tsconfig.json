@@ -10,5 +10,5 @@
     "jsx": "react-jsx",
     "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types"]
   },
-  "exclude": ["views"]
+  "exclude": ["views", "tools/oxlint/anti-slop"]
 }

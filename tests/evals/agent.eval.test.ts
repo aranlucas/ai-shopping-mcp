@@ -25,10 +25,12 @@ import { codexAgentHarness } from "./agent/codex-harness.js";
 import { AGENT_TASKS } from "./agent/tasks.js";
 import { createEvalMcpClient, installKrogerFetchStub } from "./harness.js";
 
-const evalEnv = env as unknown as Record<string, string | undefined>;
+const evalEnv = env;
+
 const apiKey = evalEnv.OPENROUTER_API_KEY ?? "";
-const codexDriver = (env as unknown as { EVAL_CODEX_DRIVER?: Fetcher })
-  .EVAL_CODEX_DRIVER;
+
+const codexDriver = env.EVAL_CODEX_DRIVER;
+
 const enabled =
   Boolean(codexDriver) || (evalEnv.EVAL_AGENT === "1" && apiKey !== "");
 
@@ -38,10 +40,13 @@ const DEFAULT_MODELS = [
   "nvidia/nemotron-3-super-120b-a12b:free",
   "liquid/lfm-2.5-2.6b:free",
 ];
+
 const models = codexDriver
   ? ["codex/session"]
   : (evalEnv.EVAL_MODELS?.split(",").filter(Boolean) ?? DEFAULT_MODELS);
+
 const taskFilter = evalEnv.EVAL_TASKS?.split(",").filter(Boolean);
+
 const tasks = taskFilter
   ? AGENT_TASKS.filter((task) => taskFilter.includes(task.id))
   : AGENT_TASKS;
@@ -50,6 +55,7 @@ let session: AgentSession | undefined;
 
 function getSession(): AgentSession {
   if (!session) throw new Error("MCP session not initialized");
+
   return session;
 }
 

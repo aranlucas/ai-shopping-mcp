@@ -5,7 +5,7 @@
  */
 import type { AppError } from "../../errors.js";
 import type { KrogerClients } from "./client.js";
-import type { components as ProductComponents } from "./product.js";
+import type { components as ProductComponents, operations } from "./product.js";
 
 import { validationError } from "../../errors.js";
 import { fromApiResponse } from "../../utils/result.js";
@@ -38,6 +38,7 @@ export type ProductSearchResult = ProductSearchSuccess | ProductSearchFailure;
  */
 /** Kroger's `filter.term` limits (kroger/product.json). */
 const MIN_TERM_CHARS = 3;
+
 const MAX_TERM_WORDS = 8;
 
 /** Trims a term to Kroger's word limit; longer terms are rejected upstream. */
@@ -60,13 +61,16 @@ export async function searchProductsForTerms(
       ),
     }));
   }
+
   let completedSearches = 0;
   const totalSearches = requests.length;
 
   const results = await mapCatalogRequests(requests, async (request) => {
     const term = toKrogerTerm(request.term);
+
     if (term.length < MIN_TERM_CHARS) {
       completedSearches++;
+
       return {
         ...request,
         status: "failed" as const,
@@ -75,12 +79,14 @@ export async function searchProductsForTerms(
         ),
       };
     }
-    const queryParams: Record<string, string | number> = {
+
+    const queryParams: operations["productGet"]["parameters"]["query"] = {
       "filter.term": term,
-      ...(params.locationId ? { "filter.locationId": params.locationId } : {}),
       "filter.fulfillment": "ais",
       "filter.limit": params.limitPerTerm,
     };
+
+    if (params.locationId) queryParams["filter.locationId"] = params.locationId;
 
     const apiResult = await fromApiResponse(
       () =>
@@ -91,6 +97,7 @@ export async function searchProductsForTerms(
     );
 
     completedSearches++;
+
     if (onSearchComplete) {
       try {
         await onSearchComplete(completedSearches, totalSearches);
@@ -105,6 +112,7 @@ export async function searchProductsForTerms(
         const products = (data?.data || []).filter((product) =>
           Boolean(product.upc?.trim()),
         );
+
         return Object.assign(
           {
             status: "success" as const,
@@ -129,7 +137,9 @@ export async function searchProductsForTerms(
         const bPickup = bItem?.fulfillment?.curbside === true;
 
         if (aPickup && !bPickup) return -1;
+
         if (!aPickup && bPickup) return 1;
+
         return 0;
       });
     }
@@ -141,6 +151,7 @@ export async function searchProductsForTerms(
 export function logProductSearchError(term: string, error: AppError) {
   if (error.type === "AUTH_ERROR") {
     console.warn(`Search unavailable for "${term}":`, error.message);
+
     return;
   }
 

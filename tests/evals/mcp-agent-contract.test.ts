@@ -1,18 +1,8 @@
-import { ok } from "neverthrow";
-import { describe, expect, it } from "vitest";
+import { capturingServer, type CapturedTool } from "../capturing-server.js";
+import { makeContext } from "../tools/tool-test-harness.js";
+import { z } from "zod";
 
-import type { McpServer } from "@modelcontextprotocol/server";
-import type { KrogerClients } from "../../src/services/kroger/client.js";
-import type { ProductService } from "../../src/services/kroger/product-service.js";
-import type { WeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
-import type {
-  EquipmentStore,
-  OrderHistoryStore,
-  PantryStore,
-  PreferredLocationStore,
-  ShoppingListStore,
-} from "../../src/utils/shopping-store.js";
-import type { CartStore } from "../../src/utils/user-storage.js";
+import { describe, expect, it } from "vitest";
 
 import { registerCartTools } from "../../src/tools/cart.js";
 import { registerInventoryTools } from "../../src/tools/inventory.js";
@@ -24,90 +14,23 @@ import { registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "../../src/tools/weekly-deals.js";
 import { APP_VIEW_URI } from "../../src/utils/view-resource.js";
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
+type TestState = { capturedTools: CapturedTool[] };
 
-type ToolConfig = {
-  title?: string;
-  description?: string;
-  _meta?: { ui?: { resourceUri?: string }; [key: string]: unknown };
-  annotations?: {
-    readOnlyHint?: boolean;
-    destructiveHint?: boolean;
-    idempotentHint?: boolean;
-    openWorldHint?: boolean;
-  };
-  inputSchema?: {
-    safeParse: (input: unknown) => { success: boolean; data?: unknown };
-  };
-};
-
-type CapturedTool = {
-  name: string;
-  config: ToolConfig;
-  handler: ToolHandler;
-};
-
-const testState: { capturedTools: CapturedTool[] } = {
-  capturedTools: [],
-};
+const testState: TestState = { capturedTools: [] };
 
 function makeDependencies() {
-  const preferredLocation: PreferredLocationStore = {
-    get: async () => null,
-    set: async () => {},
-    delete: async () => {},
-  };
-  const pantry = {} as PantryStore;
-  const equipment = {} as EquipmentStore;
-  const orderHistory = {} as OrderHistoryStore;
-  const shoppingList = {} as ShoppingListStore;
-  return {
-    server: {
-      registerTool: (
-        name: string,
-        config: ToolConfig,
-        handler: ToolHandler,
-      ) => {
-        testState.capturedTools.push({ name, config, handler });
-      },
-      server: {
-        elicitInput: async () => ({
-          action: "accept",
-          content: { confirm: true },
-        }),
-      },
-    } as unknown as McpServer,
-    productClient: {
-      GET: async () => ({ response: new Response(null, { status: 204 }) }),
-    } as unknown as KrogerClients["productClient"],
-    locationClient: {
-      GET: async () => ({ response: new Response(null, { status: 204 }) }),
-    } as unknown as KrogerClients["locationClient"],
-    cartClient: {
-      PUT: async () => ({ response: new Response(null, { status: 204 }) }),
-    } as unknown as KrogerClients["cartClient"],
-    productService: {
-      getProduct: () => {
-        throw new Error("productService not used in this test");
-      },
-      enrichProductNames: async (upcs: string[]) => ok(upcs.map(() => null)),
-      resolveProducts: async () =>
-        ok({ results: [], exactUpcs: new Set<string>() }),
-    } satisfies Pick<
-      ProductService,
-      "getProduct" | "enrichProductNames" | "resolveProducts"
-    >,
-    preferredLocation,
-    pantry,
-    equipment,
-    orderHistory,
-    shoppingList,
-    carts: {} as CartStore,
-    weeklyDealsCache: {} as WeeklyDealsCache,
-    loadWeeklyDeals: async () => {
-      throw new Error("Weekly deals not used in registration tests");
-    },
-  };
+  const context = makeContext();
+  context.server = capturingServer(testState.capturedTools, () => undefined);
+
+  return context;
+}
+
+function resourceUri(tool: CapturedTool): string | undefined {
+  const parsed = z
+    .object({ ui: z.object({ resourceUri: z.string().optional() }).optional() })
+    .safeParse(tool.config._meta);
+
+  return parsed.success ? parsed.data.ui?.resourceUri : undefined;
 }
 
 function registerAllTools() {
@@ -128,8 +51,10 @@ function registerAllTools() {
 
 function toolByName(tools: CapturedTool[], name: string): CapturedTool {
   const tool = tools.find((candidate) => candidate.name === name);
-  expect(tool, `Missing tool ${name}`).toBeDefined();
-  return tool as CapturedTool;
+
+  if (!tool) throw new Error(`Missing tool ${name}`);
+
+  return tool;
 }
 
 describe("MCP agent contract", () => {
@@ -185,17 +110,17 @@ describe("MCP agent contract", () => {
   });
 
   it("publishes compatible MCP App resource metadata", () => {
-    const appTools = registerAllTools().filter(
-      (tool) => tool.config._meta?.ui?.resourceUri,
-    );
+    const appTools = registerAllTools().filter((tool) => resourceUri(tool));
+
     expect(appTools.length).toBeGreaterThan(0);
     expect(
       appTools.map((tool) => tool.config._meta?.["ui/resourceUri"]),
-    ).toEqual(appTools.map((tool) => tool.config._meta?.ui?.resourceUri));
+    ).toEqual(appTools.map((tool) => resourceUri(tool)));
   });
 
   it("gives every tool metadata and exact annotations", () => {
     const tools = registerAllTools();
+
     for (const tool of tools) {
       if (tool.name === "get_shopping_profile") continue; // plain registerTool, no app UI
       expect(tool.config.title, `${tool.name} title`).toEqual(
@@ -240,6 +165,7 @@ describe("MCP agent contract", () => {
         `${name} can remove items`,
       ).toBe(true);
     }
+
     for (const name of [
       "get_shopping_list",
       "get_shopping_profile",
@@ -256,6 +182,7 @@ describe("MCP agent contract", () => {
 
   it("keeps UI resources paired with every app-backed tool", () => {
     const tools = registerAllTools();
+
     const appBackedTools = [
       "add_shopping_list_to_cart",
       "create_shopping_list",
@@ -273,13 +200,11 @@ describe("MCP agent contract", () => {
 
     for (const name of appBackedTools) {
       const tool = toolByName(tools, name);
-      expect(tool.config._meta?.ui?.resourceUri, `${name} UI resource`).toBe(
-        APP_VIEW_URI,
-      );
+      expect(resourceUri(tool), `${name} UI resource`).toBe(APP_VIEW_URI);
     }
 
     const shoppingProfile = toolByName(tools, "get_shopping_profile");
-    expect(shoppingProfile.config._meta?.ui?.resourceUri).toBeUndefined();
+    expect(resourceUri(shoppingProfile)).toBeUndefined();
   });
 
   it("models product search and shopping list validation in schemas", () => {

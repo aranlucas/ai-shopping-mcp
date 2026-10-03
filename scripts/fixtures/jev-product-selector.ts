@@ -5,7 +5,14 @@ import type { components as ProductComponents } from "../../src/services/kroger/
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 export const JEV_MODEL = "typesafe/jev-1.13";
+
 const JEV_TIMEOUT_MS = 5000;
+
+type SelectorQuestion = {
+  type: "choice";
+  instructions: string;
+  criteria: Record<string, ReturnType<typeof candidateDescription> | string>;
+};
 
 export type SelectorAi = {
   gateway(id: string): {
@@ -17,7 +24,7 @@ export type SelectorAi = {
         query: {
           model: typeof JEV_MODEL;
           state: unknown;
-          questions: Record<string, unknown>;
+          questions: Record<string, SelectorQuestion>;
         };
       },
       options: { signal: AbortSignal },
@@ -30,6 +37,7 @@ export type ProductSelection =
   | { requestId: string; status: "unresolved" };
 
 const probability = z.number().min(0).max(1);
+
 const responseSchema = z.object({
   model: z.string().min(1),
   answers: z.record(
@@ -45,6 +53,7 @@ const responseSchema = z.object({
 
 function candidateDescription(product: Product) {
   const item = product.items?.[0];
+
   return {
     name: product.description ?? "Unknown product",
     brand: product.brand ?? null,
@@ -63,6 +72,7 @@ export async function selectProductMatches(params: {
   forPickup: boolean;
 }): Promise<ProductSelection[]> {
   const { ai, items, forPickup } = params;
+
   const entries = items
     .map((item) => ({
       id: item.requestId,
@@ -70,6 +80,7 @@ export async function selectProductMatches(params: {
       query: item.query,
       products: item.products.filter((product) => {
         const variant = product.items?.[0];
+
         return (
           variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
           (!forPickup ||
@@ -78,18 +89,23 @@ export async function selectProductMatches(params: {
       }),
     }))
     .filter((entry) => entry.products.length > 0);
+
   const selections = new Map<string, ProductSelection>(
     items.map((item) => [
       item.requestId,
       { requestId: item.requestId, status: "unresolved" as const },
     ]),
   );
+
   const getSelection = (requestId: string): ProductSelection => {
     const selection = selections.get(requestId);
+
     if (!selection)
       throw new Error(`Missing selection for request ${requestId}`);
+
     return selection;
   };
+
   if (entries.length === 0)
     return items.map((item) => getSelection(item.requestId));
 
@@ -97,7 +113,7 @@ export async function selectProductMatches(params: {
     entries.map((entry) => [
       entry.id,
       {
-        type: "choice",
+        type: "choice" as const,
         instructions:
           `Select the candidate that best matches items.${entry.id}.requestedItem and its explicit attributes. ` +
           "Evaluate only this requested item using the candidates in this question. " +
@@ -124,8 +140,10 @@ export async function selectProductMatches(params: {
       },
     ]),
   );
+
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   try {
     const deadline = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
@@ -133,6 +151,7 @@ export async function selectProductMatches(params: {
         reject(new Error("Jev selection timed out"));
       }, JEV_TIMEOUT_MS);
     });
+
     const infer = async () => {
       const response = await ai.gateway("default").run(
         {
@@ -158,23 +177,29 @@ export async function selectProductMatches(params: {
         },
         { signal: controller.signal },
       );
+
       if (!response.ok)
         throw new Error(`Jev request failed with HTTP ${response.status}`);
+
       return response.json();
     };
+
     const raw = await Promise.race([infer(), deadline]);
     const parsed = responseSchema.parse(raw);
+
     if (
       Object.keys(parsed.answers).length !== entries.length ||
       entries.some((entry) => !Object.hasOwn(parsed.answers, entry.id))
     ) {
       throw new Error("Jev must answer exactly the requested item questions");
     }
+
     for (const entry of entries) {
       const answer = parsed.answers[entry.id];
       const criteria = questions[entry.id].criteria;
       const keys = Object.keys(criteria);
       const probabilities = answer.probabilities;
+
       if (
         !Object.hasOwn(criteria, answer.choice) ||
         Object.keys(probabilities).length !== keys.length ||
@@ -189,6 +214,7 @@ export async function selectProductMatches(params: {
       ) {
         throw new Error("Invalid Jev choice distribution");
       }
+
       console.info("Product selection", {
         source: "jev",
         model: parsed.model,
@@ -196,6 +222,7 @@ export async function selectProductMatches(params: {
         choice: answer.choice,
         confidence: answer.confidence,
       });
+
       if (answer.choice !== "no_match" && answer.choice !== "needs_review") {
         selections.set(entry.requestId, {
           requestId: entry.requestId,
@@ -204,6 +231,7 @@ export async function selectProductMatches(params: {
         });
       }
     }
+
     return items.map((item) => getSelection(item.requestId));
   } finally {
     clearTimeout(timer);

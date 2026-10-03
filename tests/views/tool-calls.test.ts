@@ -1,12 +1,8 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
+import { App } from "@modelcontextprotocol/ext-apps";
 
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  type ToolCall,
-  callTool,
-  sendUserMessage,
-} from "../../views/shared/types.js";
+import { callTool, sendUserMessage } from "../../views/shared/types.js";
 
 import {
   addListToCart,
@@ -21,24 +17,30 @@ import {
 } from "../../views/app/tool-calls.js";
 
 function makeToolCallingApp(
-  results: Array<{
-    isError?: true;
-    structuredContent?: Record<string, unknown>;
-  }>,
+  results: Array<
+    Pick<
+      Awaited<ReturnType<App["callServerTool"]>>,
+      "isError" | "structuredContent"
+    >
+  >,
 ) {
-  const calls: ToolCall[] = [];
-  const callServerTool = vi.fn<App["callServerTool"]>(async (call) => {
-    calls.push(call as ToolCall);
+  const calls: Parameters<App["callServerTool"]>[0][] = [];
+
+  const app = new App({ name: "view-helper-test", version: "1.0.0" });
+  vi.spyOn(app, "callServerTool").mockImplementation(async (call) => {
+    calls.push(call);
+
     return { content: [], ...results.shift() };
   });
-  const app = { callServerTool } as unknown as App;
 
   return { app, calls };
 }
 
 function makeMessageApp(result: Awaited<ReturnType<App["sendMessage"]>>) {
-  const sendMessage = vi.fn<App["sendMessage"]>().mockResolvedValue(result);
-  return { app: { sendMessage } as unknown as App, sendMessage };
+  const app = new App({ name: "message-helper-test", version: "1.0.0" });
+  const sendMessage = vi.spyOn(app, "sendMessage").mockResolvedValue(result);
+
+  return { app, sendMessage };
 }
 
 describe("view tool call helpers", () => {
@@ -65,10 +67,9 @@ describe("view tool call helpers", () => {
 
   it("preserves a rejected host message", async () => {
     const hostError = new Error("host disconnected");
-    const sendMessage = vi
-      .fn<App["sendMessage"]>()
-      .mockRejectedValue(hostError);
-    const app = { sendMessage } as unknown as App;
+
+    const { app, sendMessage } = makeMessageApp({});
+    sendMessage.mockRejectedValue(hostError);
 
     await expect(sendUserMessage(app, "Find milk")).rejects.toBe(hostError);
   });
@@ -206,6 +207,7 @@ describe("view tool call helpers", () => {
         },
       },
     ]);
+
     await expect(addListToCart(app, "list-1")).rejects.toSatisfy(
       needsCartCheck,
     );
@@ -213,7 +215,7 @@ describe("view tool call helpers", () => {
 
   it("does not mark an already disconnected app as an unknown mutation", async () => {
     await expect(addListToCart(null, "list-1")).rejects.toSatisfy(
-      (error: unknown) => !needsCartCheck(error),
+      (cause) => !needsCartCheck(cause),
     );
   });
 });

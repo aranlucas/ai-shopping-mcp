@@ -43,6 +43,7 @@ export async function getDealsForFlags(
       limit: 50,
       pageLimit: 2,
     });
+
     return cached?.deals ?? [];
   } catch {
     return [];
@@ -59,10 +60,12 @@ export function pantryFlagLabel(
   pantry: PantryItem[],
 ): string | undefined {
   const lower = requestedName.toLowerCase().trim();
+
   if (!lower) return undefined;
 
   const inPantry = pantry.some((item) => {
     const itemLower = item.productName.toLowerCase();
+
     return itemLower.includes(lower) || lower.includes(itemLower);
   });
 
@@ -75,7 +78,9 @@ export function dealFlagLabel(
   deals: Deal[],
 ): string | undefined {
   const deal = findDealForItem(requestedName, deals);
+
   if (!deal) return undefined;
+
   return deal.price ? `on sale: ${deal.price}` : "on sale";
 }
 
@@ -86,9 +91,11 @@ export function itemFlagLabels(
 ): string[] {
   const labels: string[] = [];
   const pantryLabel = pantryFlagLabel(requestedName, pantry);
+
   if (pantryLabel) labels.push(pantryLabel);
 
   const dealLabel = dealFlagLabel(requestedName, deals);
+
   if (dealLabel) labels.push(dealLabel);
 
   return labels;

@@ -1,5 +1,5 @@
+import { strictFake } from "../strict-fake.js";
 // oxlint-disable perfectionist/sort-imports
-// tool-test-harness installs module mocks before the tool modules are imported.
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ShoppingStore } from "../../src/utils/shopping-store.js";
@@ -42,9 +42,8 @@ describe("inventory and profile tools", () => {
 
   it("rejects update_inventory without any add or remove", () => {
     registerInventoryTools(makeContext());
-    const { inputSchema } = getCapturedTool("update_inventory").config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
+
+    const { inputSchema } = getCapturedTool("update_inventory").config;
 
     expect(inputSchema.safeParse({}).success).toBe(false);
     expect(inputSchema.safeParse({ pantry: {} }).success).toBe(false);
@@ -69,6 +68,7 @@ describe("inventory and profile tools", () => {
     const result = await update({
       pantry: { remove: [{ name: "Eggs", quantity: 6 }, { name: "Milk" }] },
     });
+
     expect(result.text).toContain("Used or removed 2 pantry item(s)");
     expect(result).toMatchObject({
       structuredContent: {
@@ -79,12 +79,11 @@ describe("inventory and profile tools", () => {
       },
     });
 
-    const { inputSchema } = getCapturedTool("update_inventory").config as {
-      inputSchema: { safeParse: (value: unknown) => { success: boolean } };
-    };
-    expect(
-      inputSchema.safeParse({ pantry: { all: true } } as unknown).success,
-    ).toBe(false);
+    const { inputSchema } = getCapturedTool("update_inventory").config;
+
+    expect(inputSchema.safeParse({ pantry: { all: true } }).success).toBe(
+      false,
+    );
   });
 
   it("throws when inventory tools are used outside an authenticated request", async () => {
@@ -105,6 +104,7 @@ describe("inventory and profile tools", () => {
     const addResult = await update({
       equipment: { add: [{ name: "Dutch oven", category: "Cooking" }] },
     });
+
     expect(addResult.text).toContain("Added 1 equipment item(s)");
     expect(addResult).toMatchObject({
       _meta: { "dev.aranlucas/view": "kitchen_equipment" },
@@ -116,6 +116,7 @@ describe("inventory and profile tools", () => {
     const removeResult = await update({
       equipment: { remove: ["Dutch oven"] },
     });
+
     expect(removeResult.text).toContain("Removed 1 equipment item(s)");
     expect(removeResult).toMatchObject({
       _meta: { "dev.aranlucas/view": "kitchen_equipment" },
@@ -160,13 +161,14 @@ describe("inventory and profile tools", () => {
     it("lists items due to restock based on order history cadence", async () => {
       const DAY = 24 * 60 * 60 * 1000;
       const now = Date.now();
+
       const daysAgoIso = (days: number) =>
         new Date(now - days * DAY).toISOString();
 
       // Milk bought every ~10 days, but the most recent purchase was 30 days
       // ago — well past due.
       const storage = makeStorage({
-        orderHistory: {
+        orderHistory: strictFake<ShoppingStore["orderHistory"]>({
           getRecent: async () => [
             {
               orderId: "o3",
@@ -193,8 +195,9 @@ describe("inventory and profile tools", () => {
               placedAt: daysAgoIso(50),
             },
           ],
-        } as unknown as ShoppingStore["orderHistory"],
+        }),
       });
+
       registerInventoryTools(makeContext(storage));
 
       const result = await getCapturedHandler("get_shopping_profile")({});
@@ -206,8 +209,9 @@ describe("inventory and profile tools", () => {
 
     it("summarizes preferred store, pantry with expiring flags, equipment, and frequently purchased items", async () => {
       const soon = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+
       const storage = makeStorage({
-        preferredLocation: {
+        preferredLocation: strictFake<ShoppingStore["preferredLocation"]>({
           get: async () => ({
             locationId: "70500034",
             locationName: "QFC Broadway",
@@ -216,8 +220,8 @@ describe("inventory and profile tools", () => {
             setAt: new Date().toISOString(),
           }),
           set: async () => {},
-        } as unknown as ShoppingStore["preferredLocation"],
-        pantry: {
+        }),
+        pantry: strictFake<ShoppingStore["pantry"]>({
           getAll: async () => [
             {
               productName: "Milk",
@@ -239,13 +243,13 @@ describe("inventory and profile tools", () => {
               ).toISOString(),
             },
           ],
-        } as unknown as ShoppingStore["pantry"],
-        equipment: {
+        }),
+        equipment: strictFake<ShoppingStore["equipment"]>({
           getAll: async () => [
             { equipmentName: "Dutch oven", category: "Cooking", addedAt: "" },
           ],
-        } as unknown as ShoppingStore["equipment"],
-        orderHistory: {
+        }),
+        orderHistory: strictFake<ShoppingStore["orderHistory"]>({
           getRecent: async () => [
             {
               orderId: "o1",
@@ -256,8 +260,9 @@ describe("inventory and profile tools", () => {
               placedAt: new Date().toISOString(),
             },
           ],
-        } as unknown as ShoppingStore["orderHistory"],
+        }),
       });
+
       registerInventoryTools(makeContext(storage));
 
       const result = await getCapturedHandler("get_shopping_profile")({});
@@ -287,17 +292,9 @@ describe("inventory and profile tools", () => {
       registerInventoryTools(makeContext());
 
       const tool = getCapturedTool("get_shopping_profile");
-      expect(
-        (tool.config as { annotations?: { readOnlyHint?: boolean } })
-          .annotations?.readOnlyHint,
-      ).toBe(true);
-      expect(
-        (tool.config as { annotations?: { idempotentHint?: boolean } })
-          .annotations?.idempotentHint,
-      ).toBe(true);
-      expect(
-        (tool.config as { _meta?: { ui?: unknown } })._meta?.ui,
-      ).toBeUndefined();
+      expect(tool.config.annotations?.readOnlyHint).toBe(true);
+      expect(tool.config.annotations?.idempotentHint).toBe(true);
+      expect(tool.config._meta?.ui).toBeUndefined();
     });
   });
 });

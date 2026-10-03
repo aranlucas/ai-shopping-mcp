@@ -1,3 +1,4 @@
+import type { ToolArguments } from "../v2-tool-handler.js";
 /**
  * Eval: error actionability.
  *
@@ -34,13 +35,13 @@ describe("error actionability", () => {
 
   async function call(
     name: string,
-    args: Record<string, unknown>,
+    args: ToolArguments,
   ): Promise<ToolCallResult> {
     try {
-      return (await client.callTool({
+      return await client.callTool({
         name,
         arguments: args,
-      })) as ToolCallResult;
+      });
     } catch (error) {
       return {
         isError: true,
@@ -72,18 +73,22 @@ describe("error actionability", () => {
 
   it("add_shopping_list_to_cart with an unknown listId points at create_shopping_list", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
+
     const result = await call("add_shopping_list_to_cart", {
       listId: "list_00000000",
     });
+
     expect(result.isError).toBe(true);
     expect(contentText(result)).toContain("create_shopping_list");
   });
 
   it("shop_for_items with only unfindable items points at search_products", async () => {
     await call("set_preferred_store", { storeId: "70500847" });
+
     const result = await call("shop_for_items", {
       items: [{ name: "zzz-unfindable" }],
     });
+
     expect(result.isError).toBe(true);
     expect(contentText(result)).toContain("search_products");
   });
@@ -107,9 +112,12 @@ describe("error actionability", () => {
     const storeId = contentText(stores).match(/storeId=([A-Za-z0-9]{8})/)?.[1];
     expect(storeId).toBeDefined();
 
+    if (!storeId) throw new Error("Search returned no store identifier");
+
     const saved = await call("set_preferred_store", {
-      storeId: storeId as string,
+      storeId,
     });
+
     expect(saved.isError).toBeFalsy();
 
     const retried = await call("shop_for_items", { items: [{ name: "milk" }] });

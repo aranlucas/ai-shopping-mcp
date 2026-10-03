@@ -1,3 +1,4 @@
+import type { ToolArguments } from "../v2-tool-handler.js";
 /**
  * Eval: token budgets for the model-facing surface.
  *
@@ -26,8 +27,7 @@ import {
   installKrogerFetchStub,
 } from "./harness.js";
 
-const logEnabled = () =>
-  Boolean((env as unknown as Record<string, string | undefined>).EVAL_LOG);
+const logEnabled = () => Boolean(env.EVAL_LOG);
 
 function log(...parts: unknown[]) {
   if (logEnabled()) console.log("[eval]", ...parts);
@@ -61,6 +61,7 @@ describe("token budget: tool surface", () => {
 
   it("keeps tool descriptions within a per-description cap", async () => {
     const { tools } = await client.listTools();
+
     for (const tool of tools) {
       const tokens = estimateTokens(tool.description ?? "");
       expect(tokens, `description of ${tool.name}`).toBeLessThan(120);
@@ -71,10 +72,13 @@ describe("token budget: tool surface", () => {
 function report(name: string, result: ToolCallResult) {
   const text = contentText(result);
   const textTokens = estimateTokens(text);
+
   const structuredTokens = result.structuredContent
     ? estimateJsonTokens(result.structuredContent)
     : 0;
+
   log(`${name}: content=${textTokens}t structuredContent=${structuredTokens}t`);
+
   return { textTokens, structuredTokens };
 }
 
@@ -94,9 +98,9 @@ describe("token budget: tool responses", () => {
 
   async function call(
     name: string,
-    args: Record<string, unknown>,
+    args: ToolArguments,
   ): Promise<ToolCallResult> {
-    return (await client.callTool({ name, arguments: args })) as ToolCallResult;
+    return await client.callTool({ name, arguments: args });
   }
 
   it("search_products (5 terms) stays within content budget", async () => {
@@ -104,6 +108,7 @@ describe("token budget: tool responses", () => {
       terms: ["milk", "eggs", "bread", "butter", "cheese"],
       storeId: DEFAULT_STORE_ID,
     });
+
     expect(result.isError).toBeFalsy();
 
     // Baseline before compact projection: content=291t, structuredContent=4658t.
@@ -111,6 +116,7 @@ describe("token budget: tool responses", () => {
       "search_products x5",
       result,
     );
+
     expect(textTokens).toBeLessThan(600);
 
     // Some hosts expose structuredContent to the model, so this is a real
@@ -133,6 +139,7 @@ describe("token budget: tool responses", () => {
       terms: ["0001111041700"],
       storeId: DEFAULT_STORE_ID,
     });
+
     expect(result.isError).toBeFalsy();
 
     // Baseline 2026-07 (as get_product): 40t.
@@ -143,9 +150,11 @@ describe("token budget: tool responses", () => {
 
   it("shop_for_items stays within content budget", async () => {
     await call("set_preferred_store", { storeId: DEFAULT_STORE_ID });
+
     const result = await call("shop_for_items", {
       items: [{ name: "milk" }, { name: "eggs", quantity: 2 }],
     });
+
     expect(result.isError).toBeFalsy();
 
     // 2026-09-30: five-option read-only flow, 232t text / 371t structured

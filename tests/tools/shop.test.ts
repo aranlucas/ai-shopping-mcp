@@ -1,5 +1,6 @@
+import { productClientWith } from "../kroger-clients.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { KrogerClients } from "../../src/services/kroger/client.js";
+
 import type { components } from "../../src/services/kroger/product.js";
 import { appPayloadSchemas } from "../../src/app-results.js";
 import {
@@ -14,6 +15,7 @@ import {
 } from "../../src/tools/shop.js";
 
 type Product = components["schemas"]["products.productModel"];
+
 const product = (index: number, overrides: Partial<Product> = {}): Product => ({
   upc: String(index).padStart(13, "0"),
   description: `Milk ${index}`,
@@ -37,6 +39,7 @@ async function setup(products: Product[] = [product(1)]) {
     chain: "QFC",
     setAt: new Date().toISOString(),
   });
+
   const get = vi.fn<
     (
       path: string,
@@ -51,10 +54,10 @@ async function setup(products: Product[] = [product(1)]) {
       response: new Response(null, { status: 200 }),
     }),
   );
-  context.productClient = {
-    GET: get,
-  } as unknown as KrogerClients["productClient"];
+
+  context.productClient = productClientWith(get);
   registerShopTools(context.server, context);
+
   return { context, get, call: getCapturedHandler("shop_for_items") };
 }
 
@@ -64,6 +67,7 @@ function options(
   expect(result._meta).toMatchObject({
     "dev.aranlucas/view": "search_products",
   });
+
   return appPayloadSchemas.search_products.parse(result.structuredContent);
 }
 
@@ -74,6 +78,7 @@ describe("shop_for_items product options", () => {
     const { context, get, call } = await setup(
       Array.from({ length: 8 }, (_, i) => product(i + 1)),
     );
+
     const create = vi.spyOn(context.shoppingList, "create");
     const put = vi.spyOn(context.cartClient, "PUT");
     const result = await call({ items: [{ name: "milk", quantity: 2 }] });
@@ -118,6 +123,7 @@ describe("shop_for_items product options", () => {
       product(4),
       ...Array.from({ length: 6 }, (_, i) => product(i + 5)),
     ]);
+
     expect(
       options(
         await call({ items: [{ name: "milk" }] }),
@@ -134,10 +140,12 @@ describe("shop_for_items product options", () => {
         items: [{ fulfillment: { curbside: false, delivery: true } }],
       }),
     ]);
+
     const result = await call({
       items: [{ name: "milk" }],
       modality: "delivery",
     });
+
     expect(options(result).results[0].products.map((item) => item.upc)).toEqual(
       [product(2).upc],
     );
@@ -169,6 +177,7 @@ describe("shop_for_items product options", () => {
         nutritionInformation: { ingredientStatement: "Milk, lactase" },
       }),
     ]);
+
     const result = await call({ items: [{ name: "milk" }] });
     expect(options(result).results[0].products[0]).toMatchObject({
       price: 2.99,
@@ -205,9 +214,11 @@ describe("shop_for_items product options", () => {
       data: { data: [] },
       response: new Response(null, { status: 429 }),
     });
+
     const result = await call({
       items: [{ name: "milk" }, { name: "eggs" }, { name: "bread" }],
     });
+
     expect(result.isError).toBe(false);
     expect(options(result).results).toEqual([
       expect.objectContaining({ term: "milk", failed: false }),

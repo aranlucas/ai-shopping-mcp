@@ -38,6 +38,7 @@ export function AddToCartView({
     addedCount,
     requestedCount,
   } = data;
+
   const title = `Cart · ${name}`;
 
   const headerBadge = useMemo(

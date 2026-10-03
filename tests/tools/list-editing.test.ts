@@ -5,7 +5,6 @@ import { ok } from "neverthrow";
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ProductService } from "../../src/services/kroger/product-service.js";
 import type {
   ShoppingListItem,
   StoredShoppingListItem,
@@ -24,19 +23,14 @@ import {
 
 type ListStore = ShoppingStore["shoppingList"];
 
-function registerShoppingListTools(
-  serverOrFixture: ReturnType<typeof makeContext> | unknown,
-  maybeFixture?: ReturnType<typeof makeContext>,
-) {
-  const fixture = (maybeFixture ?? serverOrFixture) as ReturnType<
-    typeof makeContext
-  >;
+function registerShoppingListTools(fixture: ReturnType<typeof makeContext>) {
   registerShoppingListToolsImpl(fixture.server, fixture);
 }
 
 function makeListStorage(overrides: Partial<ListStore>) {
   const storage = makeStorage();
-  storage.shoppingList = { ...storage.shoppingList, ...overrides } as ListStore;
+  storage.shoppingList = { ...storage.shoppingList, ...overrides };
+
   return storage;
 }
 
@@ -78,8 +72,9 @@ describe("shopping list editing tools", () => {
         },
       ],
     });
+
     const fixture = makeContext(storage);
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("get_shopping_list")({});
 
@@ -99,8 +94,9 @@ describe("shopping list editing tools", () => {
         createdAt: "2026-08-01T00:00:00Z",
       }),
     });
+
     const fixture = makeContext(storage);
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("get_shopping_list")({
       listId: "list-a",
@@ -113,7 +109,7 @@ describe("shopping list editing tools", () => {
   it("points at the index when the listId does not exist", async () => {
     const storage = makeListStorage({ get: async () => null });
     const fixture = makeContext(storage);
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("get_shopping_list")({
       listId: "missing",
@@ -136,8 +132,9 @@ describe("shopping list editing tools", () => {
         id: `item-${index + 1}`,
       })),
     );
+
     const fixture = makeContext(makeListStorage({ addItems }));
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -164,6 +161,7 @@ describe("shopping list editing tools", () => {
     >(async (_listId, items) =>
       items.map((item) => ({ ...item, checked: false, id: "item-1" })),
     );
+
     const ctx = makeContext(makeListStorage({ addItems }));
     ctx.productService = {
       getProduct: () => {
@@ -173,11 +171,8 @@ describe("shopping list editing tools", () => {
         ok(upcs.map(() => "Whole Milk")),
       resolveProducts: async () =>
         ok({ results: [], exactUpcs: new Set<string>() }),
-    } as unknown as Pick<
-      ProductService,
-      "getProduct" | "enrichProductNames" | "resolveProducts"
-    >;
-    registerShoppingListTools(ctx.server, ctx);
+    };
+    registerShoppingListTools(ctx);
 
     await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -195,10 +190,11 @@ describe("shopping list editing tools", () => {
 
   it("rejects oversized create and add batches before catalog or storage work", async () => {
     const fixture = makeContext();
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
     const enrich = vi.spyOn(fixture.productService, "enrichProductNames");
     const create = vi.spyOn(fixture.shoppingList, "create");
     const add = vi.spyOn(fixture.shoppingList, "addItems");
+
     const items = Array.from({ length: 41 }, (_, index) => ({
       upc: String(index),
     }));
@@ -220,11 +216,10 @@ describe("shopping list editing tools", () => {
 
   it("rejects an item with neither a UPC nor a name", () => {
     const fixture = makeContext();
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
     const { config } = getCapturedTool("update_shopping_list");
-    const { inputSchema } = config as {
-      inputSchema: { safeParse: (input: unknown) => { success: boolean } };
-    };
+
+    const { inputSchema } = config;
 
     expect(
       inputSchema.safeParse({ listId: "list-a", add: [{ quantity: 1 }] })
@@ -234,11 +229,10 @@ describe("shopping list editing tools", () => {
 
   it("rejects productRef instead of UPC", () => {
     const fixture = makeContext();
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
     const { config } = getCapturedTool("update_shopping_list");
-    const { inputSchema } = config as {
-      inputSchema: { safeParse: (input: unknown) => { success: boolean } };
-    };
+
+    const { inputSchema } = config;
 
     expect(
       inputSchema.safeParse({
@@ -257,8 +251,9 @@ describe("shopping list editing tools", () => {
         patch: ShoppingListItemPatch,
       ) => Promise<StoredShoppingListItem>
     >(async () => storedItem({ quantity: 3 }));
+
     const fixture = makeContext(makeListStorage({ updateItem }));
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -279,11 +274,13 @@ describe("shopping list editing tools", () => {
         patch: ShoppingListItemPatch,
       ) => Promise<StoredShoppingListItem>
     >(async () => storedItem({ checked: true }));
+
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},
     );
+
     const fixture = makeContext(makeListStorage({ updateItem, removeItem }));
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -305,13 +302,16 @@ describe("shopping list editing tools", () => {
         patch: ShoppingListItemPatch,
       ) => Promise<StoredShoppingListItem>
     >(async () => storedItem());
+
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},
     );
+
     const fixture = makeContext(
       makeListStorage({ updateItem, removeItem, get: listWith(storedItem()) }),
     );
-    registerShoppingListTools(fixture.server, fixture);
+
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -325,7 +325,7 @@ describe("shopping list editing tools", () => {
 
   it("asks for a field rather than silently doing nothing", async () => {
     const fixture = makeContext(makeListStorage({}));
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -338,6 +338,7 @@ describe("shopping list editing tools", () => {
 
   it("applies a whole edit in one call: remove, change, then add", async () => {
     const calls: string[] = [];
+
     const storage = makeListStorage({
       get: listWith(storedItem({ id: "cheese", productName: "Cheddar" })),
       removeItem: async (_listId, itemId) => {
@@ -345,15 +346,18 @@ describe("shopping list editing tools", () => {
       },
       updateItem: async (_listId, itemId, patch) => {
         calls.push(`change ${itemId}`);
+
         return storedItem({ id: itemId, ...patch });
       },
       addItems: async (_listId, items) => {
         calls.push(`add ${items.length}`);
+
         return items.map((item) => ({ ...item, checked: false, id: "new-1" }));
       },
     });
+
     const fixture = makeContext(storage);
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -385,8 +389,9 @@ describe("shopping list editing tools", () => {
         throw new Error("row locked");
       },
     });
+
     const fixture = makeContext(storage);
-    registerShoppingListTools(fixture.server, fixture);
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -403,6 +408,7 @@ describe("shopping list editing tools", () => {
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},
     );
+
     const fixture = makeContext(
       makeListStorage({
         removeItem,
@@ -412,7 +418,8 @@ describe("shopping list editing tools", () => {
         ),
       }),
     );
-    registerShoppingListTools(fixture.server, fixture);
+
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",
@@ -431,10 +438,12 @@ describe("shopping list editing tools", () => {
     const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
       async () => {},
     );
+
     const fixture = makeContext(
       makeListStorage({ removeItem, get: listWith(storedItem()) }),
     );
-    registerShoppingListTools(fixture.server, fixture);
+
+    registerShoppingListTools(fixture);
 
     const result = await getCapturedHandler("update_shopping_list")({
       listId: "list-a",

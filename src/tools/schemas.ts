@@ -36,7 +36,11 @@ export function quantitySchema(min: number, max: number) {
 
 /** Case-insensitive modality enum: lowercase or mixed-case input is upper-cased before validation. */
 export const modalityEnum = z.preprocess(
-  (value) => (typeof value === "string" ? value.toUpperCase() : value),
+  (value) => {
+    const parsed = z.string().safeParse(value);
+
+    return parsed.success ? parsed.data.toUpperCase() : value;
+  },
   z.enum(["DELIVERY", "PICKUP"]),
 );
 
@@ -46,10 +50,15 @@ export const modalityEnum = z.preprocess(
  * `z.coerce.boolean()` would treat the string "false" as truthy.
  */
 export const coercedBooleanSchema = z.preprocess((value) => {
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
+  const parsed = z.string().safeParse(value);
+
+  if (parsed.success) {
+    const normalized = parsed.data.trim().toLowerCase();
+
     if (normalized === "true") return true;
+
     if (normalized === "false") return false;
   }
+
   return value;
 }, z.boolean());

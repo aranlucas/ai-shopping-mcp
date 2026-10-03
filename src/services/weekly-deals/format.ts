@@ -9,6 +9,7 @@ function detail(
 
 function detailText(warning: WeeklyDealWarning, key: string): string {
   const value = detail(warning, key);
+
   return value === undefined ? "unknown error" : String(value);
 }
 
@@ -77,6 +78,7 @@ export function formatWeeklyDealAppWarnings(
 ): string[] {
   return warnings.flatMap((warning) => {
     const formatted = formatWeeklyDealAppWarning(warning);
+
     return formatted === undefined ? [] : [formatted];
   });
 }

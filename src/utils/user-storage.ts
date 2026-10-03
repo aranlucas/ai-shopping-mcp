@@ -42,6 +42,7 @@ export interface CartStore {
 }
 
 const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7;
+
 const CART_MIRROR_MAX_ITEMS = 100;
 
 const cartSnapshotItemSchema = z.looseObject({
@@ -50,6 +51,7 @@ const cartSnapshotItemSchema = z.looseObject({
   modality: z.enum(["PICKUP", "DELIVERY"]),
   productName: z.string().optional(),
 });
+
 const cartMirrorItemSchema = z.looseObject({
   ...cartSnapshotItemSchema.shape,
   addedAt: z.string(),
@@ -90,6 +92,7 @@ function decode<TSchema extends z.ZodType>(
   schema: TSchema,
 ) {
   const result = safeJsonParseWithSchema(value, schema);
+
   return result.match(
     (parsed) => parsed,
     (error) => {
@@ -104,7 +107,9 @@ async function readOptional<TSchema extends z.ZodType>(
   schema: TSchema,
 ): Promise<z.output<TSchema> | null> {
   const value = await kv.get(key);
+
   if (value == null) return null;
+
   return decode(key, value, schema);
 }
 
@@ -114,7 +119,9 @@ async function readCollection<TSchema extends z.ZodType>(
   schema: TSchema,
 ): Promise<z.output<TSchema>[]> {
   const value = await kv.get(key);
+
   if (value == null) return [];
+
   return decode(key, value, z.array(schema));
 }
 
@@ -128,6 +135,7 @@ async function readCollectionTolerant<TSchema extends z.ZodType>(
   } catch (error) {
     if (!(error instanceof CorruptPersistenceEntryError)) throw error;
     console.warn("Discarding corrupted KV entry:", error);
+
     return [];
   }
 }
@@ -145,6 +153,7 @@ export class CartPersistence implements CartStore {
     readonly operations: CartOperationStore,
   ) {
     this.getIdentity =
+      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Preserve the typed value-or-provider overload, including callable providers from another realm.
       typeof identity === "function" ? identity : () => identity;
   }
 
@@ -185,10 +194,12 @@ export class CartPersistence implements CartStore {
         userKey(this.getIdentity().userId, "cart_mirror"),
         cartMirrorItemSchema,
       );
+
       const merged = [
         ...existing,
         ...items.map((item) => ({ ...item, addedAt })),
       ].slice(-CART_MIRROR_MAX_ITEMS);
+
       await this.kv.put(
         userKey(this.getIdentity().userId, "cart_mirror"),
         JSON.stringify(merged),
@@ -196,6 +207,7 @@ export class CartPersistence implements CartStore {
           expirationTtl: SEVEN_DAYS_SECONDS,
         },
       );
+
       return merged;
     },
     clear: async (): Promise<void> => {

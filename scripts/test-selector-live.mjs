@@ -11,6 +11,7 @@ function assert(condition, message) {
 async function main() {
   const directory = await mkdtemp(join(tmpdir(), "jev-selector-live-"));
   let worker;
+
   try {
     const configPath = join(directory, "wrangler.json");
     await writeFile(
@@ -33,23 +34,27 @@ async function main() {
         experimental: { disableExperimentalWarning: true, watch: false },
       },
     );
+
     const candy = {
       upc: "1111111111111",
       description: "Chocolate Milk Candy Bar",
       categories: ["Candy"],
       items: [{ size: "1.5 oz", fulfillment: { curbside: true } }],
     };
+
     const milk = {
       upc: "2222222222222",
       description: "Whole Milk",
       categories: ["Dairy"],
       items: [{ size: "1 gal", fulfillment: { curbside: true } }],
     };
+
     const distractors = Array.from({ length: 19 }, (_, index) => ({
       ...candy,
       upc: String(1000000000000 + index),
       description: `Chocolate Candy Bar ${index + 1}`,
     }));
+
     const otherNames = [
       "Large Eggs",
       "Bananas",
@@ -60,11 +65,13 @@ async function main() {
       "Rolled Oats",
       "Plain Yogurt",
     ];
+
     const otherProducts = otherNames.map((description, index) => ({
       upc: String(3000000000000 + index),
       description,
       items: [{ fulfillment: { curbside: true } }],
     }));
+
     const items = [
       { query: "whole milk", products: [...distractors, milk] },
       { query: "whole milk", products: [...distractors, candy] },
@@ -75,6 +82,7 @@ async function main() {
     ].map((item, index) =>
       Object.assign({}, item, { requestId: `item_${index}` }),
     );
+
     const response = await worker.fetch("http://localhost/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -83,6 +91,7 @@ async function main() {
         forPickup: true,
       }),
     });
+
     const body = await response.json();
     assert(response.ok, body.error ?? `HTTP ${response.status}`);
     const [selected, rejected] = body;
@@ -98,6 +107,7 @@ async function main() {
       body.length === items.length,
       "Expected one result per requested item.",
     );
+
     for (const [index, product] of otherProducts.entries()) {
       assert(
         body[index + 2].status === "selected" &&
@@ -105,6 +115,7 @@ async function main() {
         `Expected Jev to select ${product.description}.`,
       );
     }
+
     console.log(
       "Live batched Jev passed: 10 items × 20 candidates in one call; all 9 correct products selected and candy-only shortlist rejected. No cart or shopping-list writes.",
     );

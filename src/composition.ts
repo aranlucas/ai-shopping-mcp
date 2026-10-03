@@ -1,3 +1,4 @@
+import { z } from "zod/v4";
 import {
   McpServer,
   type McpRequestContext,
@@ -58,17 +59,20 @@ export function buildServer(
   const clients = createKrogerClients(
     (): KrogerTokenInfo | null => {
       const props = getMcpAuthContext()?.props;
-      if (
-        !props ||
-        typeof props.accessToken !== "string" ||
-        typeof props.tokenExpiresAt !== "number"
-      ) {
-        return null;
-      }
-      return {
-        accessToken: props.accessToken,
-        tokenExpiresAt: props.tokenExpiresAt,
-      };
+
+      const parsed = z
+        .object({
+          accessToken: z.string(),
+          tokenExpiresAt: z.union([
+            z.number(),
+            z.nan(),
+            z.literal(Infinity),
+            z.literal(-Infinity),
+          ]),
+        })
+        .safeParse(props);
+
+      return parsed.success ? parsed.data : null;
     },
     userDataKv,
     requestContext.requestInfo?.signal,
@@ -76,10 +80,12 @@ export function buildServer(
   );
 
   const shoppingStore = createD1ShoppingStore(env.SHOPPING_DB, userId);
+
   const { preferredLocation, pantry, equipment, orderHistory, shoppingList } =
     shoppingStore;
 
   const cartJournal = env.CART_OPERATIONS.getByName(userId);
+
   const carts = createCartPersistence(
     env.USER_DATA_KV,
     () => ({ userId, clientId }),
@@ -102,6 +108,7 @@ export function buildServer(
 
   const productService = new ProductService(clients.productClient);
   const weeklyDealsCache = createWeeklyDealsCache(userDataKv);
+
   const loadWeeklyDeals = createWeeklyDealsLoader({
     preferredLocation,
     productClient: clients.productClient,

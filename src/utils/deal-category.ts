@@ -219,6 +219,7 @@ function escapeRegExp(value: string): string {
 }
 
 const CATEGORY_PATTERNS: Array<{ category: KeywordCategory; pattern: RegExp }> =
+  // SAFETY: CATEGORY_KEYWORDS is a module-owned literal with exactly the finite KeywordCategory keys and string-array values.
   (Object.entries(CATEGORY_KEYWORDS) as Array<[KeywordCategory, string[]]>).map(
     ([category, keywords]) => ({
       category,
@@ -242,8 +243,10 @@ function normalizeTitle(title: string): string {
  */
 export function classifyDealCategory(title: string): DealCategory {
   const normalized = normalizeTitle(title);
+
   for (const { category, pattern } of CATEGORY_PATTERNS) {
     if (pattern.test(normalized)) return category;
   }
+
   return "Other";
 }

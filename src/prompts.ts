@@ -136,6 +136,7 @@ Please make sure to check product availability at my preferred location before a
     },
     ({ meal_count }) => {
       const parsedCount = Number.parseInt(meal_count ?? "3", 10);
+
       const numberOfMeals = Number.isFinite(parsedCount)
         ? Math.min(Math.max(parsedCount, 1), 7)
         : 3;

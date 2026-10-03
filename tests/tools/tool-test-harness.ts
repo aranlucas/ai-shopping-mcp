@@ -1,6 +1,13 @@
+import {
+  cartClient,
+  productClient,
+  locationClient,
+} from "../kroger-clients.js";
+
+import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
+import { capturingServer } from "../capturing-server.js";
 import { ok } from "neverthrow";
 import { cartOperationStore } from "../cart-operation-store.js";
-import { vi } from "vitest";
 
 import type { ProductService } from "../../src/services/kroger/product-service.js";
 import type { McpServer } from "@modelcontextprotocol/server";
@@ -35,7 +42,6 @@ import type {
 } from "../../src/domain/shopping.js";
 import {
   type TestToolHandler as ToolHandler,
-  wrapV2ToolHandler,
   type TestToolConfig,
 } from "../v2-tool-handler.js";
 
@@ -47,7 +53,7 @@ type ShoppingListRecord = {
 };
 
 type AuthContext = {
-  props?: {
+  props: {
     id: string;
     accessToken: string;
     tokenExpiresAt: number;
@@ -56,18 +62,16 @@ type AuthContext = {
 
 export type CapturedTool = {
   name: string;
-  config: unknown;
+  config: TestToolConfig;
   handler: ToolHandler;
 };
 
-const testState = vi.hoisted(() => ({
-  authContext: undefined as AuthContext | undefined,
-  capturedTools: [] as CapturedTool[],
-}));
+type TestState = {
+  authContext: AuthContext | undefined;
+  capturedTools: CapturedTool[];
+};
 
-vi.mock("agents/mcp/server", () => ({
-  getMcpAuthContext: () => testState.authContext,
-}));
+const testState: TestState = { authContext: undefined, capturedTools: [] };
 
 function authenticate(userId = "user-123") {
   testState.authContext = {
@@ -100,13 +104,17 @@ export function makeStorage(
 
   const requireList = (id: string) => {
     const list = createdLists.find((candidate) => candidate.id === id);
+
     if (!list) throw new Error(`Missing list ${id}`);
+
     return list;
   };
+
   const storage: ShoppingStore & CartStore = {
     pantry: {
       add: async (items: PantryItem | PantryItem[]) => {
         pantryItems.push(...(Array.isArray(items) ? items : [items]));
+
         return pantryItems;
       },
       remove: async (names: string | string[]) => {
@@ -114,8 +122,10 @@ export function makeStorage(
           const index = pantryItems.findIndex(
             (item) => item.productName === productName,
           );
+
           if (index >= 0) pantryItems.splice(index, 1);
         }
+
         return pantryItems;
       },
       clear: async () => {
@@ -126,13 +136,16 @@ export function makeStorage(
         const item = pantryItems.find(
           (candidate) => candidate.productName === name,
         );
+
         if (item) item.quantity = quantity;
+
         return pantryItems;
       },
     },
     equipment: {
       add: async (items: EquipmentItem | EquipmentItem[]) => {
         equipmentItems.push(...(Array.isArray(items) ? items : [items]));
+
         return equipmentItems;
       },
       remove: async (names: string | string[]) => {
@@ -140,8 +153,10 @@ export function makeStorage(
           const index = equipmentItems.findIndex(
             (item) => item.equipmentName === equipmentName,
           );
+
           if (index >= 0) equipmentItems.splice(index, 1);
         }
+
         return equipmentItems;
       },
       clear: async () => {
@@ -152,6 +167,7 @@ export function makeStorage(
     orderHistory: {
       add: async (order: OrderRecord) => {
         orders.push(order);
+
         return order;
       },
       getAll: async () => orders,
@@ -175,7 +191,9 @@ export function makeStorage(
           })),
           createdAt: new Date().toISOString(),
         };
+
         createdLists.push(record);
+
         return record;
       },
       get: async (id: string) =>
@@ -193,15 +211,19 @@ export function makeStorage(
           id: crypto.randomUUID(),
           checked: false,
         }));
+
         requireList(id).items.push(...stored);
+
         return stored;
       },
       updateItem: async (listId, itemId, patch) => {
         const item = requireList(listId).items.find(
           (candidate) => candidate.id === itemId,
         );
+
         if (!item) throw new Error(`Missing item ${itemId}`);
         Object.assign(item, patch);
+
         return item;
       },
       removeItem: async (listId, itemId) => {
@@ -287,6 +309,7 @@ export type ToolTestContext = {
   /** Optional raw binding retained for cache fixture setup. */
   cache: KvLike | null;
   weeklyDealsCache: WeeklyDealsCache;
+  fetchDeals: typeof getQfcWeeklyDeals;
   loadWeeklyDeals(params: WeeklyDealsLoadParams): ReturnType<WeeklyDealsLoader>;
 };
 
@@ -295,34 +318,18 @@ export function makeContext(
   storage = makeStorage(),
   productService = makeProductService(),
 ) {
-  const server = {
-    registerTool: (
-      name: string,
-      config: TestToolConfig,
-      handler: ToolHandler,
-    ) => {
-      testState.capturedTools.push({
-        name,
-        config,
-        handler: wrapV2ToolHandler(handler, config),
-      });
-    },
-  };
+  const server = capturingServer(
+    testState.capturedTools,
+    () => testState.authContext,
+  );
+
   const context: ToolTestContext = {
-    server: server as unknown as McpServer,
-    cartClient: {
-      PUT: async () => ({
-        data: undefined,
-        response: new Response(null, { status: 204 }),
-      }),
-    } as unknown as KrogerClients["cartClient"],
-    productClient: {
-      GET: async () => ({
-        data: { data: [] },
-        response: new Response(null, { status: 200 }),
-      }),
-    } as unknown as KrogerClients["productClient"],
-    locationClient: {} as KrogerClients["locationClient"],
+    server,
+    cartClient: cartClient(async () => new Response(null, { status: 204 })),
+    productClient: productClient(async () => Response.json({ data: [] })),
+    locationClient: locationClient(async () => {
+      throw new Error("Unexpected location request");
+    }),
     productService,
     storage,
     get carts() {
@@ -343,20 +350,23 @@ export function makeContext(
     get shoppingList() {
       return context.storage.shoppingList;
     },
-    cache: null as KvLike | null,
+    cache: null,
     get weeklyDealsCache() {
       return createWeeklyDealsCache(context.cache);
     },
+    fetchDeals: getQfcWeeklyDeals,
     loadWeeklyDeals(
       params: WeeklyDealsLoadParams,
     ): ReturnType<WeeklyDealsLoader> {
       return createWeeklyDealsLoader({
+        fetchDeals: context.fetchDeals,
         preferredLocation: context.preferredLocation,
         productClient: context.productClient,
         weeklyDealsCache: context.weeklyDealsCache,
       })(params);
     },
   };
+
   return context;
 }
 
@@ -366,12 +376,10 @@ export function makeCartContext(
   productService = makeProductService(),
 ) {
   const context = makeContext(storage, productService);
-  context.cartClient = {
-    PUT: async () => ({
-      data: undefined,
-      response: new Response(null, { status: cartStatus }),
-    }),
-  } as unknown as KrogerClients["cartClient"];
+  context.cartClient = cartClient(
+    async () => new Response(null, { status: cartStatus }),
+  );
+
   return context;
 }
 
@@ -379,7 +387,9 @@ export function getCapturedHandler(name: string): ToolHandler {
   const tool = testState.capturedTools.find(
     (captured) => captured.name === name,
   );
+
   if (!tool) throw new Error(`Tool ${name} was not captured`);
+
   return tool.handler;
 }
 
@@ -387,6 +397,8 @@ export function getCapturedTool(name: string): CapturedTool {
   const tool = testState.capturedTools.find(
     (captured) => captured.name === name,
   );
+
   if (!tool) throw new Error(`Tool ${name} was not captured`);
+
   return tool;
 }

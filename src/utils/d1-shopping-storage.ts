@@ -41,7 +41,9 @@ function toPantryItems(rows: (typeof pantryItems.$inferSelect)[]) {
       quantity: row.quantity,
       addedAt: row.addedAt,
     };
+
     if (row.expiresAt !== null) item.expiresAt = row.expiresAt;
+
     return item;
   });
 }
@@ -52,7 +54,9 @@ function toEquipmentItems(rows: (typeof equipmentItems.$inferSelect)[]) {
       equipmentName: row.equipmentName,
       addedAt: row.addedAt,
     };
+
     if (row.category !== null) item.category = row.category;
+
     return item;
   });
 }
@@ -75,10 +79,12 @@ export function createD1ShoppingStore(
 
   const selectPantry = () =>
     db.select().from(pantryItems).where(eq(pantryItems.userId, userId));
+
   const getPantry = async () => toPantryItems(await selectPantry().all());
 
   const selectEquipment = () =>
     db.select().from(equipmentItems).where(eq(equipmentItems.userId, userId));
+
   const getEquipment = async () =>
     toEquipmentItems(await selectEquipment().all());
 
@@ -93,9 +99,13 @@ export function createD1ShoppingStore(
   ): Promise<TRow[]> => {
     // The read is always present, so the batch is never empty.
     const statements: BatchItem<"sqlite">[] = [...writes, read];
+
+    // SAFETY: read is always appended, so this tuple has at least one statement.
     const results = await db.batch(
       statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]],
     );
+
+    // SAFETY: D1 returns batch results in statement order; the final statement is the typed read query above.
     return results.at(-1) as TRow[];
   };
 
@@ -119,12 +129,15 @@ export function createD1ShoppingStore(
       // Each retry must read the version written by the preceding attempt.
       // eslint-disable-next-line no-await-in-loop
       const row = await getListRow(listId);
+
       if (!row) {
         throw new AppErrorException(
           notFoundError(`No shopping list ${listId}.`),
         );
       }
+
       const changed = mutate(row.items);
+
       // eslint-disable-next-line no-await-in-loop
       const updated = await db
         .update(shoppingLists)
@@ -141,8 +154,10 @@ export function createD1ShoppingStore(
           ),
         )
         .run();
+
       if (updated.meta.changes === 1) return changed.result;
     }
+
     throw new AppErrorException(
       storageError("Shopping list changed concurrently. Retry the edit."),
     );
@@ -156,6 +171,7 @@ export function createD1ShoppingStore(
       .orderBy(desc(orderHistory.placedAt))
       .limit(limit)
       .all();
+
     return rows.map((row) => row.record);
   };
 
@@ -167,6 +183,7 @@ export function createD1ShoppingStore(
           .from(preferredStores)
           .where(eq(preferredStores.userId, userId))
           .get();
+
         return row
           ? {
               locationId: row.locationId,
@@ -211,6 +228,7 @@ export function createD1ShoppingStore(
       getAll: getPantry,
       add: async (items) => {
         const entries = Array.isArray(items) ? items : [items];
+
         const writes = entries.map((item) =>
           db
             .insert(pantryItems)
@@ -231,6 +249,7 @@ export function createD1ShoppingStore(
               },
             }),
         );
+
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
       remove: async (names) => {
@@ -244,6 +263,7 @@ export function createD1ShoppingStore(
               ),
             ),
         );
+
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
       updateQuantity: async (productName, quantity) => {
@@ -257,6 +277,7 @@ export function createD1ShoppingStore(
             ),
           )
           .run();
+
         return getPantry();
       },
       clear: async () => {
@@ -270,6 +291,7 @@ export function createD1ShoppingStore(
       getAll: getEquipment,
       add: async (items) => {
         const entries = Array.isArray(items) ? items : [items];
+
         const writes = entries.map((item) =>
           db
             .insert(equipmentItems)
@@ -288,6 +310,7 @@ export function createD1ShoppingStore(
               },
             }),
         );
+
         return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
       remove: async (names) => {
@@ -301,6 +324,7 @@ export function createD1ShoppingStore(
               ),
             ),
         );
+
         return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
       clear: async () => {
@@ -326,10 +350,12 @@ export function createD1ShoppingStore(
             updatedAt: createdAt,
           })
           .run();
+
         return { id, name, items: storedItems, createdAt };
       },
       get: async (listId) => {
         const row = await getListRow(listId);
+
         return row ? listFromRow(row) : null;
       },
       list: async () => {
@@ -349,16 +375,19 @@ export function createD1ShoppingStore(
       addItems: (listId, items) =>
         mutateList(listId, (current) => {
           const added = newListItems(items);
+
           return { items: [...current, ...added], result: added };
         }),
       updateItem: (listId, itemId, patch: ShoppingListItemPatch) =>
         mutateList(listId, (items) => {
           const index = items.findIndex((item) => item.id === itemId);
+
           if (index < 0)
             throw new AppErrorException(
               notFoundError(`No list item ${itemId}.`),
             );
           const updated = { ...items[index], ...patch };
+
           return {
             items: items.map((item, position) =>
               position === index ? updated : item,
@@ -372,6 +401,7 @@ export function createD1ShoppingStore(
             throw new AppErrorException(
               notFoundError(`No list item ${itemId}.`),
             );
+
           return {
             items: items.filter((item) => item.id !== itemId),
             result: undefined,
@@ -391,6 +421,7 @@ export function createD1ShoppingStore(
             placedAt: order.placedAt,
           })
           .run();
+
         return order;
       },
     },

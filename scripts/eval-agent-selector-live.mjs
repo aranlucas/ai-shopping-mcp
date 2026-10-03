@@ -1,3 +1,10 @@
+import { z } from "zod/v4";
+
+const selectedActualSchema = z.object({
+  upc: z.string().optional(),
+  name: z.string().optional(),
+});
+
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,15 +13,21 @@ import { fileURLToPath } from "node:url";
 import { unstable_dev } from "wrangler";
 
 const model = process.env.EVAL_SELECTOR_MODEL ?? "openai/gpt-5.4-mini";
+
 const sources = process.argv.slice(2);
+
 if (sources.length === 0)
   throw new Error("Supply one or more paired JEV report paths");
+
 const workerSource = await readFile(
   new URL("./agent-selector-live-worker.ts", import.meta.url),
   "utf8",
 );
+
 const directory = await mkdtemp(join(tmpdir(), "agent-selector-eval-"));
+
 let worker;
+
 try {
   const config = join(directory, "wrangler.json");
   await writeFile(
@@ -37,9 +50,11 @@ try {
       experimental: { disableExperimentalWarning: true, watch: false },
     },
   );
+
   for (const sourcePath of sources) {
     // oxlint-disable-next-line eslint/no-await-in-loop -- process each source serially
     const source = JSON.parse(await readFile(sourcePath, "utf8"));
+
     const report = {
       startedAt: new Date().toISOString(),
       model,
@@ -54,35 +69,43 @@ try {
       batches: [],
       results: [],
     };
+
     const outputPath = sourcePath.replace(/\.json$/, "-agent.json");
+
     try {
       for (const [batchIndex, originalBatch] of source.batches.entries()) {
         const rows = source.results.filter(
           (row) => row.batchIndex === batchIndex,
         );
+
         const items = rows.map((row, index) => ({
           requestId: `item_${index}`,
           query: row.query,
           products: row.candidates,
         }));
+
         // oxlint-disable-next-line eslint/no-await-in-loop -- avoid inference bursts
         const response = await worker.fetch("http://localhost/", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model, items, forPickup: true }),
         });
+
         // oxlint-disable-next-line eslint/no-await-in-loop -- score completed batch before continuing
         const body = await response.json().catch((error) => ({
           error: `Evaluation transport returned a non-JSON response (HTTP ${response.status}): ${error instanceof Error ? error.message : String(error)}`,
           elapsedMs: null,
         }));
+
         report.batches.push({
           order: originalBatch.order,
           ids: originalBatch.ids,
           ...body,
         });
+
         for (const [index, row] of rows.entries()) {
           const selection = body.selections?.[index];
+
           const actual =
             selection?.status === "selected"
               ? {
@@ -90,11 +113,13 @@ try {
                   name: selection.product.description,
                 }
               : (selection?.status ?? "error");
+
           const correct =
             row.expected === "unresolved"
               ? actual === "unresolved"
-              : typeof actual === "object" &&
+              : selectedActualSchema.safeParse(actual).success &&
                 row.expected.some((product) => product.upc === actual.upc);
+
           report.results.push({
             id: row.id,
             query: row.query,
@@ -110,17 +135,25 @@ try {
             error: body.error,
           });
         }
+
         console.log(
           `${sourcePath} ${originalBatch.order} batch ${batchIndex + 1}: ${report.results.slice(-rows.length).filter((row) => row.correct).length}/${rows.length}, ${body.elapsedMs}ms${body.error ? `, ${body.error}` : ""}`,
         );
       }
+
       const rows = report.results;
-      const selected = rows.filter((row) => typeof row.actual === "object");
+
+      const selected = rows.filter(
+        (row) => selectedActualSchema.safeParse(row.actual).success,
+      );
+
       const negative = rows.filter((row) => row.expected === "unresolved");
+
       const durations = report.batches
         .map((batch) => batch.elapsedMs)
-        .filter((duration) => typeof duration === "number")
+        .filter((duration) => z.number().safeParse(duration).success)
         .toSorted((a, b) => a - b);
+
       report.summary = {
         correct: rows.filter((row) => row.correct).length,
         total: rows.length,

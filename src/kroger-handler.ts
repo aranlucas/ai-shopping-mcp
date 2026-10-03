@@ -7,10 +7,11 @@ import { Hono } from "hono";
 import * as z from "zod/v4";
 import { generateSignedCookie, getCookie, getSignedCookie } from "hono/cookie";
 
-import type { KrogerTokenResponse } from "./services/kroger/client.js";
+import { krogerTokenResponseSchema } from "./services/kroger/client.js";
 import type { AppEnv } from "./env.js";
 
 import {
+  authRequestSchema,
   clientIdAlreadyApproved,
   parseRedirectApproval,
   renderApprovalDialog,
@@ -20,12 +21,13 @@ import { isVerifiedShopperId } from "./utils/shopper-identity.js";
 
 type KrogerEnv = AppEnv & { OAUTH_PROVIDER: OAuthHelpers };
 
-type KrogerOAuthStateCookie = {
-  csrfState: string;
-  oauthReqInfo: AuthRequest;
-};
+const krogerOAuthStateCookieSchema = z.object({
+  csrfState: z.string().min(1),
+  oauthReqInfo: z.unknown(),
+});
 
 const app = new Hono<{ Bindings: KrogerEnv }>();
+
 const profileSchema = z.object({
   data: z.object({
     id: z.string().refine(isVerifiedShopperId),
@@ -34,10 +36,12 @@ const profileSchema = z.object({
 
 app.get("/authorize", async (c) => {
   let oauthReqInfo: AuthRequest;
+
   try {
     oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
   } catch (parseError) {
     console.error("Failed to parse auth request:", parseError);
+
     return c.text(
       `Failed to parse auth request: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
       400,
@@ -45,6 +49,7 @@ app.get("/authorize", async (c) => {
   }
 
   const { clientId } = oauthReqInfo;
+
   if (!clientId) {
     return c.text("Invalid request - missing clientId", 400);
   }
@@ -74,16 +79,21 @@ app.get("/authorize", async (c) => {
 app.post("/authorize", async (c) => {
   let state: { oauthReqInfo?: AuthRequest };
   let headers: Headers;
+
   try {
     // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
     const result = await parseRedirectApproval(
       c.req.raw,
       c.env.COOKIE_ENCRYPTION_KEY,
     );
-    state = result.state;
+
+    state = z
+      .object({ oauthReqInfo: authRequestSchema.optional() })
+      .parse(result.state);
     headers = result.headers;
   } catch (parseError) {
     console.error("Failed to parse approval:", parseError);
+
     return c.text(
       `Failed to parse approval: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
       400,
@@ -94,12 +104,7 @@ app.post("/authorize", async (c) => {
     return c.text("Invalid request - missing oauthReqInfo", 400);
   }
 
-  return redirectToKroger(
-    c.req.raw,
-    state.oauthReqInfo as AuthRequest,
-    c.env,
-    headers,
-  );
+  return redirectToKroger(c.req.raw, state.oauthReqInfo, c.env, headers);
 });
 
 async function redirectToKroger(
@@ -110,6 +115,7 @@ async function redirectToKroger(
 ) {
   if (!env.KROGER_CLIENT_ID || !env.KROGER_CLIENT_SECRET) {
     console.error("Missing Kroger OAuth credentials in environment");
+
     return new Response(
       "Server configuration error: Missing Kroger OAuth credentials",
       {
@@ -132,6 +138,7 @@ async function redirectToKroger(
   // Generate a simple random state for CSRF protection (Kroger requirement)
   // Store oauthReqInfo in a cookie to avoid large state params
   const csrfState = crypto.randomUUID();
+
   const cookieValue = await generateSignedCookie(
     "kroger_oauth_state",
     JSON.stringify({ csrfState, oauthReqInfo: _oauthReqInfo }),
@@ -177,6 +184,7 @@ app.get("/callback", async (c) => {
       error: oauthError,
       error_description: errorDescription,
     });
+
     return c.text(
       `Kroger OAuth error: ${oauthError}${errorDescription ? ` - ${errorDescription}` : ""}`,
       400,
@@ -185,12 +193,14 @@ app.get("/callback", async (c) => {
 
   // Verify state parameter exists (CSRF protection)
   const stateParam = c.req.query("state");
+
   if (!stateParam) {
     return c.text("Missing state parameter", 400);
   }
 
   // Retrieve oauthReqInfo from cookie instead of state parameter
   const rawOAuthStateCookie = getCookie(c, "kroger_oauth_state");
+
   if (!rawOAuthStateCookie) {
     return c.text("Missing authentication cookie", 400);
   }
@@ -200,14 +210,20 @@ app.get("/callback", async (c) => {
     c.env.COOKIE_ENCRYPTION_KEY,
     "kroger_oauth_state",
   );
-  if (typeof oauthStateCookie !== "string") {
+
+  if (oauthStateCookie === false || oauthStateCookie === undefined) {
     return c.text("Invalid authentication cookie", 400);
   }
 
   const parsedStateCookie = safeJsonParse(oauthStateCookie).match(
-    (value) => value as KrogerOAuthStateCookie,
+    (value) => {
+      const parsed = krogerOAuthStateCookieSchema.safeParse(value);
+
+      return parsed.success ? parsed.data : null;
+    },
     () => null,
   );
+
   if (!parsedStateCookie?.oauthReqInfo || !parsedStateCookie.csrfState) {
     return c.text("Invalid authentication cookie", 400);
   }
@@ -216,13 +232,27 @@ app.get("/callback", async (c) => {
     return c.text("Invalid state parameter", 400);
   }
 
-  const { oauthReqInfo } = parsedStateCookie;
+  // Preserve the specific legacy missing-client error before validating the
+  // complete provider contract. Neither failure can reach the token exchange.
+  const clientInfo = z
+    .object({ clientId: z.unknown().optional() })
+    .safeParse(parsedStateCookie.oauthReqInfo);
 
-  if (!oauthReqInfo.clientId) {
+  if (!clientInfo.success || !clientInfo.data.clientId) {
     return c.text("Invalid state: missing clientId", 400);
   }
 
+  const parsedAuthRequest = authRequestSchema.safeParse(
+    parsedStateCookie.oauthReqInfo,
+  );
+
+  if (!parsedAuthRequest.success) {
+    return c.text("Invalid authentication cookie", 400);
+  }
+
+  const oauthReqInfo = parsedAuthRequest.data;
   const code = c.req.query("code");
+
   if (!code) {
     return c.text("Missing authorization code", 400);
   }
@@ -230,6 +260,7 @@ app.get("/callback", async (c) => {
   // Exchange the code for an access token using direct fetch
   // This is more reliable than openapi-fetch for the OAuth token endpoint
   const redirectUri = new URL("/callback", c.req.url).href;
+
   const tokenBody = new URLSearchParams({
     grant_type: "authorization_code",
     code: code,
@@ -249,7 +280,13 @@ app.get("/callback", async (c) => {
     },
   );
 
-  const tokenData = (await tokenResponse.json()) as KrogerTokenResponse;
+  const parsedToken = krogerTokenResponseSchema.safeParse(
+    await tokenResponse.json(),
+  );
+
+  if (!parsedToken.success)
+    return c.text("Invalid token response from Kroger", 502);
+  const tokenData = parsedToken.data;
 
   // Check for errors
   if (!tokenResponse.ok) {
@@ -259,6 +296,7 @@ app.get("/callback", async (c) => {
       error: tokenData.error,
       errorDescription: tokenData.error_description,
     });
+
     return c.text(
       `Failed to fetch access token: ${tokenData.error_description || tokenData.error || "Unknown error"}`,
       500,
@@ -271,11 +309,13 @@ app.get("/callback", async (c) => {
 
   if (!accessToken) {
     console.error("Kroger token response did not include an access token");
+
     return c.text("Missing access token in response", 400);
   }
 
   // Fetch the user profile from Kroger using direct fetch
   let id: string;
+
   try {
     const profileResponse = await fetch(
       "https://api.kroger.com/v1/identity/profile",
@@ -295,13 +335,16 @@ app.get("/callback", async (c) => {
         503,
       );
     }
+
     const profile = profileSchema.safeParse(await profileResponse.json());
+
     if (!profile.success) {
       return c.text(
         "Kroger returned an invalid user profile. Please reconnect and try again.",
         502,
       );
     }
+
     id = profile.data.data.id;
   } catch {
     return c.text(
@@ -343,6 +386,7 @@ app.get("/callback", async (c) => {
     });
   } catch (completeError) {
     console.error("Failed to complete authorization:", completeError);
+
     return c.text(
       `Failed to complete authorization: ${completeError instanceof Error ? completeError.message : "Unknown error"}`,
       500,
@@ -350,18 +394,19 @@ app.get("/callback", async (c) => {
   }
 });
 
+const krogerEnvSchema = z.object({
+  COOKIE_ENCRYPTION_KEY: z.string(),
+  KROGER_CLIENT_ID: z.string(),
+  KROGER_CLIENT_SECRET: z.string(),
+  OAUTH_PROVIDER: z.object({
+    parseAuthRequest: z.function(),
+    lookupClient: z.function(),
+    completeAuthorization: z.function(),
+  }),
+});
+
 function isKrogerEnv(env: Env): env is KrogerEnv {
-  return (
-    "COOKIE_ENCRYPTION_KEY" in env &&
-    typeof env.COOKIE_ENCRYPTION_KEY === "string" &&
-    "KROGER_CLIENT_ID" in env &&
-    typeof env.KROGER_CLIENT_ID === "string" &&
-    "KROGER_CLIENT_SECRET" in env &&
-    typeof env.KROGER_CLIENT_SECRET === "string" &&
-    "OAUTH_PROVIDER" in env &&
-    typeof env.OAUTH_PROVIDER === "object" &&
-    env.OAUTH_PROVIDER !== null
-  );
+  return krogerEnvSchema.safeParse(env).success;
 }
 
 export const KrogerWorker = {
@@ -374,6 +419,7 @@ export const KrogerWorker = {
         },
       );
     }
+
     return app.fetch(request, env, ctx);
   },
 } satisfies ExportedHandler<Env>;

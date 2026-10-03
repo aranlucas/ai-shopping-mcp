@@ -1,5 +1,8 @@
-import type { App } from "@modelcontextprotocol/ext-apps/react";
-import type { AddShoppingListToCartArgs } from "../shared/types.js";
+import type {
+  ShoppingAppClient,
+  AddShoppingListToCartArgs,
+} from "../shared/types.js";
+
 import {
   addListToCart,
   createProductList,
@@ -9,6 +12,7 @@ import {
 } from "./tool-calls.js";
 
 type Modality = AddShoppingListToCartArgs["modality"];
+
 export type CartRequest =
   | { kind: "product"; product: ProductShoppingListInput; modality: Modality }
   | { kind: "list"; listId: string; modality: Modality };
@@ -37,19 +41,26 @@ export function createCartAction(input: CartRequest) {
   let state: CartState = { status: "idle", request: initialRequest };
   let pending = Promise.resolve();
   const listeners = new Set<() => void>();
+
   const transition = (next: CartState) => {
     state = next;
+
     for (const listener of listeners) listener();
   };
 
-  async function run(app: App | null, request: CartRequest): Promise<void> {
+  async function run(
+    app: ShoppingAppClient | null,
+    request: CartRequest,
+  ): Promise<void> {
     try {
       if (request.kind === "product") {
         const listId = await createProductList(app, request.product);
         request = { kind: "list", listId, modality: request.modality };
         transition({ status: "submitting", request });
       }
+
       const result = await addListToCart(app, request.listId, request.modality);
+
       if (result.outcome === "already_added") {
         transition({
           status: "already_added",
@@ -75,6 +86,7 @@ export function createCartAction(input: CartRequest) {
         : needsCartCheck(error)
           ? "check_cart"
           : "retryable";
+
       transition({
         status,
         request,
@@ -88,17 +100,19 @@ export function createCartAction(input: CartRequest) {
     getSnapshot: () => state,
     subscribe(listener: () => void) {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
     },
-    submit(app: App | null): Promise<void> {
+    submit(app: ShoppingAppClient | null): Promise<void> {
       // Repeated clicks share the in-flight request; terminal outcomes cannot resubmit.
       if (state.status !== "idle" && state.status !== "retryable")
         return pending;
       const request = state.request;
       pending = Promise.resolve().then(() => run(app, request));
       transition({ status: "submitting", request });
+
       return pending;
     },
     reset() {

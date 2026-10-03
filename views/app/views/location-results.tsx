@@ -1,7 +1,13 @@
-import type {
-  App,
-  McpUiHostContext,
-} from "@modelcontextprotocol/ext-apps/react";
+import {
+  type ShoppingAppClient,
+  type AppData,
+  type LocationData,
+  type StoreResultsContent,
+  callTool,
+  openExternalLink,
+  parseToolResult,
+} from "../../shared/types.js";
+import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
 import { useCallback, useMemo, useState } from "react";
 
@@ -12,14 +18,6 @@ import {
   SectionHeader,
 } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
-import {
-  type AppData,
-  type LocationData,
-  type StoreResultsContent,
-  callTool,
-  openExternalLink,
-  parseToolResult,
-} from "../../shared/types.js";
 
 const EMPTY_LOCATIONS_ICON = (
   <svg
@@ -61,10 +59,13 @@ const PREFERRED_STAR_ICON = (
 
 function locationToMapsUrl(loc: LocationData): string | null {
   const a = loc.address;
+
   if (!a?.addressLine1) return null;
+
   const parts = [a.addressLine1, a.city, a.state, a.zipCode]
     .filter(Boolean)
     .join(", ");
+
   return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
 }
 
@@ -77,21 +78,25 @@ function LocationCard({
 }: {
   location: LocationData;
   canCallTools: boolean;
-  app: App | null;
+  app: ShoppingAppClient | null;
   onSetPreferred: (id: string) => Promise<void>;
   onViewDetails: (id: string) => Promise<void>;
 }) {
   const id = location.locationId || "";
+
   const [prefState, setPrefState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+
   const [detailState, setDetailState] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+
   const mapsUrl = locationToMapsUrl(location);
 
   const handleSetPreferred = useCallback(async () => {
     setPrefState("loading");
+
     try {
       await onSetPreferred(id);
       setPrefState("done");
@@ -103,6 +108,7 @@ function LocationCard({
 
   const handleViewDetails = useCallback(async () => {
     setDetailState("loading");
+
     try {
       await onViewDetails(id);
       setDetailState("idle");
@@ -262,7 +268,7 @@ export function LocationResultsView({
 }: {
   data: StoreResultsContent;
   setData: (data: AppData | null) => void;
-  app: App | null;
+  app: ShoppingAppClient | null;
   canCallTools: boolean;
   hostContext?: McpUiHostContext;
 }) {
@@ -274,6 +280,7 @@ export function LocationResultsView({
         name: "set_preferred_store",
         arguments: { storeId: id },
       });
+
       if (result?.isError) throw new Error("Failed to set preferred location");
     },
     [app],
@@ -285,8 +292,10 @@ export function LocationResultsView({
         name: "search_stores",
         arguments: { storeId: id },
       });
+
       if (result?.isError) throw new Error("Failed to load details");
       const parsed = parseToolResult(result);
+
       if (parsed) setData(parsed);
     },
     [app, setData],
@@ -300,6 +309,7 @@ export function LocationResultsView({
     ),
     [stores.length],
   );
+
   const headerTrailing = useMemo(
     () => <DisplayModeToggle app={app} hostContext={hostContext} />,
     [app, hostContext],

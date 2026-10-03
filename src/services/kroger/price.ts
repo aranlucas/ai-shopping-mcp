@@ -6,6 +6,7 @@ export function normalizeKrogerPrice(price?: {
   const regular = price?.regular;
   const promo = price?.promo;
   const hasPromo = promo != null && promo > 0 && promo !== regular;
+
   return {
     price: hasPromo ? promo : regular,
     regularPrice: hasPromo ? regular : undefined,
@@ -17,7 +18,9 @@ export function formatKrogerPrice(price?: {
   promo?: number;
 }): string | undefined {
   const normalized = normalizeKrogerPrice(price);
+
   if (normalized.price === undefined) return undefined;
+
   return normalized.regularPrice === undefined
     ? `$${normalized.price}`
     : `$${normalized.price} (was $${normalized.regularPrice})`;

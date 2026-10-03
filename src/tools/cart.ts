@@ -1,3 +1,4 @@
+import type { AppResultPayloads } from "../app-results.js";
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { err, ok, type Result } from "neverthrow";
@@ -31,7 +32,9 @@ import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
 import { textResult } from "./types.js";
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
+
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
+
 type LiveCart = components["schemas"]["carts.cartModel"];
 
 type CartAddStatus = "added" | "already_added" | "needs_match";
@@ -51,6 +54,7 @@ function cartQuantitySummary(
   items: ReadonlyArray<{ quantity: number }>,
 ): string {
   const packages = items.reduce((sum, item) => sum + item.quantity, 0);
+
   return `${items.length} line item(s), ${packages} package(s)`;
 }
 
@@ -153,31 +157,37 @@ export async function addLineItemsToCart(
     quantity: item.quantity,
     modality,
   }));
+
   const requestBody: CartItemRequest = { items: cartItems };
 
   const operationKey = options.receiptListId
     ? `list:${options.receiptListId}`
     : `inline:${options.operationId ?? crypto.randomUUID()}`;
+
+  const receiptListId = options.receiptListId;
+
   const claim = await safeStorage(
     () =>
       claimCartOperation(
         carts.operations,
         operationKey,
         cartItemsFingerprint(cartItems),
-        options.receiptListId
-          ? () => carts.cartSnapshot.get(options.receiptListId as string)
-          : undefined,
+        receiptListId ? () => carts.cartSnapshot.get(receiptListId) : undefined,
       ),
     "claim cart operation",
   );
+
   if (claim.isErr()) return err<CartAddStatus, AppError>(claim.error);
+
   if (claim.value.status === "conflict")
     return err<CartAddStatus, AppError>(
       validationError(
         "This cart operation was already used with different items. Check the Kroger cart before starting a new operation.",
       ),
     );
+
   if (claim.value.status === "completed") return ok("already_added");
+
   if (claim.value.status === "pending")
     return err<CartAddStatus, AppError>(
       mutationOutcomeUnknown(
@@ -194,7 +204,9 @@ export async function addLineItemsToCart(
       () => carts.operations.reject(operationKey, attempt),
       "release empty cart operation",
     );
+
     if (released.isErr()) return err<CartAddStatus, AppError>(released.error);
+
     return ok("needs_match");
   }
 
@@ -209,6 +221,7 @@ export async function addLineItemsToCart(
 
   if (addResult.isErr()) {
     const error = addResult.error;
+
     const rejected =
       error.type === "AUTH_ERROR" ||
       (error.type === "API_ERROR" &&
@@ -216,6 +229,7 @@ export async function addLineItemsToCart(
         error.status >= 400 &&
         error.status < 500 &&
         error.status !== 408);
+
     if (rejected) {
       await safeStorage(
         () => carts.operations.reject(operationKey, attempt),
@@ -223,8 +237,10 @@ export async function addLineItemsToCart(
       ).orTee((failure) =>
         console.warn("Cart claim release failed:", failure.message),
       );
+
       return err<CartAddStatus, AppError>(error);
     }
+
     return err<CartAddStatus, AppError>(
       mutationOutcomeUnknown(
         "Kroger may have accepted the cart add, but confirmation was lost. The outcome is ambiguous; do not retry or create a replacement list. Check the Kroger cart first.",
@@ -237,6 +253,7 @@ export async function addLineItemsToCart(
     () => carts.operations.complete(operationKey, attempt),
     "complete cart operation",
   );
+
   if (committed.isErr() || !committed.value)
     return err<CartAddStatus, AppError>(
       mutationOutcomeUnknown(
@@ -253,7 +270,6 @@ export async function addLineItemsToCart(
     console.warn("Cart mirror append failed (non-fatal):", e.message),
   );
 
-  const receiptListId = options.receiptListId;
   if (receiptListId) {
     // The atomic journal is authoritative; keep legacy receipts for compatibility.
     await safeStorage(
@@ -263,6 +279,7 @@ export async function addLineItemsToCart(
       console.warn("Legacy cart snapshot write failed (non-fatal):", e.message),
     );
   }
+
   return ok("added");
 }
 
@@ -279,6 +296,7 @@ async function handleInlineItemsCart(
     preferredLocation,
     storeId,
   );
+
   if (locationResult.isErr()) return toMcpError(locationResult.error);
 
   const addResult = await addLineItemsToCart(
@@ -290,6 +308,7 @@ async function handleInlineItemsCart(
       operationId,
     },
   );
+
   if (addResult.isErr()) return toMcpError(addResult.error);
 
   if (addResult.value === "already_added")
@@ -311,6 +330,7 @@ async function handleInlineItemsCart(
       }),
     };
   const resolved = locationResult.value;
+
   const locationInfo = resolved.locationName
     ? ` at ${resolved.locationName}`
     : ` (Store: ${resolved.locationId})`;
@@ -347,8 +367,10 @@ async function handleListIdCart(
     () => shoppingList.get(listId),
     "fetch shopping list",
   );
+
   if (listResult.isErr()) return toMcpError(listResult.error);
   const list = listResult.value;
+
   if (!list) {
     return toMcpError(
       validationError(
@@ -360,6 +382,7 @@ async function handleListIdCart(
   const cartable = list.items.flatMap((item) => {
     return item.upc ? [{ item, upc: item.upc }] : [];
   });
+
   const cartableItems = new Set(cartable.map(({ item }) => item));
   const withoutUpc = list.items.filter((item) => !cartableItems.has(item));
 
@@ -371,7 +394,9 @@ async function handleListIdCart(
       modality,
       { receiptListId: listId },
     );
+
     if (emptyAddResult.isErr()) return toMcpError(emptyAddResult.error);
+
     return {
       content: [
         {
@@ -403,6 +428,7 @@ async function handleListIdCart(
     preferredLocation,
     storeId,
   );
+
   if (locationResult.isErr()) return toMcpError(locationResult.error);
   const resolved = locationResult.value;
 
@@ -421,6 +447,7 @@ async function handleListIdCart(
       receiptListId: listId,
     },
   );
+
   if (addResult.isErr()) return toMcpError(addResult.error);
   const snapshot = toCartSnapshotItems(lineItems, modality);
   const alreadyAdded = addResult.value === "already_added";
@@ -473,10 +500,12 @@ const viewCartInputSchema = z.object({
 
 function formatLiveCart(cart: LiveCart, cartId: string): string {
   const items = cart.items ?? [];
+
   const lines = items.map(
     (item) =>
       `- ${item.description ?? item.upc} x${item.quantity ?? 1} | upc=${item.upc} | ${item.modality}`,
   );
+
   return [
     `Live Kroger cart (cartId=${cartId}): ${items.length} item(s)`,
     lines.join("\n"),
@@ -495,9 +524,11 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
     () => carts.cartMirror.getAll(),
     "fetch cart mirror",
   );
+
   if (mirrorResult.isErr()) return toMcpError(mirrorResult.error);
 
   const parts: string[] = note ? [note] : [];
+
   if (mirrorResult.value.length === 0) {
     parts.push(
       "No items added to your cart through this assistant yet. Use shop_for_items to find product options, then pass chosen UPCs to add_shopping_list_to_cart.",
@@ -507,22 +538,27 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
       (item) =>
         `- ${item.productName ?? item.upc} x${item.quantity} | upc=${item.upc} | ${item.modality}`,
     );
+
     parts.push(
       `Items added to your Kroger cart through this assistant (in-store/app changes are not shown):\n\n${lines.join("\n")}`,
     );
   }
+
+  const payload: AppResultPayloads["view_cart"] = {
+    source: "assistant",
+    items: mirrorResult.value.map((item) => ({
+      upc: item.upc,
+      productName: item.productName,
+      quantity: item.quantity,
+      modality: item.modality,
+    })),
+  };
+
+  if (note) payload.note = note;
+
   return {
     ...textResult(parts.join("\n\n")),
-    ...appResult("view_cart", {
-      source: "assistant",
-      items: mirrorResult.value.map((item) => ({
-        upc: item.upc,
-        productName: item.productName,
-        quantity: item.quantity,
-        modality: item.modality,
-      })),
-      ...(note ? { note } : {}),
-    }),
+    ...appResult("view_cart", payload),
   };
 }
 
@@ -570,6 +606,7 @@ export function registerCartTools(
     },
     async ({ listId, items, storeId, modality, operationId }) => {
       getProps();
+
       if (listId) {
         return handleListIdCart(
           preferredLocation,
@@ -621,11 +658,13 @@ export function registerCartTools(
     async ({ cartId }) => {
       getProps();
       let resolvedId = cartId;
+
       if (!resolvedId) {
         const storedIdResult = await safeStorage(
           () => carts.cartId.get(),
           "read stored cart id",
         );
+
         if (storedIdResult.isErr()) return toMcpError(storedIdResult.error);
         resolvedId = storedIdResult.value ?? undefined;
       }
@@ -638,6 +677,7 @@ export function registerCartTools(
       }
 
       const liveCartId = resolvedId;
+
       const liveResult = await fromApiResponse(
         () =>
           cartClient.GET("/v1/carts/{id}", {
@@ -649,6 +689,7 @@ export function registerCartTools(
       if (liveResult.isErr()) {
         if (liveResult.error.type === "AUTH_ERROR")
           return toMcpError(liveResult.error);
+
         return mirrorFallbackResult(
           carts,
           `Live cart read failed${cartId ? ` for cartId=${cartId}` : ""} (${liveResult.error.message}). Showing items added through this assistant instead.`,
@@ -661,6 +702,7 @@ export function registerCartTools(
       ).orTee((error) =>
         console.warn("Cart id store failed (non-fatal):", error.message),
       );
+
       return liveCartResult(liveResult.value.data ?? {}, resolvedId);
     },
   );

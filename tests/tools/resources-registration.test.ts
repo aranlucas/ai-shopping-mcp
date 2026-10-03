@@ -1,8 +1,23 @@
+import { productClient as createProductClient } from "../kroger-clients.js";
+import type {
+  PantryItem,
+  EquipmentItem,
+  PreferredLocation,
+  OrderRecord,
+} from "../../src/domain/shopping.js";
+import { strictFake } from "../strict-fake.js";
 import { decode } from "@toon-format/toon";
-import type { McpServer } from "@modelcontextprotocol/server";
+import {
+  McpServer,
+  ResourceTemplate,
+  type ResourceMetadata,
+  type ReadResourceCallback,
+  type ReadResourceTemplateCallback,
+} from "@modelcontextprotocol/server";
+import { authenticatedRequest } from "../authenticated-request.js";
+import { z } from "zod";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { KrogerClients } from "../../src/services/kroger/client.js";
 import type {
   EquipmentStore,
   OrderHistoryStore,
@@ -14,7 +29,7 @@ import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
 
 type AuthContext = {
-  props?: { id: string; accessToken: string; tokenExpiresAt: number };
+  props: { id: string; accessToken: string; tokenExpiresAt: number };
 };
 
 type ResourceHandler = (uri: URL) => Promise<{
@@ -30,18 +45,16 @@ type CompleteFn = (value: string) => Promise<string[]>;
 
 type CapturedResource = {
   name: string;
-  uriOrTemplate: unknown;
+  uriOrTemplate: string | ResourceTemplate;
   handler: ResourceHandler;
 };
 
-const testState = vi.hoisted(() => ({
-  authContext: undefined as AuthContext | undefined,
-  capturedResources: [] as CapturedResource[],
-}));
+type TestState = {
+  authContext: AuthContext | undefined;
+  capturedResources: CapturedResource[];
+};
 
-vi.mock("agents/mcp/server", () => ({
-  getMcpAuthContext: () => testState.authContext,
-}));
+const testState: TestState = { authContext: undefined, capturedResources: [] };
 
 function authenticate(userId = "user-123") {
   testState.authContext = {
@@ -57,33 +70,82 @@ function unauthenticate() {
   testState.authContext = undefined;
 }
 
-function decodeResource(result: {
-  contents: Array<{ text: string }>;
-}): Record<string, unknown> {
-  return decode(result.contents[0]?.text ?? "") as Record<string, unknown>;
+function decodeResource(result: { contents: Array<{ text: string }> }) {
+  return z
+    .record(z.string(), z.json())
+    .parse(decode(result.contents[0]?.text ?? ""));
 }
 
+type StaticRegistration = [
+  name: string,
+  uri: string,
+  config: ResourceMetadata,
+  read: ReadResourceCallback,
+];
+
+type TemplateRegistration = [
+  name: string,
+  uri: ResourceTemplate,
+  config: ResourceMetadata,
+  read: ReadResourceTemplateCallback,
+];
+
+type ResourceRegistration = StaticRegistration | TemplateRegistration;
+
+function isStaticRegistration(
+  registration: ResourceRegistration,
+): registration is StaticRegistration {
+  return !(registration[1] instanceof ResourceTemplate);
+}
+
+const resourceResultSchema = z.object({
+  contents: z.array(
+    z.object({
+      type: z.string(),
+      uri: z.string(),
+      mimeType: z.string().optional(),
+      text: z.string(),
+    }),
+  ),
+});
+
 function makeServer() {
-  return {
-    registerResource: (
-      name: string,
-      uriOrTemplate: unknown,
-      _config: unknown,
-      handler: ResourceHandler,
-    ) => {
-      testState.capturedResources.push({ name, uriOrTemplate, handler });
-    },
-  } as unknown as McpServer;
+  const server = new McpServer({ name: "resource-test", version: "1.0.0" });
+  const register = server.registerResource.bind(server);
+  vi.spyOn(server, "registerResource").mockImplementation((...args) => {
+    const registered = register(...args);
+    // SAFETY: Vitest retains only the SDK's last overload in its spy type. The actual
+    // registration arguments are one of the SDK's two overloads, discriminated by URI kind.
+    const registration = args as ResourceRegistration;
+    const [name, uriOrTemplate] = registration;
+
+    const handler: ResourceHandler = async (uri) => {
+      const result = await authenticatedRequest((context) => {
+        if (isStaticRegistration(registration))
+          return Promise.resolve(registration[3](uri, context));
+
+        return Promise.resolve(registration[3](uri, {}, context));
+      }, testState.authContext);
+
+      return resourceResultSchema.parse(result);
+    };
+
+    testState.capturedResources.push({ name, uriOrTemplate, handler });
+
+    return registered;
+  });
+
+  return server;
 }
 
 type StorageSeed = {
-  pantry?: unknown[];
+  pantry?: PantryItem[];
   pantryThrows?: boolean;
-  equipment?: unknown[];
+  equipment?: EquipmentItem[];
   equipmentThrows?: boolean;
-  location?: unknown;
+  location?: PreferredLocation | null;
   locationThrows?: boolean;
-  orders?: unknown[];
+  orders?: OrderRecord[];
   ordersThrows?: boolean;
 };
 
@@ -99,38 +161,39 @@ type ResourceRepositories = {
 };
 
 function makeStorage(seed: StorageSeed = {}): ResourceRepositories {
-  return {
-    pantry: {
+  return strictFake<ResourceRepositories>({
+    pantry: strictFake<PantryStore>({
       getAll: seed.pantryThrows
         ? storageFailure
         : async () => seed.pantry ?? [],
-    },
-    equipment: {
+    }),
+    equipment: strictFake<EquipmentStore>({
       getAll: seed.equipmentThrows
         ? storageFailure
         : async () => seed.equipment ?? [],
-    },
-    preferredLocation: {
+    }),
+    preferredLocation: strictFake<PreferredLocationStore>({
       get: seed.locationThrows
         ? storageFailure
         : async () => seed.location ?? null,
-    },
-    orderHistory: {
+    }),
+    orderHistory: strictFake<OrderHistoryStore>({
       getRecent: seed.ordersThrows
         ? storageFailure
         : async () => seed.orders ?? [],
-    },
-  } as unknown as ResourceRepositories;
+    }),
+  });
 }
 
 function makeContext(
   repositories: ResourceRepositories,
-  productClient: unknown = {},
+  productClient = createProductClient(async () => {
+    throw new Error("Unexpected product request");
+  }),
 ) {
-  const productClientTyped = productClient as KrogerClients["productClient"];
   return {
     server: makeServer(),
-    productService: new ProductService(productClientTyped),
+    productService: new ProductService(productClient),
     ...repositories,
   };
 }
@@ -147,8 +210,10 @@ function registerTestResources(fixture: ReturnType<typeof makeContext>) {
 
 function getResource(name: string): CapturedResource {
   const resource = testState.capturedResources.find((r) => r.name === name);
-  expect(resource).toBeDefined();
-  return resource as CapturedResource;
+
+  if (!resource) throw new Error(`Missing resource ${name}`);
+
+  return resource;
 }
 
 async function callResource(name: string, uri = "shopping://x") {
@@ -156,41 +221,35 @@ async function callResource(name: string, uri = "shopping://x") {
 }
 
 function getCompleteFn(name: string, field: string): CompleteFn {
-  const template = getResource(name).uriOrTemplate as {
-    callbacks?: { complete?: Record<string, CompleteFn> };
-    _callbacks?: { complete?: Record<string, CompleteFn> };
-  };
-  const complete =
-    template.callbacks?.complete ?? template["_callbacks"]?.complete;
-  const fn = complete?.[field];
-  expect(fn).toBeTypeOf("function");
-  return fn as CompleteFn;
+  const template = getResource(name).uriOrTemplate;
+
+  if (!(template instanceof ResourceTemplate))
+    throw new Error("Resource has no template");
+  const complete = template.completeCallback(field);
+
+  if (!complete) throw new Error(`No completion for ${field}`);
+
+  return (value) =>
+    authenticatedRequest(
+      () => Promise.resolve(complete(value)),
+      testState.authContext,
+    );
 }
 
 function makeProductClient(
   overrides: { product?: unknown; error?: boolean } = {},
 ) {
-  return {
-    GET: async () => {
-      if (overrides.error) {
-        return {
-          data: undefined,
-          response: new Response(null, {
-            status: 500,
-            statusText: "Server Error",
-          }),
-        };
-      }
-      const product =
-        "product" in overrides
-          ? overrides.product
-          : { upc: "0001112223334", description: "Milk" };
-      return {
-        data: { data: product },
-        response: new Response(null, { status: 200 }),
-      };
-    },
-  };
+  return createProductClient(async () => {
+    if (overrides.error)
+      return new Response(null, { status: 500, statusText: "Server Error" });
+
+    const product =
+      "product" in overrides
+        ? overrides.product
+        : { upc: "0001112223334", description: "Milk" };
+
+    return Response.json({ data: product });
+  });
 }
 
 describe("registerResources", () => {
@@ -378,6 +437,7 @@ describe("registerResources", () => {
       const decoded = decodeResource(
         await callResource("Product Details", "shopping://product/abc"),
       );
+
       expect(decoded.error).toContain("Invalid product URI format");
     });
 
@@ -405,6 +465,7 @@ describe("registerResources", () => {
           "shopping://product/0001112223334",
         ),
       );
+
       expect(decoded.description).toBe("Whole Milk");
     });
 
@@ -425,6 +486,7 @@ describe("registerResources", () => {
           "shopping://product/0001112223334",
         ),
       );
+
       expect(decoded.description).toBe("Organic Milk");
       expect(decoded.error).toBeUndefined();
     });
@@ -440,6 +502,7 @@ describe("registerResources", () => {
           "shopping://product/0001112223334",
         ),
       );
+
       expect(decoded.error).toContain("No product found");
     });
 
@@ -454,6 +517,7 @@ describe("registerResources", () => {
           "shopping://product/0001112223334",
         ),
       );
+
       expect(decoded.error).toContain("Failed to fetch product");
     });
 

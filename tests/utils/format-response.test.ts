@@ -41,6 +41,7 @@ import {
 // removed as dead code (zero call sites in src/).
 
 type Product = ProductComponents["schemas"]["products.productModel"];
+
 type Location = LocationComponents["schemas"]["locations.location"];
 
 function makeProduct(overrides: Partial<Product> = {}): Product {
@@ -90,6 +91,7 @@ describe("formatPantryItemCompact", () => {
       quantity: 1,
       addedAt: "2025-01-15T00:00:00Z",
     };
+
     expect(formatPantryItemCompact(item)).toBe("Milk x1");
   });
 
@@ -100,6 +102,7 @@ describe("formatPantryItemCompact", () => {
       addedAt: "2025-01-01T00:00:00Z",
       expiresAt: "2020-01-01T00:00:00Z",
     };
+
     const result = formatPantryItemCompact(item);
     expect(result).toContain("❌EXPIRED");
   });
@@ -107,12 +110,14 @@ describe("formatPantryItemCompact", () => {
   it("shows TODAY indicator when item expires today (daysUntil === 0)", () => {
     // 12 hours from now → Math.floor(0.5 days) = 0
     const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+
     const item: PantryItem = {
       productName: "Yogurt",
       quantity: 2,
       addedAt: new Date().toISOString(),
       expiresAt,
     };
+
     const result = formatPantryItemCompact(item);
     expect(result).toContain("⚠️TODAY");
   });
@@ -122,12 +127,14 @@ describe("formatPantryItemCompact", () => {
     const expiresAt = new Date(
       Date.now() + 2.5 * 24 * 60 * 60 * 1000,
     ).toISOString();
+
     const item: PantryItem = {
       productName: "Cheese",
       quantity: 1,
       addedAt: new Date().toISOString(),
       expiresAt,
     };
+
     const result = formatPantryItemCompact(item);
     expect(result).toContain("⚠️2d");
   });
@@ -136,12 +143,14 @@ describe("formatPantryItemCompact", () => {
     const futureMs = Date.now() + 5 * 24 * 60 * 60 * 1000;
     const expiresAt = new Date(futureMs).toISOString();
     const expectedDate = new Date(futureMs).toLocaleDateString();
+
     const item: PantryItem = {
       productName: "Flour",
       quantity: 2,
       addedAt: new Date().toISOString(),
       expiresAt,
     };
+
     const result = formatPantryItemCompact(item);
     expect(result).toBe(`Flour x2 | ${expectedDate}`);
   });
@@ -159,6 +168,7 @@ describe("formatPantryListCompact", () => {
       { productName: "Milk", quantity: 1, addedAt: "2025-01-15T00:00:00Z" },
       { productName: "Eggs", quantity: 12, addedAt: "2025-01-15T00:00:00Z" },
     ];
+
     const result = formatPantryListCompact(items);
     expect(result).toContain("1. Milk x1");
     expect(result).toContain("2. Eggs x12");
@@ -177,6 +187,7 @@ describe("formatOrderRecordCompact", () => {
       placedAt: "2025-01-20T14:00:00Z",
       locationId: "70500847",
     };
+
     const result = formatOrderRecordCompact(order);
     expect(result).toContain("#def");
     expect(result).toContain("5 items");
@@ -192,6 +203,7 @@ describe("formatOrderRecordCompact", () => {
       placedAt: "2025-01-20T14:00:00Z",
       locationId: "70500847",
     };
+
     const result = formatOrderRecordCompact(order);
     expect(result).toContain("3 items");
     expect(result).not.toContain("$");
@@ -206,6 +218,7 @@ describe("formatOrderRecordCompact", () => {
       estimatedTotal: 10.0,
       placedAt: "2025-01-20T14:00:00Z",
     };
+
     const result = formatOrderRecordCompact(order);
     expect(result).toContain("#def");
     expect(result).toContain("2 items $10.00");
@@ -233,6 +246,7 @@ describe("formatOrderHistoryCompact", () => {
         locationId: "70500847",
       },
     ];
+
     const result = formatOrderHistoryCompact(orders);
     expect(result).toMatch(/^1\. /);
     expect(result).toContain("#def");
@@ -250,6 +264,7 @@ describe("formatEquipmentItemCompact", () => {
       category: "Cooking",
       addedAt: "2025-01-01T00:00:00Z",
     };
+
     expect(formatEquipmentItemCompact(item)).toBe("Oven | Cooking");
   });
 
@@ -258,6 +273,7 @@ describe("formatEquipmentItemCompact", () => {
       equipmentName: "Knife",
       addedAt: "2025-01-01T00:00:00Z",
     };
+
     expect(formatEquipmentItemCompact(item)).toBe("Knife");
   });
 });
@@ -278,6 +294,7 @@ describe("formatEquipmentListCompact", () => {
       },
       { equipmentName: "Knife", addedAt: "2025-01-01T00:00:00Z" },
     ];
+
     const result = formatEquipmentListCompact(items);
     expect(result).toContain("1. Oven | Cooking");
     expect(result).toContain("2. Knife");
@@ -295,6 +312,7 @@ describe("formatPreferredLocationCompact", () => {
       chain: "QFC",
       setAt: "2025-01-01T00:00:00Z",
     };
+
     expect(formatPreferredLocationCompact(location)).toBe(
       "QFC #815 (QFC) | 100 Main St | 70500847",
     );
@@ -309,6 +327,7 @@ describe("formatShoppingListItemCompact", () => {
       productName: "Butter",
       quantity: 1,
     };
+
     expect(formatShoppingListItemCompact(item)).toBe("Butter x1");
   });
 
@@ -319,6 +338,7 @@ describe("formatShoppingListItemCompact", () => {
       upc: "0001111042010",
       notes: "large",
     };
+
     expect(formatShoppingListItemCompact(item)).toBe(
       "Eggs x12 | upc=0001111042010 | large",
     );
@@ -337,6 +357,7 @@ describe("formatShoppingListCompact", () => {
       { productName: "Bread", quantity: 1 },
       { productName: "Milk", quantity: 2 },
     ];
+
     const result = formatShoppingListCompact(items);
     expect(result).toContain("1. Bread x1");
     expect(result).toContain("2. Milk x2");
@@ -396,6 +417,7 @@ describe("formatProductLine", () => {
     const line = formatProductLine(
       productData({ price: 3.49, regularPrice: undefined }),
     );
+
     expect(line).toContain("$3.49");
     expect(line).not.toContain("was");
   });
@@ -421,6 +443,7 @@ describe("formatProductSearchMarkdown", () => {
         status: "success",
       },
     ];
+
     const text = formatProductSearchMarkdown(results);
     expect(text).toContain("milk:\n");
     expect(text).not.toContain("## ");
@@ -444,6 +467,7 @@ describe("formatProductSearchMarkdown", () => {
       ],
       { includeLocation: true },
     );
+
     expect(text).toContain("location: Dairy 21");
   });
 
@@ -456,6 +480,7 @@ describe("formatProductSearchMarkdown", () => {
         status: "success",
       },
     ]);
+
     expect(text).toContain("unobtainium:");
     expect(text).toContain("No Kroger results.");
   });
@@ -469,6 +494,7 @@ describe("formatProductSearchMarkdown", () => {
         error: apiError("Unavailable"),
       },
     ]);
+
     expect(text).toContain("Kroger search failed for this term.");
     expect(text).toContain("Unavailable");
   });
@@ -482,6 +508,7 @@ describe("formatProductSearchMarkdown", () => {
         status: "success",
       },
     ]);
+
     expect(text).toContain("pass these UPCs to create_shopping_list");
   });
 });
@@ -491,11 +518,14 @@ describe("formatProductDetails", () => {
     const zeroPromo = toProductData(
       makeProduct({ items: [{ price: { regular: 4, promo: 0 } }] }),
     );
+
     expect(formatProductDetails(zeroPromo)).toContain("$4");
     expect(formatProductDetails(zeroPromo)).not.toContain("$0");
+
     const text = formatProductDetails(
       toProductData(makeProduct({ items: [{ price: { promo: 3 } }] })),
     );
+
     expect(text).toContain("$3");
     expect(text).not.toContain("undefined");
   });
@@ -524,6 +554,7 @@ describe("formatProductDetails", () => {
         }),
       ),
     );
+
     expect(text).not.toContain("images");
     expect(text).not.toContain("http://x");
   });
@@ -546,6 +577,7 @@ describe("formatStoreLineMarkdown / formatStoreListMarkdown", () => {
       makeLocation(),
       makeLocation({ locationId: "70500099" }),
     ]);
+
     expect(text).toContain("storeId=70500034");
     expect(text).toContain("storeId=70500099");
   });
@@ -561,6 +593,7 @@ describe("formatStoreDetailMarkdown", () => {
         },
       }),
     );
+
     expect(text).toContain("storeId=70500034");
     expect(text).toContain("hours:");
     expect(text).toContain("monday: 07:00-22:00");
@@ -587,6 +620,7 @@ describe("formatWeeklyDealsMarkdown", () => {
       "2026-06-25",
       "2026-07-01",
     );
+
     expect(text).toContain(
       "Deals valid 2026-06-25 to 2026-07-01. dealCount: 1",
     );
@@ -597,6 +631,7 @@ describe("formatWeeklyDealsMarkdown", () => {
     const text = formatWeeklyDealsMarkdown([
       { title: "Bananas", category: "Produce" },
     ]);
+
     expect(text).toContain("dealCount: 1");
     expect(text).not.toContain("Deals valid");
   });
@@ -605,6 +640,7 @@ describe("formatWeeklyDealsMarkdown", () => {
     const text = formatWeeklyDealsMarkdown([], undefined, undefined, [
       "Live refresh failed",
     ]);
+
     expect(text).toContain("warnings: Live refresh failed");
   });
 
@@ -619,6 +655,7 @@ describe("formatWeeklyDealsMarkdown", () => {
       { title: "Ground Beef", price: "$4.99/lb", category: "Meat & Seafood" },
       { title: "Zucchini", price: "$1.99", category: "Produce" },
     ]);
+
     const lines = text.split("\n");
     expect(lines).toEqual([
       "dealCount: 3",
@@ -634,6 +671,7 @@ describe("formatWeeklyDealsMarkdown", () => {
     const text = formatWeeklyDealsMarkdown([
       { title: "Flank Steaks", price: "$6.99/lb", category: "Meat & Seafood" },
     ]);
+
     expect(text).not.toContain("#");
   });
 });

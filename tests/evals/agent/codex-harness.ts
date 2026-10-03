@@ -15,6 +15,18 @@ import {
 } from "./harness.js";
 import type { AgentOutput } from "./tasks.js";
 
+type InitialObservation = {
+  system: string;
+  prompt: string;
+  tools: Awaited<ReturnType<AgentSession["client"]["listTools"]>>["tools"];
+};
+
+type ToolObservation = { name: string; text: string; isError: boolean };
+
+type Observation = InitialObservation | ToolObservation;
+
+type ToolResultEvent = Extract<TranscriptEvent, { type: "tool_result" }>;
+
 const actionSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("tool"),
@@ -39,6 +51,7 @@ export function codexAgentHarness(options: {
       const task = findTask(input.taskId);
       await task.setup?.(async (name, args) => {
         const result = await callTool(client, name, args);
+
         if (result.isError) {
           throw new Error(`setup ${name} failed: ${contentText(result)}`);
         }
@@ -47,11 +60,13 @@ export function codexAgentHarness(options: {
 
       const system = `${SYSTEM_PREAMBLE}\n\n${client.getInstructions() ?? ""}`;
       const { tools } = await client.listTools();
+
       const events: TranscriptEvent[] = [
         { type: "message", role: "system", content: system },
         { type: "message", role: "user", content: input.prompt },
       ];
-      let observation: unknown = { system, prompt: input.prompt, tools };
+
+      let observation: Observation = { system, prompt: input.prompt, tools };
       let calls = 0;
 
       // Each turn depends on the previous real MCP result.
@@ -67,16 +82,19 @@ export function codexAgentHarness(options: {
           }),
           signal,
         });
+
         if (!response.ok)
           throw new Error(`Codex driver HTTP ${response.status}`);
         // oxlint-disable-next-line eslint/no-await-in-loop -- parse the current turn before choosing the next
         const action = actionSchema.parse(await response.json());
+
         if (action.type === "finish") {
           events.push({
             type: "message",
             role: "assistant",
             content: action.answer,
           });
+
           return {
             events,
             output: {
@@ -99,6 +117,7 @@ export function codexAgentHarness(options: {
             },
           };
         }
+
         if (calls >= MAX_STEPS)
           throw new Error(`Exceeded ${MAX_STEPS} tool calls`);
         const id = `call_${++calls}`;
@@ -108,17 +127,21 @@ export function codexAgentHarness(options: {
           name: action.name,
           arguments: action.arguments,
         });
+
         try {
           // oxlint-disable-next-line eslint/no-await-in-loop -- return each tool result to the session
           const result = await callTool(client, action.name, action.arguments);
           const text = contentText(result);
-          events.push({
+
+          const event: ToolResultEvent = {
             type: "tool_result",
             toolCallId: id,
             name: action.name,
             content: text,
-            ...(result.isError ? { error: { message: text } } : {}),
-          });
+          };
+
+          if (result.isError) event.error = { message: text };
+          events.push(event);
           observation = {
             name: action.name,
             text,
@@ -127,6 +150,7 @@ export function codexAgentHarness(options: {
         } catch (error) {
           const message =
             error instanceof Error ? error.message : String(error);
+
           events.push({
             type: "tool_result",
             toolCallId: id,

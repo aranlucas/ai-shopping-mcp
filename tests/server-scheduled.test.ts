@@ -5,8 +5,6 @@ import {
 } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AppEnv } from "../src/env.js";
-
 import worker, { oauthProvider } from "../src/server.js";
 
 describe("scheduled OAuth cleanup", () => {
@@ -24,8 +22,10 @@ describe("scheduled OAuth cleanup", () => {
         tokensPurged: 1,
         done: true,
       });
+
     vi.spyOn(console, "log").mockImplementation(() => {});
     const scheduled = worker.scheduled;
+
     if (!scheduled) throw new Error("Missing scheduled handler");
 
     const ctx = createExecutionContext();
@@ -35,7 +35,7 @@ describe("scheduled OAuth cleanup", () => {
         noRetry: vi.fn<() => void>(),
         scheduledTime: Date.now(),
       },
-      env as AppEnv,
+      env,
       ctx,
     );
     await waitOnExecutionContext(ctx);
