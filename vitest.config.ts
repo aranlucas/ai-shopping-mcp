@@ -19,7 +19,11 @@ type TestMiniflare = NonNullable<TestOptions["miniflare"]>;
 
 const miniflare: TestMiniflare = {
   compatibilityDate: "2025-03-10",
-  compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
+  compatibilityFlags: [
+    "nodejs_compat",
+    "global_fetch_strictly_public",
+    "enable_ctx_exports",
+  ],
   kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
   d1Databases: ["SHOPPING_DB"],
   durableObjects: {

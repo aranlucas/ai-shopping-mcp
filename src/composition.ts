@@ -1,3 +1,4 @@
+import { exports } from "cloudflare:workers";
 import { z } from "zod/v4";
 import {
   McpServer,
@@ -84,7 +85,7 @@ export function buildServer(
   const { preferredLocation, pantry, equipment, orderHistory, shoppingList } =
     shoppingStore;
 
-  const cartJournal = env.CART_OPERATIONS.getByName(userId);
+  const cartJournal = exports.CartOperations.getByName(userId);
 
   const carts = createCartPersistence(
     env.USER_DATA_KV,

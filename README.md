@@ -84,7 +84,7 @@ Clients that require a local proxy can use `mcp-remote`:
 
 ## Production resources and data
 
-User shopping data is stored in D1 and scoped to the authenticated Kroger shopper. OAuth grants use `OAUTH_KV`; cart operations use the `CART_OPERATIONS` Durable Object; caches and compatibility receipts use `USER_DATA_KV`.
+User shopping data is stored in D1 and scoped to the authenticated Kroger shopper. OAuth grants use `OAUTH_KV`; cart operations use the `CartOperations` Durable Object through `ctx.exports`; caches and compatibility receipts use `USER_DATA_KV`.
 
 The schema is defined in [`src/db/schema.ts`](src/db/schema.ts). Apply local migrations with `pnpm db:migrate:local`; apply remote migrations before a Worker deployment with `pnpm db:migrate:remote`. Required production secrets are `KROGER_CLIENT_ID`, `KROGER_CLIENT_SECRET`, and `COOKIE_ENCRYPTION_KEY`. `SENTRY_DSN` is optional.
 
