@@ -40,7 +40,7 @@ flowchart LR
 
 ## Run locally
 
-Requires Node.js 24.18.1 or newer and pnpm 12.6. Wrangler runs the Worker locally; set Kroger client credentials in the ignored `.dev.vars` file before testing OAuth or shopping requests.
+Requires Node.js 24.18.1 or newer and pnpm 12.8. `cf dev` runs the Worker locally; set Kroger client credentials in the ignored `.dev.vars` file before testing OAuth or shopping requests.
 
 ```sh
 pnpm install
@@ -84,7 +84,7 @@ Clients that require a local proxy can use `mcp-remote`:
 
 ## Production resources and data
 
-User shopping data is stored in D1 and scoped to the authenticated Kroger shopper. OAuth grants use `OAUTH_KV`; cart operations use the `CART_OPERATIONS` Durable Object; caches and compatibility receipts use `USER_DATA_KV`.
+User shopping data is stored in D1 and scoped to the authenticated Kroger shopper. OAuth grants use `OAUTH_KV`; cart operations use the `CartOperations` Durable Object through `ctx.exports`; caches and compatibility receipts use `USER_DATA_KV`.
 
 The schema is defined in [`src/db/schema.ts`](src/db/schema.ts). Apply local migrations with `pnpm db:migrate:local`; apply remote migrations before a Worker deployment with `pnpm db:migrate:remote`. Required production secrets are `KROGER_CLIENT_ID`, `KROGER_CLIENT_SECRET`, and `COOKIE_ENCRYPTION_KEY`. `SENTRY_DSN` is optional.
 
@@ -344,7 +344,7 @@ items and add matched items to the pickup cart. The user completes the purchase 
 pnpm build
 pnpm test
 pnpm eval:mcp
-pnpm cf-typegen
+pnpm cf-typegen  # writes .cloudflare/types; typecheck and lint run it first
 ```
 
 `pnpm lint` runs both the standard rules and a focused type-aware pass via `oxlint-tsgolint`.

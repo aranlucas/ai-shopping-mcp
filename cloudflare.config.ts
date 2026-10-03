@@ -1,23 +1,28 @@
 import { bindings, defineConfig, exports, triggers } from "cf/config";
 
+import * as entrypoint from "./src/server" with { type: "cf-worker" };
+
 export default defineConfig({
-  worker: {
+  worker: ({ isPreview }) => ({
     exports: {
       MyMCP: exports.durableObject({ state: "deleted" }),
       CartOperations: exports.durableObject({ storage: "sqlite" }),
     },
     name: "ai-meal-planner-mcp",
     compatibilityDate: "2025-03-10",
-    compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
-    entrypoint: "src/server.ts",
+    compatibilityFlags: [
+      "nodejs_compat",
+      "global_fetch_strictly_public",
+      "enable_ctx_exports",
+    ],
+    entrypoint,
     observability: {
       enabled: true,
     },
-    triggers: [
-      triggers.scheduled({
-        schedule: "0 2 * * *",
-      }),
-    ],
+    // Worker Previews reject cron triggers.
+    ...(!isPreview && {
+      triggers: [triggers.scheduled({ schedule: "0 2 * * *" })],
+    }),
     env: {
       MCP_RESOURCE_URL: bindings.text(
         "https://ai-meal-planner-mcp.aranlucas.workers.dev",
@@ -32,10 +37,6 @@ export default defineConfig({
       USER_DATA_KV: bindings.kv({
         id: "d7f0b87afb2b49cdbab0ead481cef6ed",
       }),
-      CART_OPERATIONS: bindings.durableObject({
-        worker: "ai-meal-planner-mcp",
-        exportName: "CartOperations",
-      }),
       AI: bindings.ai({
         dev: {
           remote: true,
@@ -43,5 +44,5 @@ export default defineConfig({
       }),
       ASSETS: bindings.assets(),
     },
-  },
+  }),
 });

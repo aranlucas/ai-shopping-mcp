@@ -8,7 +8,10 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types"]
+    "types": [
+      "./.cloudflare/types/index.d.ts",
+      "@cloudflare/vitest-plugin/types"
+    ]
   },
   "exclude": ["views", "tools/oxlint/anti-slop"]
 }
