@@ -274,7 +274,7 @@ Found while building and running the agent eval. See
   and unexpected `STORAGE_ERROR`s with `Sentry.captureException`, tagged by tool,
   without user data.
 - **O2. Logs are unstructured strings.** Emit JSON (`{ tool, code, userHash,
-durationMs }`) so Workers Logs can be queried; hash the shopper id.
+  durationMs }`) so Workers Logs can be queried; hash the shopper id.
 - **O3. No metrics for Kroger quota use or AI Gateway cost.** Analytics Engine
   counters per tool would support S1 and D5.
 
