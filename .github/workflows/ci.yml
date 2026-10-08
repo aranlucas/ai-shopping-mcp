@@ -21,12 +21,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          install: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
           node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          cache: true
+          require-lockfile: true
       - run: pnpm lint
       - run: pnpm fmt:check
 
@@ -37,12 +34,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          install: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
           node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          cache: true
+          require-lockfile: true
       - name: Generate Worker types
         run: pnpm run cf-typegen
       - run: pnpm typecheck
@@ -54,11 +48,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          install: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
           node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          cache: true
+          require-lockfile: true
       - run: pnpm build:views
       - run: pnpm test
