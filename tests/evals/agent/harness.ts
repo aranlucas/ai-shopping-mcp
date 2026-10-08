@@ -10,7 +10,6 @@ import type { Client } from "@modelcontextprotocol/client";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { aiSdkHarness } from "@vitest-evals/harness-ai-sdk";
 import {
-  type GenerateTextResult,
   type Tool,
   type ToolSet,
   generateText,
@@ -190,7 +189,7 @@ export function shoppingAgentHarness(options: {
   return aiSdkHarness<
     unknown,
     AgentInput,
-    GenerateTextResult<ToolSet, never>,
+    Awaited<ReturnType<typeof generateText<ToolSet>>>,
     ToolSet,
     AgentOutput
   >({
