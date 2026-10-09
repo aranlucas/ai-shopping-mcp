@@ -48,7 +48,7 @@ pnpm db:migrate:local
 pnpm start
 ```
 
-The local Worker runs at `http://localhost:8788`. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html`.
+The local Worker runs at `https://ai-shopping-mcp.localhost` through [Portless](https://github.com/vercel-labs/portless) (a dev dependency); its first run may ask for `sudo` to bind port 443 and trust a local certificate. For authenticated local MCP testing, set `MCP_RESOURCE_URL="https://ai-shopping-mcp.localhost"` in `.dev.vars` and register `https://ai-shopping-mcp.localhost/callback` with your Kroger application. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html`.
 
 ```sh
 pnpm lint
@@ -321,7 +321,7 @@ For a client that still needs a local proxy:
 
 ## MCP App preview
 
-Run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html` to review the app with
+Run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html` to review the app with
 sample data and a simulated host. Switch between shopping lists, products, weekly deals,
 stale results, loading, empty, and error states. The **Fail actions** control exercises
 retry feedback; **Unknown cart outcome** simulates a lost cart confirmation to verify
