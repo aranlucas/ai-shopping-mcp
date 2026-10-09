@@ -1,10 +1,10 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -14,39 +14,30 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint:
-    name: Lint
+  ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          cache: true
-          require-lockfile: true
-      - run: pnpm lint
-      - run: pnpm fmt:check
+          persist-credentials: false
 
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      - name: Set up pnpm, Node.js, and dependencies
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
           cache: true
           require-lockfile: true
+
       - name: Generate Worker types
-        run: pnpm run cf-typegen
-      - run: pnpm typecheck
+        run: pnpm cf-typegen
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
-        with:
-          cache: true
-          require-lockfile: true
-      - run: pnpm build:views
-      - run: pnpm test
+      - parallel:
+          - name: Lint
+            run: pnpm exec oxlint && pnpm exec oxlint -c .oxlintrc.type-aware.json && pnpm fmt:check
+
+          - name: Typecheck
+            run: pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p views/tsconfig.json
+
+          - name: Test
+            run: pnpm build:views && pnpm test
