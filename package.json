@@ -18,8 +18,8 @@
     "test:selector:live": "node scripts/test-selector-live.mjs",
     "deploy": "pnpm build:worker && cf deploy --prebuilt",
     "deploy:preview": "pnpm build:views && cf previews deploy",
-    "dev": "portless",
-    "start": "cf dev",
+    "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
+    "start": "portless run --name ai-shopping-mcp cf dev",
     "cf-typegen": "cf workers types",
     "lint": "oxlint && pnpm lint:types",
     "lint:types": "pnpm cf-typegen && oxlint -c .oxlintrc.type-aware.json",
@@ -37,9 +37,7 @@
     "eval:selector:live": "node scripts/eval-selector-live.mjs",
     "eval:agent-selector:live": "node scripts/eval-agent-selector-live.mjs",
     "build:worker": "pnpm build:views && cf build",
-    "eval:agent:report": "vitest-evals serve eval-results",
-    "dev:direct": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
-    "dev:views:direct": "vite --host 127.0.0.1"
+    "eval:agent:report": "vitest-evals serve eval-results"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -96,9 +94,5 @@
   "engines": {
     "node": ">=24.18.1"
   },
-  "packageManager": "pnpm@12.10.1",
-  "portless": {
-    "name": "ai-shopping-mcp",
-    "script": "dev:direct"
-  }
+  "packageManager": "pnpm@12.10.1"
 }

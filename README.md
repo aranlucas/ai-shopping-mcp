@@ -45,10 +45,11 @@ Requires Node.js 24.18.1 or newer and pnpm 12.8. `cf dev` runs the Worker locall
 ```sh
 pnpm install
 pnpm db:migrate:local
+npm install -g portless@0.15.7
 pnpm start
 ```
 
-The local Worker runs at `https://ai-shopping-mcp.localhost` with the default Portless settings. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html`.
+The local Worker runs at `https://ai-shopping-mcp.localhost` with the default Portless settings. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html`.
 
 ```sh
 pnpm lint
@@ -70,9 +71,9 @@ pnpm dev
 pnpm dev:views
 ```
 
-| Surface | Default local URL |
-| --- | --- |
-| Worker / MCP endpoint | <https://ai-shopping-mcp.localhost/mcp> |
+| Surface                | Default local URL                                      |
+| ---------------------- | ------------------------------------------------------ |
+| Worker / MCP endpoint  | <https://ai-shopping-mcp.localhost/mcp>                |
 | MCP App sample preview | <https://views.ai-shopping-mcp.localhost/preview.html> |
 
 The Worker command runs the existing development watcher and `cf dev` together.
@@ -93,9 +94,8 @@ must be verified with those credentials; the sample preview needs no login.
 Run the first launch in an interactive terminal. Default HTTPS setup may ask to
 trust a local certificate authority and request administrator access for port 443
 and local hostname entries. `portless list` shows active routes and
-`portless doctor` checks connection and certificate problems. Use `pnpm dev:direct`,
-`pnpm start`, or `pnpm dev:views:direct` for their localhost workflows; restore
-the corresponding local `MCP_RESOURCE_URL` when changing the Worker origin.
+`portless doctor` checks connection and certificate problems. Update the local
+`MCP_RESOURCE_URL` and callback registration when changing the Worker origin.
 
 ## Connect an MCP client
 
@@ -361,7 +361,7 @@ For a client that still needs a local proxy:
 
 ## MCP App preview
 
-Run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html` to review the app with
+Run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html` to review the app with
 sample data and a simulated host. Switch between shopping lists, products, weekly deals,
 stale results, loading, empty, and error states. The **Fail actions** control exercises
 retry feedback; **Unknown cart outcome** simulates a lost cart confirmation to verify
