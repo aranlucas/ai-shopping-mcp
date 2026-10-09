@@ -48,7 +48,7 @@ pnpm db:migrate:local
 pnpm start
 ```
 
-The local Worker runs at `http://localhost:8788`. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html`.
+The local Worker runs at `https://ai-shopping-mcp.localhost` with the default Portless settings. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `http://127.0.0.1:5173/preview.html`.
 
 ```sh
 pnpm lint
@@ -57,7 +57,7 @@ pnpm test
 pnpm build
 ```
 
-### Named local URLs with Portless (optional)
+### Named local URLs with Portless
 
 After the normal dependency, local database, and `.dev.vars` setup, install
 [Portless](https://github.com/vercel-labs/portless/tree/v0.15.7) once using the
@@ -65,9 +65,9 @@ project's Node.js 24.18.1+ runtime:
 
 ```sh
 npm install -g portless@0.15.7
-pnpm dev:portless
+pnpm dev
 # In another terminal, preview the MCP App with sample data:
-pnpm dev:views:portless
+pnpm dev:views
 ```
 
 | Surface | Default local URL |
@@ -93,8 +93,8 @@ must be verified with those credentials; the sample preview needs no login.
 Run the first launch in an interactive terminal. Default HTTPS setup may ask to
 trust a local certificate authority and request administrator access for port 443
 and local hostname entries. `portless list` shows active routes and
-`portless doctor` checks connection and certificate problems. Use `pnpm dev`,
-`pnpm start`, or `pnpm dev:views` for their original localhost workflows; restore
+`portless doctor` checks connection and certificate problems. Use `pnpm dev:direct`,
+`pnpm start`, or `pnpm dev:views:direct` for their localhost workflows; restore
 the corresponding local `MCP_RESOURCE_URL` when changing the Worker origin.
 
 ## Connect an MCP client

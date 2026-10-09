@@ -4,11 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:portless": "portless",
-    "dev:views:portless": "portless run --name views.ai-shopping-mcp vite --host 127.0.0.1",
     "build": "pnpm lint && pnpm build:views && pnpm typecheck",
     "build:views": "vite build",
-    "dev:views": "vite --host 127.0.0.1",
+    "dev:views": "portless run --name views.ai-shopping-mcp vite --host 127.0.0.1",
     "watch": "NODE_ENV=development vite build --watch",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
@@ -20,7 +18,7 @@
     "test:selector:live": "node scripts/test-selector-live.mjs",
     "deploy": "pnpm build:worker && cf deploy --prebuilt",
     "deploy:preview": "pnpm build:views && cf previews deploy",
-    "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
+    "dev": "portless",
     "start": "cf dev",
     "cf-typegen": "cf workers types",
     "lint": "oxlint && pnpm lint:types",
@@ -39,7 +37,9 @@
     "eval:selector:live": "node scripts/eval-selector-live.mjs",
     "eval:agent-selector:live": "node scripts/eval-agent-selector-live.mjs",
     "build:worker": "pnpm build:views && cf build",
-    "eval:agent:report": "vitest-evals serve eval-results"
+    "eval:agent:report": "vitest-evals serve eval-results",
+    "dev:direct": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
+    "dev:views:direct": "vite --host 127.0.0.1"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -99,6 +99,6 @@
   "packageManager": "pnpm@12.10.1",
   "portless": {
     "name": "ai-shopping-mcp",
-    "script": "dev"
+    "script": "dev:direct"
   }
 }
