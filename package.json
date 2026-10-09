@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev:portless": "portless",
+    "dev:views:portless": "portless run --name views.ai-shopping-mcp vite --host 127.0.0.1",
     "build": "pnpm lint && pnpm build:views && pnpm typecheck",
     "build:views": "vite build",
     "dev:views": "vite --host 127.0.0.1",
@@ -94,5 +96,9 @@
   "engines": {
     "node": ">=24.18.1"
   },
-  "packageManager": "pnpm@12.10.1"
+  "packageManager": "pnpm@12.10.1",
+  "portless": {
+    "name": "ai-shopping-mcp",
+    "script": "dev"
+  }
 }

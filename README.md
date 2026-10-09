@@ -57,6 +57,46 @@ pnpm test
 pnpm build
 ```
 
+### Named local URLs with Portless (optional)
+
+After the normal dependency, local database, and `.dev.vars` setup, install
+[Portless](https://github.com/vercel-labs/portless/tree/v0.15.7) once using the
+project's Node.js 24.18.1+ runtime:
+
+```sh
+npm install -g portless@0.15.7
+pnpm dev:portless
+# In another terminal, preview the MCP App with sample data:
+pnpm dev:views:portless
+```
+
+| Surface | Default local URL |
+| --- | --- |
+| Worker / MCP endpoint | <https://ai-shopping-mcp.localhost/mcp> |
+| MCP App sample preview | <https://views.ai-shopping-mcp.localhost/preview.html> |
+
+The Worker command runs the existing development watcher and `cf dev` together.
+Wrangler reads Portless's assigned `PORT`; its development host and upstream
+protocol follow `PORTLESS_URL`, so request-derived OAuth callbacks use the public
+local origin. Vite receives a separate available port for the sample preview.
+Linked Git worktrees receive a branch prefix. Always use the exact printed URLs;
+the proxy remembers custom ports and domains from earlier runs.
+
+For authenticated local MCP testing, set `MCP_RESOURCE_URL` in the ignored
+`.dev.vars` file to the Worker origin (for example,
+`MCP_RESOURCE_URL="https://ai-shopping-mcp.localhost"`, without `/mcp`). Register
+`https://ai-shopping-mcp.localhost/callback` with the Kroger application used for
+your local credentials. A worktree or custom proxy origin needs matching values
+and its own registered callback. Provider approval and real-account OAuth flows
+must be verified with those credentials; the sample preview needs no login.
+
+Run the first launch in an interactive terminal. Default HTTPS setup may ask to
+trust a local certificate authority and request administrator access for port 443
+and local hostname entries. `portless list` shows active routes and
+`portless doctor` checks connection and certificate problems. Use `pnpm dev`,
+`pnpm start`, or `pnpm dev:views` for their original localhost workflows; restore
+the corresponding local `MCP_RESOURCE_URL` when changing the Worker origin.
+
 ## Connect an MCP client
 
 The deployed service accepts remote MCP connections at:
