@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
@@ -24,6 +25,15 @@ const miniflare: TestMiniflare = {
     "global_fetch_strictly_public",
     "enable_ctx_exports",
   ],
+  serviceBindings: { AUTH: { name: "auth-stub", entrypoint: "KrogerTokens" } },
+  workers: [
+    {
+      name: "auth-stub",
+      modules: true,
+      script: readFileSync("tests/auth-stub.mjs", "utf8"),
+      compatibilityDate: "2025-03-10",
+    },
+  ],
   kvNamespaces: ["USER_DATA_KV"],
   d1Databases: ["SHOPPING_DB"],
   durableObjects: {
@@ -32,7 +42,6 @@ const miniflare: TestMiniflare = {
       useSQLite: true,
     },
     KROGER_CONNECTIONS: { className: "KrogerConnections", useSQLite: true },
-    LOGIN_TRANSACTIONS: { className: "LoginTransactions", useSQLite: true },
   },
   // Miniflare's WorkerOptions expose plain variables through
   // `bindings`, not `vars` (which is wrangler-config syntax). Using
@@ -40,12 +49,8 @@ const miniflare: TestMiniflare = {
   // `bindings` to be available in tests (e.g. in CI, where the
   // gitignored .dev.vars file does not exist).
   bindings: {
-    KROGER_CLIENT_ID: "test-kroger-client-id",
-    KROGER_CLIENT_SECRET: "test-kroger-client-secret",
     BETTER_AUTH_ISSUER: "https://auth.example/api/auth",
     BETTER_AUTH_JWKS_URL: "https://auth.example/api/auth/jwks",
-    BETTER_AUTH_CLIENT_ID: "shopping-browser",
-    BETTER_AUTH_CLIENT_SECRET: "test-browser-secret",
     MCP_RESOURCE_URL: "https://example.com/mcp",
     MCP_ALLOWED_ORIGINS: '["https://client.example"]',
 
@@ -60,6 +65,7 @@ const miniflare: TestMiniflare = {
 
 if (process.env.EVAL_CODEX_PORT) {
   miniflare.serviceBindings = {
+    ...miniflare.serviceBindings,
     EVAL_CODEX_DRIVER: {
       external: {
         address: `127.0.0.1:${process.env.EVAL_CODEX_PORT}`,

@@ -70,6 +70,7 @@ async function connectClient(token: string) {
 describe("Better Auth resource server", () => {
   beforeEach(async () => {
     await reset();
+    await env.AUTH.fetch("https://auth-stub/reset");
     const jwks = await fixtureJwks();
     vi.stubGlobal(
       "fetch",
@@ -169,6 +170,7 @@ describe("Better Auth resource server", () => {
   it.each([appOrigin, "https://client.example"])(
     "allows approved browser origin %s through the authenticated MCP transport",
     async (origin) => {
+      await seedKrogerConnection();
       const request = mcpRequest(await fixtureToken());
       request.headers.set("Origin", origin);
       const response = await SELF.fetch(request);
@@ -188,6 +190,8 @@ describe("Better Auth resource server", () => {
   });
 
   it("rejects legacy initialization instead of accepting a compatibility session", async () => {
+    await seedKrogerConnection();
+
     const response = await SELF.fetch(
       new Request(env.MCP_RESOURCE_URL, {
         method: "POST",
@@ -215,6 +219,9 @@ describe("Better Auth resource server", () => {
   });
 
   it.each([
+    "/connect/kroger",
+    "/auth/callback",
+    "/callback",
     "/authorize",
     "/register",
     "/token",
@@ -310,12 +317,34 @@ describe("Better Auth resource server", () => {
     expect(JSON.stringify(validated)).not.toContain("kroger-access-token");
   });
 
-  it("only exposes the connection tool before Kroger is linked", async () => {
+  it("challenges users to sign in again when Kroger is not linked", async () => {
     const response = await SELF.fetch(mcpRequest(await fixtureToken()));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      result: { tools: [{ name: "connect_kroger" }] },
+    expect(response.status).toBe(401);
+    expect(response.headers.get("WWW-Authenticate")).toContain(
+      "resource_metadata",
+    );
+  });
+
+  it("returns a service error without a re-login challenge when Auth RPC is unavailable", async () => {
+    await env.AUTH.fetch("https://auth-stub/fail");
+    const response = await SELF.fetch(mcpRequest(await fixtureToken()));
+    expect(response.status).toBe(503);
+    expect(response.headers.get("WWW-Authenticate")).toBeNull();
+  });
+
+  it("requires re-login after an existing Kroger link is removed", async () => {
+    await seedKrogerConnection();
+    const token = await fixtureToken();
+    expect((await SELF.fetch(mcpRequest(token))).status).toBe(200);
+    await env.AUTH.fetch("https://auth-stub/seed", {
+      method: "POST",
+      body: JSON.stringify({ userId: "auth-user", token: null }),
     });
+    const response = await SELF.fetch(mcpRequest(token));
+    expect(response.status).toBe(401);
+    expect(response.headers.get("WWW-Authenticate")).toContain(
+      "resource_metadata",
+    );
   });
 
   it("passes the verified OAuth client and shopping user into the MCP context", async () => {
@@ -378,13 +407,11 @@ describe("Better Auth resource server", () => {
     ).toBeFalsy();
     await client.close();
     const other = await SELF.fetch(mcpRequest(await fixtureToken("subject-b")));
-    expect(await other.json()).toMatchObject({
-      result: { tools: [{ name: "connect_kroger" }] },
-    });
+    expect(other.status).toBe(401);
     expect(
       await exports.KrogerConnections.getByName(
         authIdentity(env.BETTER_AUTH_ISSUER, "subject-b").id,
-      ).getToken(),
+      ).getToken("subject-b"),
     ).toEqual({ status: "not_connected" });
   });
 });

@@ -1,124 +1,91 @@
-import { env } from "cloudflare:test";
+import { env, reset } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { authIdentity } from "../src/services/better-auth.js";
+import { seedKrogerConnection } from "./better-auth-fixture.js";
 
-describe("Kroger credential ownership", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+describe("Auth-owned Kroger credentials", () => {
+  beforeEach(async () => {
+    await reset();
+    await env.AUTH.fetch("https://auth-stub/reset");
   });
 
-  it("serializes refresh, persists the rotated token, and never returns the refresh credential", async () => {
-    const connection = exports.KrogerConnections.getByName(crypto.randomUUID());
-    await connection.saveConnection({
-      krogerId: "shopper",
-      accessToken: "expired",
-      refreshToken: "single-use",
-      tokenExpiresAt: Date.now() + 1000,
-    });
-
-    const upstream = vi.fn<() => Promise<Response>>(async () =>
-      Response.json({
-        access_token: "fresh",
-        refresh_token: "rotated",
-        expires_in: 1800,
-      }),
-    );
-
-    vi.stubGlobal("fetch", upstream);
+  it("serializes RPC calls for a user and maps Auth's expiry without returning refresh credentials", async () => {
+    const identity = await seedKrogerConnection("shopper");
+    const connection = exports.KrogerConnections.getByName(identity.id);
 
     const results = await Promise.all(
-      Array.from({ length: 8 }, () => connection.getToken()),
+      Array.from({ length: 8 }, () => connection.getToken(identity.subject)),
     );
-
-    expect(upstream).toHaveBeenCalledTimes(1);
 
     for (const result of results) {
       expect(result).toMatchObject({
         status: "connected",
-        token: { accessToken: "fresh" },
+        token: {
+          accessToken: "kroger-access-token",
+          tokenExpiresAt: expect.any(Number),
+        },
       });
-      expect(JSON.stringify(result)).not.toContain("rotated");
+      expect(JSON.stringify(result)).not.toContain("refreshToken");
     }
 
-    await connection.getToken();
-    expect(upstream).toHaveBeenCalledTimes(1);
+    expect(
+      await (await env.AUTH.fetch("https://auth-stub/stats")).json(),
+    ).toEqual({
+      maxActive: 1,
+      calls: Array(8).fill("shopper"),
+    });
   });
 
-  it.each(["network", "missing_rotation", "invalid_grant"])(
-    "does not reuse a refresh token after %s",
-    async (failure) => {
-      const connection = exports.KrogerConnections.getByName(
-        crypto.randomUUID(),
-      );
+  it("observes unlinking on the next request and never serves cached credentials", async () => {
+    const identity = await seedKrogerConnection("shopper");
+    const connection = exports.KrogerConnections.getByName(identity.id);
+    expect(await connection.getToken("shopper")).toMatchObject({
+      status: "connected",
+    });
+    await env.AUTH.fetch("https://auth-stub/seed", {
+      method: "POST",
+      body: JSON.stringify({ userId: "shopper", token: null }),
+    });
+    expect(await connection.getToken("shopper")).toEqual({
+      status: "not_connected",
+    });
+  });
 
-      await connection.saveConnection({
-        krogerId: "shopper",
-        accessToken: "expired",
-        refreshToken: "single-use",
-        tokenExpiresAt: Date.now() + 1000,
-      });
+  it("isolates Auth subjects", async () => {
+    await seedKrogerConnection("shopper-a");
+    const identity = authIdentity(env.BETTER_AUTH_ISSUER, "shopper-b");
+    expect(
+      await exports.KrogerConnections.getByName(identity.id).getToken(
+        identity.subject,
+      ),
+    ).toEqual({ status: "not_connected" });
+  });
 
-      const upstream = vi.fn<() => Promise<Response>>(async () => {
-        if (failure === "network") throw new Error("Ambiguous network failure");
+  it("propagates Auth outages instead of treating them as an unlinked account", async () => {
+    const identity = authIdentity(env.BETTER_AUTH_ISSUER, "shopper");
+    const connection = exports.KrogerConnections.getByName(identity.id);
 
-        return failure === "missing_rotation"
-          ? Response.json({ access_token: "new", expires_in: 1800 })
-          : Response.json({ error: "invalid_grant" }, { status: 400 });
-      });
+    await env.AUTH.fetch("https://auth-stub/fail");
+    // Convert the RPC thenable to a native Promise before Vitest attaches rejection handlers.
+    await expect(
+      Promise.resolve(connection.getToken("shopper")),
+    ).rejects.toThrow("Auth service unavailable");
+    await env.AUTH.fetch("https://auth-stub/reset");
+    await seedKrogerConnection("shopper");
+    expect(await connection.getToken("shopper")).toMatchObject({
+      status: "connected",
+    });
+  });
 
-      vi.stubGlobal("fetch", upstream);
-      expect(await connection.getToken()).toEqual({
-        status: "reconnect_required",
-      });
-      expect(await connection.getToken()).toEqual({
-        status: "reconnect_required",
-      });
-      expect(upstream).toHaveBeenCalledTimes(1);
-      expect(
-        await connection.saveConnection({
-          krogerId: "other-shopper",
-          accessToken: "other",
-          refreshToken: "other",
-          tokenExpiresAt: Date.now() + 1_800_000,
-        }),
-      ).toBe(false);
-      expect(
-        await connection.saveConnection({
-          krogerId: "shopper",
-          accessToken: "reconnected",
-          refreshToken: "next",
-          tokenExpiresAt: Date.now() + 1_800_000,
-        }),
-      ).toBe(true);
-      expect(await connection.getToken()).toMatchObject({
-        status: "connected",
-        token: { accessToken: "reconnected" },
-      });
-    },
-  );
-
-  it("consumes browser redirect state once and only with the correct binding", async () => {
-    const state = exports.LoginTransactions.getByName(crypto.randomUUID());
-
-    const data = {
-      type: "auth" as const,
-      issuer: env.BETTER_AUTH_ISSUER,
-      issuerParameterSupported: true,
-      verifier: "verifier",
-      nonce: "nonce",
-      redirectUri: "https://example.com/auth/callback",
-    };
-
-    await state.begin(data, "browser-binding");
-    expect(await state.consume("other-browser")).toBeNull();
-
-    const consumed = await Promise.all([
-      state.consume("browser-binding"),
-      state.consume("browser-binding"),
-    ]);
-
-    expect(consumed.filter(Boolean)).toEqual([data]);
-    expect(await state.consume("browser-binding")).toBeNull();
+  it("rejects an expired token returned by Auth", async () => {
+    const identity = await seedKrogerConnection("shopper", Date.now() - 1000);
+    await expect(
+      Promise.resolve(
+        exports.KrogerConnections.getByName(identity.id).getToken(
+          identity.subject,
+        ),
+      ),
+    ).rejects.toThrow("expired Kroger token");
   });
 });

@@ -1,9 +1,6 @@
 import * as Sentry from "@sentry/cloudflare";
 import { exports } from "cloudflare:workers";
-import {
-  McpServer,
-  hostHeaderValidationResponse,
-} from "@modelcontextprotocol/server";
+import { hostHeaderValidationResponse } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
 import {
@@ -14,21 +11,17 @@ import { parseAccessTokenAuthorization } from "better-auth/oauth2";
 import { APIError } from "better-call";
 
 import type { AppEnv } from "./env.js";
-import { buildServer, SERVER_INFO } from "./composition.js";
+import { buildServer } from "./composition.js";
 import {
   authSettings,
   accessTokenOptions,
   shoppingIdentity,
   mcpSettings,
 } from "./services/better-auth.js";
-import { KrogerWorker } from "./kroger-handler.js";
-import { registerConnectKroger } from "./tools/connect-kroger.js";
 
 export { CartOperations } from "./cart-operations.js";
 
 export { KrogerConnections } from "./kroger-connections.js";
-
-export { LoginTransactions } from "./login-transactions.js";
 
 function invalidIdentity(resource: string) {
   const challenge = createResourceServerChallenge(
@@ -76,33 +69,16 @@ async function mcpApiHandler(
 
       const connection = await exports.KrogerConnections.getByName(
         identity.props.id,
-      ).getToken();
+      ).getToken(identity.props.subject);
 
-      const props = {
-        id: identity.props.id,
-        ...(connection.status === "connected" ? connection.token : undefined),
-      };
+      if (connection.status !== "connected")
+        return invalidIdentity(env.MCP_RESOURCE_URL);
+
+      const props = { id: identity.props.id, ...connection.token };
 
       const handler = createMcpHandler(
-        (requestContext) => {
-          const server =
-            connection.status === "connected"
-              ? buildServer(env, requestContext, (promise) =>
-                  ctx.waitUntil(promise),
-                )
-              : new McpServer(SERVER_INFO, {
-                  instructions:
-                    "The user must connect Kroger before shopping. Call connect_kroger and ask them to open the returned URL, then retry after they finish.",
-                });
-
-          registerConnectKroger(
-            server,
-            env.MCP_RESOURCE_URL,
-            connection.status,
-          );
-
-          return server;
-        },
+        (requestContext) =>
+          buildServer(env, requestContext, (promise) => ctx.waitUntil(promise)),
         {
           route: "/mcp",
           authContext: { props },
@@ -204,7 +180,12 @@ export async function handleRequest(
     );
   }
 
-  return KrogerWorker.fetch(request, env, ctx);
+  if (path === "/")
+    return new Response(
+      "Shopping MCP: connect your AI client to /mcp and sign in to link Kroger.",
+    );
+
+  return new Response("Not found", { status: 404 });
 }
 
 export default Sentry.withSentry(

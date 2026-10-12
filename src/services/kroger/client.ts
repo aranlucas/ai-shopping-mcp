@@ -1,4 +1,3 @@
-import { ResultAsync, err, ok } from "neverthrow";
 import createClient, { type Middleware } from "openapi-fetch";
 import { requestTimeoutMiddleware } from "../../utils/request-timeout.js";
 import { fetchWithReadRetry } from "../../utils/fetch.js";
@@ -10,125 +9,12 @@ import type { paths as IdentityPaths } from "./identity.js";
 import type { paths as LocationPaths } from "./location.js";
 import type { paths as ProductPaths } from "./product.js";
 
-import { type AppError, apiError, networkError } from "../../errors.js";
 import { safeJsonParseWithSchema } from "../../utils/json.js";
 import { safeStorage } from "../../utils/result.js";
 
 export interface KrogerTokenInfo {
   accessToken: string;
   tokenExpiresAt: number;
-}
-
-export interface KrogerTokenRefreshResult {
-  accessToken: string;
-  refreshToken?: string;
-  tokenExpiresAt: number;
-  expiresIn: number;
-}
-
-/** Raw response shape from Kroger's OAuth token endpoint */
-export interface KrogerTokenResponse {
-  access_token?: string;
-  refresh_token?: string;
-  expires_in?: number;
-  token_type?: string;
-  error?: string;
-  error_description?: string;
-}
-
-export const krogerTokenResponseSchema = z.looseObject({
-  access_token: z.string().optional(),
-  refresh_token: z.string().optional(),
-  expires_in: z.number().optional(),
-  token_type: z.string().optional(),
-  error: z.string().optional(),
-  error_description: z.string().optional(),
-}) satisfies z.ZodType<KrogerTokenResponse>;
-
-/**
- * Refreshes a Kroger access token using a refresh token.
- * Returns ResultAsync instead of throwing for consistent error handling.
- */
-export function refreshKrogerToken(
-  refreshToken: string,
-  krogerClientId: string,
-  krogerClientSecret: string,
-): ResultAsync<KrogerTokenRefreshResult, AppError> {
-  const refreshBody = new URLSearchParams({
-    grant_type: "refresh_token",
-    refresh_token: refreshToken,
-  });
-
-  return ResultAsync.fromPromise(
-    fetch("https://api.kroger.com/v1/connect/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${btoa(`${krogerClientId}:${krogerClientSecret}`)}`,
-      },
-      body: refreshBody.toString(),
-      signal: AbortSignal.timeout(10_000),
-    }),
-    (e) =>
-      networkError(
-        `Token refresh network error: ${e instanceof Error ? e.message : String(e)}`,
-        e,
-      ),
-  ).andThen((refreshResponse) =>
-    ResultAsync.fromPromise(
-      refreshResponse
-        .json()
-        .then((value) => krogerTokenResponseSchema.parse(value)),
-      (e) =>
-        networkError(
-          `Failed to parse token refresh response: ${e instanceof Error ? e.message : String(e)}`,
-          e,
-        ),
-    ).andThen((responseData) => {
-      if (!refreshResponse.ok) {
-        console.error("Failed to refresh Kroger access token:", {
-          status: refreshResponse.status,
-          statusText: refreshResponse.statusText,
-          error: responseData.error,
-          errorDescription: responseData.error_description,
-        });
-
-        return err(
-          apiError(
-            `Failed to refresh Kroger access token: ${responseData.error_description || responseData.error || "Unknown error"}`,
-            responseData,
-            refreshResponse.status,
-          ),
-        );
-      }
-
-      if (!responseData.access_token) {
-        return err(
-          apiError("Invalid response from Kroger token refresh endpoint"),
-        );
-      }
-
-      const expiresIn = responseData.expires_in || 1800;
-
-      return ok({
-        accessToken: responseData.access_token,
-        refreshToken: responseData.refresh_token,
-        tokenExpiresAt: Date.now() + expiresIn * 1000,
-        expiresIn,
-      });
-    }),
-  );
-}
-
-/**
- * Checks if a Kroger token needs to be refreshed.
- * Returns true if the token will expire within the buffer time.
- */
-export function isKrogerTokenExpiring(
-  tokenExpiresAt: number,
-  bufferTimeMs: number = 5 * 60 * 1000, // 5 minutes default
-): boolean {
-  return Date.now() + bufferTimeMs >= tokenExpiresAt;
 }
 
 export class KrogerTokenExpiredError extends Error {
@@ -139,11 +25,11 @@ export class KrogerTokenExpiredError extends Error {
 }
 
 const REAUTH_MSG =
-  "Please call connect_kroger and open its URL to reconnect Kroger.";
+  "Please sign in to your MCP client again to reconnect Kroger.";
 
 /**
  * Middleware that adds Kroger Bearer tokens to requests.
- * Refresh is owned by KrogerConnections before the request is built, so runtime
+ * Auth owns refresh; KrogerConnections serializes token requests before the request is built, so runtime
  * API calls cannot race Kroger's single-use refresh tokens.
  */
 export function createKrogerAuthMiddleware(
@@ -159,7 +45,7 @@ export function createKrogerAuthMiddleware(
         );
       }
 
-      // 1-minute clock skew buffer (vs 5-minute proactive refresh in KrogerConnections)
+      // Allow one minute of clock skew.
       if (Date.now() - 60_000 >= tokenInfo.tokenExpiresAt) {
         throw new KrogerTokenExpiredError(
           `Kroger access token has expired. ${REAUTH_MSG}`,
