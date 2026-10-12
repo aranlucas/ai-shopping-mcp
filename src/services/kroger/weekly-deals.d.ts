@@ -12,7 +12,7 @@ export interface Circular {
   circularType: string;
   tags: string[];
   description: string;
-  locationId: string;
+  locationId?: string;
 }
 
 export interface CircularsResponse {
