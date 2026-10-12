@@ -67,7 +67,7 @@ export function refreshKrogerToken(
         Authorization: `Basic ${btoa(`${krogerClientId}:${krogerClientSecret}`)}`,
       },
       body: refreshBody.toString(),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(10_000),
     }),
     (e) =>
       networkError(
@@ -138,12 +138,13 @@ export class KrogerTokenExpiredError extends Error {
   }
 }
 
-const REAUTH_MSG = "Please reconnect to the MCP server to re-authenticate.";
+const REAUTH_MSG =
+  "Please call connect_kroger and open its URL to reconnect Kroger.";
 
 /**
  * Middleware that adds Kroger Bearer tokens to requests.
- * Does NOT refresh tokens — that's handled exclusively by tokenExchangeCallback
- * to avoid conflicts with Kroger's single-use refresh tokens.
+ * Refresh is owned by KrogerConnections before the request is built, so runtime
+ * API calls cannot race Kroger's single-use refresh tokens.
  */
 export function createKrogerAuthMiddleware(
   getTokenInfo: () => KrogerTokenInfo | null,
@@ -158,7 +159,7 @@ export function createKrogerAuthMiddleware(
         );
       }
 
-      // 1-minute clock skew buffer (vs 5-minute proactive refresh in tokenExchangeCallback)
+      // 1-minute clock skew buffer (vs 5-minute proactive refresh in KrogerConnections)
       if (Date.now() - 60_000 >= tokenInfo.tokenExpiresAt) {
         throw new KrogerTokenExpiredError(
           `Kroger access token has expired. ${REAUTH_MSG}`,

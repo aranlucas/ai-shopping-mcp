@@ -119,8 +119,8 @@ export function fromApiResponse<T>(
 /**
  * Returns the auth props for the current MCP request.
  *
- * `OAuthProvider` gates every `/mcp` request (see `server.ts` `apiHandlers`),
- * so `props` is always populated by the time a tool or resource handler runs.
+ * Better Auth validates the resource token, then the MCP handler
+ * resolves Kroger credentials before registering shopping tools.
  * The non-null return type expresses that invariant in the type system instead
  * of re-checking it at every call site.
  *

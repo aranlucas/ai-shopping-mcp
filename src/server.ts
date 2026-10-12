@@ -1,255 +1,223 @@
-import { z } from "zod/v4";
-import {
-  GrantType,
-  OAuthError,
-  OAuthProvider,
-} from "@cloudflare/workers-oauth-provider";
 import * as Sentry from "@sentry/cloudflare";
+import { exports } from "cloudflare:workers";
+import {
+  McpServer,
+  hostHeaderValidationResponse,
+} from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
-import { WorkerEntrypoint, env as workerEnv } from "cloudflare:workers";
+import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
+import {
+  createResourceServerChallenge,
+  metadataResponse,
+} from "@better-auth/oauth-provider";
+import { parseAccessTokenAuthorization } from "better-auth/oauth2";
+import { APIError } from "better-call";
 
 import type { AppEnv } from "./env.js";
-import type { Props } from "./tools/types.js";
-
-import { buildServer } from "./composition.js";
-import { KrogerWorker } from "./kroger-handler.js";
+import { buildServer, SERVER_INFO } from "./composition.js";
 import {
-  isKrogerTokenExpiring,
-  refreshKrogerToken,
-} from "./services/kroger/client.js";
-import { isVerifiedShopperId } from "./utils/shopper-identity.js";
+  authSettings,
+  accessTokenOptions,
+  shoppingIdentity,
+  mcpSettings,
+} from "./services/better-auth.js";
+import { KrogerWorker } from "./kroger-handler.js";
+import { registerConnectKroger } from "./tools/connect-kroger.js";
 
 export { CartOperations } from "./cart-operations.js";
 
-/**
- * Stateless MCP API handler.
- *
- * The SDK v2 factory creates a fresh server for every request and serves both
- * the modern protocol and the built-in stateless legacy compatibility lane.
- */
-const mcpApiHandler = {
-  async fetch(
-    request: Request,
-    env: AppEnv,
-    ctx: ExecutionContext,
-  ): Promise<Response> {
-    const handler = createMcpHandler(
-      (requestContext) =>
-        buildServer(env, requestContext, (promise) => ctx.waitUntil(promise)),
-      {
-        route: "/mcp",
-      },
-    );
+export { KrogerConnections } from "./kroger-connections.js";
 
-    return handler(request, env, ctx);
-  },
-};
+export { LoginTransactions } from "./login-transactions.js";
 
-class UserInfoHandler extends WorkerEntrypoint<AppEnv, Props> {
-  fetch() {
-    if (!isVerifiedShopperId(this.ctx.props.id))
-      return Response.json({ error: "invalid_token" }, { status: 401 });
+function invalidIdentity(resource: string) {
+  const challenge = createResourceServerChallenge(
+    new APIError("UNAUTHORIZED", { message: "Invalid shopping identity" }),
+    resource,
+    { challengeScopes: ["mcp:tools"] },
+  );
 
-    return Response.json({
-      sub: this.ctx.props.id,
-      id: this.ctx.props.id,
-    });
-  }
+  if (!challenge) throw new Error("Unable to build authentication challenge");
+
+  return Response.json(
+    {
+      jsonrpc: "2.0",
+      error: { code: -32000, message: challenge.message },
+      id: null,
+    },
+    { status: challenge.statusCode, headers: challenge.headers },
+  );
 }
 
-const grantPropsFieldsSchema = z.looseObject({
-  id: z.string().refine(isVerifiedShopperId),
-  accessToken: z.string().optional(),
-  tokenExpiresAt: z
-    .union([z.number(), z.nan(), z.literal(Infinity), z.literal(-Infinity)])
-    .optional(),
-  refreshToken: z.string().optional(),
-  krogerClientId: z.string().optional(),
-  krogerClientSecret: z.string().optional(),
-});
+async function mcpApiHandler(
+  request: Request,
+  env: AppEnv,
+  ctx: ExecutionContext,
+) {
+  const options = accessTokenOptions(env, env.MCP_RESOURCE_URL);
 
-// Validation must not clone/drop opaque provider extensions. Credential fields
-// are still checked before the original object is separated into grant/access props.
-const grantPropsSchema = z.custom<z.input<typeof grantPropsFieldsSchema>>(
-  (value) => grantPropsFieldsSchema.safeParse(value).success,
-);
-
-export const oauthProvider = new OAuthProvider<AppEnv>({
-  resourceMetadata: { resource: workerEnv.MCP_RESOURCE_URL },
-  apiHandlers: {
-    "/mcp": mcpApiHandler,
-    "/userinfo": UserInfoHandler,
-  },
-  defaultHandler: KrogerWorker,
-  authorizeEndpoint: "/authorize",
-  tokenEndpoint: "/token",
-  clientRegistrationEndpoint: "/register",
-  // Preserve native MCP clients such as Claude alongside HTTPS and loopback callbacks.
-  allowPrivateUseRedirectUris: true,
-  clientIdMetadataDocumentEnabled: true,
-  scopesSupported: ["profile.compact", "cart.basic:write", "product.compact"],
-
-  // Syncs Kroger tokens with MCP token lifecycle using accessTokenProps/newProps separation:
-  // - accessTokenProps: only what middleware needs (id, accessToken, tokenExpiresAt)
-  // - newProps: full grant including Kroger refresh token + credentials (stays server-side)
-  // CRITICAL: Kroger single-use refresh tokens — only refreshed here to persist to grant.
-  tokenExchangeCallback: async ({ grantType, props }) => {
-    if (!isVerifiedShopperId(props.id)) {
-      throw new OAuthError("invalid_grant", {
-        description:
-          "Kroger identity could not be verified. Reconnect the MCP server.",
-      });
-    }
-
-    const parsedGrant = grantPropsSchema.safeParse(props);
-
-    if (!parsedGrant.success)
-      throw new OAuthError("invalid_grant", {
-        description:
-          "Kroger authorization is invalid. Reconnect the MCP server.",
-      });
-
-    // Keep provider extensions, but never expose refresh credentials in access props.
-    const {
-      refreshToken,
-      krogerClientId,
-      krogerClientSecret,
-      ...accessTokenProps
-    } = parsedGrant.data;
-
-    if (grantType === GrantType.AUTHORIZATION_CODE) {
-      const ttl = accessTokenProps.tokenExpiresAt
-        ? Math.max(
-            Math.floor((accessTokenProps.tokenExpiresAt - Date.now()) / 1000),
-            60,
-          )
-        : 1800;
-
-      return { accessTokenProps, accessTokenTTL: ttl };
-    }
-
-    if (grantType !== GrantType.REFRESH_TOKEN) return {};
-
-    if (!refreshToken || !krogerClientId || !krogerClientSecret) {
-      throw new OAuthError("invalid_grant", {
-        description:
-          "Kroger authorization is incomplete. Reconnect the MCP server.",
-      });
-    }
-
-    if (!isKrogerTokenExpiring(accessTokenProps.tokenExpiresAt ?? Number.NaN)) {
-      const ttl = Math.max(
-        Math.floor(
-          ((accessTokenProps.tokenExpiresAt ?? Number.NaN) - Date.now()) / 1000,
-        ),
-        60,
-      );
-
-      return { accessTokenProps, accessTokenTTL: ttl };
-    }
-
-    const refreshResult = await refreshKrogerToken(
-      refreshToken,
-      krogerClientId,
-      krogerClientSecret,
-    );
-
-    if (refreshResult.isErr()) {
-      const error = refreshResult.error;
-      console.error("Kroger token refresh failed:", error.message);
-
-      const upstreamError =
-        error.type === "API_ERROR" && !(error.detail instanceof Error)
-          ? z.object({ error: z.string() }).safeParse(error.detail)
-          : null;
-
-      const upstreamCode = upstreamError?.success
-        ? upstreamError.data.error
-        : undefined;
-
-      if (
-        upstreamCode === "invalid_grant" ||
-        upstreamCode === "invalid_client"
-      ) {
-        throw new OAuthError("invalid_grant", {
-          description:
-            "Kroger authorization expired. Reconnect the MCP server.",
-        });
-      }
-
-      if (error.type === "API_ERROR" && error.status === 429) {
-        throw new OAuthError("temporarily_unavailable", {
-          description:
-            "Kroger rate limited the token refresh. Try again shortly.",
-          statusCode: 429,
-          headers: { "Retry-After": "60" },
-        });
-      }
-
-      throw new OAuthError("temporarily_unavailable", {
-        description:
-          "Kroger token refresh is temporarily unavailable. Try again shortly.",
-        statusCode: 503,
-        headers: { "Retry-After": "60" },
-      });
-    }
-
-    const result = refreshResult.value;
-
-    if (!result.refreshToken) {
-      console.error(
-        "Kroger refresh missing new refresh token (single-use). Re-auth required.",
-      );
-      throw new OAuthError("invalid_grant", {
-        description:
-          "Kroger did not rotate the refresh token. Reconnect the MCP server.",
-      });
-    }
-
-    return {
-      accessTokenProps: {
-        ...accessTokenProps,
-        accessToken: result.accessToken,
-        tokenExpiresAt: result.tokenExpiresAt,
-      },
-      newProps: {
-        ...accessTokenProps,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        tokenExpiresAt: result.tokenExpiresAt,
-        krogerClientId,
-        krogerClientSecret,
-      },
-      accessTokenTTL: result.expiresIn,
-    };
-  },
-});
-
-// Errors-only Sentry: no tracesSampleRate, and without SENTRY_DSN the SDK
-// stays disabled so local dev and unconfigured deploys are unaffected.
-export default Sentry.withSentry(
-  (env: AppEnv) => ({
-    dsn: env.SENTRY_DSN,
-    enabled: Boolean(env.SENTRY_DSN),
-  }),
-  {
-    fetch(
-      request: Request,
-      env: AppEnv,
-      ctx: ExecutionContext,
-    ): Promise<Response> {
-      return oauthProvider.fetch(request, env, ctx);
+  const protectedHandler = createMcpProtectedRequestHandler(
+    {
+      issuer: options.verifyOptions.issuer,
+      audience: options.verifyOptions.audience,
+      jwksUrl: options.jwksUrl,
+      jwtVerifyOptions: options.verifyOptions,
+      requiredScopes: options.requiredScopes,
     },
-    async scheduled(
-      _controller: ScheduledController,
-      env: AppEnv,
-      _ctx: ExecutionContext,
-    ): Promise<void> {
-      const result = await oauthProvider.purgeExpiredData(env, {
-        batchSize: 100,
-      });
+    async (verifiedRequest, claims) => {
+      const identity = shoppingIdentity(options.verifyOptions.issuer, claims);
 
-      console.log("OAuth KV cleanup complete:", result);
+      const authorization = parseAccessTokenAuthorization(
+        verifiedRequest.headers.get("Authorization"),
+      );
+
+      if (!identity || !authorization?.token)
+        return invalidIdentity(env.MCP_RESOURCE_URL);
+
+      const connection = await exports.KrogerConnections.getByName(
+        identity.props.id,
+      ).getToken();
+
+      const props = {
+        id: identity.props.id,
+        ...(connection.status === "connected" ? connection.token : undefined),
+      };
+
+      const handler = createMcpHandler(
+        (requestContext) => {
+          const server =
+            connection.status === "connected"
+              ? buildServer(env, requestContext, (promise) =>
+                  ctx.waitUntil(promise),
+                )
+              : new McpServer(SERVER_INFO, {
+                  instructions:
+                    "The user must connect Kroger before shopping. Call connect_kroger and ask them to open the returned URL, then retry after they finish.",
+                });
+
+          registerConnectKroger(
+            server,
+            env.MCP_RESOURCE_URL,
+            connection.status,
+          );
+
+          return server;
+        },
+        {
+          route: "/mcp",
+          authContext: { props },
+          legacy: "reject",
+          allowedHostnames: [new URL(env.MCP_RESOURCE_URL).hostname],
+          allowedOriginHostnames: mcpSettings(env).allowedOrigins.map(
+            (origin) => new URL(origin).hostname,
+          ),
+        },
+      );
+
+      return handler.fetch(verifiedRequest, {
+        authInfo: {
+          token: authorization.token,
+          clientId: identity.clientId,
+          scopes: identity.scope,
+          expiresAt: identity.expiresAt,
+          resource: new URL(env.MCP_RESOURCE_URL),
+        },
+      });
+    },
+  );
+
+  return protectedHandler(request);
+}
+
+function withMcpCors(
+  response: Response,
+  origin = "*",
+  methods = "GET, OPTIONS",
+) {
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", origin);
+
+  if (origin !== "*") headers.append("Vary", "Origin");
+  headers.set("Access-Control-Allow-Methods", methods);
+  headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Accept, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
+  );
+  headers.set("Access-Control-Expose-Headers", "WWW-Authenticate");
+
+  return new Response(response.body, { status: response.status, headers });
+}
+
+/** Better Auth owns OAuth issuance; this Worker only validates resource tokens. */
+export async function handleRequest(
+  request: Request,
+  env: AppEnv,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const path = new URL(request.url).pathname;
+
+  if (
+    path === "/.well-known/oauth-protected-resource" ||
+    path === "/.well-known/oauth-protected-resource/mcp"
+  ) {
+    const settings = authSettings(env);
+    const resource = mcpSettings(env).resource;
+
+    if (request.method === "OPTIONS") return withMcpCors(new Response(null));
+
+    if (request.method !== "GET")
+      return withMcpCors(
+        new Response(null, { status: 405, headers: { Allow: "GET, OPTIONS" } }),
+      );
+
+    return withMcpCors(
+      metadataResponse({
+        resource,
+        authorization_servers: [settings.issuer],
+        scopes_supported: ["mcp:tools"],
+        bearer_methods_supported: ["header"],
+      }),
+    );
+  }
+
+  if (path === "/mcp") {
+    const settings = mcpSettings(env);
+    const origin = request.headers.get("Origin");
+
+    if (origin !== null && !settings.allowedOrigins.includes(origin))
+      return new Response("Origin not allowed", { status: 403 });
+
+    const hostRejection = hostHeaderValidationResponse(request, [
+      new URL(settings.resource).hostname,
+    ]);
+
+    if (hostRejection) return hostRejection;
+    const corsOrigin = origin ?? new URL(settings.resource).origin;
+
+    if (request.method === "OPTIONS")
+      return withMcpCors(new Response(null), corsOrigin, "POST, OPTIONS");
+
+    return withMcpCors(
+      await mcpApiHandler(request, env, ctx),
+      corsOrigin,
+      "POST, OPTIONS",
+    );
+  }
+
+  return KrogerWorker.fetch(request, env, ctx);
+}
+
+export default Sentry.withSentry(
+  (env: AppEnv) => ({ dsn: env.SENTRY_DSN, enabled: Boolean(env.SENTRY_DSN) }),
+  {
+    async fetch(request: Request, env: AppEnv, ctx: ExecutionContext) {
+      try {
+        return await handleRequest(request, env, ctx);
+      } catch (error) {
+        Sentry.captureException(error);
+
+        return Response.json({ error: "service_unavailable" }, { status: 503 });
+      }
     },
   } satisfies ExportedHandler<AppEnv>,
 );
