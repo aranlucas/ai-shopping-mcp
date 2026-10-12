@@ -147,12 +147,12 @@ afterEach(() => {
 });
 
 /** Configure fetchMock for the happy print-ad path. */
-function setupPrintAdFetch() {
+function setupPrintAdFetch(circularsResponse: JsonInput = MOCK_CIRCULARS_RESPONSE) {
   fetchMock.mockImplementation((input: string | Request | URL) => {
     const url = urlOf(input);
 
     if (url.includes("digitalads/v1/circulars")) {
-      return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+      return Promise.resolve(mockOkResponse(circularsResponse));
     }
 
     if (url.includes(`/api/dacs/evt-print-1?`)) {
@@ -200,6 +200,24 @@ describe("getQfcWeeklyDeals", () => {
       expect(result.locationId).toBe("70500847");
       expect(result.divisionCode).toBe("705");
       expect(result.deals).toHaveLength(2);
+    });
+
+    it("retrieves print deals and date context when circulars omit locationId", async () => {
+      const { locationId, ...circular } = MOCK_PRINT_CIRCULAR;
+      setupPrintAdFetch({ data: [circular] });
+
+      const result = await getQfcWeeklyDeals({ locationId });
+
+      expect(result.sourceMode).toBe("print_fallback");
+      expect(result.locationId).toBe(locationId);
+      expect(result.printCircular?.eventId).toBe(circular.eventId);
+      expect(result.warnings).toEqual([]);
+      expect(result.deals).toHaveLength(2);
+
+      for (const deal of result.deals) {
+        expect(deal.validFrom).toBe(circular.eventStartDate);
+        expect(deal.validTill).toBe(circular.eventEndDate);
+      }
     });
 
     it("normalizes deal titles and source from print-ad offers", async () => {

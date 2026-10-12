@@ -60,7 +60,8 @@ export const circularSchema = z.object({
   circularType: z.string(),
   tags: z.array(z.string()),
   description: z.string(),
-  locationId: z.string(),
+  // Division-scoped circular responses can omit the store location.
+  locationId: z.string().optional(),
 });
 
 export const circularsResponseSchema = z.object({
