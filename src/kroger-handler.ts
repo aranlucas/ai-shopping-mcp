@@ -1,427 +1,295 @@
-import type {
-  AuthRequest,
-  OAuthHelpers,
-} from "@cloudflare/workers-oauth-provider";
-
+import { exports } from "cloudflare:workers";
 import { Hono } from "hono";
-import * as z from "zod/v4";
-import { generateSignedCookie, getCookie, getSignedCookie } from "hono/cookie";
-
-import { krogerTokenResponseSchema } from "./services/kroger/client.js";
+import { generateCookie } from "hono/cookie";
+import { parse } from "hono/utils/cookie";
+import { base64url } from "jose";
+import { createAuthorizationURL } from "better-auth/oauth2";
+import { z } from "zod/v4";
 import type { AppEnv } from "./env.js";
-
+import type { LoginTransaction } from "./login-transactions.js";
 import {
-  authRequestSchema,
-  clientIdAlreadyApproved,
-  parseRedirectApproval,
-  renderApprovalDialog,
-} from "./workers-oauth-utils";
-import { safeJsonParse } from "./utils/json.js";
+  browserClient,
+  discovery,
+  exchangeIdentity,
+} from "./services/better-auth.js";
+import { krogerTokenResponseSchema } from "./services/kroger/client.js";
 import { isVerifiedShopperId } from "./utils/shopper-identity.js";
 
-type KrogerEnv = AppEnv & { OAUTH_PROVIDER: OAuthHelpers };
+const app = new Hono<{ Bindings: AppEnv }>();
 
-const krogerOAuthStateCookieSchema = z.object({
-  csrfState: z.string().min(1),
-  oauthReqInfo: z.unknown(),
+app.use(async (c, next) => {
+  await next();
+  c.header("Cache-Control", "no-store");
 });
 
-const app = new Hono<{ Bindings: KrogerEnv }>();
+const cookieOptions = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "Lax" as const,
+  path: "/",
+};
 
-const profileSchema = z.object({
-  data: z.object({
-    id: z.string().refine(isVerifiedShopperId),
-  }),
-});
+const cookieName = (state: string) => `__Host-shopping-link-${state}`;
 
-app.get("/authorize", async (c) => {
-  let oauthReqInfo: AuthRequest;
-
-  try {
-    oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
-  } catch (parseError) {
-    console.error("Failed to parse auth request:", parseError);
-
-    return c.text(
-      `Failed to parse auth request: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
-      400,
-    );
-  }
-
-  const { clientId } = oauthReqInfo;
-
-  if (!clientId) {
-    return c.text("Invalid request - missing clientId", 400);
-  }
-
-  if (
-    await clientIdAlreadyApproved(
-      c.req.raw,
-      oauthReqInfo,
-      c.env.COOKIE_ENCRYPTION_KEY,
-    )
-  ) {
-    return redirectToKroger(c.req.raw, oauthReqInfo, c.env);
-  }
-
-  return renderApprovalDialog(c.req.raw, {
-    client: await c.env.OAUTH_PROVIDER.lookupClient(clientId),
-    server: {
-      name: "Kroger Shopping List API",
-      logo: "https://www.kroger.com/content/v2/binary/image/banner/logowhite/imageset/kroger_svg_logo_link_white--kroger_svg_logo_link_white--freshcart-singlecolor.svg",
-      description:
-        "This server allows access to Kroger Shopping List and Product APIs.",
-    },
-    state: { oauthReqInfo },
-  });
-});
-
-app.post("/authorize", async (c) => {
-  let state: { oauthReqInfo?: AuthRequest };
-  let headers: Headers;
-
-  try {
-    // Validates form submission, extracts state, and generates Set-Cookie headers to skip approval dialog next time
-    const result = await parseRedirectApproval(
-      c.req.raw,
-      c.env.COOKIE_ENCRYPTION_KEY,
-    );
-
-    state = z
-      .object({ oauthReqInfo: authRequestSchema.optional() })
-      .parse(result.state);
-    headers = result.headers;
-  } catch (parseError) {
-    console.error("Failed to parse approval:", parseError);
-
-    return c.text(
-      `Failed to parse approval: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
-      400,
-    );
-  }
-
-  if (!state.oauthReqInfo) {
-    return c.text("Invalid request - missing oauthReqInfo", 400);
-  }
-
-  return redirectToKroger(c.req.raw, state.oauthReqInfo, c.env, headers);
-});
-
-async function redirectToKroger(
-  request: Request,
-  _oauthReqInfo: AuthRequest, // Stored in cookie instead of state param
-  env: KrogerEnv,
-  headers: HeadersInit = {},
-) {
-  if (!env.KROGER_CLIENT_ID || !env.KROGER_CLIENT_SECRET) {
-    console.error("Missing Kroger OAuth credentials in environment");
-
-    return new Response(
-      "Server configuration error: Missing Kroger OAuth credentials",
-      {
-        status: 500,
-      },
-    );
-  }
-
-  const redirectUri = new URL("/callback", request.url).href;
-
-  // Build authorization URL manually with encodeURIComponent to ensure
-  // spaces are encoded as %20 (not +) as required by Kroger
-  // Parameter order matches Postman working request
-
-  // IMPORTANT: Kroger requires spaces encoded as %20, NOT +
-  // Do NOT use URLSearchParams.set() as it encodes spaces as +
-  // Must use encodeURIComponent() which produces %20
-  const scope = "profile.compact cart.basic:write product.compact";
-
-  // Generate a simple random state for CSRF protection (Kroger requirement)
-  // Store oauthReqInfo in a cookie to avoid large state params
-  const csrfState = crypto.randomUUID();
-
-  const cookieValue = await generateSignedCookie(
-    "kroger_oauth_state",
-    JSON.stringify({ csrfState, oauthReqInfo: _oauthReqInfo }),
-    env.COOKIE_ENCRYPTION_KEY,
-    { httpOnly: true, maxAge: 600, path: "/", sameSite: "Lax", secure: true },
+async function bindingHash(value: string) {
+  return base64url.encode(
+    new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
+    ),
   );
-
-  // Order matches Postman: response_type, client_id, scope, redirect_uri, state
-  // State is a simple UUID for CSRF protection (not the full oauthReqInfo)
-  const fullUrl =
-    "https://api.kroger.com/v1/connect/oauth2/authorize?" +
-    `response_type=code` +
-    `&client_id=${encodeURIComponent(env.KROGER_CLIENT_ID)}` +
-    `&scope=${encodeURIComponent(scope)}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&state=${encodeURIComponent(csrfState)}`;
-
-  const responseHeaders = new Headers(headers);
-  responseHeaders.append("Set-Cookie", cookieValue);
-  responseHeaders.set("Location", fullUrl);
-
-  return new Response(null, {
-    status: 302,
-    headers: responseHeaders,
-  });
 }
 
-/**
- * OAuth Callback Endpoint
- *
- * This route handles the callback from Kroger after user authentication.
- * It exchanges the temporary code for an access token, then stores some
- * user metadata & the auth token as part of the 'props' on the token passed
- * down to the client. It ends by redirecting the client back to _its_ callback URL
- */
-app.get("/callback", async (c) => {
-  // Check for OAuth errors from Kroger
-  const oauthError = c.req.query("error");
-  const errorDescription = c.req.query("error_description");
+async function beginTransaction(
+  data: LoginTransaction,
+  headers = new Headers(),
+) {
+  const state = crypto.randomUUID();
+  const binding = crypto.randomUUID();
+  await exports.LoginTransactions.getByName(state).begin(
+    data,
+    await bindingHash(binding),
+  );
+  headers.append(
+    "Set-Cookie",
+    generateCookie(cookieName(state), binding, {
+      ...cookieOptions,
+      maxAge: 600,
+    }),
+  );
+  headers.set("Cache-Control", "no-store");
 
-  if (oauthError) {
-    console.error("OAuth error from Kroger:", {
-      error: oauthError,
-      error_description: errorDescription,
-    });
+  return { state, headers };
+}
 
+async function resumeTransaction(request: Request) {
+  const state = z
+    .uuid()
+    .safeParse(new URL(request.url).searchParams.get("state"));
+
+  if (!state.success) return null;
+  const cookie = request.headers.get("Cookie");
+
+  // Hono's parser reads browser cookies without accepting query parameters as identity.
+  const binding = cookie
+    ? parse(cookie, cookieName(state.data))[cookieName(state.data)]
+    : undefined;
+
+  if (!binding) return null;
+
+  const data = await exports.LoginTransactions.getByName(state.data).consume(
+    await bindingHash(binding),
+  );
+
+  if (!data) return null;
+  const headers = new Headers({ "Cache-Control": "no-store" });
+  headers.append(
+    "Set-Cookie",
+    generateCookie(cookieName(state.data), "", { ...cookieOptions, maxAge: 0 }),
+  );
+
+  return { data, headers };
+}
+
+app.get("/connect/kroger", async (c) => {
+  const client = browserClient(c.env);
+  const metadata = await discovery(c.env);
+  const verifier = crypto.randomUUID() + crypto.randomUUID();
+  const nonce = crypto.randomUUID();
+  const redirectUri = new URL("/auth/callback", c.env.MCP_RESOURCE_URL).href;
+
+  const transaction = await beginTransaction({
+    type: "auth",
+    verifier,
+    nonce,
+    redirectUri,
+  });
+
+  const url = await createAuthorizationURL({
+    id: "shared-auth",
+    options: { clientId: client.BETTER_AUTH_CLIENT_ID },
+    authorizationEndpoint: metadata.authorization_endpoint,
+    redirectURI: redirectUri,
+    scopes: ["openid", "mcp:tools"],
+    additionalParams: { resource: c.env.MCP_RESOURCE_URL },
+    state: transaction.state,
+    nonce,
+    codeVerifier: verifier,
+  });
+
+  transaction.headers.set("Location", url.href);
+
+  return new Response(null, { status: 302, headers: transaction.headers });
+});
+
+app.get("/auth/callback", async (c) => {
+  const resumed = await resumeTransaction(c.req.raw);
+
+  if (!resumed || resumed.data.type !== "auth")
     return c.text(
-      `Kroger OAuth error: ${oauthError}${errorDescription ? ` - ${errorDescription}` : ""}`,
+      "Invalid or expired sign-in. Start connecting Kroger again.",
       400,
+    );
+
+  if (c.req.query("error"))
+    return new Response(
+      "Sign-in was declined. Start connecting Kroger again.",
+      { status: 400, headers: resumed.headers },
+    );
+  const code = c.req.query("code");
+
+  if (!code)
+    return new Response("Missing sign-in code.", {
+      status: 400,
+      headers: resumed.headers,
+    });
+  let identity;
+
+  try {
+    identity = await exchangeIdentity(c.env, code, resumed.data);
+  } catch (error) {
+    console.error(
+      "Shared sign-in verification failed",
+      error instanceof Error ? error.name : "unknown",
+    );
+
+    return new Response(
+      "Unable to verify shared sign-in. Start connecting Kroger again.",
+      { status: 502, headers: resumed.headers },
     );
   }
 
-  // Verify state parameter exists (CSRF protection)
-  const stateParam = c.req.query("state");
-
-  if (!stateParam) {
-    return c.text("Missing state parameter", 400);
-  }
-
-  // Retrieve oauthReqInfo from cookie instead of state parameter
-  const rawOAuthStateCookie = getCookie(c, "kroger_oauth_state");
-
-  if (!rawOAuthStateCookie) {
-    return c.text("Missing authentication cookie", 400);
-  }
-
-  const oauthStateCookie = await getSignedCookie(
-    c,
-    c.env.COOKIE_ENCRYPTION_KEY,
-    "kroger_oauth_state",
+  const next = await beginTransaction(
+    { type: "kroger", identity },
+    resumed.headers,
   );
 
-  if (oauthStateCookie === false || oauthStateCookie === undefined) {
-    return c.text("Invalid authentication cookie", 400);
-  }
-
-  const parsedStateCookie = safeJsonParse(oauthStateCookie).match(
-    (value) => {
-      const parsed = krogerOAuthStateCookieSchema.safeParse(value);
-
-      return parsed.success ? parsed.data : null;
-    },
-    () => null,
+  const redirectUri = new URL("/callback", c.env.MCP_RESOURCE_URL).href;
+  // Kroger requires spaces as %20, rather than URLSearchParams' + encoding.
+  next.headers.set(
+    "Location",
+    "https://api.kroger.com/v1/connect/oauth2/authorize?" +
+      `response_type=code&client_id=${encodeURIComponent(c.env.KROGER_CLIENT_ID)}` +
+      `&scope=${encodeURIComponent("profile.compact cart.basic:write product.compact")}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(next.state)}`,
   );
 
-  if (!parsedStateCookie?.oauthReqInfo || !parsedStateCookie.csrfState) {
-    return c.text("Invalid authentication cookie", 400);
-  }
+  return new Response(null, { status: 302, headers: next.headers });
+});
 
-  if (parsedStateCookie.csrfState !== stateParam) {
-    return c.text("Invalid state parameter", 400);
-  }
+const profileSchema = z.object({
+  data: z.object({ id: z.string().refine(isVerifiedShopperId) }),
+});
 
-  // Preserve the specific legacy missing-client error before validating the
-  // complete provider contract. Neither failure can reach the token exchange.
-  const clientInfo = z
-    .object({ clientId: z.unknown().optional() })
-    .safeParse(parsedStateCookie.oauthReqInfo);
+app.get("/callback", async (c) => {
+  const resumed = await resumeTransaction(c.req.raw);
 
-  if (!clientInfo.success || !clientInfo.data.clientId) {
-    return c.text("Invalid state: missing clientId", 400);
-  }
+  if (!resumed || resumed.data.type !== "kroger")
+    return c.text("Invalid or expired Kroger connection. Start again.", 400);
 
-  const parsedAuthRequest = authRequestSchema.safeParse(
-    parsedStateCookie.oauthReqInfo,
-  );
-
-  if (!parsedAuthRequest.success) {
-    return c.text("Invalid authentication cookie", 400);
-  }
-
-  const oauthReqInfo = parsedAuthRequest.data;
+  if (c.req.query("error"))
+    return new Response(
+      "Kroger access was declined. Start connecting Kroger again.",
+      { status: 400, headers: resumed.headers },
+    );
   const code = c.req.query("code");
 
-  if (!code) {
-    return c.text("Missing authorization code", 400);
-  }
+  if (!code)
+    return new Response("Missing Kroger authorization code.", {
+      status: 400,
+      headers: resumed.headers,
+    });
 
-  // Exchange the code for an access token using direct fetch
-  // This is more reliable than openapi-fetch for the OAuth token endpoint
-  const redirectUri = new URL("/callback", c.req.url).href;
-
-  const tokenBody = new URLSearchParams({
-    grant_type: "authorization_code",
-    code: code,
-    redirect_uri: redirectUri,
-  });
-
-  const tokenResponse = await fetch(
+  const response = await fetch(
     "https://api.kroger.com/v1/connect/oauth2/token",
     {
       method: "POST",
+      redirect: "error",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Authorization: `Basic ${btoa(`${c.env.KROGER_CLIENT_ID}:${c.env.KROGER_CLIENT_SECRET}`)}`,
       },
-      body: tokenBody.toString(),
-      signal: AbortSignal.timeout(30_000),
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: new URL("/callback", c.env.MCP_RESOURCE_URL).href,
+      }),
+      signal: AbortSignal.timeout(10_000),
     },
   );
 
-  const parsedToken = krogerTokenResponseSchema.safeParse(
-    await tokenResponse.json(),
+  const parsed = krogerTokenResponseSchema.safeParse(await response.json());
+
+  if (
+    !response.ok ||
+    !parsed.success ||
+    !parsed.data.access_token ||
+    !parsed.data.refresh_token ||
+    !parsed.data.expires_in ||
+    parsed.data.expires_in <= 0
+  )
+    return new Response(
+      "Kroger authorization failed. Start connecting Kroger again.",
+      { status: 502, headers: resumed.headers },
+    );
+  const token = parsed.data;
+
+  const profileResponse = await fetch(
+    "https://api.kroger.com/v1/identity/profile",
+    {
+      headers: {
+        Authorization: `Bearer ${token.access_token}`,
+        Accept: "application/json",
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
+    },
   );
 
-  if (!parsedToken.success)
-    return c.text("Invalid token response from Kroger", 502);
-  const tokenData = parsedToken.data;
+  const profile = profileSchema.safeParse(await profileResponse.json());
 
-  // Check for errors
-  if (!tokenResponse.ok) {
-    console.error("Failed to fetch access token:", {
-      status: tokenResponse.status,
-      statusText: tokenResponse.statusText,
-      error: tokenData.error,
-      errorDescription: tokenData.error_description,
+  if (!profileResponse.ok || !profile.success)
+    return new Response("Unable to verify your Kroger shopper. Start again.", {
+      status: 502,
+      headers: resumed.headers,
     });
 
-    return c.text(
-      `Failed to fetch access token: ${tokenData.error_description || tokenData.error || "Unknown error"}`,
-      500,
-    );
-  }
+  const connected = await exports.KrogerConnections.getByName(
+    resumed.data.identity.id,
+  ).saveConnection({
+    krogerId: profile.data.data.id,
+    accessToken: parsed.data.access_token,
+    refreshToken: parsed.data.refresh_token,
+    tokenExpiresAt: Date.now() + parsed.data.expires_in * 1000,
+  });
 
-  // Extract tokens
-  const accessToken = tokenData.access_token;
-  const refreshToken = tokenData.refresh_token;
-
-  if (!accessToken) {
-    console.error("Kroger token response did not include an access token");
-
-    return c.text("Missing access token in response", 400);
-  }
-
-  // Fetch the user profile from Kroger using direct fetch
-  let id: string;
-
-  try {
-    const profileResponse = await fetch(
-      "https://api.kroger.com/v1/identity/profile",
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-        signal: AbortSignal.timeout(15_000),
-      },
+  if (!connected)
+    return new Response(
+      "This shared-auth account is already linked to another Kroger shopper. Reconnect the same Kroger account.",
+      { status: 409, headers: resumed.headers },
     );
 
-    if (!profileResponse.ok) {
-      return c.text(
-        "Unable to verify your Kroger identity. Please reconnect and try again.",
-        503,
-      );
-    }
-
-    const profile = profileSchema.safeParse(await profileResponse.json());
-
-    if (!profile.success) {
-      return c.text(
-        "Kroger returned an invalid user profile. Please reconnect and try again.",
-        502,
-      );
-    }
-
-    id = profile.data.data.id;
-  } catch {
-    return c.text(
-      "Unable to verify your Kroger identity. Please reconnect and try again.",
-      503,
-    );
-  }
-
-  // Calculate when the token expires (current time + expires_in seconds)
-  const tokenExpiresAt = Date.now() + (tokenData.expires_in || 1800) * 1000;
-
-  // Return back to the MCP client a new token
-  try {
-    const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
-      request: oauthReqInfo,
-      userId: id,
-      metadata: {},
-      scope: oauthReqInfo.scope,
-      // This will be available on this.props inside the client
-      // Kroger credentials are included so tokenExchangeCallback can refresh tokens
-      props: {
-        id,
-        accessToken,
-        refreshToken,
-        tokenExpiresAt,
-        krogerClientId: c.env.KROGER_CLIENT_ID,
-        krogerClientSecret: c.env.KROGER_CLIENT_SECRET,
-      },
-    });
-
-    // Clear the OAuth state cookie and redirect
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: redirectTo,
-        "Set-Cookie":
-          "kroger_oauth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/",
-      },
-    });
-  } catch (completeError) {
-    console.error("Failed to complete authorization:", completeError);
-
-    return c.text(
-      `Failed to complete authorization: ${completeError instanceof Error ? completeError.message : "Unknown error"}`,
-      500,
-    );
-  }
+  return new Response(
+    "Kroger is connected. Return to your AI client and retry your shopping request.",
+    { headers: resumed.headers },
+  );
 });
 
-const krogerEnvSchema = z.object({
-  COOKIE_ENCRYPTION_KEY: z.string(),
-  KROGER_CLIENT_ID: z.string(),
-  KROGER_CLIENT_SECRET: z.string(),
-  OAUTH_PROVIDER: z.object({
-    parseAuthRequest: z.function(),
-    lookupClient: z.function(),
-    completeAuthorization: z.function(),
-  }),
-});
+app.get("/", (c) =>
+  c.text(
+    "Shopping MCP: connect your AI client to /mcp. Use /connect/kroger to link Kroger through shared sign-in.",
+  ),
+);
 
-function isKrogerEnv(env: Env): env is KrogerEnv {
-  return krogerEnvSchema.safeParse(env).success;
-}
+app.onError((error, c) => {
+  console.error("Kroger connection unavailable", error.name);
+
+  return c.text("Connection service unavailable. Please try again.", 503);
+});
 
 export const KrogerWorker = {
-  fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    if (!isKrogerEnv(env)) {
-      return new Response(
-        "Server configuration error: Kroger OAuth is not configured",
-        {
-          status: 500,
-        },
-      );
-    }
-
+  fetch(request: Request, env: AppEnv, ctx: ExecutionContext) {
     return app.fetch(request, env, ctx);
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<AppEnv>;
 
 export { app as KrogerHandler };

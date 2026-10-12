@@ -2,8 +2,8 @@ import { z } from "zod";
 /**
  * Shared harness for the small-model MCP evals.
  *
- * Drives the real Worker end-to-end: OAuth registration/authorization/token
- * exchange through `SELF`, then a real MCP client over
+ * Drives the real Worker end-to-end with an issuer-signed Better Auth fixture
+ * token through `SELF`, then a real MCP client over
  * `StreamableHTTPClientTransport`. The Kroger API (token, identity, products,
  * locations, cart) is served from deterministic fixtures by a global fetch
  * stub, so evals measure the actual wire payloads a host model would see —
@@ -14,16 +14,17 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { SELF, env } from "cloudflare:test";
-import { expect, vi } from "vitest";
+import { vi } from "vitest";
 import { ensureShoppingSchema } from "../d1-schema.js";
-
-const CLIENT_REDIRECT_URI = "https://client.example/callback";
+import {
+  fixtureJwks,
+  fixtureToken,
+  seedKrogerConnection,
+} from "../better-auth-fixture.js";
 
 const MCP_BASE_URL = env.MCP_RESOURCE_URL;
 
 const MCP_URL = `${MCP_BASE_URL}/mcp`;
-
-const SCOPES = "profile.compact cart.basic:write product.compact";
 
 // ---------------------------------------------------------------------------
 // Kroger API fixtures
@@ -350,6 +351,9 @@ export function installKrogerFetchStub(): KrogerFetchStub {
       const request = input instanceof Request ? input : null;
       const url = new URL(request ? request.url : input.toString());
 
+      if (url.href === env.BETTER_AUTH_JWKS_URL)
+        return Response.json(await fixtureJwks());
+
       if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
         return Response.json({
           access_token: "kroger-access-token",
@@ -444,199 +448,25 @@ export function installKrogerFetchStub(): KrogerFetchStub {
 }
 
 // ---------------------------------------------------------------------------
-// OAuth + MCP client setup (mirrors tests/integration/mcp-client-oauth-integration.test.ts)
+// Better Auth resource token + MCP client setup.
 // ---------------------------------------------------------------------------
-
-type RegisteredClient = { client_id: string; client_secret: string };
-
-function base64Url(bytes: ArrayBuffer): string {
-  let binary = "";
-
-  for (const byte of new Uint8Array(bytes)) binary += String.fromCharCode(byte);
-
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/u, "");
-}
-
-async function pkceChallenge(verifier: string): Promise<string> {
-  return base64Url(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
-  );
-}
-
-function cookieValue(setCookie: string, name: string): string {
-  const match = setCookie.match(new RegExp(`${name}=([^;]+)`));
-
-  if (!match) throw new Error(`Missing ${name} cookie`);
-
-  return match[1];
-}
-
-function hiddenInputValue(html: string, name: string): string {
-  const match = html.match(new RegExp(`name="${name}" value="([^"]+)"`));
-
-  if (!match) throw new Error(`Missing ${name} input`);
-
-  return match[1];
-}
 
 function fetchThroughSelf(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const request =
+  return SELF.fetch(
     input instanceof Request
       ? new Request(input, init)
-      : new Request(input, init);
-
-  return SELF.fetch(request);
+      : new Request(input, init),
+  );
 }
 
-async function registerOAuthClient(): Promise<RegisteredClient> {
-  const response = await SELF.fetch(
-    new Request(`${MCP_BASE_URL}/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        redirect_uris: [CLIENT_REDIRECT_URI],
-        client_name: "Eval MCP client",
-        token_endpoint_auth_method: "client_secret_basic",
-      }),
-    }),
-  );
-
-  expect(response.status).toBe(201);
-
-  return z
-    .object({ client_id: z.string(), client_secret: z.string() })
-    .parse(await response.json());
-}
-
-async function authorizeOAuthClient(client: RegisteredClient) {
-  const codeVerifier = "eval-code-verifier-with-enough-entropy";
-  const authUrl = new URL(`${MCP_BASE_URL}/authorize`);
-  authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("client_id", client.client_id);
-  authUrl.searchParams.set("redirect_uri", CLIENT_REDIRECT_URI);
-  authUrl.searchParams.set("scope", SCOPES);
-  authUrl.searchParams.set("state", "eval-state");
-  authUrl.searchParams.set("code_challenge", await pkceChallenge(codeVerifier));
-  authUrl.searchParams.set("code_challenge_method", "S256");
-
-  const approvalResponse = await SELF.fetch(
-    new Request(authUrl, { redirect: "manual" }),
-  );
-
-  expect(approvalResponse.status).toBe(200);
-  const approvalHtml = await approvalResponse.text();
-  const approvalState = hiddenInputValue(approvalHtml, "state");
-  const csrfToken = hiddenInputValue(approvalHtml, "csrf_token");
-
-  const csrfCookie = cookieValue(
-    approvalResponse.headers.get("Set-Cookie") ?? "",
-    "__Host-CSRF_TOKEN",
-  );
-
-  const authorizeResponse = await SELF.fetch(
-    new Request(`${MCP_BASE_URL}/authorize`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Cookie: `__Host-CSRF_TOKEN=${csrfCookie}`,
-      },
-      body: new URLSearchParams({
-        state: approvalState,
-        csrf_token: csrfToken,
-      }),
-      redirect: "manual",
-    }),
-  );
-
-  expect(authorizeResponse.status).toBe(302);
-
-  const krogerRedirect = new URL(
-    authorizeResponse.headers.get("Location") ?? "",
-  );
-
-  const krogerState = krogerRedirect.searchParams.get("state");
-
-  const oauthCookie = cookieValue(
-    authorizeResponse.headers.get("Set-Cookie") ?? "",
-    "kroger_oauth_state",
-  );
-
-  const callbackResponse = await SELF.fetch(
-    new Request(
-      `${MCP_BASE_URL}/callback?code=kroger-code&state=${krogerState}`,
-      {
-        headers: { Cookie: `kroger_oauth_state=${oauthCookie}` },
-        redirect: "manual",
-      },
-    ),
-  );
-
-  expect(callbackResponse.status).toBe(302);
-
-  const clientRedirect = new URL(
-    callbackResponse.headers.get("Location") ?? "",
-  );
-
-  const authorizationCode = clientRedirect.searchParams.get("code");
-  expect(authorizationCode).toBeTruthy();
-
-  if (!authorizationCode) throw new Error("OAuth callback contained no code");
-
-  return { authorizationCode, codeVerifier };
-}
-
-async function exchangeCodeForToken(
-  client: RegisteredClient,
-  authorizationCode: string,
-  codeVerifier: string,
-): Promise<string> {
-  const response = await SELF.fetch(
-    new Request(`${MCP_BASE_URL}/token`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${btoa(`${client.client_id}:${client.client_secret}`)}`,
-      },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code: authorizationCode,
-        redirect_uri: CLIENT_REDIRECT_URI,
-        code_verifier: codeVerifier,
-      }),
-    }),
-  );
-
-  expect(response.status).toBe(200);
-
-  const token = z
-    .object({ access_token: z.string() })
-    .parse(await response.json());
-
-  return token.access_token;
-}
-
-/**
- * Full OAuth dance + connected MCP client. The Kroger fetch stub must already
- * be installed (the OAuth callback exchanges a Kroger token).
- */
+/** Synthetic issuer-signed token and server-side Kroger connection for end-to-end tool evals. */
 export async function createEvalMcpClient(): Promise<Client> {
   await ensureShoppingSchema();
-  const registered = await registerOAuthClient();
-
-  const { authorizationCode, codeVerifier } =
-    await authorizeOAuthClient(registered);
-
-  const accessToken = await exchangeCodeForToken(
-    registered,
-    authorizationCode,
-    codeVerifier,
-  );
+  await seedKrogerConnection("eval-user");
+  const accessToken = await fixtureToken("eval-user");
 
   const transport = new StreamableHTTPClientTransport(new URL(MCP_URL), {
     fetch: fetchThroughSelf,

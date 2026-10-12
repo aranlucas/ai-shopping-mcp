@@ -4,9 +4,9 @@ declare global {
   namespace Cloudflare {
     /** Optional bindings supplied by this repository's opt-in Vitest eval configuration. */
     interface Env {
-      COOKIE_ENCRYPTION_KEY: string;
       KROGER_CLIENT_ID: string;
       KROGER_CLIENT_SECRET: string;
+      BETTER_AUTH_CLIENT_SECRET: string;
       EVAL_AGENT?: string;
       EVAL_LOG?: string;
       EVAL_MODELS?: string;

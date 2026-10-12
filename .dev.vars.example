@@ -1,0 +1,7 @@
+MCP_RESOURCE_URL="https://ai-shopping-mcp.localhost"
+BETTER_AUTH_ISSUER="https://auth.aranlucas.workers.dev/api/auth"
+BETTER_AUTH_JWKS_URL="https://auth.aranlucas.workers.dev/api/auth/jwks"
+BETTER_AUTH_CLIENT_ID=""
+BETTER_AUTH_CLIENT_SECRET=""
+KROGER_CLIENT_ID=""
+KROGER_CLIENT_SECRET=""

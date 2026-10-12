@@ -1,12 +1,14 @@
-import { bindings, defineConfig, exports, triggers } from "cf/config";
+import { bindings, defineConfig, exports } from "cf/config";
 
 import * as entrypoint from "./src/server" with { type: "cf-worker" };
 
 export default defineConfig({
-  worker: ({ isPreview }) => ({
+  worker: {
     exports: {
       MyMCP: exports.durableObject({ state: "deleted" }),
       CartOperations: exports.durableObject({ storage: "sqlite" }),
+      KrogerConnections: exports.durableObject({ storage: "sqlite" }),
+      LoginTransactions: exports.durableObject({ storage: "sqlite" }),
     },
     name: "ai-meal-planner-mcp",
     compatibilityDate: "2025-03-10",
@@ -19,10 +21,6 @@ export default defineConfig({
     observability: {
       enabled: true,
     },
-    // Worker Previews reject cron triggers.
-    ...(!isPreview && {
-      triggers: [triggers.scheduled({ schedule: "0 2 * * *" })],
-    }),
     env: {
       MCP_RESOURCE_URL: bindings.text(
         "https://ai-meal-planner-mcp.aranlucas.workers.dev",
@@ -31,9 +29,13 @@ export default defineConfig({
         name: "ai-shopping-mcp",
         id: "7a03710e-48aa-445c-832d-fb14197e064b",
       }),
-      OAUTH_KV: bindings.kv({
-        id: "8bd5ecd7157942228263703abbabc25f",
-      }),
+      BETTER_AUTH_ISSUER: bindings.text(
+        "https://auth.aranlucas.workers.dev/api/auth",
+      ),
+      BETTER_AUTH_JWKS_URL: bindings.text(
+        "https://auth.aranlucas.workers.dev/api/auth/jwks",
+      ),
+      BETTER_AUTH_CLIENT_ID: bindings.text(""),
       USER_DATA_KV: bindings.kv({
         id: "d7f0b87afb2b49cdbab0ead481cef6ed",
       }),
@@ -44,5 +46,5 @@ export default defineConfig({
       }),
       ASSETS: bindings.assets(),
     },
-  }),
+  },
 });

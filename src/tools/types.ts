@@ -1,17 +1,8 @@
-// Props stored in the access token and exposed through the MCP auth context.
-// Only contains what's needed for runtime API calls — no refresh credentials.
+// Request-local identity and Kroger credentials, resolved server-side after JWT validation.
 export type Props = {
   id: string;
   accessToken: string;
   tokenExpiresAt: number;
-};
-
-// Full props stored in the grant for token refresh.
-// Contains Kroger credentials needed by tokenExchangeCallback to refresh upstream tokens.
-export type GrantProps = Props & {
-  refreshToken?: string;
-  krogerClientId: string;
-  krogerClientSecret: string;
 };
 
 // --- Response helpers ---

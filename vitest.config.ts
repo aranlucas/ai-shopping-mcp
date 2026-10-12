@@ -24,13 +24,15 @@ const miniflare: TestMiniflare = {
     "global_fetch_strictly_public",
     "enable_ctx_exports",
   ],
-  kvNamespaces: ["OAUTH_KV", "USER_DATA_KV"],
+  kvNamespaces: ["USER_DATA_KV"],
   d1Databases: ["SHOPPING_DB"],
   durableObjects: {
     CART_OPERATIONS: {
       className: "CartOperations",
       useSQLite: true,
     },
+    KROGER_CONNECTIONS: { className: "KrogerConnections", useSQLite: true },
+    LOGIN_TRANSACTIONS: { className: "LoginTransactions", useSQLite: true },
   },
   // Miniflare's WorkerOptions expose plain variables through
   // `bindings`, not `vars` (which is wrangler-config syntax). Using
@@ -40,7 +42,10 @@ const miniflare: TestMiniflare = {
   bindings: {
     KROGER_CLIENT_ID: "test-kroger-client-id",
     KROGER_CLIENT_SECRET: "test-kroger-client-secret",
-    COOKIE_ENCRYPTION_KEY: "test-cookie-secret",
+    BETTER_AUTH_ISSUER: "https://auth.example/api/auth",
+    BETTER_AUTH_JWKS_URL: "https://auth.example/api/auth/jwks",
+    BETTER_AUTH_CLIENT_ID: "shopping-browser",
+    BETTER_AUTH_CLIENT_SECRET: "test-browser-secret",
     // Test origin; the OAuth tests derive their base URL from it.
     MCP_RESOURCE_URL: "https://example.com",
 
