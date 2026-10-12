@@ -1,0 +1,7 @@
+{
+  "*": "oxfmt --write --no-error-on-unmatched-pattern",
+  "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}": [
+    "oxlint --fix",
+    "oxlint -c .oxlintrc.type-aware.json"
+  ]
+}
