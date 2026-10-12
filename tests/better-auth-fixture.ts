@@ -64,5 +64,6 @@ export function fixtureDiscovery() {
     token_endpoint: `${env.BETTER_AUTH_ISSUER}/oauth2/token`,
     jwks_uri: env.BETTER_AUTH_JWKS_URL,
     code_challenge_methods_supported: ["S256"],
+    authorization_response_iss_parameter_supported: true,
   };
 }

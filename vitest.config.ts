@@ -46,8 +46,8 @@ const miniflare: TestMiniflare = {
     BETTER_AUTH_JWKS_URL: "https://auth.example/api/auth/jwks",
     BETTER_AUTH_CLIENT_ID: "shopping-browser",
     BETTER_AUTH_CLIENT_SECRET: "test-browser-secret",
-    // Test origin; the OAuth tests derive their base URL from it.
-    MCP_RESOURCE_URL: "https://example.com",
+    MCP_RESOURCE_URL: "https://example.com/mcp",
+    MCP_ALLOWED_ORIGINS: '["https://client.example"]',
 
     // Agent eval over OpenRouter (`pnpm eval:agent`).
     ...Object.fromEntries(

@@ -8,6 +8,8 @@ import {
   fixtureToken,
 } from "./better-auth-fixture.js";
 
+const appOrigin = new URL(env.MCP_RESOURCE_URL).origin;
+
 function bindingCookie(response: Response, state: string) {
   const cookie = response.headers
     .getSetCookie()
@@ -18,10 +20,24 @@ function bindingCookie(response: Response, state: string) {
   return cookie.split(";")[0];
 }
 
+function authUrl(
+  state: string,
+  issuer: string | null = env.BETTER_AUTH_ISSUER,
+) {
+  const url = new URL("/auth/callback", appOrigin);
+  url.searchParams.set("code", "auth-code");
+  url.searchParams.set("state", state);
+
+  if (issuer !== null) url.searchParams.set("iss", issuer);
+
+  return url;
+}
+
 describe("browser Kroger account connection", () => {
   let nonce: string;
   let badNonce: boolean;
   let badProfile: boolean;
+  let issuerParameterSupported: boolean | undefined;
   let codeChallenge: string;
   let tokenCalls: number;
   let krogerCalls: number;
@@ -39,6 +55,7 @@ describe("browser Kroger account connection", () => {
     nonce = "";
     badNonce = false;
     badProfile = false;
+    issuerParameterSupported = true;
     codeChallenge = "";
     tokenCalls = 0;
     krogerCalls = 0;
@@ -52,7 +69,11 @@ describe("browser Kroger account connection", () => {
         if (url === env.BETTER_AUTH_JWKS_URL) return Response.json(jwks);
 
         if (url.endsWith("/.well-known/openid-configuration"))
-          return Response.json(fixtureDiscovery());
+          return Response.json({
+            ...fixtureDiscovery(),
+            authorization_response_iss_parameter_supported:
+              issuerParameterSupported,
+          });
 
         if (url === `${env.BETTER_AUTH_ISSUER}/oauth2/token`) {
           tokenCalls++;
@@ -109,7 +130,7 @@ describe("browser Kroger account connection", () => {
 
   async function start() {
     const response = await SELF.fetch(
-      new Request(`${env.MCP_RESOURCE_URL}/connect/kroger`, {
+      new Request(`${appOrigin}/connect/kroger`, {
         redirect: "manual",
       }),
     );
@@ -128,14 +149,14 @@ describe("browser Kroger account connection", () => {
     };
   }
 
-  async function authCallback() {
+  async function authCallback(issuer: string | null = env.BETTER_AUTH_ISSUER) {
     const flow = await start();
 
     const response = await SELF.fetch(
-      new Request(
-        `${env.MCP_RESOURCE_URL}/auth/callback?code=auth-code&state=${flow.state}`,
-        { redirect: "manual", headers: { Cookie: flow.cookie } },
-      ),
+      new Request(authUrl(flow.state, issuer), {
+        redirect: "manual",
+        headers: { Cookie: flow.cookie },
+      }),
     );
 
     return { ...flow, callback: response };
@@ -158,7 +179,7 @@ describe("browser Kroger account connection", () => {
     );
     const state = location.searchParams.get("state") ?? "";
     const cookie = bindingCookie(flow.callback, state);
-    const callbackUrl = `${env.MCP_RESOURCE_URL}/callback?code=kroger-code&state=${state}`;
+    const callbackUrl = `${appOrigin}/callback?code=kroger-code&state=${state}`;
 
     const response = await SELF.fetch(
       new Request(callbackUrl, { headers: { Cookie: cookie } }),
@@ -168,7 +189,7 @@ describe("browser Kroger account connection", () => {
     expect(await response.text()).toContain("Kroger is connected");
     expect(tokenCalls).toBe(1);
     expect(exchangeDetails).toEqual({
-      redirectUri: `${env.MCP_RESOURCE_URL}/auth/callback`,
+      redirectUri: `${appOrigin}/auth/callback`,
       resource: env.MCP_RESOURCE_URL,
       codeChallenge,
     });
@@ -192,7 +213,7 @@ describe("browser Kroger account connection", () => {
 
   it("rejects a stolen state in another browser and accepts the bound browser only once", async () => {
     const flow = await start();
-    const url = `${env.MCP_RESOURCE_URL}/auth/callback?code=auth-code&state=${flow.state}`;
+    const url = authUrl(flow.state);
     expect((await SELF.fetch(url)).status).toBe(400);
     expect(tokenCalls).toBe(0);
     expect(
@@ -226,6 +247,98 @@ describe("browser Kroger account connection", () => {
     expect(krogerCalls).toBe(0);
   });
 
+  it.each([
+    null,
+    "",
+    "https://attacker.example",
+    `${env.BETTER_AUTH_ISSUER}/`,
+    env.BETTER_AUTH_ISSUER.toUpperCase(),
+  ])(
+    "rejects missing or mismatched response issuer %s before exchanging a code",
+    async (issuer) => {
+      const flow = await authCallback(issuer);
+      expect(flow.callback.status).toBe(400);
+      expect(flow.callback.headers.get("Location")).toBeNull();
+      expect(tokenCalls).toBe(0);
+      expect(krogerCalls).toBe(0);
+    },
+  );
+
+  it("rejects duplicate issuers and validates issuer before handling provider errors", async () => {
+    const flow = await start();
+    const url = authUrl(flow.state);
+    url.searchParams.append("iss", env.BETTER_AUTH_ISSUER);
+    url.searchParams.set("error", "access_denied");
+
+    const response = await SELF.fetch(
+      new Request(url, { headers: { Cookie: flow.cookie } }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("Invalid sign-in issuer");
+    expect(tokenCalls).toBe(0);
+  });
+
+  it("rejects a mismatched issuer on an error response", async () => {
+    const flow = await start();
+    const url = authUrl(flow.state, "https://attacker.example");
+    url.searchParams.set("error", "access_denied");
+
+    const response = await SELF.fetch(
+      new Request(url, { headers: { Cookie: flow.cookie } }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("Invalid sign-in issuer");
+    expect(tokenCalls).toBe(0);
+  });
+
+  it("uses the issuer-support flag captured when sign-in started", async () => {
+    const flow = await start();
+    issuerParameterSupported = false;
+
+    const response = await SELF.fetch(
+      new Request(authUrl(flow.state, null), {
+        headers: { Cookie: flow.cookie },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(tokenCalls).toBe(0);
+  });
+
+  it.each([false, undefined])(
+    "permits an absent issuer when the advertisement is %s",
+    async (advertised) => {
+      issuerParameterSupported = advertised;
+      const flow = await authCallback(null);
+      expect(flow.callback.status).toBe(302);
+      expect(tokenCalls).toBe(1);
+    },
+  );
+
+  it("handles a declined sign-in only after validating its issuer", async () => {
+    const flow = await start();
+    const url = authUrl(flow.state);
+    url.searchParams.set("error", "access_denied");
+
+    const response = await SELF.fetch(
+      new Request(url, { headers: { Cookie: flow.cookie } }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("Sign-in was declined");
+    expect(tokenCalls).toBe(0);
+    expect(krogerCalls).toBe(0);
+  });
+
+  it("still rejects a wrong issuer when support was not advertised", async () => {
+    issuerParameterSupported = false;
+    const flow = await authCallback("https://attacker.example");
+    expect(flow.callback.status).toBe(400);
+    expect(tokenCalls).toBe(0);
+  });
+
   it("does not connect an unverifiable Kroger profile", async () => {
     badProfile = true;
     const flow = await authCallback();
@@ -233,10 +346,9 @@ describe("browser Kroger account connection", () => {
     const state = location.searchParams.get("state") ?? "";
 
     const response = await SELF.fetch(
-      new Request(
-        `${env.MCP_RESOURCE_URL}/callback?code=kroger-code&state=${state}`,
-        { headers: { Cookie: bindingCookie(flow.callback, state) } },
-      ),
+      new Request(`${appOrigin}/callback?code=kroger-code&state=${state}`, {
+        headers: { Cookie: bindingCookie(flow.callback, state) },
+      }),
     );
 
     expect(response.status).toBe(502);

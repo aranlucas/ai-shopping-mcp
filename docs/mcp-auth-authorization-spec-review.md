@@ -2,7 +2,13 @@
 
 Reviewed 2026-10-12 against the published MCP `2026-07-28` authorization specification, the earlier `2025-11-25` specification where useful, RFC 9728, RFC 8414, RFC 8707, RFC 9207, the v2 TypeScript SDK, and Better Auth 1.7.7's MCP/OAuth APIs.
 
-## Verdict
+## Implementation follow-up
+
+The PR now uses the full `/mcp` resource identifier, points authorization challenges at its path-specific metadata document, validates browser response issuers against the transaction's recorded issuer and advertised capability before code exchange, and explicitly sets `legacy: "reject"`. Host validation and an exact browser-origin allowlist run before authentication and preflight; the Agents handler receives the same policy. Regression tests cover these changes, including origin-only JWT audience rejection and missing, mismatched, duplicate, and error-response issuers.
+
+Provider resource/scope configuration, client provisioning, and optional CIMD onboarding remain owned by the auth repository. The original findings below describe the snapshot reviewed before these fixes; use [the integration contract](better-auth-integration.md) for the current configuration.
+
+## Original review verdict
 
 The architecture is a strong fit: the shopping Worker is an OAuth resource server, shared Better Auth is the authorization server, and the Worker validates audience-bound bearer tokens before constructing a request-scoped MCP server. The implementation follows the core MCP rule that a server accepts only tokens issued for its own resource. [MCP roles and token handling](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), [token separation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations).
 

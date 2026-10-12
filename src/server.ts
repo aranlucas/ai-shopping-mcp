@@ -1,6 +1,9 @@
 import * as Sentry from "@sentry/cloudflare";
 import { exports } from "cloudflare:workers";
-import { McpServer } from "@modelcontextprotocol/server";
+import {
+  McpServer,
+  hostHeaderValidationResponse,
+} from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
 import {
@@ -16,6 +19,7 @@ import {
   authSettings,
   accessTokenOptions,
   shoppingIdentity,
+  mcpSettings,
 } from "./services/better-auth.js";
 import { KrogerWorker } from "./kroger-handler.js";
 import { registerConnectKroger } from "./tools/connect-kroger.js";
@@ -99,7 +103,15 @@ async function mcpApiHandler(
 
           return server;
         },
-        { route: "/mcp", authContext: { props } },
+        {
+          route: "/mcp",
+          authContext: { props },
+          legacy: "reject",
+          allowedHostnames: [new URL(env.MCP_RESOURCE_URL).hostname],
+          allowedOriginHostnames: mcpSettings(env).allowedOrigins.map(
+            (origin) => new URL(origin).hostname,
+          ),
+        },
       );
 
       return handler.fetch(verifiedRequest, {
@@ -117,10 +129,16 @@ async function mcpApiHandler(
   return protectedHandler(request);
 }
 
-function withMcpCors(response: Response) {
+function withMcpCors(
+  response: Response,
+  origin = "*",
+  methods = "GET, OPTIONS",
+) {
   const headers = new Headers(response.headers);
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  headers.set("Access-Control-Allow-Origin", origin);
+
+  if (origin !== "*") headers.append("Vary", "Origin");
+  headers.set("Access-Control-Allow-Methods", methods);
   headers.set(
     "Access-Control-Allow-Headers",
     "Content-Type, Accept, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name",
@@ -143,6 +161,7 @@ export async function handleRequest(
     path === "/.well-known/oauth-protected-resource/mcp"
   ) {
     const settings = authSettings(env);
+    const resource = mcpSettings(env).resource;
 
     if (request.method === "OPTIONS") return withMcpCors(new Response(null));
 
@@ -153,7 +172,7 @@ export async function handleRequest(
 
     return withMcpCors(
       metadataResponse({
-        resource: env.MCP_RESOURCE_URL,
+        resource,
         authorization_servers: [settings.issuer],
         scopes_supported: ["mcp:tools"],
         bearer_methods_supported: ["header"],
@@ -162,9 +181,27 @@ export async function handleRequest(
   }
 
   if (path === "/mcp") {
-    if (request.method === "OPTIONS") return withMcpCors(new Response(null));
+    const settings = mcpSettings(env);
+    const origin = request.headers.get("Origin");
 
-    return withMcpCors(await mcpApiHandler(request, env, ctx));
+    if (origin !== null && !settings.allowedOrigins.includes(origin))
+      return new Response("Origin not allowed", { status: 403 });
+
+    const hostRejection = hostHeaderValidationResponse(request, [
+      new URL(settings.resource).hostname,
+    ]);
+
+    if (hostRejection) return hostRejection;
+    const corsOrigin = origin ?? new URL(settings.resource).origin;
+
+    if (request.method === "OPTIONS")
+      return withMcpCors(new Response(null), corsOrigin, "POST, OPTIONS");
+
+    return withMcpCors(
+      await mcpApiHandler(request, env, ctx),
+      corsOrigin,
+      "POST, OPTIONS",
+    );
   }
 
   return KrogerWorker.fetch(request, env, ctx);

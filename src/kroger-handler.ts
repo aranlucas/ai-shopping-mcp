@@ -99,6 +99,9 @@ app.get("/connect/kroger", async (c) => {
 
   const transaction = await beginTransaction({
     type: "auth",
+    issuer: metadata.issuer,
+    issuerParameterSupported:
+      metadata.authorization_response_iss_parameter_supported,
     verifier,
     nonce,
     redirectUri,
@@ -128,6 +131,22 @@ app.get("/auth/callback", async (c) => {
     return c.text(
       "Invalid or expired sign-in. Start connecting Kroger again.",
       400,
+    );
+
+  // RFC 9207 requires exact issuer comparison before processing errors or codes.
+  const issuers = new URL(c.req.url).searchParams.getAll("iss");
+
+  if (
+    (resumed.data.issuerParameterSupported && issuers.length !== 1) ||
+    (issuers.length > 0 &&
+      (issuers.length !== 1 || issuers[0] !== resumed.data.issuer))
+  )
+    return new Response(
+      "Invalid sign-in issuer. Start connecting Kroger again.",
+      {
+        status: 400,
+        headers: resumed.headers,
+      },
     );
 
   if (c.req.query("error"))

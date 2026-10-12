@@ -19,10 +19,13 @@ import {
 } from "./better-auth-fixture.js";
 import { ensureShoppingSchema } from "./d1-schema.js";
 
+const appOrigin = new URL(env.MCP_RESOURCE_URL).origin;
+
 function mcpRequest(token?: string) {
-  return new Request(`${env.MCP_RESOURCE_URL}/mcp`, {
+  return new Request(env.MCP_RESOURCE_URL, {
     method: "POST",
     headers: {
+      Host: new URL(env.MCP_RESOURCE_URL).host,
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
       "mcp-protocol-version": "2026-07-28",
@@ -50,9 +53,14 @@ async function connectClient(token: string) {
   );
 
   await client.connect(
-    new StreamableHTTPClientTransport(new URL(`${env.MCP_RESOURCE_URL}/mcp`), {
+    new StreamableHTTPClientTransport(new URL(env.MCP_RESOURCE_URL), {
       fetch: (input, init) => SELF.fetch(new Request(input, init)),
-      requestInit: { headers: { Authorization: `Bearer ${token}` } },
+      requestInit: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Host: new URL(env.MCP_RESOURCE_URL).host,
+        },
+      },
     }),
   );
 
@@ -75,7 +83,11 @@ describe("Better Auth resource server", () => {
 
   it("publishes the external issuer and scopes and challenges unauthenticated requests", async () => {
     const metadata = await SELF.fetch(
-      `${env.MCP_RESOURCE_URL}/.well-known/oauth-protected-resource`,
+      `${appOrigin}/.well-known/oauth-protected-resource`,
+    );
+
+    expect(metadata.headers.get("Access-Control-Allow-Methods")).toBe(
+      "GET, OPTIONS",
     );
 
     expect(await metadata.json()).toMatchObject({
@@ -86,7 +98,7 @@ describe("Better Auth resource server", () => {
     const response = await SELF.fetch(mcpRequest());
     expect(response.status).toBe(401);
     expect(response.headers.get("WWW-Authenticate")).toContain(
-      "resource_metadata=",
+      `resource_metadata="${appOrigin}/.well-known/oauth-protected-resource/mcp"`,
     );
     expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
       "WWW-Authenticate",
@@ -94,23 +106,22 @@ describe("Better Auth resource server", () => {
     expect(
       await (
         await SELF.fetch(
-          `${env.MCP_RESOURCE_URL}/.well-known/oauth-protected-resource/mcp`,
+          `${appOrigin}/.well-known/oauth-protected-resource/mcp`,
         )
       ).json(),
     ).toEqual(
       await (
-        await SELF.fetch(
-          `${env.MCP_RESOURCE_URL}/.well-known/oauth-protected-resource`,
-        )
+        await SELF.fetch(`${appOrigin}/.well-known/oauth-protected-resource`)
       ).json(),
     );
   });
 
   it("allows browser preflight without requiring a token", async () => {
     const response = await SELF.fetch(
-      new Request(`${env.MCP_RESOURCE_URL}/mcp`, {
+      new Request(env.MCP_RESOURCE_URL, {
         method: "OPTIONS",
         headers: {
+          Host: new URL(env.MCP_RESOURCE_URL).host,
           Origin: "https://client.example",
           "Access-Control-Request-Headers": "authorization",
         },
@@ -118,9 +129,89 @@ describe("Better Auth resource server", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("Access-Control-Allow-Methods")).toBe(
+      "POST, OPTIONS",
+    );
     expect(response.headers.get("Access-Control-Allow-Headers")).toContain(
       "Authorization",
     );
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://client.example",
+    );
+  });
+
+  it.each([
+    "https://attacker.example",
+    "http://client.example",
+    "https://client.example:8443",
+    "null",
+  ])(
+    "rejects untrusted browser origin %s before authentication and on preflight",
+    async (origin) => {
+      const responses = await Promise.all(
+        ["POST", "OPTIONS"].map((method) =>
+          SELF.fetch(
+            new Request(env.MCP_RESOURCE_URL, {
+              method,
+              headers: { Origin: origin },
+            }),
+          ),
+        ),
+      );
+
+      for (const response of responses) {
+        expect(response.status).toBe(403);
+        expect(response.headers.get("Access-Control-Allow-Origin")).toBeNull();
+      }
+    },
+  );
+
+  it.each([appOrigin, "https://client.example"])(
+    "allows approved browser origin %s through the authenticated MCP transport",
+    async (origin) => {
+      const request = mcpRequest(await fixtureToken());
+      request.headers.set("Origin", origin);
+      const response = await SELF.fetch(request);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+      expect(response.headers.get("Vary")).toContain("Origin");
+    },
+  );
+
+  it("rejects host mismatches before authentication", async () => {
+    const request = new Request("https://attacker.example/mcp", {
+      method: "POST",
+      headers: { Host: "attacker.example" },
+    });
+
+    expect((await SELF.fetch(request)).status).toBe(403);
+  });
+
+  it("rejects legacy initialization instead of accepting a compatibility session", async () => {
+    const response = await SELF.fetch(
+      new Request(env.MCP_RESOURCE_URL, {
+        method: "POST",
+        headers: {
+          Host: new URL(env.MCP_RESOURCE_URL).host,
+          Authorization: `Bearer ${await fixtureToken()}`,
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "legacy-client", version: "1" },
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Mcp-Session-Id")).toBeNull();
   });
 
   it.each([
@@ -130,14 +221,13 @@ describe("Better Auth resource server", () => {
     "/userinfo",
     "/.well-known/oauth-authorization-server",
   ])("does not expose the old issuer route %s", async (path) => {
-    expect((await SELF.fetch(`${env.MCP_RESOURCE_URL}${path}`)).status).toBe(
-      404,
-    );
+    expect((await SELF.fetch(`${appOrigin}${path}`)).status).toBe(404);
   });
 
   it.each([
     { iss: "https://attacker.example" },
     { aud: "https://another-api.example" },
+    { aud: "https://example.com" },
     { exp: Math.floor(Date.now() / 1000) - 10 },
     { sub: undefined },
     { client_id: undefined },

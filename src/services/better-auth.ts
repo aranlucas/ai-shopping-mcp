@@ -46,6 +46,27 @@ export function authSettings(env: AuthBindings) {
   };
 }
 
+/** The resource identifier is the protected endpoint, not its host origin. */
+export function mcpSettings(env: {
+  MCP_RESOURCE_URL: string;
+  MCP_ALLOWED_ORIGINS?: string;
+}) {
+  const resource = httpsUrl
+    .refine((value) => new URL(value).pathname === "/mcp")
+    .parse(env.MCP_RESOURCE_URL);
+
+  const configuredOrigins = z
+    .array(httpsUrl.refine((value) => new URL(value).origin === value))
+    .parse(JSON.parse(env.MCP_ALLOWED_ORIGINS ?? "[]"));
+
+  return {
+    resource,
+    allowedOrigins: [
+      ...new Set([new URL(resource).origin, ...configuredOrigins]),
+    ],
+  };
+}
+
 const accessClaimsSchema = z.object({
   sub: z.string().min(1).max(256),
   client_id: z.string().min(1),
@@ -109,6 +130,7 @@ const discoverySchema = z.object({
   token_endpoint: httpsUrl,
   jwks_uri: httpsUrl,
   code_challenge_methods_supported: z.array(z.string()),
+  authorization_response_iss_parameter_supported: z.boolean().default(false),
 });
 
 export async function discovery(env: AppEnv) {
@@ -149,6 +171,8 @@ export function browserClient(env: AppEnv) {
 
 export type OidcTransaction = {
   type: "auth";
+  issuer: string;
+  issuerParameterSupported: boolean;
   verifier: string;
   nonce: string;
   redirectUri: string;
@@ -160,6 +184,9 @@ export async function exchangeIdentity(
   transaction: OidcTransaction,
 ) {
   const settings = authSettings(env);
+
+  if (transaction.issuer !== settings.issuer)
+    throw new Error("Better Auth issuer changed during sign-in");
   const client = browserClient(env);
   const metadata = await discovery(env);
 

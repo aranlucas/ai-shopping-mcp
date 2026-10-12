@@ -23,7 +23,7 @@ export default defineConfig({
     },
     env: {
       MCP_RESOURCE_URL: bindings.text(
-        "https://ai-meal-planner-mcp.aranlucas.workers.dev",
+        "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp",
       ),
       SHOPPING_DB: bindings.d1({
         name: "ai-shopping-mcp",
@@ -36,6 +36,7 @@ export default defineConfig({
         "https://auth.aranlucas.workers.dev/api/auth/jwks",
       ),
       BETTER_AUTH_CLIENT_ID: bindings.text(""),
+      MCP_ALLOWED_ORIGINS: bindings.text("[]"),
       USER_DATA_KV: bindings.kv({
         id: "d7f0b87afb2b49cdbab0ead481cef6ed",
       }),

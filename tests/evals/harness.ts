@@ -22,9 +22,7 @@ import {
   seedKrogerConnection,
 } from "../better-auth-fixture.js";
 
-const MCP_BASE_URL = env.MCP_RESOURCE_URL;
-
-const MCP_URL = `${MCP_BASE_URL}/mcp`;
+const MCP_URL = env.MCP_RESOURCE_URL;
 
 // ---------------------------------------------------------------------------
 // Kroger API fixtures
@@ -470,7 +468,12 @@ export async function createEvalMcpClient(): Promise<Client> {
 
   const transport = new StreamableHTTPClientTransport(new URL(MCP_URL), {
     fetch: fetchThroughSelf,
-    requestInit: { headers: { Authorization: `Bearer ${accessToken}` } },
+    requestInit: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Host: new URL(MCP_URL).host,
+      },
+    },
   });
 
   const client = new Client(

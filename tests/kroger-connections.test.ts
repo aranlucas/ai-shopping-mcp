@@ -1,3 +1,4 @@
+import { env } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -102,6 +103,8 @@ describe("Kroger credential ownership", () => {
 
     const data = {
       type: "auth" as const,
+      issuer: env.BETTER_AUTH_ISSUER,
+      issuerParameterSupported: true,
       verifier: "verifier",
       nonce: "nonce",
       redirectUri: "https://example.com/auth/callback",
