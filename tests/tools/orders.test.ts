@@ -1,12 +1,15 @@
-import { strictFake } from "../strict-fake.js";
-import { parseToolPayload } from "../app-payload.js";
-import { appPayloadSchemas } from "../../src/app-results.js";
-// oxlint-disable perfectionist/sort-imports
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { OrderRecord } from "../../src/domain/shopping.js";
 import type { OrderHistoryStore } from "../../src/utils/shopping-store.js";
 
+import { appPayloadSchemas } from "../../src/app-results.js";
+import {
+  registerOrderTools,
+  recordOrderInputSchema,
+} from "../../src/tools/orders.js";
+import { parseToolPayload } from "../app-payload.js";
+import { strictFake } from "../strict-fake.js";
 import {
   getCapturedHandler,
   getCapturedTool,
@@ -14,10 +17,6 @@ import {
   makeStorage,
   resetToolTestHarness,
 } from "./tool-test-harness.js";
-import {
-  registerOrderTools,
-  recordOrderInputSchema,
-} from "../../src/tools/orders.js";
 
 function registerOrders(context: ReturnType<typeof makeContext>) {
   registerOrderTools(context.server, {

@@ -1,13 +1,14 @@
-import { appPayloadSchemas } from "../../src/app-results.js";
-import { parseToolPayload } from "../app-payload.js";
-import { memoryKv } from "../memory-kv.js";
-import { strictFake } from "../strict-fake.js";
-// oxlint-disable perfectionist/sort-imports
-// oxlint-disable perfectionist/sort-imports
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ShoppingStore } from "../../src/utils/shopping-store.js";
 
+import { appPayloadSchemas } from "../../src/app-results.js";
+import { registerCartTools as registerCartToolsImpl } from "../../src/tools/cart.js";
+import { registerShoppingListTools as registerShoppingListToolsImpl } from "../../src/tools/shopping-list.js";
+import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
+import { parseToolPayload } from "../app-payload.js";
+import { memoryKv } from "../memory-kv.js";
+import { strictFake } from "../strict-fake.js";
 import {
   getCapturedHandler,
   makeCartContext,
@@ -16,9 +17,6 @@ import {
   makeStorage,
   resetToolTestHarness,
 } from "./tool-test-harness.js";
-import { registerCartTools as registerCartToolsImpl } from "../../src/tools/cart.js";
-import { registerShoppingListTools as registerShoppingListToolsImpl } from "../../src/tools/shopping-list.js";
-import { buildWeeklyDealsCacheKey } from "../../src/tools/weekly-deals.js";
 
 type TestContext = ReturnType<typeof makeContext>;
 

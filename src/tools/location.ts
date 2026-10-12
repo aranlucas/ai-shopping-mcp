@@ -46,23 +46,6 @@ function compactLocation(location: Location): LocationData {
   };
 }
 
-/** zipCode, or the value of any zip-like key a model misspelled it as. */
-// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The deliberately loose MCP input accepts misspelled zip keys; each candidate is parsed before use.
-function zipCodeFrom(input: Record<string, unknown>): string | undefined {
-  const direct = z.string().safeParse(input.zipCode);
-
-  if (direct.success) return direct.data.trim();
-
-  for (const [key, value] of Object.entries(input)) {
-    if (!/^(zip|postal)/i.test(key)) continue;
-    const parsed = z.string().safeParse(value);
-
-    if (parsed.success) return parsed.data.trim();
-  }
-
-  return undefined;
-}
-
 export type LocationToolDependencies = {
   locationClient: KrogerClients["locationClient"];
   preferredLocation: PreferredLocationStore;
@@ -89,10 +72,8 @@ export function registerLocationTools(
         idempotentHint: true,
         openWorldHint: true,
       },
-      // Loose so a misspelled zip key (zip, zipCodeNear, postalCode, …) is
-      // still read as zipCode instead of rejected; see zipCodeFrom.
       inputSchema: z
-        .looseObject({
+        .strictObject({
           zipCode: z
             .string()
             .trim()
@@ -114,18 +95,17 @@ export function registerLocationTools(
               "Only return one banner, e.g. 'QFC' or 'KROGER'. Omit to search every banner.",
             ),
         })
-        .refine((input) => Boolean(zipCodeFrom(input) ?? input.storeId), {
+        .refine((input) => Boolean(input.zipCode ?? input.storeId), {
           message:
             'Pass zipCode (5 digits) to search, or storeId for one store. Example: {"zipCode":"98105"}',
         }),
     },
     async (input) => {
-      const { storeId, limit, chain } = input;
+      const { storeId, zipCode, limit, chain } = input;
 
       if (storeId) return getStoreDetails(storeId);
-      const zipCodeNear = zipCodeFrom(input);
 
-      if (!zipCodeNear || !/^\d{5}$/.test(zipCodeNear)) {
+      if (!zipCode || !/^\d{5}$/.test(zipCode)) {
         return toMcpError(
           validationError(
             'zipCode must be 5 digits. Example: {"zipCode":"98105"}',
@@ -136,7 +116,7 @@ export function registerLocationTools(
       const queryParams: operations["SearchLocations"]["parameters"]["query"] =
         {
           "filter.limit": limit,
-          "filter.zipCode.near": zipCodeNear,
+          "filter.zipCode.near": zipCode,
         };
 
       if (chain) queryParams["filter.chain"] = chain;

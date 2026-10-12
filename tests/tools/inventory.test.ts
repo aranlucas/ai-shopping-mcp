@@ -1,9 +1,9 @@
-import { strictFake } from "../strict-fake.js";
-// oxlint-disable perfectionist/sort-imports
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ShoppingStore } from "../../src/utils/shopping-store.js";
 
+import { registerInventoryTools as registerInventoryToolsImpl } from "../../src/tools/inventory.js";
+import { strictFake } from "../strict-fake.js";
 import {
   getCapturedHandler,
   getCapturedTool,
@@ -12,7 +12,6 @@ import {
   resetToolTestHarness,
   unauthenticate,
 } from "./tool-test-harness.js";
-import { registerInventoryTools as registerInventoryToolsImpl } from "../../src/tools/inventory.js";
 
 function registerInventoryTools(fixture: ReturnType<typeof makeContext>) {
   registerInventoryToolsImpl(fixture.server, fixture);
