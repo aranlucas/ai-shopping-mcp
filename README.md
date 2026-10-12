@@ -50,7 +50,7 @@ pnpm db:migrate:local
 pnpm start
 ```
 
-The local Worker runs at `https://ai-shopping-mcp.localhost` through [Portless](https://github.com/vercel-labs/portless) (a dev dependency); its first run may ask for `sudo` to bind port 443 and trust a local certificate. For authenticated local MCP testing, set `MCP_RESOURCE_URL="https://ai-shopping-mcp.localhost/mcp"` in `.dev.vars`, allow that audience in Better Auth, register `https://ai-shopping-mcp.localhost/auth/callback` with the Better Auth browser client, and register `https://ai-shopping-mcp.localhost/callback` with your Kroger application. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html`.
+The local Worker runs at `https://ai-shopping-mcp.localhost` through [Portless](https://github.com/vercel-labs/portless) (a dev dependency); its first run may ask for `sudo` to bind port 443 and trust a local certificate. For authenticated local MCP testing, set `MCP_RESOURCE_URL="https://ai-shopping-mcp.localhost/mcp"` in `.dev.vars`, allow that audience in Better Auth, run Auth with the `KrogerTokens` entrypoint available to the `AUTH` binding, and register the Auth service's `/api/auth/callback/kroger` URL with your Kroger application. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. To preview the MCP App with sample data, run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html`.
 
 ```sh
 pnpm lint
@@ -86,9 +86,9 @@ Clients that require a local proxy can use `mcp-remote`:
 
 ## Production resources and data
 
-User shopping data is stored in D1 and scoped to the verified Better Auth issuer and subject. Better Auth issues MCP access tokens; this Worker uses the official `@better-auth/mcp` resource-server helper (1.7.7) to verify them against JWKS and require `mcp:tools`. `KrogerConnections` Durable Objects own upstream credentials and serialize refresh, `LoginTransactions` own browser redirect state, and `CartOperations` own cart journals. Caches and cart receipts use `USER_DATA_KV`.
+User shopping data is stored in D1 and scoped to the verified Better Auth issuer and subject. Better Auth issues MCP access tokens; this Worker uses the official `@better-auth/mcp` resource-server helper (1.7.7) to verify them against JWKS and require `mcp:tools`. Auth stores and refreshes Kroger credentials. `KrogerConnections` Durable Objects serialize token requests through the `AUTH` service binding, and `CartOperations` own cart journals. Caches and cart receipts use `USER_DATA_KV`.
 
-The schema is defined in [`src/db/schema.ts`](src/db/schema.ts). Apply local migrations with `pnpm db:migrate:local`; apply remote migrations before a Worker deployment with `pnpm db:migrate:remote`. Required production secrets are `KROGER_CLIENT_ID`, `KROGER_CLIENT_SECRET`, and `BETTER_AUTH_CLIENT_SECRET`. `SENTRY_DSN` is optional. See [the Better Auth integration contract](docs/better-auth-integration.md) for provider setup and callback registration.
+The schema is defined in [`src/db/schema.ts`](src/db/schema.ts). Apply local migrations with `pnpm db:migrate:local`; apply remote migrations before a Worker deployment with `pnpm db:migrate:remote`. Kroger client credentials belong to the Auth Worker; the shopping Worker needs the `AUTH` binding to its `KrogerTokens` entrypoint. `SENTRY_DSN` is optional. See [the Better Auth integration contract](docs/better-auth-integration.md) for provider setup and callback registration.
 
 ---
 
@@ -135,9 +135,6 @@ pnpm deploy
 
 Keep the Worker name, KV namespace IDs, and Durable Object lifecycle declarations in `cloudflare.config.ts` stable. Configure these runtime secrets in Cloudflare:
 
-- `KROGER_CLIENT_ID`
-- `KROGER_CLIENT_SECRET`
-- `BETTER_AUTH_CLIENT_SECRET` (confidential browser client for linking Kroger)
 - `SENTRY_DSN` (optional; enables errors-only Sentry reporting)
 
 Apply pending D1 migrations before deploying a Worker that uses the new schema:
@@ -149,18 +146,16 @@ pnpm db:migrate:remote
 Register the exact production callback URL with Kroger:
 
 ```text
-https://ai-meal-planner-mcp.aranlucas.workers.dev/callback
+https://auth.aranlucas.workers.dev/api/auth/callback/kroger
 ```
 
 The Kroger application must allow `profile.compact`, `cart.basic:write`, and `product.compact`.
 
-Configure `BETTER_AUTH_ISSUER`, `BETTER_AUTH_JWKS_URL`, and `BETTER_AUTH_CLIENT_ID` in `cloudflare.config.ts`. Register `/auth/callback` with Better Auth separately from Kroger's `/callback`; configure the provider to allow the exact `/mcp` endpoint in `MCP_RESOURCE_URL` as an access-token audience and the `mcp:tools` scope. Set `MCP_ALLOWED_ORIGINS` to a JSON array of intended browser client origins; the default allows the Worker origin and clients without an Origin header. The Worker rejects unapproved origins and legacy MCP initialization traffic. This Worker no longer serves `/authorize`, `/register`, `/token`, or `/userinfo`. Existing MCP tokens must be replaced by signing in through Better Auth. Shopping data uses the new auth identity; legacy Kroger-ID records are not migrated.
+Configure `BETTER_AUTH_ISSUER`, `BETTER_AUTH_JWKS_URL`, and the `AUTH` service binding in `cloudflare.config.ts`. Register Kroger's callback on the Auth Worker (`/api/auth/callback/kroger`); configure the provider to allow the exact `/mcp` endpoint in `MCP_RESOURCE_URL` as an access-token audience and the `mcp:tools` scope. Set `MCP_ALLOWED_ORIGINS` to a JSON array of intended browser client origins; the default allows the Worker origin and clients without an Origin header. The Worker rejects unapproved origins and legacy MCP initialization traffic. This Worker no longer serves `/authorize`, `/register`, `/token`, or `/userinfo`. Existing MCP tokens must be replaced by signing in through Better Auth. Shopping data uses the new auth identity; legacy Kroger-ID records are not migrated.
 
 ## MCP surface
 
 After Kroger is linked, the server exposes 14 tools:
-
-- Connection: `connect_kroger` (also the only tool available before Kroger is linked)
 
 - Stores: `search_stores` (by zip code, or one store's details by `storeId`), `set_preferred_store`
 - Products and deals: `search_products` (text terms and/or exact UPCs in one `terms` list), `shop_for_items`, `get_weekly_deals`
@@ -308,7 +303,7 @@ Clients with remote MCP and OAuth support can connect directly to:
 https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp
 ```
 
-OAuth discovery points clients to the shared Better Auth provider. Once signed in, call `connect_kroger`, open its URL, and sign in to the same shared-auth account to approve Kroger access. The connection takes effect on the next request. Clients can refresh the tool list or reconnect after linking.
+OAuth discovery points clients to the shared Better Auth provider. MCP sign-in includes Kroger linking before consent, then exposes the shopping tools. If Kroger is unlinked or its refresh fails, the Worker returns a 401 challenge and the client signs in again to reconnect Kroger.
 
 For a client that still needs a local proxy:
 

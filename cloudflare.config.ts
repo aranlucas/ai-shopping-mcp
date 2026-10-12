@@ -8,7 +8,7 @@ export default defineConfig({
       MyMCP: exports.durableObject({ state: "deleted" }),
       CartOperations: exports.durableObject({ storage: "sqlite" }),
       KrogerConnections: exports.durableObject({ storage: "sqlite" }),
-      LoginTransactions: exports.durableObject({ storage: "sqlite" }),
+      LoginTransactions: exports.durableObject({ state: "deleted" }),
     },
     name: "ai-meal-planner-mcp",
     compatibilityDate: "2025-03-10",
@@ -35,7 +35,7 @@ export default defineConfig({
       BETTER_AUTH_JWKS_URL: bindings.text(
         "https://auth.aranlucas.workers.dev/api/auth/jwks",
       ),
-      BETTER_AUTH_CLIENT_ID: bindings.text(""),
+      AUTH: bindings.worker({ worker: "auth", exportName: "KrogerTokens" }),
       MCP_ALLOWED_ORIGINS: bindings.text("[]"),
       USER_DATA_KV: bindings.kv({
         id: "d7f0b87afb2b49cdbab0ead481cef6ed",

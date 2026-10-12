@@ -1,13 +1,6 @@
-import {
-  authorizationCodeRequest,
-  verifyBearerToken,
-  verifyJwsAccessToken,
-} from "better-auth/oauth2";
+import { verifyBearerToken } from "better-auth/oauth2";
 import type { JWTPayload } from "jose";
 import { z } from "zod/v4";
-import type { AppEnv } from "../env.js";
-
-export { generateCodeChallenge as pkceChallenge } from "better-auth/oauth2";
 
 export type AuthIdentity = { id: string; issuer: string; subject: string };
 
@@ -110,7 +103,7 @@ export function shoppingIdentity(issuer: string, payload: JWTPayload) {
   };
 }
 
-/** Browser linking accepts only a resource access token verified by Better Auth. */
+/** Verify a resource access token through Better Auth. */
 export async function validateAccessToken(
   env: AuthBindings,
   resource: string,
@@ -122,131 +115,4 @@ export async function validateAccessToken(
   );
 
   return shoppingIdentity(authSettings(env).issuer, payload);
-}
-
-const discoverySchema = z.object({
-  issuer: z.string(),
-  authorization_endpoint: httpsUrl,
-  token_endpoint: httpsUrl,
-  jwks_uri: httpsUrl,
-  code_challenge_methods_supported: z.array(z.string()),
-  authorization_response_iss_parameter_supported: z.boolean().default(false),
-});
-
-export async function discovery(env: AppEnv) {
-  const settings = authSettings(env);
-
-  const response = await fetch(
-    `${settings.issuer.replace(/\/$/u, "")}/.well-known/openid-configuration`,
-    {
-      redirect: "manual",
-      signal: AbortSignal.timeout(10_000),
-    },
-  );
-
-  if (!response.ok) throw new Error("Better Auth discovery unavailable");
-  const metadata = discoverySchema.parse(await response.json());
-
-  if (
-    metadata.issuer !== settings.issuer ||
-    metadata.jwks_uri !== settings.jwksUrl ||
-    !metadata.code_challenge_methods_supported.includes("S256") ||
-    [metadata.authorization_endpoint, metadata.token_endpoint].some(
-      (url) => new URL(url).origin !== new URL(settings.issuer).origin,
-    )
-  )
-    throw new Error("Better Auth discovery does not match configured issuer");
-
-  return metadata;
-}
-
-export function browserClient(env: AppEnv) {
-  return z
-    .object({
-      BETTER_AUTH_CLIENT_ID: z.string().min(1),
-      BETTER_AUTH_CLIENT_SECRET: z.string().min(1),
-    })
-    .parse(env);
-}
-
-export type OidcTransaction = {
-  type: "auth";
-  issuer: string;
-  issuerParameterSupported: boolean;
-  verifier: string;
-  nonce: string;
-  redirectUri: string;
-};
-
-export async function exchangeIdentity(
-  env: AppEnv,
-  code: string,
-  transaction: OidcTransaction,
-) {
-  const settings = authSettings(env);
-
-  if (transaction.issuer !== settings.issuer)
-    throw new Error("Better Auth issuer changed during sign-in");
-  const client = browserClient(env);
-  const metadata = await discovery(env);
-
-  const tokenRequest = await authorizationCodeRequest({
-    code,
-    codeVerifier: transaction.verifier,
-    redirectURI: transaction.redirectUri,
-    options: {
-      clientId: client.BETTER_AUTH_CLIENT_ID,
-      clientSecret: client.BETTER_AUTH_CLIENT_SECRET,
-    },
-    tokenEndpoint: metadata.token_endpoint,
-    tokenEndpointAuth: { method: "client_secret_basic" },
-    resource: env.MCP_RESOURCE_URL,
-  });
-
-  const response = await fetch(metadata.token_endpoint, {
-    method: "POST",
-    redirect: "manual",
-    headers: tokenRequest.headers,
-    body: tokenRequest.body,
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  if (!response.ok) throw new Error("Better Auth code exchange failed");
-
-  const tokens = z
-    .object({ id_token: z.string(), access_token: z.string() })
-    .parse(await response.json());
-
-  const payload = await verifyJwsAccessToken(tokens.id_token, {
-    jwksFetch: settings.jwksUrl,
-    verifyOptions: {
-      issuer: settings.issuer,
-      audience: client.BETTER_AUTH_CLIENT_ID,
-      algorithms: ["EdDSA", "ES256", "RS256"],
-      requiredClaims: ["sub", "nonce", "exp", "iat"],
-      maxTokenAge: "10m",
-    },
-  });
-
-  const access = await validateAccessToken(
-    env,
-    env.MCP_RESOURCE_URL,
-    tokens.access_token,
-  );
-
-  if (
-    payload.nonce !== transaction.nonce ||
-    !access ||
-    access.clientId !== client.BETTER_AUTH_CLIENT_ID ||
-    access.props.subject !== payload.sub ||
-    !access.scope?.includes("mcp:tools") ||
-    (payload.azp !== undefined &&
-      payload.azp !== client.BETTER_AUTH_CLIENT_ID) ||
-    (Array.isArray(payload.aud) &&
-      payload.aud.length > 1 &&
-      payload.azp !== client.BETTER_AUTH_CLIENT_ID)
-  )
-    throw new Error("Better Auth identity verification failed");
-
-  return access.props;
 }
