@@ -147,7 +147,9 @@ afterEach(() => {
 });
 
 /** Configure fetchMock for the happy print-ad path. */
-function setupPrintAdFetch(circularsResponse: JsonInput = MOCK_CIRCULARS_RESPONSE) {
+function setupPrintAdFetch(
+  circularsResponse: JsonInput = MOCK_CIRCULARS_RESPONSE,
+) {
   fetchMock.mockImplementation((input: string | Request | URL) => {
     const url = urlOf(input);
 
