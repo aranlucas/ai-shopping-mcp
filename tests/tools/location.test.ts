@@ -1,14 +1,14 @@
-import { locationClient } from "../kroger-clients.js";
-import { strictFake } from "../strict-fake.js";
-import { appPayloadSchemas } from "../../src/app-results.js";
-import { parseToolPayload } from "../app-payload.js";
-// oxlint-disable perfectionist/sort-imports
-// oxlint-disable perfectionist/sort-imports
 import { beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import type { PreferredLocation } from "../../src/domain/shopping.js";
 import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 
+import { appPayloadSchemas } from "../../src/app-results.js";
+import { registerLocationTools } from "../../src/tools/location.js";
+import { parseToolPayload } from "../app-payload.js";
+import { locationClient } from "../kroger-clients.js";
+import { strictFake } from "../strict-fake.js";
 import {
   getCapturedHandler,
   getCapturedTool,
@@ -16,7 +16,6 @@ import {
   makeStorage,
   resetToolTestHarness,
 } from "./tool-test-harness.js";
-import { registerLocationTools } from "../../src/tools/location.js";
 
 function registerLocation(context: ReturnType<typeof makeContext>) {
   registerLocationTools(context.server, {
@@ -95,12 +94,26 @@ describe("location storage-backed tools", () => {
       true,
     );
     expect(config.inputSchema.parse({ zipCode: "98122" }).limit).toBe(5);
+  });
 
-    // Misspelled zip keys are read as zipCode rather than rejected.
+  it("publishes a strict schema and rejects ZIP aliases", () => {
+    const context = makeContext();
+    registerLocation(context);
+    const { inputSchema } = getCapturedTool("search_stores").config;
+
+    expect(z.toJSONSchema(inputSchema, { io: "input" })).toMatchObject({
+      additionalProperties: false,
+    });
+
     for (const key of ["zip", "zipCodeNear", "zipCodeNearv", "postalCode"]) {
       expect
-        .soft(config.inputSchema.safeParse({ [key]: "98122" }).success)
-        .toBe(true);
+        .soft(inputSchema.safeParse({ [key]: "98122" }).success)
+        .toBe(false);
+      expect
+        .soft(
+          inputSchema.safeParse({ zipCode: "98122", [key]: "98122" }).success,
+        )
+        .toBe(false);
     }
   });
 
