@@ -2,48 +2,37 @@ import { describe, expect, it } from "vitest";
 
 import type { components as ProductComponents } from "../../../src/services/kroger/product.js";
 
-import {
-  toProductData,
-  toProductPageUrl,
-} from "../../../src/services/kroger/product-data.js";
+import { toProductData, toProductPageUrl } from "../../../src/services/kroger/product-data.js";
+
+type StockAvailabilityCase = { stockLevel: Inventory["stockLevel"]; available: boolean };
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
-type Inventory =
-  ProductComponents["schemas"]["products.productItemInventoryModel"];
+type Inventory = ProductComponents["schemas"]["products.productItemInventoryModel"];
 
 describe("toProductData", () => {
-  it.each<{ stockLevel: Inventory["stockLevel"]; available: boolean }>([
+  it.each<StockAvailabilityCase>([
     { stockLevel: "HIGH", available: true },
     { stockLevel: "LOW", available: true },
     { stockLevel: "TEMPORARILY_OUT_OF_STOCK", available: false },
     { stockLevel: undefined, available: true },
-  ])(
-    "reports $stockLevel stock as available=$available",
-    ({ stockLevel, available }) => {
-      const product = toProductData({
-        upc: "0001111041700",
-        items: [{ inventory: { stockLevel }, fulfillment: { instore: true } }],
-      });
+  ])("reports $stockLevel stock as available=$available", ({ stockLevel, available }) => {
+    const product = toProductData({
+      upc: "0001111041700",
+      items: [{ inventory: { stockLevel }, fulfillment: { instore: true } }],
+    });
 
-      expect(product.available).toBe(available);
-    },
-  );
+    expect(product.available).toBe(available);
+  });
 
   it.each([
     { fulfillment: { instore: true }, pickup: false },
     { fulfillment: { curbside: false, instore: true }, pickup: false },
     { fulfillment: { curbside: true, instore: false }, pickup: true },
     { fulfillment: undefined, pickup: false },
-  ])(
-    "requires curbside fulfillment for pickup: $fulfillment",
-    ({ fulfillment, pickup }) => {
-      expect(
-        toProductData({ upc: "0001111041700", items: [{ fulfillment }] })
-          .pickup,
-      ).toBe(pickup);
-    },
-  );
+  ])("requires curbside fulfillment for pickup: $fulfillment", ({ fulfillment, pickup }) => {
+    expect(toProductData({ upc: "0001111041700", items: [{ fulfillment }] }).pickup).toBe(pickup);
+  });
 
   it.each([
     {
@@ -85,10 +74,9 @@ describe("toProductData", () => {
     expect(toProductData({ upc: "0001111041700", images }).imageUrl).toBe(
       "https://example.com/thumbnail.jpg",
     );
-    expect(
-      toProductData({ upc: "0001111041700", images: images.toReversed() })
-        .imageUrl,
-    ).toBe("https://example.com/thumbnail.jpg");
+    expect(toProductData({ upc: "0001111041700", images: images.toReversed() }).imageUrl).toBe(
+      "https://example.com/thumbnail.jpg",
+    );
   });
 
   it("skips unusable images and sizes when choosing a front image", () => {
@@ -102,10 +90,7 @@ describe("toProductData", () => {
         },
         {
           perspective: "front",
-          sizes: [
-            { size: "thumbnail" },
-            { size: "small", url: "https://example.com/front.jpg" },
-          ],
+          sizes: [{ size: "thumbnail" }, { size: "small", url: "https://example.com/front.jpg" }],
         },
       ],
     });
@@ -140,9 +125,7 @@ describe("toProductData", () => {
       name: "Milk",
       aisle: { number: "10", side: "L" },
     });
-    expect(toProductData(raw, true).aisle).not.toHaveProperty(
-      "numberOfFacings",
-    );
+    expect(toProductData(raw, true).aisle).not.toHaveProperty("numberOfFacings");
     expect(toProductData(raw).aisle).toBeUndefined();
   });
 
@@ -164,8 +147,7 @@ describe("toProductData", () => {
     expect(
       toProductData({
         upc: "0001111041700",
-        productPageURI:
-          "/p/kroger-2-reduced-fat-milk/0001111041700?cid=dis.api.tpi",
+        productPageURI: "/p/kroger-2-reduced-fat-milk/0001111041700?cid=dis.api.tpi",
       }).url,
     ).toBe("https://www.kroger.com/p/kroger-2-reduced-fat-milk/0001111041700");
   });

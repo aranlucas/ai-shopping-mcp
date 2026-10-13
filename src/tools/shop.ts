@@ -10,21 +10,10 @@ import { toProductData } from "../services/kroger/product-data.js";
 import { searchProductsForTerms } from "../services/kroger/search.js";
 import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
 import { formatProductSearchMarkdown } from "../utils/format-response.js";
-import {
-  getProps,
-  safeResolveLocationId,
-  toMcpError,
-} from "../utils/result.js";
-import type {
-  PantryStore,
-  PreferredLocationStore,
-} from "../utils/shopping-store.js";
+import { getProps, safeResolveLocationId, toMcpError } from "../utils/result.js";
+import type { PantryStore, PreferredLocationStore } from "../utils/shopping-store.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import {
-  getDealsForFlags,
-  getPantryForFlags,
-  itemFlagLabels,
-} from "./item-flags.js";
+import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { modalityEnum } from "./schemas.js";
 
 export type ShopToolDependencies = {
@@ -43,9 +32,7 @@ export const shopForItemsInputSchema = z.strictObject({
           .trim()
           .min(1)
           .max(100)
-          .describe(
-            "Search phrase including requested brand, size, or dietary needs",
-          ),
+          .describe("Search phrase including requested brand, size, or dietary needs"),
         quantity: z.coerce
           .number()
           .int()
@@ -68,12 +55,7 @@ const OPTIONS_PER_ITEM = 5;
 
 export function registerShopTools(
   server: McpServer,
-  {
-    productClient,
-    weeklyDealsCache,
-    pantry,
-    preferredLocation,
-  }: ShopToolDependencies,
+  { productClient, weeklyDealsCache, pantry, preferredLocation }: ShopToolDependencies,
 ): void {
   registerAppTool(
     server,
@@ -94,10 +76,7 @@ export function registerShopTools(
     async ({ items, modality }) => {
       getProps();
 
-      const location = await safeResolveLocationId(
-        preferredLocation,
-        undefined,
-      );
+      const location = await safeResolveLocationId(preferredLocation, undefined);
 
       if (location.isErr()) {
         return toMcpError(
@@ -121,7 +100,10 @@ export function registerShopTools(
       );
 
       const results = searches.map((result) => {
-        if (result.status === "failed") return result;
+        if (result.status === "failed") {
+          return result;
+        }
+
         const seen = new Set<string>();
 
         return Object.assign({}, result, {
@@ -137,8 +119,10 @@ export function registerShopTools(
                 (modality === "PICKUP"
                   ? variant?.fulfillment?.curbside !== true
                   : variant?.fulfillment?.delivery !== true)
-              )
+              ) {
                 return false;
+              }
+
               seen.add(upc);
 
               return true;
@@ -148,16 +132,14 @@ export function registerShopTools(
       });
 
       const totalProducts = results.reduce(
-        (sum, result) =>
-          sum + (result.status === "success" ? result.products.length : 0),
+        (sum, result) => sum + (result.status === "success" ? result.products.length : 0),
         0,
       );
 
       if (totalProducts === 0) {
         const failed =
           results.find(
-            (result) =>
-              result.status === "failed" && result.error.type === "AUTH_ERROR",
+            (result) => result.status === "failed" && result.error.type === "AUTH_ERROR",
           ) ?? results.find((result) => result.status === "failed");
 
         return toMcpError(
@@ -186,15 +168,15 @@ export function registerShopTools(
                   ...toProductData(product),
                   declarations: product.manufacturerDeclarations,
                   allergens: product.allergensDescription,
-                  ingredients:
-                    product.nutritionInformation?.ingredientStatement,
+                  ingredients: product.nutritionInformation?.ingredientStatement,
                 }))
               : [],
           failed: result.status === "failed",
         } satisfies AppResultPayloads["search_products"]["results"][number];
 
-        if (result.status === "failed")
+        if (result.status === "failed") {
           return { ...group, error: result.error.message };
+        }
 
         return group;
       });

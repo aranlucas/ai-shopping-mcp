@@ -6,6 +6,8 @@ import type { AddShoppingListToCartContent } from "../../shared/types.js";
 import { SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
+type AddToCartViewProps = { data: AddShoppingListToCartContent };
+
 const EMPTY_CART_ICON = (
   <svg
     aria-hidden="true"
@@ -23,30 +25,15 @@ const EMPTY_CART_ICON = (
   </svg>
 );
 
-export function AddToCartView({
-  data,
-}: {
-  data: AddShoppingListToCartContent;
-}) {
-  const {
-    listId,
-    name,
-    items,
-    needsUpc,
-    actionDetail,
-    outcome,
-    addedCount,
-    requestedCount,
-  } = data;
+export function AddToCartView({ data }: AddToCartViewProps) {
+  const { listId, name, items, needsUpc, actionDetail, outcome, addedCount, requestedCount } = data;
 
   const title = `Cart · ${name}`;
 
   const headerBadge = useMemo(
     () =>
       listId ? (
-        <span className="max-w-32 truncate font-mono text-xs text-gray-400">
-          {listId}
-        </span>
+        <span className="max-w-32 truncate font-mono text-xs text-gray-400">{listId}</span>
       ) : undefined,
     [listId],
   );
@@ -59,8 +46,7 @@ export function AddToCartView({
           icon={EMPTY_CART_ICON}
           message="Items need a Kroger match"
           description={
-            actionDetail ??
-            "Search Kroger for matches, then try add_shopping_list_to_cart again."
+            actionDetail ?? "Search Kroger for matches, then try add_shopping_list_to_cart again."
           }
         />
       </div>
@@ -69,18 +55,13 @@ export function AddToCartView({
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader
-        title={title}
-        badge={headerBadge}
-        subtitle={actionDetail}
-      />
+      <SectionHeader title={title} badge={headerBadge} subtitle={actionDetail} />
 
       {items.length > 0 && (
         <>
           <div className="mb-3 flex flex-wrap gap-1.5">
             <Badge variant="secondary" tone="success">
-              {addedCount}{" "}
-              {outcome === "already_added" ? "already added" : "added"}
+              {addedCount} {outcome === "already_added" ? "already added" : "added"}
             </Badge>
             {needsUpc.length > 0 && (
               <Badge variant="outline" tone="warning">
@@ -107,11 +88,7 @@ export function AddToCartView({
                     strokeWidth={3.5}
                     stroke="currentColor"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="m4.5 12.75 6 6 9-13.5"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1">
@@ -119,12 +96,8 @@ export function AddToCartView({
                     {item.productName ?? item.upc}
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="font-mono text-xs text-gray-400">
-                      ×{item.quantity}
-                    </span>
-                    <span className="font-mono text-xs text-gray-400">
-                      {item.modality}
-                    </span>
+                    <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
+                    <span className="font-mono text-xs text-gray-400">{item.modality}</span>
                   </div>
                 </div>
               </div>
@@ -140,17 +113,12 @@ export function AddToCartView({
           </p>
           <div className="divide-y divide-border">
             {needsUpc.map((item) => (
-              <div
-                key={item.productName}
-                className="flex items-center gap-2.5 py-2.5 opacity-60"
-              >
+              <div key={item.productName} className="flex items-center gap-2.5 py-2.5 opacity-60">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm leading-snug font-medium text-gray-700">
                     {item.productName}
                   </div>
-                  <span className="font-mono text-xs text-gray-400">
-                    ×{item.quantity}
-                  </span>
+                  <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
                 </div>
               </div>
             ))}

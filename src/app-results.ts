@@ -27,9 +27,7 @@ const locationSchema = z.object({
     .optional(),
   phone: z.string().optional(),
   departments: z
-    .array(
-      z.object({ name: z.string().optional(), phone: z.string().optional() }),
-    )
+    .array(z.object({ name: z.string().optional(), phone: z.string().optional() }))
     .optional(),
 });
 
@@ -120,9 +118,7 @@ const cartResultSchema = z
         productName: z.string().optional(),
       }),
     ),
-    needsUpc: z.array(
-      z.object({ productName: z.string(), quantity: z.number() }),
-    ),
+    needsUpc: z.array(z.object({ productName: z.string(), quantity: z.number() })),
     actionDetail: z.string().optional(),
   })
   .superRefine((value, ctx) => {
@@ -249,9 +245,7 @@ export type ShoppingListSummaryData = z.infer<typeof shoppingListSummarySchema>;
 export type CartViewItemData = z.infer<typeof cartViewItemSchema>;
 
 export type AppResultPayloads = {
-  [View in keyof typeof appPayloadSchemas]: z.infer<
-    (typeof appPayloadSchemas)[View]
-  >;
+  [View in keyof typeof appPayloadSchemas]: z.infer<(typeof appPayloadSchemas)[View]>;
 };
 
 export type AppViewName = keyof AppResultPayloads;
@@ -266,34 +260,19 @@ export type StoreResultsContent = Extract<AppData, { view: "search_stores" }>;
 
 export type StoreDetailContent = Extract<AppData, { view: "get_store" }>;
 
-export type PreferredStoreContent = Extract<
-  AppData,
-  { view: "set_preferred_store" }
->;
+export type PreferredStoreContent = Extract<AppData, { view: "set_preferred_store" }>;
 
-export type ProductSearchResultsContent = Extract<
-  AppData,
-  { view: "search_products" }
->;
+export type ProductSearchResultsContent = Extract<AppData, { view: "search_products" }>;
 
 export type ProductDetailContent = Extract<AppData, { view: "get_product" }>;
 
 export type PantryListContent = Extract<AppData, { view: "pantry" }>;
 
-export type KitchenEquipmentContent = Extract<
-  AppData,
-  { view: "kitchen_equipment" }
->;
+export type KitchenEquipmentContent = Extract<AppData, { view: "kitchen_equipment" }>;
 
-export type ShoppingListContent = Extract<
-  AppData,
-  { view: "create_shopping_list" }
->;
+export type ShoppingListContent = Extract<AppData, { view: "create_shopping_list" }>;
 
-export type AddShoppingListToCartContent = Extract<
-  AppData,
-  { view: "add_shopping_list_to_cart" }
->;
+export type AddShoppingListToCartContent = Extract<AppData, { view: "add_shopping_list_to_cart" }>;
 
 export type OrderHistoryContent = Extract<AppData, { view: "record_order" }>;
 
@@ -331,20 +310,21 @@ export function appResult<View extends AppViewName>(
 }
 
 /** Convert a wire result into the app's internal discriminated view data. */
-export function parseAppResult(
-  result: CallToolResult | null | undefined,
-): AppData | null {
+export function parseAppResult(result: CallToolResult | null | undefined): AppData | null {
   const structuredContent = result?.structuredContent;
 
-  const parsedView = appViewNameSchema.safeParse(
-    result?._meta?.[APP_VIEW_META_KEY],
-  );
+  const parsedView = appViewNameSchema.safeParse(result?._meta?.[APP_VIEW_META_KEY]);
 
-  if (!structuredContent || !parsedView.success) return null;
+  if (!structuredContent || !parsedView.success) {
+    return null;
+  }
+
   const view = parsedView.data;
   const parsed = appPayloadSchemas[view].safeParse(structuredContent);
 
-  if (!parsed.success) return null;
+  if (!parsed.success) {
+    return null;
+  }
 
   // SAFETY: the finite validated view key selects precisely its associated payload schema, preserving the AppData discriminator/payload correlation.
   return { ...parsed.data, view } as AppData;

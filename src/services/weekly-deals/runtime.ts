@@ -6,10 +6,7 @@ type ProductSearchOptions = FetchOptions<ProductPaths["/v1/products"]["get"]>;
 import type { ProductSearchFn } from "../qfc-weekly-deals.js";
 import type { KrogerClients } from "../kroger/client.js";
 import type { PreferredLocationStore } from "../../utils/shopping-store.js";
-import type {
-  WeeklyDealsLoader,
-  WeeklyDealsServiceDependencies,
-} from "./service.js";
+import type { WeeklyDealsLoader, WeeklyDealsServiceDependencies } from "./service.js";
 import type { WeeklyDealsCache } from "./cache.js";
 
 import { AppErrorException } from "../../errors.js";
@@ -42,7 +39,9 @@ export function createWeeklyDealsLoader(
         searchProducts: createProductSearch(dependencies.productClient, signal),
       };
 
-      if (signal) options.signal = signal;
+      if (signal) {
+        options.signal = signal;
+      }
 
       return (dependencies.fetchDeals ?? getQfcWeeklyDeals)(options);
     },
@@ -66,7 +65,9 @@ function createProductSearch(
       },
     };
 
-    if (signal) options.signal = signal;
+    if (signal) {
+      options.signal = signal;
+    }
 
     const apiResult = await fromApiResponse(
       () => productClient.GET("/v1/products", options),

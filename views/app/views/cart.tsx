@@ -1,13 +1,11 @@
-import type {
-  ShoppingAppClient,
-  CartViewContent,
-  CartViewItemData,
-} from "../../shared/types.js";
+import type { ShoppingAppClient, CartViewContent, CartViewItemData } from "../../shared/types.js";
 
 import { useMemo } from "react";
 import { Badge } from "../../shared/ui/badge";
 import { CartCheckLink, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
+
+type CartViewProps = { data: CartViewContent; app: ShoppingAppClient | null };
 
 const EMPTY_CART_ICON = (
   <svg
@@ -26,13 +24,7 @@ const EMPTY_CART_ICON = (
   </svg>
 );
 
-export function CartView({
-  data,
-  app,
-}: {
-  data: CartViewContent;
-  app: ShoppingAppClient | null;
-}) {
+export function CartView({ data, app }: CartViewProps) {
   const { source, note } = data;
 
   // The assistant mirror records each add separately; show one line per
@@ -45,19 +37,14 @@ export function CartView({
       const existing = grouped.get(key);
       grouped.set(
         key,
-        existing
-          ? { ...existing, quantity: existing.quantity + item.quantity }
-          : item,
+        existing ? { ...existing, quantity: existing.quantity + item.quantity } : item,
       );
     }
 
     return [...grouped.values()];
   }, [data.items]);
 
-  const units = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity, 0),
-    [items],
-  );
+  const units = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
 
   const headerBadge = useMemo(
     () => (
@@ -75,11 +62,7 @@ export function CartView({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
-      <SectionHeader
-        title="Kroger cart"
-        badge={headerBadge}
-        subtitle={subtitle}
-      />
+      <SectionHeader title="Kroger cart" badge={headerBadge} subtitle={subtitle} />
       {note && <p className="mb-3 text-sm text-gray-600">{note}</p>}
       {items.length === 0 ? (
         <EmptyState
@@ -90,10 +73,7 @@ export function CartView({
       ) : (
         <ul className="m-0 list-none divide-y divide-border p-0">
           {items.map((item) => (
-            <li
-              key={`${item.upc}:${item.modality ?? ""}`}
-              className="flex items-center gap-3 py-3"
-            >
+            <li key={`${item.upc}:${item.modality ?? ""}`} className="flex items-center gap-3 py-3">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-gray-900">
                   {item.productName ?? item.upc}

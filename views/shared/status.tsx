@@ -1,18 +1,22 @@
 import type { ReactNode } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "./ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "./ui/empty";
 import { Skeleton } from "./ui/skeleton";
 import { Spinner } from "./ui/spinner";
 import { AlertCircleIcon } from "lucide-react";
 
-export function Loading({ message }: { message?: string }) {
+type LoadingProps = { message?: string };
+
+type ErrorDisplayProps = { message: string };
+
+type EmptyStateProps = {
+  icon: ReactNode;
+  message: string;
+  description?: string;
+};
+
+export function Loading({ message }: LoadingProps) {
   return (
     <output className="flex flex-col items-center justify-center gap-2.5 py-16 text-primary">
       <Spinner className="size-5" />
@@ -21,7 +25,7 @@ export function Loading({ message }: { message?: string }) {
   );
 }
 
-export function ErrorDisplay({ message }: { message: string }) {
+export function ErrorDisplay({ message }: ErrorDisplayProps) {
   return (
     <Alert role="alert" className="mx-4 my-5 w-auto">
       <AlertCircleIcon />
@@ -31,15 +35,7 @@ export function ErrorDisplay({ message }: { message: string }) {
   );
 }
 
-export function EmptyState({
-  icon,
-  message,
-  description,
-}: {
-  icon: ReactNode;
-  message: string;
-  description?: string;
-}) {
+export function EmptyState({ icon, message, description }: EmptyStateProps) {
   return (
     <Empty className="py-14">
       <EmptyHeader>

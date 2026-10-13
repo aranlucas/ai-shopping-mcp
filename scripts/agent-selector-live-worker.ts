@@ -2,6 +2,8 @@ import * as z from "zod/v4";
 
 import type { selectProductMatches } from "./fixtures/jev-product-selector.js";
 
+type AgentSelectorEnv = { AI: Ai };
+
 type Input = Omit<Parameters<typeof selectProductMatches>[0], "ai"> & {
   model: string;
 };
@@ -19,8 +21,8 @@ const SELECTION_POLICY =
   "For equally suitable candidates prefer the first listed. Call select_products once with one choice per item.";
 
 /** Evaluation only: a generative model sees the shortlist and selects via a tool call. */
-export default {
-  async fetch(request: Request, env: { AI: Ai }): Promise<Response> {
+const agentSelectorWorker = {
+  async fetch(request: Request, env: AgentSelectorEnv): Promise<Response> {
     const started = Date.now();
     let raw: unknown;
 
@@ -34,8 +36,7 @@ export default {
 
           return (
             variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
-            (!input.forPickup ||
-              (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
+            (!input.forPickup || (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
           );
         }),
       }));
@@ -55,8 +56,7 @@ export default {
               categories: product.categories ?? [],
               declarations: product.manufacturerDeclarations ?? [],
               allergens: product.allergensDescription ?? null,
-              ingredients:
-                product.nutritionInformation?.ingredientStatement ?? null,
+              ingredients: product.nutritionInformation?.ingredientStatement ?? null,
             },
           ]),
         ),
@@ -95,8 +95,7 @@ export default {
                 type: "function",
                 function: {
                   name: "select_products",
-                  description:
-                    "Submit a product choice or abstention for each requested item.",
+                  description: "Submit a product choice or abstention for each requested item.",
                   strict: true,
                   parameters: {
                     type: "object",
@@ -121,8 +120,9 @@ export default {
 
       raw = await response.json();
 
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`Agent request failed with HTTP ${response.status}`);
+      }
 
       const parsed = z
         .object({
@@ -149,11 +149,7 @@ export default {
 
       const choices = z
         .record(z.string(), z.string())
-        .parse(
-          JSON.parse(
-            parsed.choices[0].message.tool_calls[0].function.arguments,
-          ),
-        );
+        .parse(JSON.parse(parsed.choices[0].message.tool_calls[0].function.arguments));
 
       if (
         Object.keys(choices).length !== questions.length ||
@@ -165,11 +161,7 @@ export default {
       const selections = entries.map((entry) => {
         const choice = choices[entry.requestId];
 
-        if (
-          entry.products.length === 0 ||
-          choice === "no_match" ||
-          choice === "needs_review"
-        ) {
+        if (entry.products.length === 0 || choice === "no_match" || choice === "needs_review") {
           return { requestId: entry.requestId, status: "unresolved" };
         }
 
@@ -177,7 +169,9 @@ export default {
           (_, candidateIndex) => choice === `candidate_${candidateIndex}`,
         );
 
-        if (index < 0) throw new Error("Invalid agent candidate choice");
+        if (index < 0) {
+          throw new Error("Invalid agent candidate choice");
+        }
 
         return {
           requestId: entry.requestId,
@@ -204,3 +198,5 @@ export default {
     }
   },
 };
+
+export default agentSelectorWorker;

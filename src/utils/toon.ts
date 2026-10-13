@@ -6,11 +6,9 @@ import { encode } from "@toon-format/toon";
  * formatters in `src/utils/format-response.ts` instead, since small models
  * can't reliably parse TOON.
  */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- TOON's public encoder accepts arbitrary values; this serializer forwards them unchanged without asserting a domain shape.
+// TOON's public encoder accepts arbitrary values; this serializer forwards them unchanged without asserting a domain shape.
 export function toonResource(uri: string, data: unknown) {
   return {
-    contents: [
-      { type: "text" as const, uri, mimeType: "text/toon", text: encode(data) },
-    ],
+    contents: [{ type: "text" as const, uri, mimeType: "text/toon", text: encode(data) }],
   };
 }

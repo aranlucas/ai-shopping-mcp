@@ -7,6 +7,8 @@ import {
   type ProductSearchRequest,
 } from "../../../src/services/kroger/search.js";
 
+type SearchProgress = [number, number];
+
 type SearchResponse = {
   data?: unknown;
   error?: unknown;
@@ -17,10 +19,7 @@ type SearchOptions = {
   params: { query?: Record<string, string | number> };
 };
 
-type SearchGet = (
-  path: string,
-  options: SearchOptions,
-) => Promise<SearchResponse>;
+type SearchGet = (path: string, options: SearchOptions) => Promise<SearchResponse>;
 
 function productClient(get: SearchGet): KrogerClients["productClient"] {
   return productClientWith(get);
@@ -77,7 +76,7 @@ describe("searchProductsForTerms", () => {
       response: new Response(null, { status: 200 }),
     }));
 
-    const progress: Array<[number, number]> = [];
+    const progress: Array<SearchProgress> = [];
 
     await searchProductsForTerms(
       productClient(get),
@@ -150,9 +149,7 @@ describe("text search workload budget", () => {
     expect(results).toHaveLength(11);
     expect(
       results.every(
-        (result) =>
-          result.status === "failed" &&
-          result.error.type === "VALIDATION_ERROR",
+        (result) => result.status === "failed" && result.error.type === "VALIDATION_ERROR",
       ),
     ).toBe(true);
     expect(get).not.toHaveBeenCalled();

@@ -68,14 +68,11 @@ describe("location storage-backed tools", () => {
       },
     });
 
-    const store = parseToolPayload(appPayloadSchemas.search_stores, result)
-      .stores[0];
+    const store = parseToolPayload(appPayloadSchemas.search_stores, result).stores[0];
 
     expect(store).not.toHaveProperty("geolocation");
     expect(store).not.toHaveProperty("hours");
-    expect(
-      Object.fromEntries(new URL(getCalls[0].url).searchParams),
-    ).toMatchObject({
+    expect(Object.fromEntries(new URL(getCalls[0].url).searchParams)).toMatchObject({
       "filter.zipCode.near": "98122",
       "filter.limit": "3",
       "filter.chain": "QFC",
@@ -90,9 +87,7 @@ describe("location storage-backed tools", () => {
     const config = tool.config;
 
     expect(config.inputSchema.safeParse({}).success).toBe(false);
-    expect(config.inputSchema.safeParse({ zipCode: "98122" }).success).toBe(
-      true,
-    );
+    expect(config.inputSchema.safeParse({ zipCode: "98122" }).success).toBe(true);
     expect(config.inputSchema.parse({ zipCode: "98122" }).limit).toBe(5);
   });
 
@@ -106,14 +101,8 @@ describe("location storage-backed tools", () => {
     });
 
     for (const key of ["zip", "zipCodeNear", "zipCodeNearv", "postalCode"]) {
-      expect
-        .soft(inputSchema.safeParse({ [key]: "98122" }).success)
-        .toBe(false);
-      expect
-        .soft(
-          inputSchema.safeParse({ zipCode: "98122", [key]: "98122" }).success,
-        )
-        .toBe(false);
+      expect.soft(inputSchema.safeParse({ [key]: "98122" }).success).toBe(false);
+      expect.soft(inputSchema.safeParse({ zipCode: "98122", [key]: "98122" }).success).toBe(false);
     }
   });
 
@@ -129,16 +118,12 @@ describe("location storage-backed tools", () => {
         state: "WA",
         zipCode: "98102",
       },
-      departments: [
-        { name: "Bakery", phone: "206-555-9999", hours: { open24: false } },
-      ],
+      departments: [{ name: "Bakery", phone: "206-555-9999", hours: { open24: false } }],
       geolocation: { latitude: 47.6, longitude: -122.3 },
     };
 
     const context = makeContext();
-    context.locationClient = locationClient(async () =>
-      Response.json({ data: location }),
-    );
+    context.locationClient = locationClient(async () => Response.json({ data: location }));
     registerLocation(context);
 
     const result = await getCapturedHandler("search_stores")({
@@ -174,9 +159,7 @@ describe("location storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.text).toContain(
-      "No information found for location ID: 70500847",
-    );
+    expect(result.text).toContain("No information found for location ID: 70500847");
   });
 
   it("saves preferred location details for the authenticated user", async () => {
@@ -244,8 +227,6 @@ describe("location storage-backed tools", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.text).toContain(
-      "No information found for location ID: 70500847",
-    );
+    expect(result.text).toContain("No information found for location ID: 70500847");
   });
 });

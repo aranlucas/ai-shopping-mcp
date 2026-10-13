@@ -25,6 +25,20 @@ import {
 import { EmptyState } from "../../shared/status.js";
 import { saveProductToList } from "../tool-calls.js";
 
+type ProductResultsProps = {
+  app: ShoppingAppClient | null;
+  products: ProductData[];
+  onAddToList: SaveProductToList;
+  canCallTools: boolean;
+};
+
+type ProductSearchViewProps = {
+  data: ProductSearchResultsContent;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+  hostContext?: McpUiHostContext;
+};
+
 const CAROUSEL_OPTS = { align: "start" } as const;
 
 const EMPTY_SEARCH_ICON = (
@@ -44,17 +58,7 @@ const EMPTY_SEARCH_ICON = (
   </svg>
 );
 
-function ProductCarousel({
-  app,
-  products,
-  onAddToList,
-  canCallTools,
-}: {
-  app: ShoppingAppClient | null;
-  products: ProductData[];
-  onAddToList: SaveProductToList;
-  canCallTools: boolean;
-}) {
+function ProductCarousel({ app, products, onAddToList, canCallTools }: ProductResultsProps) {
   return (
     <Carousel opts={CAROUSEL_OPTS} aria-label="Products">
       <CarouselContent className="-ms-2">
@@ -71,9 +75,7 @@ function ProductCarousel({
       </CarouselContent>
       {products.length > 1 && (
         <div className="mt-3 flex items-center justify-end gap-2">
-          <span className="me-auto text-xs text-gray-500">
-            Swipe or use the arrows to compare
-          </span>
+          <span className="me-auto text-xs text-gray-500">Swipe or use the arrows to compare</span>
           <CarouselPrevious size="icon-lg" className="static translate-y-0" />
           <CarouselNext size="icon-lg" className="static translate-y-0" />
         </div>
@@ -87,12 +89,7 @@ export function ProductSearchView({
   app,
   canCallTools,
   hostContext,
-}: {
-  data: ProductSearchResultsContent;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-  hostContext?: McpUiHostContext;
-}) {
+}: ProductSearchViewProps) {
   const { results, totalProducts } = data;
 
   const handleAddToList = useCallback<SaveProductToList>(
@@ -157,10 +154,7 @@ export function ProductSearchView({
                 />
               </svg>
               {result.error ?? (
-                <>
-                  Could not search for &ldquo;{result.term}&rdquo;. Ask your
-                  assistant to retry.
-                </>
+                <>Could not search for &ldquo;{result.term}&rdquo;. Ask your assistant to retry.</>
               )}
             </div>
           );
@@ -181,17 +175,10 @@ export function ProductSearchView({
         }
 
         return (
-          <section
-            key={result.requestId ?? result.term}
-            className="mb-7 last:mb-0"
-          >
+          <section key={result.requestId ?? result.term} className="mb-7 last:mb-0">
             <div className="mb-3 flex flex-wrap items-baseline gap-2">
-              <h2 className="text-sm font-semibold text-gray-900">
-                {result.term}
-              </h2>
-              <span className="text-xs text-gray-500">
-                {result.products.length} items
-              </span>
+              <h2 className="text-sm font-semibold text-gray-900">{result.term}</h2>
+              <span className="text-xs text-gray-500">{result.products.length} items</span>
             </div>
             <ProductCarousel
               app={app}

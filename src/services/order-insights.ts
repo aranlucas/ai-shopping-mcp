@@ -1,5 +1,9 @@
 import type { OrderRecord } from "../domain/shopping.js";
 
+type PurchaseFrequency = { name: string; count: number };
+
+type PurchaseHistory = { displayName: string; timestamps: number[] };
+
 /**
  * Ranks item names by purchase frequency across recent orders. Used by
  * `get_shopping_profile`.
@@ -7,7 +11,7 @@ import type { OrderRecord } from "../domain/shopping.js";
 export function computeFrequentlyPurchasedItems(
   recentOrders: OrderRecord[],
   limit = 10,
-): Array<{ name: string; count: number }> {
+): Array<PurchaseFrequency> {
   const itemFrequency = new Map<string, number>();
 
   for (const order of recentOrders) {
@@ -35,9 +39,7 @@ function median(values: number[]): number {
   const sorted = [...values].toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
 
-  return sorted.length % 2 === 0
-    ? (sorted[mid - 1] + sorted[mid]) / 2
-    : sorted[mid];
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 /**
@@ -51,15 +53,14 @@ export function computeRestockSuggestions(
   orders: OrderRecord[],
   now: number = Date.now(),
 ): RestockSuggestion[] {
-  const purchasesByName = new Map<
-    string,
-    { displayName: string; timestamps: number[] }
-  >();
+  const purchasesByName = new Map<string, PurchaseHistory>();
 
   for (const order of orders) {
     const placedAt = new Date(order.placedAt).getTime();
 
-    if (Number.isNaN(placedAt)) continue;
+    if (Number.isNaN(placedAt)) {
+      continue;
+    }
 
     for (const item of order.items) {
       const key = item.productName.toLowerCase();
@@ -79,7 +80,9 @@ export function computeRestockSuggestions(
   const suggestions: RestockSuggestion[] = [];
 
   for (const { displayName, timestamps } of purchasesByName.values()) {
-    if (timestamps.length < 3) continue;
+    if (timestamps.length < 3) {
+      continue;
+    }
 
     const sorted = [...timestamps].toSorted((a, b) => a - b);
     const intervals: number[] = [];
@@ -89,7 +92,12 @@ export function computeRestockSuggestions(
     }
 
     const medianIntervalMs = median(intervals);
-    const lastPurchase = sorted[sorted.length - 1];
+    const lastPurchase = sorted.at(-1);
+
+    if (lastPurchase === undefined) {
+      continue;
+    }
+
     const sinceLastMs = now - lastPurchase;
 
     if (sinceLastMs > medianIntervalMs) {

@@ -10,19 +10,15 @@ import {
   formatWeeklyDealAppWarnings,
   formatWeeklyDealWarnings,
 } from "../services/weekly-deals/format.js";
-import {
-  DEAL_CATEGORIES,
-  classifyDealCategory,
-} from "../utils/deal-category.js";
+import { DEAL_CATEGORIES, classifyDealCategory } from "../utils/deal-category.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
 import { toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
 
-export type {
-  LoadedWeeklyDeals,
-  WeeklyDealsLoader,
-} from "../services/weekly-deals/service.js";
+type WeeklyDealsPage = { limit: number; offset: number };
+
+export type { LoadedWeeklyDeals, WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 
 export type { WeeklyDealsCacheEntry } from "../services/weekly-deals/schema.js";
 
@@ -75,9 +71,7 @@ export function registerWeeklyDealsTools(
           .min(0)
           .optional()
           .default(0)
-          .describe(
-            "Deals to skip; pass the nextOffset from the previous page",
-          ),
+          .describe("Deals to skip; pass the nextOffset from the previous page"),
       }),
     },
     async ({ storeId, limit, offset }, requestContext) => {
@@ -89,23 +83,29 @@ export function registerWeeklyDealsTools(
         signal: requestContext.mcpReq.signal,
       });
 
-      if (result.isErr()) return toMcpError(result.error);
+      if (result.isErr()) {
+        return toMcpError(result.error);
+      }
 
-      return formatWeeklyDealsToolResponse(
-        result.value.data,
-        result.value.cacheState,
-        { limit, offset },
-      );
+      return formatWeeklyDealsToolResponse(result.value.data, result.value.cacheState, {
+        limit,
+        offset,
+      });
     },
   );
 }
 
 /** Page footer: which slice this is and how to get the next one. */
 function formatDealsPage(offset: number, shown: number, total: number) {
-  if (shown === total) return "";
+  if (shown === total) {
+    return "";
+  }
+
   const end = offset + shown;
 
-  if (shown === 0) return `\nNo deals at offset ${offset}; there are ${total}.`;
+  if (shown === 0) {
+    return `\nNo deals at offset ${offset}; there are ${total}.`;
+  }
 
   return end < total
     ? `\nDeals ${offset + 1}-${end} of ${total}. More: nextOffset=${end}`
@@ -118,7 +118,7 @@ export const WEEKLY_DEALS_FETCH = { limit: 50, pageLimit: 2 } as const;
 export function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,
   cacheState: "miss" | "fresh" | "stale",
-  page: { limit: number; offset: number } = {
+  page: WeeklyDealsPage = {
     limit: WEEKLY_DEALS_FETCH.limit,
     offset: 0,
   },
@@ -144,11 +144,7 @@ export function formatWeeklyDealsToolResponse(
       category: classifyDealCategory(deal.title),
     }))
     .slice(page.offset, page.offset + page.limit)
-    .toSorted(
-      (a, b) =>
-        DEAL_CATEGORIES.indexOf(a.category) -
-        DEAL_CATEGORIES.indexOf(b.category),
-    );
+    .toSorted((a, b) => DEAL_CATEGORIES.indexOf(a.category) - DEAL_CATEGORIES.indexOf(b.category));
 
   return {
     content: [

@@ -54,8 +54,7 @@ export function needsCartCheck(cause: unknown): boolean {
   return (
     cause instanceof CartActionError &&
     cause.recovery !== "check_list" &&
-    (cause.code === "MUTATION_OUTCOME_UNKNOWN" ||
-      cause.recovery === "check_cart")
+    (cause.code === "MUTATION_OUTCOME_UNKNOWN" || cause.recovery === "check_cart")
   );
 }
 
@@ -64,9 +63,7 @@ export function needsListCheck(cause: unknown): boolean {
 }
 
 /** Validate the structured cart payload before a UI state transition. */
-export function cartResultContent(
-  result: CallToolResult,
-): AddShoppingListToCartContent {
+export function cartResultContent(result: CallToolResult): AddShoppingListToCartContent {
   const data = parseToolResult(result);
 
   if (!data || data.view !== "add_shopping_list_to_cart") {
@@ -80,15 +77,9 @@ export function cartResultContent(
   return data;
 }
 
-type CreateShoppingListCall = Extract<
-  ToolCall,
-  { name: "create_shopping_list" }
->;
+type CreateShoppingListCall = Extract<ToolCall, { name: "create_shopping_list" }>;
 
-type AddShoppingListToCartCall = Extract<
-  ToolCall,
-  { name: "add_shopping_list_to_cart" }
->;
+type AddShoppingListToCartCall = Extract<ToolCall, { name: "add_shopping_list_to_cart" }>;
 
 export function createProductShoppingListCall({
   listName,
@@ -119,14 +110,12 @@ export function addShoppingListToCartCall(
   };
 }
 
-export function shoppingListIdFromResult(
-  result: CallToolResult | undefined,
-): string {
-  const parsed = z
-    .object({ listId: z.string().min(1) })
-    .safeParse(result?.structuredContent);
+export function shoppingListIdFromResult(result: CallToolResult | undefined): string {
+  const parsed = z.object({ listId: z.string().min(1) }).safeParse(result?.structuredContent);
 
-  if (!parsed.success) throw new Error("Shopping list id missing");
+  if (!parsed.success) {
+    throw new Error("Shopping list id missing");
+  }
 
   return parsed.data.listId;
 }
@@ -147,10 +136,9 @@ export async function createProductList(
   app: Parameters<typeof callTool>[0],
   input: ProductShoppingListInput,
 ): Promise<string> {
-  if (!app)
-    throw new Error(
-      "The shopping app is disconnected. Reopen it and try again.",
-    );
+  if (!app) {
+    throw new Error("The shopping app is disconnected. Reopen it and try again.");
+  }
 
   let result: CallToolResult;
 
@@ -165,9 +153,7 @@ export async function createProductList(
   }
 
   if (result?.isError) {
-    throw new Error(
-      toolResultErrorMessage(result, "Failed to create shopping list"),
-    );
+    throw new Error(toolResultErrorMessage(result, "Failed to create shopping list"));
   }
 
   try {
@@ -224,10 +210,15 @@ export async function callForView(
 ): Promise<AppData> {
   const result = await callTool(app, call);
 
-  if (result.isError) throw new Error(toolResultErrorMessage(result, fallback));
+  if (result.isError) {
+    throw new Error(toolResultErrorMessage(result, fallback));
+  }
+
   const data = parseToolResult(result);
 
-  if (!data) throw new Error(fallback);
+  if (!data) {
+    throw new Error(fallback);
+  }
 
   return data;
 }
@@ -254,8 +245,9 @@ export async function openShoppingList(
     "Could not open that list",
   );
 
-  if (data.view !== "create_shopping_list")
+  if (data.view !== "create_shopping_list") {
     throw new Error("Could not open that list");
+  }
 
   return data;
 }
@@ -286,8 +278,9 @@ export async function editShoppingListItem(
     "Could not update the list",
   );
 
-  if (data.view !== "create_shopping_list")
+  if (data.view !== "create_shopping_list") {
     throw new Error("Could not update the list");
+  }
 
   return data;
 }
@@ -310,8 +303,10 @@ export async function recordPurchase(
       : [],
   );
 
-  if (purchased.length === 0)
+  if (purchased.length === 0) {
     throw new Error("No Kroger items to record as purchased");
+  }
+
   await callForView(
     app,
     { name: "record_order", arguments: { items: purchased } },
@@ -325,10 +320,10 @@ export async function addListToCart(
   listId: string,
   modality: AddShoppingListToCartArgs["modality"] = "PICKUP",
 ): Promise<AddShoppingListToCartContent> {
-  if (!app)
-    throw new Error(
-      "The shopping app is disconnected. Reopen it and try again.",
-    );
+  if (!app) {
+    throw new Error("The shopping app is disconnected. Reopen it and try again.");
+  }
+
   let result: CallToolResult;
 
   try {

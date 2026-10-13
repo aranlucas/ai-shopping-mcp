@@ -23,6 +23,10 @@ import {
   invalidResponseError,
 } from "../errors.js";
 
+type ApiResponse<T> = { data?: T; error?: unknown; response: Response };
+
+type ResolvedLocation = { locationId: string; locationName?: string };
+
 export { safeJsonParse, safeJsonParseWithSchema } from "./json.js";
 
 // --- MCP Response Bridge ---
@@ -68,19 +72,17 @@ export function toMcpError(error: AppError): McpToolResult {
  * for endpoints that return no body.
  */
 export function fromApiResponse<T>(
-  promise:
-    | Promise<{ data?: T; error?: unknown; response: Response }>
-    | (() => Promise<{ data?: T; error?: unknown; response: Response }>),
+  promise: Promise<ApiResponse<T>> | (() => Promise<ApiResponse<T>>),
   context: string,
 ): ResultAsync<T, AppError> {
   const mapFailure = (cause: unknown): AppError => {
-    if (cause instanceof AppErrorException) return cause.appError;
+    if (cause instanceof AppErrorException) {
+      return cause.appError;
+    }
 
-    if (cause instanceof SyntaxError)
-      return invalidResponseError(
-        `${context}: upstream returned malformed JSON.`,
-        cause,
-      );
+    if (cause instanceof SyntaxError) {
+      return invalidResponseError(`${context}: upstream returned malformed JSON.`, cause);
+    }
 
     if (cause instanceof Error && cause.name === "KrogerTokenExpiredError") {
       return authError(cause.message);
@@ -93,16 +95,15 @@ export function fromApiResponse<T>(
   };
 
   const result =
-    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- This typed Promise-or-thunk overload dispatch must recognize cross-realm functions without changing the public API.
+    // This typed Promise-or-thunk overload dispatch must recognize cross-realm functions without changing the public API.
     typeof promise === "function"
       ? ResultAsync.fromThrowable(promise, mapFailure)()
       : ResultAsync.fromPromise(promise, mapFailure);
 
   return result.andThen(({ data, error, response }) => {
-    if (response.status === 401)
-      return err(
-        authError("Authentication expired. Reconnect the MCP server."),
-      );
+    if (response.status === 401) {
+      return err(authError("Authentication expired. Reconnect the MCP server."));
+    }
 
     if (error !== undefined || !response.ok) {
       return err(apiError(`Failed to ${context}`, error, response.status));
@@ -135,22 +136,18 @@ const authenticatedPropsSchema = z.object({
     id: z.string().refine(isVerifiedShopperId),
     accessToken: z.string(),
     // Preserve the existing number contract; token expiry is enforced by the client.
-    tokenExpiresAt: z.union([
-      z.number(),
-      z.nan(),
-      z.literal(Infinity),
-      z.literal(-Infinity),
-    ]),
+    tokenExpiresAt: z.union([z.number(), z.nan(), z.literal(Infinity), z.literal(-Infinity)]),
   }),
 });
 
 /** Parse provider-owned request data without trusting its declared extension types. */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The provider auth-context boundary is untrusted until authenticatedPropsSchema validates it below.
+// The provider auth-context boundary is untrusted until authenticatedPropsSchema validates it below.
 export function parseAuthenticatedProps(value: unknown): Props {
   const parsed = authenticatedPropsSchema.safeParse(value);
 
-  if (!parsed.success)
+  if (!parsed.success) {
     throw new Error("getProps() called outside an authenticated MCP request");
+  }
 
   return parsed.data.props;
 }
@@ -168,30 +165,29 @@ export function getProps(): Props {
 export function safeResolveLocationId(
   preferredLocation: PreferredLocationStore,
   locationId?: string,
-): ResultAsync<{ locationId: string; locationName?: string }, AppError> {
+): ResultAsync<ResolvedLocation, AppError> {
   if (locationId) {
-    return okAsync<{ locationId: string; locationName?: string }, AppError>({
+    return okAsync<ResolvedLocation, AppError>({
       locationId,
     });
   }
 
-  return safeStorage(
-    () => preferredLocation.get(),
-    "fetch preferred location",
-  ).andThen((location) => {
-    if (!location) {
-      return err(
-        notFoundError(
-          "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
-        ),
-      );
-    }
+  return safeStorage(() => preferredLocation.get(), "fetch preferred location").andThen(
+    (location) => {
+      if (!location) {
+        return err(
+          notFoundError(
+            "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
+          ),
+        );
+      }
 
-    return ok({
-      locationId: location.locationId,
-      locationName: location.locationName,
-    });
-  });
+      return ok({
+        locationId: location.locationId,
+        locationName: location.locationName,
+      });
+    },
+  );
 }
 
 // --- Storage Wrappers ---
@@ -206,9 +202,6 @@ export function safeStorage<T>(
   return ResultAsync.fromThrowable(operation, (e): AppError =>
     e instanceof AppErrorException
       ? e.appError
-      : storageError(
-          `${context}: ${e instanceof Error ? e.message : String(e)}`,
-          e,
-        ),
+      : storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
   )();
 }

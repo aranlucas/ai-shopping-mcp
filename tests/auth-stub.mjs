@@ -20,7 +20,9 @@ export class KrogerTokens extends WorkerEntrypoint {
     try {
       await scheduler.wait(5);
 
-      if (fail) throw new Error("Auth service unavailable");
+      if (fail) {
+        throw new Error("Auth service unavailable");
+      }
 
       return accounts.get(userId) ?? null;
     } finally {
@@ -39,20 +41,27 @@ export class KrogerTokens extends WorkerEntrypoint {
     } else if (path === "/seed") {
       const { userId, token } = await request.json();
 
-      if (token === null) accounts.delete(userId);
-      else accounts.set(userId, token);
+      if (token === null) {
+        accounts.delete(userId);
+      } else {
+        accounts.set(userId, token);
+      }
     } else if (path === "/fail") {
       fail = true;
     } else if (path === "/stats") {
       return Response.json({ calls, maxActive });
-    } else return new Response(null, { status: 404 });
+    } else {
+      return new Response(null, { status: 404 });
+    }
 
     return new Response(null, { status: 204 });
   }
 }
 
-export default {
+const authStubWorker = {
   fetch() {
     return new Response(null, { status: 404 });
   },
 };
+
+export default authStubWorker;

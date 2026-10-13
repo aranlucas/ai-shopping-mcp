@@ -25,9 +25,7 @@ function makePantryItem(overrides: Partial<PantryItem> = {}): PantryItem {
   };
 }
 
-function makeDealsResponse(
-  overrides: Partial<QfcDealsApiResponse> = {},
-): QfcDealsApiResponse {
+function makeDealsResponse(overrides: Partial<QfcDealsApiResponse> = {}): QfcDealsApiResponse {
   return {
     sourceMode: "print_fallback",
     locationId: "70500847",
@@ -38,9 +36,7 @@ function makeDealsResponse(
   };
 }
 
-function makeCacheEntry(
-  overrides: Partial<WeeklyDealsCacheEntry> = {},
-): WeeklyDealsCacheEntry {
+function makeCacheEntry(overrides: Partial<WeeklyDealsCacheEntry> = {}): WeeklyDealsCacheEntry {
   const now = Date.now();
 
   return {
@@ -120,9 +116,7 @@ describe("dealFlagLabel", () => {
   });
 
   it("returns undefined when no deal matches", () => {
-    const deals = [
-      { id: "d1", title: "Frozen Pizza", source: "print" as const },
-    ];
+    const deals = [{ id: "d1", title: "Frozen Pizza", source: "print" as const }];
 
     expect(dealFlagLabel("whole milk", deals)).toBeUndefined();
   });
@@ -145,10 +139,7 @@ describe("itemFlagLabels", () => {
       },
     ];
 
-    expect(itemFlagLabels("whole milk", pantry, deals)).toEqual([
-      "in pantry",
-      "on sale: $2.99",
-    ]);
+    expect(itemFlagLabels("whole milk", pantry, deals)).toEqual(["in pantry", "on sale: $2.99"]);
     expect(itemFlagLabels("bread", pantry, deals)).toEqual([]);
   });
 });
@@ -199,10 +190,7 @@ describe("getDealsForFlags", () => {
       pageLimit: 2,
     });
 
-    store.set(
-      cacheKey,
-      JSON.stringify(makeCacheEntry({ data: makeDealsResponse({ deals }) })),
-    );
+    store.set(cacheKey, JSON.stringify(makeCacheEntry({ data: makeDealsResponse({ deals }) })));
 
     const cache = makeCacheContext(store);
 
@@ -261,9 +249,7 @@ describe("getDealsForFlags", () => {
 
     store.set(
       cacheKey,
-      JSON.stringify(
-        makeCacheEntry({ freshUntil: now - 120_000, staleUntil: now - 60_000 }),
-      ),
+      JSON.stringify(makeCacheEntry({ freshUntil: now - 120_000, staleUntil: now - 60_000 })),
     );
 
     const cache = makeCacheContext(store);

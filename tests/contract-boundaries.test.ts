@@ -33,9 +33,7 @@ describe("opaque infrastructure contracts", () => {
       [1, { extra: true }],
       { omitted: undefined, explicit: null, future: ["v"] },
     ]) {
-      expect(toonResource("shopping://synthetic", value).contents[0].text).toBe(
-        encode(value),
-      );
+      expect(toonResource("shopping://synthetic", value).contents[0].text).toBe(encode(value));
     }
   });
 });

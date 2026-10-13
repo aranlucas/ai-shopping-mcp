@@ -55,21 +55,15 @@ export function registerProductTools(
           .max(MAX_CATALOG_REQUESTS, {
             message: `Maximum ${MAX_CATALOG_REQUESTS} product requests per call.`,
           })
-          .refine(
-            (terms) =>
-              terms.filter((term) => !isUpcTerm(term)).length <= MAX_TEXT_TERMS,
-            {
-              message: `Maximum ${MAX_TEXT_TERMS} text search terms per call (UPC terms don't count).`,
-            },
-          )
+          .refine((terms) => terms.filter((term) => !isUpcTerm(term)).length <= MAX_TEXT_TERMS, {
+            message: `Maximum ${MAX_TEXT_TERMS} text search terms per call (UPC terms don't count).`,
+          })
           .describe(
             "Product names to search, e.g. ['milk', 'bread'], and/or UPCs to look up exactly, e.g. ['0001111041700']",
           ),
         storeId: storeIdSchema
           .optional()
-          .describe(
-            "8-character storeId from search_stores; defaults to the preferred store",
-          ),
+          .describe("8-character storeId from search_stores; defaults to the preferred store"),
         limitPerTerm: z.coerce
           .number()
           .int()
@@ -80,15 +74,10 @@ export function registerProductTools(
         includeLocation: z
           .boolean()
           .default(false)
-          .describe(
-            "Include aisle and shelf for each product, for shopping in the store",
-          ),
+          .describe("Include aisle and shelf for each product, for shopping in the store"),
       }),
     },
-    async (
-      { terms, storeId, limitPerTerm, includeLocation },
-      requestContext,
-    ) => {
+    async ({ terms, storeId, limitPerTerm, includeLocation }, requestContext) => {
       let locationId = storeId;
 
       if (!locationId) {
@@ -97,7 +86,10 @@ export function registerProductTools(
           "fetch preferred location",
         );
 
-        if (preferred.isErr()) return toMcpError(preferred.error);
+        if (preferred.isErr()) {
+          return toMcpError(preferred.error);
+        }
+
         locationId = preferred.value?.locationId;
       }
 
@@ -107,7 +99,10 @@ export function registerProductTools(
         terms,
         { locationId, limitPerTerm },
         async (completed, total) => {
-          if (progressToken === undefined) return;
+          if (progressToken === undefined) {
+            return;
+          }
+
           await requestContext.mcpReq.notify({
             method: "notifications/progress",
             params: { progressToken, progress: completed, total },
@@ -115,33 +110,31 @@ export function registerProductTools(
         },
       );
 
-      if (resolved.isErr()) return toMcpError(resolved.error);
+      if (resolved.isErr()) {
+        return toMcpError(resolved.error);
+      }
+
       const { results, exactUpcs } = resolved.value;
 
       const totalProducts = results.reduce(
-        (sum, result) =>
-          sum + (result.status === "success" ? result.products.length : 0),
+        (sum, result) => sum + (result.status === "success" ? result.products.length : 0),
         0,
       );
 
       const failures = results.filter((result) => result.status === "failed");
 
-      const failure =
-        failures.find((result) => result.error.type === "AUTH_ERROR") ??
-        failures[0];
+      const failure = failures.find((result) => result.error.type === "AUTH_ERROR") ?? failures[0];
 
-      if (totalProducts === 0 && failure) return toMcpError(failure.error);
+      if (totalProducts === 0 && failure) {
+        return toMcpError(failure.error);
+      }
 
       const text = `${locationId ? "" : `${NO_STORE_NOTICE}\n\n`}${formatProductSearchMarkdown(results, { includeLocation, exactUpcs })}`;
 
       // A single exact lookup opens the product detail view in the app.
       const [only] = results;
 
-      if (
-        results.length === 1 &&
-        exactUpcs.has(only.term) &&
-        only.status === "success"
-      ) {
+      if (results.length === 1 && exactUpcs.has(only.term) && only.status === "success") {
         return {
           content: [{ type: "text" as const, text }],
           ...appResult("get_product", {

@@ -4,7 +4,7 @@
  */
 
 /** Narrowed cause type for error context — captures Error instances, strings, or structured data */
-// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Error context intentionally retains opaque upstream objects and their identity; it is never trusted as domain data.
+// Error context intentionally retains opaque upstream objects and their identity; it is never trusted as domain data.
 export type ErrorCause = Error | string | Record<string, unknown> | undefined;
 
 /** API call to Kroger or external service failed */
@@ -83,28 +83,30 @@ export class AppErrorException extends Error {
 
 /** Coerce an unknown value into an ErrorCause for safe storage */
 function toErrorCause(cause: unknown): ErrorCause {
-  if (cause === undefined || cause === null) return undefined;
+  if (cause === undefined || cause === null) {
+    return undefined;
+  }
 
-  if (cause instanceof Error) return cause;
+  if (cause instanceof Error) {
+    return cause;
+  }
 
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Opaque error retention distinguishes primitives without interpreting or cloning third-party objects.
-  if (typeof cause === "string") return cause;
+  // Opaque error retention distinguishes primitives without interpreting or cloning third-party objects.
+  if (typeof cause === "string") {
+    return cause;
+  }
 
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Preserve arbitrary non-null error objects, including arrays, without inspecting their contents.
+  // Preserve arbitrary non-null error objects, including arrays, without inspecting their contents.
   if (typeof cause === "object") {
     // SAFETY: the non-null object above is retained opaquely; the dictionary contract permits only unknown property values.
-    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve the exported opaque ErrorCause contract, including object identity.
+    // Preserve the exported opaque ErrorCause contract, including object identity.
     return cause as Record<string, unknown>;
   }
 
   return String(cause);
 }
 
-export const apiError = (
-  message: string,
-  cause?: unknown,
-  status?: number,
-): ApiError => ({
+export const apiError = (message: string, cause?: unknown, status?: number): ApiError => ({
   type: "API_ERROR",
   message,
   detail: toErrorCause(cause),
@@ -126,28 +128,19 @@ export const validationError = (message: string): ValidationError => ({
   message,
 });
 
-export const storageError = (
-  message: string,
-  cause?: unknown,
-): StorageError => ({
+export const storageError = (message: string, cause?: unknown): StorageError => ({
   type: "STORAGE_ERROR",
   message,
   cause: toErrorCause(cause),
 });
 
-export const networkError = (
-  message: string,
-  cause?: unknown,
-): NetworkError => ({
+export const networkError = (message: string, cause?: unknown): NetworkError => ({
   type: "NETWORK_ERROR",
   message,
   cause: toErrorCause(cause),
 });
 
-export const invalidResponseError = (
-  message: string,
-  cause?: unknown,
-): InvalidResponseError => ({
+export const invalidResponseError = (message: string, cause?: unknown): InvalidResponseError => ({
   type: "INVALID_RESPONSE",
   message,
   cause: toErrorCause(cause),
@@ -165,12 +158,7 @@ export const mutationOutcomeUnknown = (
 /** Actionable recovery metadata for MCP consumers, without upstream details. */
 export function errorRecovery(
   error: AppError,
-):
-  | "reconnect"
-  | "retry_later"
-  | "check_cart"
-  | "correct_input"
-  | "contact_support" {
+): "reconnect" | "retry_later" | "check_cart" | "correct_input" | "contact_support" {
   switch (error.type) {
     case "AUTH_ERROR":
       return "reconnect";
@@ -180,9 +168,7 @@ export function errorRecovery(
     case "NOT_FOUND":
       return "correct_input";
     case "API_ERROR":
-      return error.status === 429 || (error.status ?? 0) >= 500
-        ? "retry_later"
-        : "correct_input";
+      return error.status === 429 || (error.status ?? 0) >= 500 ? "retry_later" : "correct_input";
     case "NETWORK_ERROR":
     case "STORAGE_ERROR":
       return "retry_later";

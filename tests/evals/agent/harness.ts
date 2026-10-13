@@ -9,21 +9,18 @@ import type { ToolArguments } from "../../v2-tool-handler.js";
 import type { Client } from "@modelcontextprotocol/client";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { aiSdkHarness } from "@vitest-evals/harness-ai-sdk";
-import {
-  type Tool,
-  type ToolSet,
-  generateText,
-  jsonSchema,
-  stepCountIs,
-  tool,
-} from "ai";
+import { type Tool, type ToolSet, generateText, jsonSchema, stepCountIs, tool } from "ai";
 
-import {
-  type KrogerFetchStub,
-  type ToolCallResult,
-  contentText,
-} from "../harness.js";
+import { type KrogerFetchStub, type ToolCallResult, contentText } from "../harness.js";
 import { type AgentOutput, type AgentTask, AGENT_TASKS } from "./tasks.js";
+
+type ToolEntry = [string, Tool];
+
+type ShoppingHarnessOptions = {
+  model: string;
+  apiKey: string;
+  session: () => AgentSession;
+};
 
 export type AgentInput = { taskId: string; prompt: string };
 
@@ -46,7 +43,9 @@ export function taskInput(task: AgentTask): AgentInput {
 export function findTask(taskId: string): AgentTask {
   const task = AGENT_TASKS.find((candidate) => candidate.id === taskId);
 
-  if (!task) throw new Error(`Unknown agent task ${taskId}`);
+  if (!task) {
+    throw new Error(`Unknown agent task ${taskId}`);
+  }
 
   return task;
 }
@@ -63,7 +62,7 @@ export async function callTool(
 async function mcpToolSet(client: Client): Promise<ToolSet> {
   const { tools } = await client.listTools();
 
-  const entries = tools.map((mcpTool): [string, Tool] => {
+  const entries = tools.map((mcpTool): ToolEntry => {
     const { $schema: _dialect, ...schema } = mcpTool.inputSchema;
 
     // SAFETY: this harness lists this Worker's Zod-generated tool schemas. MCP's
@@ -82,7 +81,9 @@ async function mcpToolSet(client: Client): Promise<ToolSet> {
 
           // Thrown errors reach the model as tool errors and are recorded
           // with status "error" on the harness run.
-          if (result.isError) throw new Error(text);
+          if (result.isError) {
+            throw new Error(text);
+          }
 
           return text;
         },
@@ -93,9 +94,7 @@ async function mcpToolSet(client: Client): Promise<ToolSet> {
   return Object.fromEntries(entries);
 }
 
-export async function snapshotLists(
-  client: Client,
-): Promise<AgentOutput["lists"]> {
+export async function snapshotLists(client: Client): Promise<AgentOutput["lists"]> {
   const summary = await callTool(client, "get_shopping_list", {});
 
   const lists =
@@ -137,16 +136,12 @@ export async function snapshotLists(
   );
 }
 
-export async function snapshotPantry(
-  client: Client,
-): Promise<AgentOutput["pantry"]> {
+export async function snapshotPantry(client: Client): Promise<AgentOutput["pantry"]> {
   const profile = await callTool(client, "get_shopping_profile", {});
 
   const structured = z
     .object({
-      pantry: z
-        .array(z.object({ name: z.string(), quantity: z.number() }))
-        .optional(),
+      pantry: z.array(z.object({ name: z.string(), quantity: z.number() })).optional(),
     })
     .optional()
     .parse(profile.structuredContent);
@@ -162,7 +157,9 @@ type FeedbackParts = { answer: string; feedback: string };
 function splitFeedback(text: string): FeedbackParts {
   const index = text.search(/TOOL FEEDBACK:/i);
 
-  if (index === -1) return { answer: text.trim(), feedback: "" };
+  if (index === -1) {
+    return { answer: text.trim(), feedback: "" };
+  }
 
   return {
     answer: text.slice(0, index).trim(),
@@ -173,11 +170,7 @@ function splitFeedback(text: string): FeedbackParts {
   };
 }
 
-export function shoppingAgentHarness(options: {
-  model: string;
-  apiKey: string;
-  session: () => AgentSession;
-}) {
+export function shoppingAgentHarness(options: ShoppingHarnessOptions) {
   const openrouter = createOpenRouter({
     apiKey: options.apiKey,
     fetch: realFetch,
@@ -228,7 +221,9 @@ export function shoppingAgentHarness(options: {
       return result;
     },
     output: ({ result }): AgentOutput => {
-      if (!observed) throw new Error("harness output read before run");
+      if (!observed) {
+        throw new Error("harness output read before run");
+      }
 
       return { ...splitFeedback(result.text), ...observed };
     },

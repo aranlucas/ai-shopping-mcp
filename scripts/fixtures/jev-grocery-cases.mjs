@@ -3,15 +3,7 @@ let nextId = 4000000000000;
 
 function product(
   name,
-  {
-    size = "",
-    brand,
-    ingredients,
-    allergens,
-    declarations,
-    stock,
-    pickup = true,
-  } = {},
+  { size = "", brand, ingredients, allergens, declarations, stock, pickup = true } = {},
 ) {
   return {
     upc: String(nextId++),
@@ -19,9 +11,7 @@ function product(
     brand,
     manufacturerDeclarations: declarations,
     allergensDescription: allergens,
-    nutritionInformation: ingredients
-      ? { ingredientStatement: ingredients }
-      : undefined,
+    nutritionInformation: ingredients ? { ingredientStatement: ingredients } : undefined,
     items: [
       {
         size,
@@ -57,10 +47,7 @@ export const cases = [
     "butter-not-peanut",
     "category",
     "unsalted dairy butter",
-    [
-      p("Unsalted Peanut Butter"),
-      p("Unsalted Butter", { ingredients: "Cream" }),
-    ],
+    [p("Unsalted Peanut Butter"), p("Unsalted Butter", { ingredients: "Cream" })],
     [1],
   ),
   test(
@@ -81,20 +68,14 @@ export const cases = [
     "brand-exact",
     "brand",
     "Chobani plain Greek yogurt",
-    [
-      p("Plain Greek Yogurt", { brand: "Kroger" }),
-      p("Plain Greek Yogurt", { brand: "Chobani" }),
-    ],
+    [p("Plain Greek Yogurt", { brand: "Kroger" }), p("Plain Greek Yogurt", { brand: "Chobani" })],
     [1],
   ),
   test(
     "brand-unavailable",
     "brand",
     "Chobani plain Greek yogurt only",
-    [
-      p("Plain Greek Yogurt", { brand: "Kroger" }),
-      p("Plain Greek Yogurt", { brand: "Fage" }),
-    ],
+    [p("Plain Greek Yogurt", { brand: "Kroger" }), p("Plain Greek Yogurt", { brand: "Fage" })],
     [],
   ),
   test(
@@ -146,20 +127,14 @@ export const cases = [
     "unsweetened-oat",
     "qualifier",
     "unsweetened oat milk",
-    [
-      p("Original Oat Milk", { ingredients: "Oats, water, cane sugar" }),
-      p("Unsweetened Oat Milk"),
-    ],
+    [p("Original Oat Milk", { ingredients: "Oats, water, cane sugar" }), p("Unsweetened Oat Milk")],
     [1],
   ),
   test(
     "gluten-free-confirmed",
     "dietary",
     "certified gluten-free pasta",
-    [
-      p("Rice Pasta"),
-      p("Rice Pasta", { declarations: ["Certified Gluten Free"] }),
-    ],
+    [p("Rice Pasta"), p("Rice Pasta", { declarations: ["Certified Gluten Free"] })],
     [1],
   ),
   test(
@@ -324,20 +299,14 @@ export const holdoutCases = [
     "holdout-nonsugar",
     "qualifier",
     "sugar-free maple syrup",
-    [
-      p("Maple Syrup", { ingredients: "Maple syrup" }),
-      p("Sugar Free Maple Flavored Syrup"),
-    ],
+    [p("Maple Syrup", { ingredients: "Maple syrup" }), p("Sugar Free Maple Flavored Syrup")],
     [1],
   ),
   test(
     "holdout-count",
     "size",
     "8 count flour tortillas",
-    [
-      p("Flour Tortillas", { size: "10 ct" }),
-      p("Flour Tortillas", { size: "8 ct" }),
-    ],
+    [p("Flour Tortillas", { size: "10 ct" }), p("Flour Tortillas", { size: "8 ct" })],
     [1],
   ),
   test(
@@ -368,10 +337,7 @@ export const holdoutCases = [
     "holdout-brand",
     "brand",
     "Heinz tomato ketchup",
-    [
-      p("Tomato Ketchup", { brand: "Hunt's" }),
-      p("Tomato Ketchup", { brand: "Heinz" }),
-    ],
+    [p("Tomato Ketchup", { brand: "Hunt's" }), p("Tomato Ketchup", { brand: "Heinz" })],
     [1],
   ),
   test(
@@ -399,10 +365,7 @@ export const holdoutCases = [
     "holdout-certified-match",
     "dietary",
     "certified gluten-free rolled oats",
-    [
-      p("Rolled Oats"),
-      p("Rolled Oats", { declarations: ["Certified Gluten Free"] }),
-    ],
+    [p("Rolled Oats"), p("Rolled Oats", { declarations: ["Certified Gluten Free"] })],
     [1],
   ),
   test(
@@ -445,9 +408,7 @@ const fillerNames = [
 export function expandedCandidates(testCase) {
   return [
     ...testCase.candidates,
-    ...fillerNames
-      .slice(0, 20 - testCase.candidates.length)
-      .map((name) => p(name)),
+    ...fillerNames.slice(0, 20 - testCase.candidates.length).map((name) => p(name)),
   ];
 }
 

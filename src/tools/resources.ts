@@ -19,13 +19,7 @@ export type ResourceDependencies = {
 
 export function registerResources(
   server: McpServer,
-  {
-    productService,
-    equipment,
-    orderHistory,
-    pantry,
-    preferredLocation,
-  }: ResourceDependencies,
+  { productService, equipment, orderHistory, pantry, preferredLocation }: ResourceDependencies,
 ): void {
   server.registerResource(
     "Pantry Inventory",
@@ -65,10 +59,7 @@ export function registerResources(
     async () => {
       getProps();
 
-      const result = await safeStorage(
-        () => equipment.getAll(),
-        "fetch equipment",
-      );
+      const result = await safeStorage(() => equipment.getAll(), "fetch equipment");
 
       if (result.isErr()) {
         return toonResource("shopping://user/kitchen-equipment", {
@@ -95,10 +86,7 @@ export function registerResources(
     async () => {
       getProps();
 
-      const result = await safeStorage(
-        () => preferredLocation.get(),
-        "fetch preferred location",
-      );
+      const result = await safeStorage(() => preferredLocation.get(), "fetch preferred location");
 
       if (result.isErr()) {
         return toonResource("shopping://user/preferred-store", {
@@ -129,10 +117,7 @@ export function registerResources(
     async () => {
       getProps();
 
-      const result = await safeStorage(
-        () => orderHistory.getRecent(10),
-        "fetch order history",
-      );
+      const result = await safeStorage(() => orderHistory.getRecent(10), "fetch order history");
 
       if (result.isErr()) {
         return toonResource("shopping://user/order-history", {
@@ -179,9 +164,7 @@ export function registerResources(
             }
           });
 
-          const matches = [...upcs].filter(
-            (upc) => !prefix || upc.startsWith(prefix),
-          );
+          const matches = [...upcs].filter((upc) => !prefix || upc.startsWith(prefix));
 
           return matches.slice(0, 50);
         },
@@ -197,8 +180,7 @@ export function registerResources(
 
       if (!match) {
         return toonResource(uri.href, {
-          error:
-            "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
+          error: "Invalid product URI format. Expected: shopping://product/{13-digit-upc}",
         });
       }
 
@@ -211,13 +193,13 @@ export function registerResources(
         "fetch preferred location",
       );
 
-      const locationId = locationResult.isOk()
-        ? locationResult.value?.locationId
-        : undefined;
+      const locationId = locationResult.isOk() ? locationResult.value?.locationId : undefined;
 
       const result = await productService.getProduct(upc, locationId);
 
-      if (result.isOk()) return toonResource(uri.href, result.value);
+      if (result.isOk()) {
+        return toonResource(uri.href, result.value);
+      }
 
       if (result.error.type === "NOT_FOUND") {
         return toonResource(uri.href, {

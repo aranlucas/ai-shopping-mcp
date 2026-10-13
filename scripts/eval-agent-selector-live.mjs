@@ -16,8 +16,9 @@ const model = process.env.EVAL_SELECTOR_MODEL ?? "openai/gpt-5.4-mini";
 
 const sources = process.argv.slice(2);
 
-if (sources.length === 0)
+if (sources.length === 0) {
   throw new Error("Supply one or more paired JEV report paths");
+}
 
 const workerSource = await readFile(
   new URL("./agent-selector-live-worker.ts", import.meta.url),
@@ -59,9 +60,7 @@ try {
       startedAt: new Date().toISOString(),
       model,
       sourcePath,
-      sourceSha256: createHash("sha256")
-        .update(JSON.stringify(source))
-        .digest("hex"),
+      sourceSha256: createHash("sha256").update(JSON.stringify(source)).digest("hex"),
       workerSource,
       workerSha256: createHash("sha256").update(workerSource).digest("hex"),
       method:
@@ -74,9 +73,7 @@ try {
 
     try {
       for (const [batchIndex, originalBatch] of source.batches.entries()) {
-        const rows = source.results.filter(
-          (row) => row.batchIndex === batchIndex,
-        );
+        const rows = source.results.filter((row) => row.batchIndex === batchIndex);
 
         const items = rows.map((row, index) => ({
           requestId: `item_${index}`,
@@ -143,9 +140,7 @@ try {
 
       const rows = report.results;
 
-      const selected = rows.filter(
-        (row) => selectedActualSchema.safeParse(row.actual).success,
-      );
+      const selected = rows.filter((row) => selectedActualSchema.safeParse(row.actual).success);
 
       const negative = rows.filter((row) => row.expected === "unresolved");
 
@@ -159,8 +154,7 @@ try {
         total: rows.length,
         jevCorrect: rows.filter((row) => row.jevCorrect).length,
         agentWins: rows.filter((row) => row.correct && !row.jevCorrect).length,
-        agentRegressions: rows.filter((row) => !row.correct && row.jevCorrect)
-          .length,
+        agentRegressions: rows.filter((row) => !row.correct && row.jevCorrect).length,
         selectedPrecision: {
           correct: selected.filter((row) => row.correct).length,
           total: selected.length,

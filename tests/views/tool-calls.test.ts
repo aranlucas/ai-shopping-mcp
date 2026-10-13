@@ -17,12 +17,7 @@ import {
 } from "../../views/app/tool-calls.js";
 
 function makeToolCallingApp(
-  results: Array<
-    Pick<
-      Awaited<ReturnType<App["callServerTool"]>>,
-      "isError" | "structuredContent"
-    >
-  >,
+  results: Array<Pick<Awaited<ReturnType<App["callServerTool"]>>, "isError" | "structuredContent">>,
 ) {
   const calls: Parameters<App["callServerTool"]>[0][] = [];
 
@@ -45,9 +40,9 @@ function makeMessageApp(result: Awaited<ReturnType<App["sendMessage"]>>) {
 
 describe("view tool call helpers", () => {
   it("rejects server-tool writes when the app is disconnected", async () => {
-    await expect(
-      callTool(null, addShoppingListToCartCall("list_abc12345")),
-    ).rejects.toThrow("shopping app is disconnected");
+    await expect(callTool(null, addShoppingListToCartCall("list_abc12345"))).rejects.toThrow(
+      "shopping app is disconnected",
+    );
   });
 
   it("rejects user messages when the app is disconnected", async () => {
@@ -142,9 +137,9 @@ describe("view tool call helpers", () => {
   });
 
   it("throws when create_shopping_list did not return a listId", () => {
-    expect(() =>
-      shoppingListIdFromResult({ content: [], structuredContent: {} }),
-    ).toThrow("Shopping list id missing");
+    expect(() => shoppingListIdFromResult({ content: [], structuredContent: {} })).toThrow(
+      "Shopping list id missing",
+    );
   });
 
   it("formats text content from errored tool results", () => {
@@ -160,9 +155,7 @@ describe("view tool call helpers", () => {
   });
 
   it("saves a selected product by creating a shopping list without cart checkout", async () => {
-    const { app, calls } = makeToolCallingApp([
-      { structuredContent: { listId: "list_def67890" } },
-    ]);
+    const { app, calls } = makeToolCallingApp([{ structuredContent: { listId: "list_def67890" } }]);
 
     await saveProductToList(app, {
       productName: "Sourdough Bread",
@@ -208,9 +201,7 @@ describe("view tool call helpers", () => {
       },
     ]);
 
-    await expect(addListToCart(app, "list-1")).rejects.toSatisfy(
-      needsCartCheck,
-    );
+    await expect(addListToCart(app, "list-1")).rejects.toSatisfy(needsCartCheck);
   });
 
   it("does not mark an already disconnected app as an unknown mutation", async () => {

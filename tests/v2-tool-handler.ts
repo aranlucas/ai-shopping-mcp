@@ -1,7 +1,4 @@
-import {
-  authenticatedRequest,
-  type RequestCustomization,
-} from "./authenticated-request.js";
+import { authenticatedRequest, type RequestCustomization } from "./authenticated-request.js";
 import {
   specTypeSchemas,
   type CallToolRequestParams,
@@ -11,11 +8,14 @@ import {
 import type { z } from "zod";
 
 /** Use the SDK's own wire validator and keep the convenience fields used by tests. */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Test handlers are a raw SDK boundary; the native CallToolResult schema validates their output before it reaches consumers.
+// Test handlers are a raw SDK boundary; the native CallToolResult schema validates their output before it reaches consumers.
 export function parseTestToolResult(value: unknown) {
   const parsed = specTypeSchemas.CallToolResult["~standard"].validate(value);
 
-  if (parsed.issues) throw new TypeError("Invalid MCP tool response");
+  if (parsed.issues) {
+    throw new TypeError("Invalid MCP tool response");
+  }
+
   const result = parsed.value;
 
   return {
@@ -39,10 +39,7 @@ export type RawToolHandler = (
   requestContext?: ServerContext,
 ) => ReturnType<ReturnType<McpServer["registerTool"]>["executor"]>;
 
-export type TestToolConfig = Omit<
-  Parameters<McpServer["registerTool"]>[1],
-  "inputSchema"
-> & {
+export type TestToolConfig = Omit<Parameters<McpServer["registerTool"]>[1], "inputSchema"> & {
   inputSchema: z.ZodObject;
 };
 

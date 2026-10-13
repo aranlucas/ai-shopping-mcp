@@ -59,7 +59,9 @@ export async function claimCartOperation(
 ): Promise<CartClaim> {
   const claim = await operations.begin(key, fingerprint);
 
-  if (claim.status !== "started" || !readLegacy) return claim;
+  if (claim.status !== "started" || !readLegacy) {
+    return claim;
+  }
 
   let legacy: CartReceiptItem[] | null;
 
@@ -72,31 +74,25 @@ export async function claimCartOperation(
     throw error;
   }
 
-  if (!legacy || legacy.length === 0) return claim;
+  if (!legacy || legacy.length === 0) {
+    return claim;
+  }
 
   const legacyFingerprint = cartItemsFingerprint(legacy);
 
-  return operations.reconcileLegacy(
-    key,
-    claim.attempt,
-    fingerprint,
-    legacyFingerprint,
-  );
+  return operations.reconcileLegacy(key, claim.attempt, fingerprint, legacyFingerprint);
 }
 
 /** One journal per user. Pending writes never expire into permission to retry. */
-export class CartOperations
-  extends DurableObject<Env>
-  implements CartOperationStore
-{
+export class CartOperations extends DurableObject<Env> implements CartOperationStore {
   async begin(key: string, fingerprint: string): Promise<CartClaim> {
     return this.ctx.storage.transaction(async (txn) => {
       const existing = await txn.get<CartOperation>(key);
 
-      if (existing)
-        return existing.fingerprint === fingerprint
-          ? existing
-          : { status: "conflict" };
+      if (existing) {
+        return existing.fingerprint === fingerprint ? existing : { status: "conflict" };
+      }
+
       const attempt = crypto.randomUUID();
       await txn.put(key, {
         status: "pending",
@@ -117,16 +113,12 @@ export class CartOperations
     return this.ctx.storage.transaction(async (txn) => {
       const operation = await txn.get<CartOperation>(key);
 
-      if (
-        !operation ||
-        operation.status !== "pending" ||
-        operation.attempt !== attempt
-      ) {
-        if (!operation) return { status: "conflict" };
+      if (!operation || operation.status !== "pending" || operation.attempt !== attempt) {
+        if (!operation) {
+          return { status: "conflict" };
+        }
 
-        return operation.fingerprint === fingerprint
-          ? operation
-          : { status: "conflict" };
+        return operation.fingerprint === fingerprint ? operation : { status: "conflict" };
       }
 
       if (legacyFingerprint === fingerprint) {
@@ -160,7 +152,10 @@ export class CartOperations
     return this.ctx.storage.transaction(async (txn) => {
       const operation = await txn.get<CartOperation>(key);
 
-      if (!operation || operation.attempt !== attempt) return false;
+      if (!operation || operation.attempt !== attempt) {
+        return false;
+      }
+
       await txn.put(key, {
         status: "completed",
         attempt,
@@ -176,8 +171,9 @@ export class CartOperations
     await this.ctx.storage.transaction(async (txn) => {
       const operation = await txn.get<CartOperation>(key);
 
-      if (operation?.status === "pending" && operation.attempt === attempt)
+      if (operation?.status === "pending" && operation.attempt === attempt) {
         await txn.delete(key);
+      }
     });
   }
 }

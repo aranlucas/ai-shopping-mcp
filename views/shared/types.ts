@@ -61,11 +61,7 @@ export type ToolCall =
 
 export interface ShoppingAppClient extends Pick<
   App,
-  | "sendMessage"
-  | "openLink"
-  | "getHostCapabilities"
-  | "requestDisplayMode"
-  | "updateModelContext"
+  "sendMessage" | "openLink" | "getHostCapabilities" | "requestDisplayMode" | "updateModelContext"
 > {
   callServerTool(call: ToolCall): Promise<CallToolResult>;
 }
@@ -74,10 +70,9 @@ export function callTool(
   app: ShoppingAppClient | null | undefined,
   call: ToolCall,
 ): Promise<CallToolResult> {
-  if (!app)
-    return Promise.reject(
-      new Error("The shopping app is disconnected. Reopen it and try again."),
-    );
+  if (!app) {
+    return Promise.reject(new Error("The shopping app is disconnected. Reopen it and try again."));
+  }
 
   return app.callServerTool(call);
 }
@@ -87,7 +82,10 @@ export async function openExternalLink(
   app: ShoppingAppClient | null | undefined,
   url: string,
 ): Promise<void> {
-  if (!app?.getHostCapabilities()?.openLinks) return;
+  if (!app?.getHostCapabilities()?.openLinks) {
+    return;
+  }
+
   await app.openLink({ url });
 }
 
@@ -96,16 +94,16 @@ export async function sendUserMessage(
   app: ShoppingAppClient | null | undefined,
   text: string,
 ): Promise<void> {
-  if (!app)
-    throw new Error(
-      "The shopping app is disconnected. Reopen it and try again.",
-    );
+  if (!app) {
+    throw new Error("The shopping app is disconnected. Reopen it and try again.");
+  }
 
   const result = await app.sendMessage({
     role: "user",
     content: [{ type: "text", text }],
   });
 
-  if (result.isError)
+  if (result.isError) {
     throw new Error("The assistant could not receive your request. Try again.");
+  }
 }

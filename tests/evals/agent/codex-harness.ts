@@ -15,6 +15,8 @@ import {
 } from "./harness.js";
 import type { AgentOutput } from "./tasks.js";
 
+type CodexHarnessOptions = { driver: Fetcher; session: () => AgentSession };
+
 type InitialObservation = {
   system: string;
   prompt: string;
@@ -40,10 +42,7 @@ const actionSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-export function codexAgentHarness(options: {
-  driver: Fetcher;
-  session: () => AgentSession;
-}) {
+export function codexAgentHarness(options: CodexHarnessOptions) {
   return createHarness<AgentInput, AgentOutput>({
     name: "codex/session",
     run: async ({ input, signal }) => {
@@ -83,8 +82,10 @@ export function codexAgentHarness(options: {
           signal,
         });
 
-        if (!response.ok)
+        if (!response.ok) {
           throw new Error(`Codex driver HTTP ${response.status}`);
+        }
+
         // oxlint-disable-next-line eslint/no-await-in-loop -- parse the current turn before choosing the next
         const action = actionSchema.parse(await response.json());
 
@@ -118,8 +119,10 @@ export function codexAgentHarness(options: {
           };
         }
 
-        if (calls >= MAX_STEPS)
+        if (calls >= MAX_STEPS) {
           throw new Error(`Exceeded ${MAX_STEPS} tool calls`);
+        }
+
         const id = `call_${++calls}`;
         events.push({
           type: "tool_call",
@@ -140,7 +143,10 @@ export function codexAgentHarness(options: {
             content: text,
           };
 
-          if (result.isError) event.error = { message: text };
+          if (result.isError) {
+            event.error = { message: text };
+          }
+
           events.push(event);
           observation = {
             name: action.name,
@@ -148,8 +154,7 @@ export function codexAgentHarness(options: {
             isError: Boolean(result.isError),
           };
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
+          const message = error instanceof Error ? error.message : String(error);
 
           events.push({
             type: "tool_result",

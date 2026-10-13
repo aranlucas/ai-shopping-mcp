@@ -9,10 +9,11 @@ import {
   makeContext,
   resetToolTestHarness,
 } from "./tool-test-harness.js";
-import {
-  registerShopTools,
-  shopForItemsInputSchema,
-} from "../../src/tools/shop.js";
+import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
+
+type ProductRequestOptions = { params: { query?: Record<string, string | number> } };
+
+type ProductResponse = { data: { data: Product[] }; response: Response };
 
 type Product = components["schemas"]["products.productModel"];
 
@@ -40,16 +41,8 @@ async function setup(products: Product[] = [product(1)]) {
     setAt: new Date().toISOString(),
   });
 
-  const get = vi.fn<
-    (
-      path: string,
-      options: { params: { query?: Record<string, string | number> } },
-    ) => Promise<{ data: { data: Product[] }; response: Response }>
-  >(
-    async (
-      _path: string,
-      _options: { params: { query?: Record<string, string | number> } },
-    ) => ({
+  const get = vi.fn<(path: string, options: ProductRequestOptions) => Promise<ProductResponse>>(
+    async (_path: string, _options: ProductRequestOptions) => ({
       data: { data: products },
       response: new Response(null, { status: 200 }),
     }),
@@ -61,9 +54,7 @@ async function setup(products: Product[] = [product(1)]) {
   return { context, get, call: getCapturedHandler("shop_for_items") };
 }
 
-function options(
-  result: Awaited<ReturnType<ReturnType<typeof getCapturedHandler>>>,
-) {
+function options(result: Awaited<ReturnType<ReturnType<typeof getCapturedHandler>>>) {
   expect(result._meta).toMatchObject({
     "dev.aranlucas/view": "search_products",
   });
@@ -75,9 +66,7 @@ describe("shop_for_items product options", () => {
   beforeEach(resetToolTestHarness);
 
   it("returns five choices in catalog order without creating a list or writing a cart", async () => {
-    const { context, get, call } = await setup(
-      Array.from({ length: 8 }, (_, i) => product(i + 1)),
-    );
+    const { context, get, call } = await setup(Array.from({ length: 8 }, (_, i) => product(i + 1)));
 
     const create = vi.spyOn(context.shoppingList, "create");
     const put = vi.spyOn(context.cartClient, "PUT");
@@ -125,9 +114,9 @@ describe("shop_for_items product options", () => {
     ]);
 
     expect(
-      options(
-        await call({ items: [{ name: "milk" }] }),
-      ).results[0].products.map((item) => item.upc),
+      options(await call({ items: [{ name: "milk" }] })).results[0].products.map(
+        (item) => item.upc,
+      ),
     ).toEqual([4, 5, 6, 7, 8].map((i) => String(i).padStart(13, "0")));
   });
 
@@ -146,9 +135,7 @@ describe("shop_for_items product options", () => {
       modality: "delivery",
     });
 
-    expect(options(result).results[0].products.map((item) => item.upc)).toEqual(
-      [product(2).upc],
-    );
+    expect(options(result).results[0].products.map((item) => item.upc)).toEqual([product(2).upc]);
     expect(result.text).toContain("DELIVERY");
   });
 
@@ -195,9 +182,7 @@ describe("shop_for_items product options", () => {
 
   it("returns fewer than five when the catalog has fewer eligible choices", async () => {
     const { call } = await setup([product(1), product(2)]);
-    expect(
-      options(await call({ items: [{ name: "milk" }] })).totalProducts,
-    ).toBe(2);
+    expect(options(await call({ items: [{ name: "milk" }] })).totalProducts).toBe(2);
   });
 
   it("preserves empty and failed searches alongside usable options", async () => {
@@ -239,9 +224,7 @@ describe("shop_for_items product options", () => {
     get.mockRejectedValueOnce(new Error("Search timed out"));
     const result = await call({ items: [{ name: "milk" }] });
     expect(result.isError).toBe(true);
-    expect(result.text).toContain(
-      'search products for "milk": Search timed out',
-    );
+    expect(result.text).toContain('search products for "milk": Search timed out');
     expect(result.text).not.toContain("No available");
   });
 

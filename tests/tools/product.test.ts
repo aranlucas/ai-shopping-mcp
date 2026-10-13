@@ -17,10 +17,7 @@ import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 
 import { AppErrorException, apiError, authError } from "../../src/errors.js";
 import { ProductService } from "../../src/services/kroger/product-service.js";
-import {
-  registerProductTools,
-  logProductSearchError,
-} from "../../src/tools/product.js";
+import { registerProductTools, logProductSearchError } from "../../src/tools/product.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -75,9 +72,7 @@ type ProductGetFn = (
   opts: GetOpts,
 ) => Promise<{ data?: unknown; error?: unknown; response: Response }>;
 
-function makeStorage(
-  preferredLocation?: PreferredLocation,
-): PreferredLocationStore {
+function makeStorage(preferredLocation?: PreferredLocation): PreferredLocationStore {
   const stored = preferredLocation ?? null;
 
   return {
@@ -87,16 +82,10 @@ function makeStorage(
   };
 }
 
-function makeContext(
-  productGet: ProductGetFn,
-  preferredLocation?: PreferredLocationStore,
-) {
+function makeContext(productGet: ProductGetFn, preferredLocation?: PreferredLocationStore) {
   const productClient = productClientWith(productGet);
 
-  const server = capturingServer(
-    testState.capturedTools,
-    () => testState.authContext,
-  );
+  const server = capturingServer(testState.capturedTools, () => testState.authContext);
 
   return {
     server,
@@ -106,10 +95,7 @@ function makeContext(
   };
 }
 
-function registerProducts(
-  productGet: ProductGetFn,
-  preferredLocation?: PreferredLocationStore,
-) {
+function registerProducts(productGet: ProductGetFn, preferredLocation?: PreferredLocationStore) {
   const fixture = makeContext(productGet, preferredLocation);
   registerProductTools(fixture.server, fixture);
 
@@ -127,9 +113,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
       {
         perspective: "front",
         default: true,
-        sizes: [
-          { id: "medium", size: "medium", url: "https://example.com/milk.jpg" },
-        ],
+        sizes: [{ id: "medium", size: "medium", url: "https://example.com/milk.jpg" }],
       },
     ],
     items: [
@@ -179,13 +163,13 @@ function isErrorResult(result: TestToolResult): boolean {
 }
 
 // Validate without replacing the original payload: absence assertions must see extra fields.
-const searchResultSchema = z.custom<
-  z.output<typeof appPayloadSchemas.search_products>
->((value) => appPayloadSchemas.search_products.safeParse(value).success);
+const searchResultSchema = z.custom<z.output<typeof appPayloadSchemas.search_products>>(
+  (value) => appPayloadSchemas.search_products.safeParse(value).success,
+);
 
-const productResultSchema = z.custom<
-  z.output<typeof appPayloadSchemas.get_product>
->((value) => appPayloadSchemas.get_product.safeParse(value).success);
+const productResultSchema = z.custom<z.output<typeof appPayloadSchemas.get_product>>(
+  (value) => appPayloadSchemas.get_product.safeParse(value).success,
+);
 
 function structuredContentOf(result: TestToolResult) {
   return result.structuredContent;
@@ -206,7 +190,9 @@ function getCapturedHandler(name: string): ToolHandler {
 function getCapturedTool(name: string): CapturedTool {
   const tool = testState.capturedTools.find((t) => t.name === name);
 
-  if (!tool) throw new Error(`Missing registered tool ${name}`);
+  if (!tool) {
+    throw new Error(`Missing registered tool ${name}`);
+  }
 
   return tool;
 }
@@ -220,10 +206,7 @@ describe("logProductSearchError", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    logProductSearchError(
-      "eggs",
-      authError("Kroger access token has expired."),
-    );
+    logProductSearchError("eggs", authError("Kroger access token has expired."));
 
     expect(warnSpy).toHaveBeenCalledWith(
       'Search unavailable for "eggs":',
@@ -374,7 +357,9 @@ describe("search_products", () => {
     registerProducts(async (_path, opts) => {
       const term = opts.params.query?.["filter.term"];
 
-      if (term === "milk") return makeSearchResponse([product]);
+      if (term === "milk") {
+        return makeSearchResponse([product]);
+      }
 
       return makeErrorResponse(500);
     });
@@ -395,15 +380,15 @@ describe("search_products", () => {
 
     const breadResult = sc.results.find((r) => r.term === "bread");
     expect(breadResult?.failed).toBe(true);
-    expect(breadResult?.error).toContain(
-      'Failed to search products for "bread"',
-    );
+    expect(breadResult?.error).toContain('Failed to search products for "bread"');
   });
 
   it("passes provided storeId as 'filter.locationId' in the API query params", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
-      if (opts.params.query) capturedQueries.push(opts.params.query);
+      if (opts.params.query) {
+        capturedQueries.push(opts.params.query);
+      }
 
       return makeSearchResponse([]);
     });
@@ -419,7 +404,9 @@ describe("search_products", () => {
   it("respects a custom limitPerTerm in the 'filter.limit' query param", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
-      if (opts.params.query) capturedQueries.push(opts.params.query);
+      if (opts.params.query) {
+        capturedQueries.push(opts.params.query);
+      }
 
       return makeSearchResponse([]);
     });
@@ -435,7 +422,9 @@ describe("search_products", () => {
   it("defaults limitPerTerm to 5 when omitted", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
-      if (opts.params.query) capturedQueries.push(opts.params.query);
+      if (opts.params.query) {
+        capturedQueries.push(opts.params.query);
+      }
 
       return makeSearchResponse([]);
     });
@@ -509,7 +498,9 @@ describe("search_products", () => {
     });
 
     registerProducts(async (_path, opts) => {
-      if (opts.params.query) capturedQueries.push(opts.params.query);
+      if (opts.params.query) {
+        capturedQueries.push(opts.params.query);
+      }
 
       return makeSearchResponse([]);
     }, preferredLocation);
@@ -522,16 +513,13 @@ describe("search_products", () => {
   it("sends progress notifications (notifications/progress) for each completed search when progressToken is present", async () => {
     const product = makeProduct();
 
-    const notifications: Parameters<ServerContext["mcpReq"]["notify"]>[0][] =
-      [];
+    const notifications: Parameters<ServerContext["mcpReq"]["notify"]>[0][] = [];
 
     registerProducts(async () => makeSearchResponse([product]));
 
-    const sendNotification = vi.fn<ServerContext["mcpReq"]["notify"]>(
-      async (notification) => {
-        notifications.push(notification);
-      },
-    );
+    const sendNotification = vi.fn<ServerContext["mcpReq"]["notify"]>(async (notification) => {
+      notifications.push(notification);
+    });
 
     await getCapturedHandler("search_products")(
       { terms: ["milk", "eggs"] },
@@ -557,12 +545,9 @@ describe("search_products", () => {
   });
 
   it("accepts progress token zero and counts progress across terms", async () => {
-    const notifications: Parameters<ServerContext["mcpReq"]["notify"]>[0][] =
-      [];
+    const notifications: Parameters<ServerContext["mcpReq"]["notify"]>[0][] = [];
 
-    const context = makeContext(async () =>
-      makeSearchResponse([makeProduct()]),
-    );
+    const context = makeContext(async () => makeSearchResponse([makeProduct()]));
 
     registerProductTools(context.server, context);
     await getCapturedHandler("search_products")(
@@ -602,9 +587,7 @@ describe("search_products", () => {
     const noPickup = makeProduct({
       upc: "1111111111111",
       description: "In-store Only Product",
-      items: [
-        { itemId: "i1", fulfillment: { curbside: false, instore: true } },
-      ],
+      items: [{ itemId: "i1", fulfillment: { curbside: false, instore: true } }],
     });
 
     const withPickup = makeProduct({
@@ -717,9 +700,7 @@ describe("search_products", () => {
       terms: ["milk"],
     });
 
-    expect(textFromResult(result)).toContain(
-      "pass these UPCs to create_shopping_list",
-    );
+    expect(textFromResult(result)).toContain("pass these UPCs to create_shopping_list");
   });
 });
 
@@ -941,19 +922,15 @@ describe("search_products UPC terms", () => {
   });
 
   it("rejects more than forty UPC terms before looking anything up", async () => {
-    const get = vi.fn<ProductGetFn>(async () =>
-      makeDetailResponse(makeProduct()),
-    );
+    const get = vi.fn<ProductGetFn>(async () => makeDetailResponse(makeProduct()));
 
     registerProducts(get);
 
-    const terms = Array.from({ length: 41 }, (_, index) =>
-      String(index).padStart(13, "0"),
-    );
+    const terms = Array.from({ length: 41 }, (_, index) => String(index).padStart(13, "0"));
 
-    await expect(
-      getCapturedHandler("search_products")({ terms }),
-    ).rejects.toThrow("Maximum 40 product requests");
+    await expect(getCapturedHandler("search_products")({ terms })).rejects.toThrow(
+      "Maximum 40 product requests",
+    );
 
     expect(get).not.toHaveBeenCalled();
   });
@@ -977,9 +954,7 @@ describe("search_products UPC terms", () => {
     const terms = [
       "milk",
       "bread",
-      ...Array.from({ length: 8 }, (_, index) =>
-        String(index).padStart(13, "0"),
-      ),
+      ...Array.from({ length: 8 }, (_, index) => String(index).padStart(13, "0")),
     ];
 
     const result = await getCapturedHandler("search_products")({ terms });
@@ -994,18 +969,12 @@ describe("search_products UPC terms", () => {
 
     const config = tool.config;
 
-    const upcs = Array.from({ length: 20 }, (_, index) =>
-      String(index).padStart(13, "0"),
-    );
+    const upcs = Array.from({ length: 20 }, (_, index) => String(index).padStart(13, "0"));
 
     const words = Array.from({ length: 10 }, (_, index) => `item ${index}`);
 
-    expect(
-      config.inputSchema.safeParse({ terms: [...words, ...upcs] }).success,
-    ).toBe(true);
-    expect(
-      config.inputSchema.safeParse({ terms: [...words, "one more"] }).success,
-    ).toBe(false);
+    expect(config.inputSchema.safeParse({ terms: [...words, ...upcs] }).success).toBe(true);
+    expect(config.inputSchema.safeParse({ terms: [...words, "one more"] }).success).toBe(false);
   });
 
   it("rejects productRef in the input schema", () => {
@@ -1014,10 +983,9 @@ describe("search_products UPC terms", () => {
 
     const config = tool.config;
 
-    expect(
-      config.inputSchema.safeParse({ productRef: "kroger:0001111041700" })
-        .success,
-    ).toBe(false);
+    expect(config.inputSchema.safeParse({ productRef: "kroger:0001111041700" }).success).toBe(
+      false,
+    );
   });
 
   it("rejects productId instead of upc", () => {
@@ -1026,9 +994,7 @@ describe("search_products UPC terms", () => {
 
     const config = tool.config;
 
-    expect(
-      config.inputSchema.safeParse({ productId: "1111041700" }).success,
-    ).toBe(false);
+    expect(config.inputSchema.safeParse({ productId: "1111041700" }).success).toBe(false);
   });
 
   it("rejects a call without terms", () => {

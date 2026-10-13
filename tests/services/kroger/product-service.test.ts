@@ -1,7 +1,4 @@
-import {
-  productClientWith,
-  type ProductRequest,
-} from "../../kroger-clients.js";
+import { productClientWith, type ProductRequest } from "../../kroger-clients.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { KrogerClients } from "../../../src/services/kroger/client.js";
@@ -9,11 +6,11 @@ import type { components as ProductComponents } from "../../../src/services/krog
 
 import { ProductService } from "../../../src/services/kroger/product-service.js";
 
+type SearchProgress = [number, number];
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 
-function stubProductClient(
-  get: ProductRequest,
-): KrogerClients["productClient"] {
+function stubProductClient(get: ProductRequest): KrogerClients["productClient"] {
   return productClientWith(get);
 }
 
@@ -123,9 +120,7 @@ describe("ProductService.enrichProductName", () => {
 
     const service = new ProductService(stubProductClient(get));
 
-    await expect(
-      service.enrichProductName("0001111041700"),
-    ).resolves.toBeNull();
+    await expect(service.enrichProductName("0001111041700")).resolves.toBeNull();
   });
 
   it("returns null when the product is not found", async () => {
@@ -149,9 +144,7 @@ describe("ProductService catalog budget", () => {
 
     const service = new ProductService(stubProductClient(get));
 
-    const upcs = Array.from({ length: 41 }, (_, index) =>
-      String(index).padStart(13, "0"),
-    );
+    const upcs = Array.from({ length: 41 }, (_, index) => String(index).padStart(13, "0"));
 
     const exact = await service.resolveProducts(upcs, { limitPerTerm: 5 });
 
@@ -171,23 +164,21 @@ describe("ProductService catalog budget", () => {
   });
 
   it("normalizes and deduplicates UPCs while preserving mixed order and partial failures", async () => {
-    const get = vi.fn<Parameters<typeof stubProductClient>[0]>(
-      async (path, options) => {
-        const term = options.params.query?.["filter.term"];
+    const get = vi.fn<Parameters<typeof stubProductClient>[0]>(async (path, options) => {
+      const term = options.params.query?.["filter.term"];
 
-        if (term === "failure") {
-          return { error: {}, response: new Response(null, { status: 401 }) };
-        }
+      if (term === "failure") {
+        return { error: {}, response: new Response(null, { status: 401 }) };
+      }
 
-        return {
-          data: { data: path === "/v1/products/{id}" ? makeProduct() : [] },
-          response: new Response(null, { status: 200 }),
-        };
-      },
-    );
+      return {
+        data: { data: path === "/v1/products/{id}" ? makeProduct() : [] },
+        response: new Response(null, { status: 200 }),
+      };
+    });
 
     const service = new ProductService(stubProductClient(get));
-    const progress: Array<[number, number]> = [];
+    const progress: Array<SearchProgress> = [];
 
     const resolved = await service.resolveProducts(
       [" bread ", "1111041700", "failure", "0001111041700", "bread"],
@@ -223,31 +214,26 @@ describe("ProductService catalog budget", () => {
     let inFlight = 0;
     let peak = 0;
 
-    const get = vi.fn<Parameters<typeof stubProductClient>[0]>(
-      async (...args: unknown[]) => {
-        inFlight++;
-        peak = Math.max(peak, inFlight);
-        await new Promise((resolve) => {
-          setTimeout(resolve, 1);
-        });
-        inFlight--;
+    const get = vi.fn<Parameters<typeof stubProductClient>[0]>(async (...args: unknown[]) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1);
+      });
+      inFlight--;
 
-        return {
-          data: {
-            data:
-              args[0] === "/v1/products/{id}" ? makeProduct() : [makeProduct()],
-          },
-          response: new Response(null, { status: 200 }),
-        };
-      },
-    );
+      return {
+        data: {
+          data: args[0] === "/v1/products/{id}" ? makeProduct() : [makeProduct()],
+        },
+        response: new Response(null, { status: 200 }),
+      };
+    });
 
     const service = new ProductService(stubProductClient(get));
 
     const terms = [
-      ...Array.from({ length: 30 }, (_, index) =>
-        String(index).padStart(13, "0"),
-      ),
+      ...Array.from({ length: 30 }, (_, index) => String(index).padStart(13, "0")),
       ...Array.from({ length: 10 }, (_, index) => `item ${index}`),
     ];
 
@@ -262,29 +248,27 @@ describe("ProductService catalog budget", () => {
     let inFlight = 0;
     let peak = 0;
 
-    const get = vi.fn<Parameters<typeof stubProductClient>[0]>(
-      async (_path, options) => {
-        const upc = options.params.path?.id;
+    const get = vi.fn<Parameters<typeof stubProductClient>[0]>(async (_path, options) => {
+      const upc = options.params.path?.id;
 
-        if (!upc) throw new Error("Missing fixture UPC path");
-        inFlight++;
-        peak = Math.max(peak, inFlight);
-        await new Promise((resolve) => {
-          setTimeout(resolve, 1);
-        });
-        inFlight--;
+      if (!upc) {
+        throw new Error("Missing fixture UPC path");
+      }
 
-        return {
-          data: {
-            data:
-              upc === "0000000000001"
-                ? undefined
-                : makeProduct({ description: upc }),
-          },
-          response: new Response(null, { status: 200 }),
-        };
-      },
-    );
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1);
+      });
+      inFlight--;
+
+      return {
+        data: {
+          data: upc === "0000000000001" ? undefined : makeProduct({ description: upc }),
+        },
+        response: new Response(null, { status: 200 }),
+      };
+    });
 
     const service = new ProductService(stubProductClient(get));
 
@@ -308,8 +292,9 @@ describe("ProductService catalog budget", () => {
   it("preserves a successful exact product when another adapter call throws synchronously", async () => {
     const service = new ProductService(
       stubProductClient((_path, options) => {
-        if (options.params.path?.id === "0000000000001")
+        if (options.params.path?.id === "0000000000001") {
           throw new Error("adapter failed");
+        }
 
         return Promise.resolve({
           data: { data: makeProduct() },
@@ -318,10 +303,9 @@ describe("ProductService catalog budget", () => {
       }),
     );
 
-    const result = await service.resolveProducts(
-      ["0000000000001", "0001111041700"],
-      { limitPerTerm: 5 },
-    );
+    const result = await service.resolveProducts(["0000000000001", "0001111041700"], {
+      limitPerTerm: 5,
+    });
 
     expect(result._unsafeUnwrap().results).toMatchObject([
       { status: "failed", error: { type: "NETWORK_ERROR" } },

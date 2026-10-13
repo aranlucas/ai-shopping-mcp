@@ -12,10 +12,7 @@ export function registerPrompts(server: McpServer) {
       description:
         "Plan an efficient in-store shopping route by matching grocery items to product departments and aisle information.",
       argsSchema: z.object({
-        grocery_list: z
-          .string()
-          .optional()
-          .describe("Optional grocery list items to organize"),
+        grocery_list: z.string().optional().describe("Optional grocery list items to organize"),
       }),
     },
     async ({ grocery_list }) => ({
@@ -127,11 +124,7 @@ Please make sure to check product availability at my preferred location before a
       description:
         "Use pantry, expiry, equipment, and recent-order context to draft meal ideas and optionally prepare a shopping list for missing ingredients.",
       argsSchema: z.object({
-        meal_count: z
-          .string()
-          .optional()
-          .default("3")
-          .describe("Number of meals to plan"),
+        meal_count: z.string().optional().default("3").describe("Number of meals to plan"),
       }),
     },
     ({ meal_count }) => {

@@ -25,6 +25,8 @@ import {
   upcsForTerm,
 } from "./harness.js";
 
+type RequestedItem = { name: string; quantity?: number };
+
 describe("golden path (scripted agent, text-only)", () => {
   let stub: KrogerFetchStub;
   let client: Client;
@@ -41,10 +43,7 @@ describe("golden path (scripted agent, text-only)", () => {
     await reset();
   });
 
-  async function call(
-    name: string,
-    args: ToolArguments,
-  ): Promise<ToolCallResult> {
+  async function call(name: string, args: ToolArguments): Promise<ToolCallResult> {
     toolCalls++;
 
     const result = await client.callTool({
@@ -52,17 +51,12 @@ describe("golden path (scripted agent, text-only)", () => {
       arguments: args,
     });
 
-    expect(
-      result.isError,
-      `${name} failed: ${contentText(result)}`,
-    ).toBeFalsy();
+    expect(result.isError, `${name} failed: ${contentText(result)}`).toBeFalsy();
 
     return result;
   }
 
-  async function chooseAndCreate(
-    items: Array<{ name: string; quantity?: number }>,
-  ) {
+  async function chooseAndCreate(items: Array<RequestedItem>) {
     const shop = await call("shop_for_items", { items });
     const text = contentText(shop);
     expect(text).toContain("create_shopping_list");
@@ -89,10 +83,7 @@ describe("golden path (scripted agent, text-only)", () => {
     expect(storeIds.length).toBeGreaterThan(0);
     await call("set_preferred_store", { storeId: storeIds[0] });
 
-    const created = await chooseAndCreate([
-      { name: "milk" },
-      { name: "eggs", quantity: 2 },
-    ]);
+    const created = await chooseAndCreate([{ name: "milk" }, { name: "eggs", quantity: 2 }]);
 
     const listIds = extractListIds(contentText(created));
     expect(listIds).toHaveLength(1);

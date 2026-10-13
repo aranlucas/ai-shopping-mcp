@@ -4,10 +4,7 @@ import type { OrderRecord } from "../../src/domain/shopping.js";
 import type { OrderHistoryStore } from "../../src/utils/shopping-store.js";
 
 import { appPayloadSchemas } from "../../src/app-results.js";
-import {
-  registerOrderTools,
-  recordOrderInputSchema,
-} from "../../src/tools/orders.js";
+import { registerOrderTools, recordOrderInputSchema } from "../../src/tools/orders.js";
 import { parseToolPayload } from "../app-payload.js";
 import { strictFake } from "../strict-fake.js";
 import {
@@ -154,9 +151,7 @@ describe("order storage-backed tools", () => {
         items: [{ productName: "Apples", quantity: 2 }],
       }).success,
     ).toBe(true);
-    expect(
-      recordOrderInputSchema.safeParse({ items: [{ quantity: 2 }] }).success,
-    ).toBe(false);
+    expect(recordOrderInputSchema.safeParse({ items: [{ quantity: 2 }] }).success).toBe(false);
     expect(
       config.inputSchema.safeParse({
         items: [{ upc: "0000000000001", productName: "Apples", quantity: 2 }],
@@ -164,9 +159,7 @@ describe("order storage-backed tools", () => {
     ).toBe(true);
     expect(
       config.inputSchema.safeParse({
-        items: [
-          { productId: "0000000000001", productName: "Apples", quantity: 2 },
-        ],
+        items: [{ productId: "0000000000001", productName: "Apples", quantity: 2 }],
       }).success,
     ).toBe(false);
   });
@@ -176,8 +169,6 @@ describe("order storage-backed tools", () => {
       items: [{ upc: "1", productName: "Apples", quantity: 2 }],
     });
 
-    expect(parsed.items).toEqual([
-      { upc: "0000000000001", productName: "Apples", quantity: 2 },
-    ]);
+    expect(parsed.items).toEqual([{ upc: "0000000000001", productName: "Apples", quantity: 2 }]);
   });
 });

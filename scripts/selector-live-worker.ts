@@ -1,7 +1,6 @@
-import {
-  selectProductMatches,
-  type SelectorAi,
-} from "./fixtures/jev-product-selector.js";
+import { selectProductMatches, type SelectorAi } from "./fixtures/jev-product-selector.js";
+
+type SelectorEnv = { AI: SelectorAi };
 
 type DiagnosticCall = { elapsedMs: number; status: number; response: unknown };
 
@@ -12,8 +11,8 @@ type DiagnosticError = {
 };
 
 /** Ephemeral local test worker: only the AI binding connects to Cloudflare. */
-export default {
-  async fetch(request: Request, env: { AI: SelectorAi }): Promise<Response> {
+const selectorWorker = {
+  async fetch(request: Request, env: SelectorEnv): Promise<Response> {
     const diagnostic = new URL(request.url).searchParams.has("diagnostics");
 
     const calls: DiagnosticCall[] = [];
@@ -39,17 +38,12 @@ export default {
       : env.AI;
 
     try {
-      const input =
-        await request.json<
-          Omit<Parameters<typeof selectProductMatches>[0], "ai">
-        >();
+      const input = await request.json<Omit<Parameters<typeof selectProductMatches>[0], "ai">>();
 
       const selections = await selectProductMatches({ ...input, ai });
 
       return Response.json(
-        diagnostic
-          ? { selections, calls, elapsedMs: Date.now() - started }
-          : selections,
+        diagnostic ? { selections, calls, elapsedMs: Date.now() - started } : selections,
       );
     } catch (error) {
       const body: DiagnosticError = {
@@ -65,3 +59,5 @@ export default {
     }
   },
 };
+
+export default selectorWorker;

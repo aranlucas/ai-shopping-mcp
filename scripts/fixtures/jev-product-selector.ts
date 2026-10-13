@@ -2,6 +2,12 @@ import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 
+type ProductSelectionParams = {
+  ai: SelectorAi;
+  items: Array<{ requestId: string; query: string; products: Product[] }>;
+  forPickup: boolean;
+};
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 export const JEV_MODEL = "typesafe/jev-1.13";
@@ -66,11 +72,9 @@ function candidateDescription(product: Product) {
 }
 
 /** One Jev request for the entire list. Failures propagate without fallback. */
-export async function selectProductMatches(params: {
-  ai: SelectorAi;
-  items: Array<{ requestId: string; query: string; products: Product[] }>;
-  forPickup: boolean;
-}): Promise<ProductSelection[]> {
+export async function selectProductMatches(
+  params: ProductSelectionParams,
+): Promise<ProductSelection[]> {
   const { ai, items, forPickup } = params;
 
   const entries = items
@@ -83,8 +87,7 @@ export async function selectProductMatches(params: {
 
         return (
           variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
-          (!forPickup ||
-            (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
+          (!forPickup || (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
         );
       }),
     }))
@@ -100,14 +103,16 @@ export async function selectProductMatches(params: {
   const getSelection = (requestId: string): ProductSelection => {
     const selection = selections.get(requestId);
 
-    if (!selection)
+    if (!selection) {
       throw new Error(`Missing selection for request ${requestId}`);
+    }
 
     return selection;
   };
 
-  if (entries.length === 0)
+  if (entries.length === 0) {
     return items.map((item) => getSelection(item.requestId));
+  }
 
   const questions = Object.fromEntries(
     entries.map((entry) => [
@@ -134,8 +139,7 @@ export async function selectProductMatches(params: {
           ),
           no_match:
             "Every candidate conflicts with the requested product or an explicit attribute.",
-          needs_review:
-            "The request is ambiguous or evidence for a required attribute is missing.",
+          needs_review: "The request is ambiguous or evidence for a required attribute is missing.",
         },
       },
     ]),
@@ -166,10 +170,7 @@ export async function selectProductMatches(params: {
             model: JEV_MODEL,
             state: {
               items: Object.fromEntries(
-                entries.map((entry) => [
-                  entry.id,
-                  { requestedItem: entry.query },
-                ]),
+                entries.map((entry) => [entry.id, { requestedItem: entry.query }]),
               ),
             },
             questions,
@@ -178,8 +179,9 @@ export async function selectProductMatches(params: {
         { signal: controller.signal },
       );
 
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`Jev request failed with HTTP ${response.status}`);
+      }
 
       return response.json();
     };
@@ -204,13 +206,8 @@ export async function selectProductMatches(params: {
         !Object.hasOwn(criteria, answer.choice) ||
         Object.keys(probabilities).length !== keys.length ||
         keys.some((key) => !Object.hasOwn(probabilities, key)) ||
-        Math.abs(
-          Object.values(probabilities).reduce((sum, value) => sum + value, 0) -
-            1,
-        ) > 0.02 ||
-        Object.values(probabilities).some(
-          (value) => value > probabilities[answer.choice] + 0.001,
-        )
+        Math.abs(Object.values(probabilities).reduce((sum, value) => sum + value, 0) - 1) > 0.02 ||
+        Object.values(probabilities).some((value) => value > probabilities[answer.choice] + 0.001)
       ) {
         throw new Error("Invalid Jev choice distribution");
       }

@@ -8,15 +8,9 @@ import type { AppError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 
 import { appResult } from "../app-results.js";
-import {
-  cartItemsFingerprint,
-  claimCartOperation,
-} from "../cart-operations.js";
+import { cartItemsFingerprint, claimCartOperation } from "../cart-operations.js";
 import type { KrogerClients } from "../services/kroger/client.js";
-import type {
-  PreferredLocationStore,
-  ShoppingListStore,
-} from "../utils/shopping-store.js";
+import type { PreferredLocationStore, ShoppingListStore } from "../utils/shopping-store.js";
 import type { CartSnapshotItem, CartStore } from "../utils/user-storage.js";
 
 import { mutationOutcomeUnknown, validationError } from "../errors.js";
@@ -30,6 +24,25 @@ import {
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
 import { textResult } from "./types.js";
+
+type CartQuantity = { quantity: number };
+
+type CartResultPayload = {
+  listId?: string;
+  name: string;
+  items: CartSnapshotItem[];
+  needsUpc: Array<{ productName: string; quantity: number }>;
+  outcome: CartOutcome;
+  requestedCount: number;
+  actionDetail: string;
+};
+
+type SubmitCartOptions = {
+  receiptListId?: string;
+  operationId?: string;
+};
+
+type CartLineItem = { upc: string; quantity: number };
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 
@@ -50,9 +63,7 @@ export type CartToolDependencies = {
 
 export type LineItem = { upc: string; quantity: number; productName?: string };
 
-function cartQuantitySummary(
-  items: ReadonlyArray<{ quantity: number }>,
-): string {
+function cartQuantitySummary(items: ReadonlyArray<CartQuantity>): string {
   const packages = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return `${items.length} line item(s), ${packages} package(s)`;
@@ -77,9 +88,7 @@ export const addShoppingListToCartInputSchema = z
       .min(1)
       .max(100)
       .optional()
-      .describe(
-        "Inline retry key. Reuse for retries; change only for an intentional new add.",
-      ),
+      .describe("Inline retry key. Reuse for retries; change only for an intentional new add."),
     listId: z
       .string()
       .min(1)
@@ -93,17 +102,12 @@ export const addShoppingListToCartInputSchema = z
       .describe("Inline UPC/quantity pairs, when there is no saved list"),
     storeId: storeIdSchema
       .optional()
-      .describe(
-        "8-character storeId from search_stores. Uses your preferred store if omitted.",
-      ),
-    modality: modalityEnum
-      .default("PICKUP")
-      .describe("PICKUP (default) or DELIVERY"),
+      .describe("8-character storeId from search_stores. Uses your preferred store if omitted."),
+    modality: modalityEnum.default("PICKUP").describe("PICKUP (default) or DELIVERY"),
   })
   // With both, the saved list wins (see the handler).
   .refine((value) => Boolean(value.listId ?? value.items), {
-    message:
-      "Provide listId (from create_shopping_list) or items (inline upc/quantity pairs).",
+    message: "Provide listId (from create_shopping_list) or items (inline upc/quantity pairs).",
   });
 
 function toCartSnapshotItems(
@@ -118,15 +122,7 @@ function toCartSnapshotItems(
   }));
 }
 
-function cartResultPayload(payload: {
-  listId?: string;
-  name: string;
-  items: CartSnapshotItem[];
-  needsUpc: Array<{ productName: string; quantity: number }>;
-  outcome: CartOutcome;
-  requestedCount: number;
-  actionDetail: string;
-}) {
+function cartResultPayload(payload: CartResultPayload) {
   return appResult("add_shopping_list_to_cart", {
     ...payload,
     addedCount: payload.items.length,
@@ -147,10 +143,7 @@ export async function addLineItemsToCart(
   cartClient: KrogerClients["cartClient"],
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
-  options: {
-    receiptListId?: string;
-    operationId?: string;
-  } = {},
+  options: SubmitCartOptions = {},
 ): Promise<Result<CartAddStatus, AppError>> {
   const cartItems: CartItem[] = lineItems.map((item) => ({
     upc: item.upc,
@@ -177,23 +170,30 @@ export async function addLineItemsToCart(
     "claim cart operation",
   );
 
-  if (claim.isErr()) return err<CartAddStatus, AppError>(claim.error);
+  if (claim.isErr()) {
+    return err<CartAddStatus, AppError>(claim.error);
+  }
 
-  if (claim.value.status === "conflict")
+  if (claim.value.status === "conflict") {
     return err<CartAddStatus, AppError>(
       validationError(
         "This cart operation was already used with different items. Check the Kroger cart before starting a new operation.",
       ),
     );
+  }
 
-  if (claim.value.status === "completed") return ok("already_added");
+  if (claim.value.status === "completed") {
+    return ok("already_added");
+  }
 
-  if (claim.value.status === "pending")
+  if (claim.value.status === "pending") {
     return err<CartAddStatus, AppError>(
       mutationOutcomeUnknown(
         "This cart add is pending or its outcome is unknown; do not retry or create a replacement list. Check the Kroger cart first.",
       ),
     );
+  }
+
   const { attempt } = claim.value;
 
   // A list with no cartable items still claims and reconciles the operation so
@@ -205,7 +205,9 @@ export async function addLineItemsToCart(
       "release empty cart operation",
     );
 
-    if (released.isErr()) return err<CartAddStatus, AppError>(released.error);
+    if (released.isErr()) {
+      return err<CartAddStatus, AppError>(released.error);
+    }
 
     return ok("needs_match");
   }
@@ -234,9 +236,7 @@ export async function addLineItemsToCart(
       await safeStorage(
         () => carts.operations.reject(operationKey, attempt),
         "release rejected cart operation",
-      ).orTee((failure) =>
-        console.warn("Cart claim release failed:", failure.message),
-      );
+      ).orTee((failure) => console.warn("Cart claim release failed:", failure.message));
 
       return err<CartAddStatus, AppError>(error);
     }
@@ -254,30 +254,27 @@ export async function addLineItemsToCart(
     "complete cart operation",
   );
 
-  if (committed.isErr() || !committed.value)
+  if (committed.isErr() || !committed.value) {
     return err<CartAddStatus, AppError>(
       mutationOutcomeUnknown(
         "Kroger accepted the cart add, but its retry receipt could not be confirmed; do not retry. Check the Kroger cart first.",
         committed.isErr() ? committed.error : undefined,
       ),
     );
+  }
 
   const mirrorItems = toCartSnapshotItems(lineItems, modality);
   await safeStorage(
     () => carts.cartMirror.append(mirrorItems, new Date().toISOString()),
     "append cart mirror",
-  ).orTee((e) =>
-    console.warn("Cart mirror append failed (non-fatal):", e.message),
-  );
+  ).orTee((e) => console.warn("Cart mirror append failed (non-fatal):", e.message));
 
   if (receiptListId) {
     // The atomic journal is authoritative; keep legacy receipts for compatibility.
     await safeStorage(
       () => carts.cartSnapshot.set(receiptListId, mirrorItems),
       "persist cart snapshot",
-    ).orTee((e) =>
-      console.warn("Legacy cart snapshot write failed (non-fatal):", e.message),
-    );
+    ).orTee((e) => console.warn("Legacy cart snapshot write failed (non-fatal):", e.message));
   }
 
   return ok("added");
@@ -287,31 +284,26 @@ async function handleInlineItemsCart(
   preferredLocation: PreferredLocationStore,
   carts: CartStore,
   cartClient: KrogerClients["cartClient"],
-  items: Array<{ upc: string; quantity: number }>,
+  items: Array<CartLineItem>,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
   operationId?: string,
 ) {
-  const locationResult = await safeResolveLocationId(
-    preferredLocation,
-    storeId,
-  );
+  const locationResult = await safeResolveLocationId(preferredLocation, storeId);
 
-  if (locationResult.isErr()) return toMcpError(locationResult.error);
+  if (locationResult.isErr()) {
+    return toMcpError(locationResult.error);
+  }
 
-  const addResult = await addLineItemsToCart(
-    carts,
-    cartClient,
-    items,
-    modality,
-    {
-      operationId,
-    },
-  );
+  const addResult = await addLineItemsToCart(carts, cartClient, items, modality, {
+    operationId,
+  });
 
-  if (addResult.isErr()) return toMcpError(addResult.error);
+  if (addResult.isErr()) {
+    return toMcpError(addResult.error);
+  }
 
-  if (addResult.value === "already_added")
+  if (addResult.value === "already_added") {
     return {
       content: [
         {
@@ -329,6 +321,8 @@ async function handleInlineItemsCart(
         actionDetail: "Already added to cart for this operation",
       }),
     };
+  }
+
   const resolved = locationResult.value;
 
   const locationInfo = resolved.locationName
@@ -363,12 +357,12 @@ async function handleListIdCart(
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
 ) {
-  const listResult = await safeStorage(
-    () => shoppingList.get(listId),
-    "fetch shopping list",
-  );
+  const listResult = await safeStorage(() => shoppingList.get(listId), "fetch shopping list");
 
-  if (listResult.isErr()) return toMcpError(listResult.error);
+  if (listResult.isErr()) {
+    return toMcpError(listResult.error);
+  }
+
   const list = listResult.value;
 
   if (!list) {
@@ -387,15 +381,13 @@ async function handleListIdCart(
   const withoutUpc = list.items.filter((item) => !cartableItems.has(item));
 
   if (cartable.length === 0) {
-    const emptyAddResult = await addLineItemsToCart(
-      carts,
-      cartClient,
-      [],
-      modality,
-      { receiptListId: listId },
-    );
+    const emptyAddResult = await addLineItemsToCart(carts, cartClient, [], modality, {
+      receiptListId: listId,
+    });
 
-    if (emptyAddResult.isErr()) return toMcpError(emptyAddResult.error);
+    if (emptyAddResult.isErr()) {
+      return toMcpError(emptyAddResult.error);
+    }
 
     return {
       content: [
@@ -418,18 +410,17 @@ async function handleListIdCart(
         })),
         outcome: "needs_match",
         requestedCount: list.items.length,
-        actionDetail:
-          "No Kroger items to add; match items to Kroger before retrying",
+        actionDetail: "No Kroger items to add; match items to Kroger before retrying",
       }),
     };
   }
 
-  const locationResult = await safeResolveLocationId(
-    preferredLocation,
-    storeId,
-  );
+  const locationResult = await safeResolveLocationId(preferredLocation, storeId);
 
-  if (locationResult.isErr()) return toMcpError(locationResult.error);
+  if (locationResult.isErr()) {
+    return toMcpError(locationResult.error);
+  }
+
   const resolved = locationResult.value;
 
   const lineItems: LineItem[] = cartable.map(({ item, upc }) => ({
@@ -438,17 +429,14 @@ async function handleListIdCart(
     productName: item.productName,
   }));
 
-  const addResult = await addLineItemsToCart(
-    carts,
-    cartClient,
-    lineItems,
-    modality,
-    {
-      receiptListId: listId,
-    },
-  );
+  const addResult = await addLineItemsToCart(carts, cartClient, lineItems, modality, {
+    receiptListId: listId,
+  });
 
-  if (addResult.isErr()) return toMcpError(addResult.error);
+  if (addResult.isErr()) {
+    return toMcpError(addResult.error);
+  }
+
   const snapshot = toCartSnapshotItems(lineItems, modality);
   const alreadyAdded = addResult.value === "already_added";
 
@@ -520,12 +508,11 @@ function formatLiveCart(cart: LiveCart, cartId: string): string {
  * `note` (when set) explains why the live cart is not being shown.
  */
 async function mirrorFallbackResult(carts: CartStore, note?: string) {
-  const mirrorResult = await safeStorage(
-    () => carts.cartMirror.getAll(),
-    "fetch cart mirror",
-  );
+  const mirrorResult = await safeStorage(() => carts.cartMirror.getAll(), "fetch cart mirror");
 
-  if (mirrorResult.isErr()) return toMcpError(mirrorResult.error);
+  if (mirrorResult.isErr()) {
+    return toMcpError(mirrorResult.error);
+  }
 
   const parts: string[] = note ? [note] : [];
 
@@ -554,7 +541,9 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
     })),
   };
 
-  if (note) payload.note = note;
+  if (note) {
+    payload.note = note;
+  }
 
   return {
     ...textResult(parts.join("\n\n")),
@@ -660,12 +649,12 @@ export function registerCartTools(
       let resolvedId = cartId;
 
       if (!resolvedId) {
-        const storedIdResult = await safeStorage(
-          () => carts.cartId.get(),
-          "read stored cart id",
-        );
+        const storedIdResult = await safeStorage(() => carts.cartId.get(), "read stored cart id");
 
-        if (storedIdResult.isErr()) return toMcpError(storedIdResult.error);
+        if (storedIdResult.isErr()) {
+          return toMcpError(storedIdResult.error);
+        }
+
         resolvedId = storedIdResult.value ?? undefined;
       }
 
@@ -687,8 +676,9 @@ export function registerCartTools(
       );
 
       if (liveResult.isErr()) {
-        if (liveResult.error.type === "AUTH_ERROR")
+        if (liveResult.error.type === "AUTH_ERROR") {
           return toMcpError(liveResult.error);
+        }
 
         return mirrorFallbackResult(
           carts,
@@ -696,10 +686,7 @@ export function registerCartTools(
         );
       }
 
-      await safeStorage(
-        () => carts.cartId.set(resolvedId),
-        "store cart id",
-      ).orTee((error) =>
+      await safeStorage(() => carts.cartId.set(resolvedId), "store cart id").orTee((error) =>
         console.warn("Cart id store failed (non-fatal):", error.message),
       );
 

@@ -8,35 +8,33 @@ import {
   sendUserMessage,
 } from "../../shared/types.js";
 import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
-import {
-  type ChangeEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
 import { Card, CardContent, CardFooter } from "../../shared/ui/card";
-import {
-  ActionButton,
-  DisplayModeToggle,
-  SectionHeader,
-} from "../../shared/components.js";
+import { ActionButton, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { useResettableState } from "../../shared/hooks.js";
 import { EmptyState } from "../../shared/status.js";
 import { toolResultErrorMessage } from "../tool-calls.js";
 import { ProductSearchView } from "./product-search.js";
 
+type DealCardProps = {
+  deal: DealData;
+  canCallTools: boolean;
+  canMessage: boolean;
+  onSearch: (title: string) => Promise<void>;
+  onPlanMeal: (title: string) => Promise<void>;
+};
+
+type WeeklyDealsViewProps = {
+  data: WeeklyDealsContent;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+  hostContext?: McpUiHostContext;
+};
+
 const SEARCH_ICON = (
-  <svg
-    aria-hidden="true"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={2}
-    stroke="currentColor"
-  >
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -59,34 +57,14 @@ const EMPTY_DEALS_ICON = (
       strokeLinejoin="round"
       d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"
     />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M6 6h.008v.008H6V6Z"
-    />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
   </svg>
 );
 
-function DealCard({
-  deal,
-  canCallTools,
-  canMessage,
-  onSearch,
-  onPlanMeal,
-}: {
-  deal: DealData;
-  canCallTools: boolean;
-  canMessage: boolean;
-  onSearch: (title: string) => Promise<void>;
-  onPlanMeal: (title: string) => Promise<void>;
-}) {
-  const [searchState, setSearchState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+function DealCard({ deal, canCallTools, canMessage, onSearch, onPlanMeal }: DealCardProps) {
+  const [searchState, setSearchState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
-  const [planState, setPlanState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [planState, setPlanState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const [error, setError] = useState<string | null>(null);
 
@@ -99,11 +77,7 @@ function DealCard({
       setSearchState("done");
     } catch (cause) {
       setSearchState("error");
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Product search failed. Try again.",
-      );
+      setError(cause instanceof Error ? cause.message : "Product search failed. Try again.");
     }
   }, [deal.title, onSearch]);
 
@@ -116,24 +90,16 @@ function DealCard({
       setPlanState("done");
     } catch (cause) {
       setPlanState("error");
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not ask the assistant. Try again.",
-      );
+      setError(cause instanceof Error ? cause.message : "Could not ask the assistant. Try again.");
     }
   }, [deal.title, onPlanMeal]);
 
   return (
     <Card size="sm" className="h-full gap-4">
       <CardContent className="flex-1">
-        <h3 className="text-base leading-snug font-semibold text-gray-900">
-          {deal.title}
-        </h3>
+        <h3 className="text-base leading-snug font-semibold text-gray-900">{deal.title}</h3>
         {deal.details && (
-          <p className="mt-1.5 text-sm leading-relaxed text-gray-500">
-            {deal.details}
-          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-gray-500">{deal.details}</p>
         )}
         <div className="mt-4 flex flex-wrap items-baseline gap-2">
           <span className="text-xl leading-snug font-semibold text-emerald-600 tabular-nums">
@@ -182,17 +148,7 @@ function DealCard({
   );
 }
 
-export function WeeklyDealsView({
-  data,
-  app,
-  canCallTools,
-  hostContext,
-}: {
-  data: WeeklyDealsContent;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-  hostContext?: McpUiHostContext;
-}) {
+export function WeeklyDealsView({ data, app, canCallTools, hostContext }: WeeklyDealsViewProps) {
   const { deals, validFrom, validTill } = data;
   const [category, setCategory] = useResettableState(data, () => "");
 
@@ -218,12 +174,13 @@ export function WeeklyDealsView({
     }));
   }, [deals]);
 
-  const visibleGroups = category
-    ? groups.filter((group) => group.category === category)
-    : groups;
+  const visibleGroups = category ? groups.filter((group) => group.category === category) : groups;
 
   useEffect(() => {
-    if (!app || deals.length === 0) return;
+    if (!app || deals.length === 0) {
+      return;
+    }
+
     app
       .updateModelContext({
         content: [
@@ -243,7 +200,9 @@ export function WeeklyDealsView({
   }, [app, deals.length, validFrom, validTill]);
 
   useEffect(() => {
-    if (searchResult) contentRef.current?.focus();
+    if (searchResult) {
+      contentRef.current?.focus();
+    }
   }, [searchResult]);
 
   const handleSearch = useCallback(
@@ -253,16 +212,16 @@ export function WeeklyDealsView({
         arguments: { terms: [title], storeId: data.storeId },
       });
 
-      if (result.isError)
-        throw new Error(
-          toolResultErrorMessage(result, "Product search failed. Try again."),
-        );
+      if (result.isError) {
+        throw new Error(toolResultErrorMessage(result, "Product search failed. Try again."));
+      }
+
       const parsed = parseToolResult(result);
 
-      if (parsed?.view !== "search_products")
-        throw new Error(
-          "No product results were returned. Try searching with your assistant.",
-        );
+      if (parsed?.view !== "search_products") {
+        throw new Error("No product results were returned. Try searching with your assistant.");
+      }
+
       setSearchResult(parsed);
     },
     [app, data.storeId, setSearchResult],
@@ -270,10 +229,7 @@ export function WeeklyDealsView({
 
   const handlePlanMeal = useCallback(
     async (title: string) => {
-      await sendUserMessage(
-        app,
-        `Plan a quick meal that uses "${title}" from this week's deals.`,
-      );
+      await sendUserMessage(app, `Plan a quick meal that uses "${title}" from this week's deals.`);
     },
     [app],
   );
@@ -283,10 +239,7 @@ export function WeeklyDealsView({
     [setCategory],
   );
 
-  const handleBack = useCallback(
-    () => setSearchResult(null),
-    [setSearchResult],
-  );
+  const handleBack = useCallback(() => setSearchResult(null), [setSearchResult]);
 
   const headerBadge = useMemo(
     () => <Badge variant="secondary">{deals.length} deals</Badge>,
@@ -306,7 +259,7 @@ export function WeeklyDealsView({
         ]
       : [];
 
-  if (searchResult)
+  if (searchResult) {
     return (
       <div
         ref={contentRef}
@@ -327,17 +280,14 @@ export function WeeklyDealsView({
         />
       </div>
     );
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-5 sm:px-6">
       <SectionHeader
         title="Weekly Deals"
         badge={headerBadge}
-        subtitle={
-          validFrom && validTill
-            ? `Valid ${validFrom} – ${validTill}`
-            : undefined
-        }
+        subtitle={validFrom && validTill ? `Valid ${validFrom} – ${validTill}` : undefined}
         trailing={headerTrailing}
       />
       {warnings.length > 0 && (
@@ -361,10 +311,7 @@ export function WeeklyDealsView({
         <>
           {groups.length > 1 && (
             <div className="mb-5 flex flex-wrap items-center gap-3">
-              <label
-                htmlFor="deal-category"
-                className="text-sm font-medium text-gray-700"
-              >
+              <label htmlFor="deal-category" className="text-sm font-medium text-gray-700">
                 Category
               </label>
               <select
@@ -386,9 +333,7 @@ export function WeeklyDealsView({
             <section key={group.category} className="mb-7 last:mb-0">
               <h2 className="mb-3 text-sm font-semibold text-gray-700">
                 {group.category}{" "}
-                <span className="ms-1 font-normal text-gray-500">
-                  · {group.deals.length}
-                </span>
+                <span className="ms-1 font-normal text-gray-500">· {group.deals.length}</span>
               </h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {group.deals.map((deal) => (

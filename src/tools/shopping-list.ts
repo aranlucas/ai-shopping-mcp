@@ -4,38 +4,22 @@ import { type Result, type ResultAsync, errAsync, okAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
-import type {
-  ShoppingList,
-  ShoppingListItem,
-  ShoppingListSummary,
-} from "../domain/shopping.js";
+import type { ShoppingList, ShoppingListItem, ShoppingListSummary } from "../domain/shopping.js";
 
 import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
 import { MAX_CATALOG_REQUESTS } from "../services/kroger/catalog-workload.js";
 import type { ProductService } from "../services/kroger/product-service.js";
 import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
-import {
-  formatListSize,
-  formatShoppingListItemCompact,
-} from "../utils/format-response.js";
+import { formatListSize, formatShoppingListItemCompact } from "../utils/format-response.js";
 import type {
   PantryStore,
   PreferredLocationStore,
   ShoppingListStore,
 } from "../utils/shopping-store.js";
-import {
-  getProps,
-  safeResolveLocationId,
-  safeStorage,
-  toMcpError,
-} from "../utils/result.js";
+import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import {
-  getDealsForFlags,
-  getPantryForFlags,
-  itemFlagLabels,
-} from "./item-flags.js";
+import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
 import { upcSchema } from "./schemas.js";
 import { textResult } from "./types.js";
 
@@ -47,19 +31,9 @@ export const shoppingListItemInputSchema = z
   .strictObject({
     upc: upcSchema.optional().describe("13-digit UPC from search_products"),
     productName: z.string().trim().min(1).max(200).optional(),
-    quantity: z.coerce
-      .number()
-      .min(1)
-      .max(999)
-      .default(1)
-      .describe("Packages to buy, not units"),
+    quantity: z.coerce.number().min(1).max(999).default(1).describe("Packages to buy, not units"),
     notes: z.string().max(500).optional(),
-    price: z.coerce
-      .number()
-      .min(0)
-      .max(10_000)
-      .optional()
-      .describe("Unit price, if known"),
+    price: z.coerce.number().min(0).max(10_000).optional().describe("Unit price, if known"),
   })
   .refine((item) => Boolean(item.upc ?? item.productName), {
     message: "Each item needs a UPC or a productName.",
@@ -70,11 +44,7 @@ const listIdSchema = z.string().trim().min(1);
 const itemIdSchema = z.string().trim().min(1);
 
 export const createShoppingListInputSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(200)
-    .describe("List label, e.g. 'Tuesday dinner'."),
+  name: z.string().min(1).max(200).describe("List label, e.g. 'Tuesday dinner'."),
   items: z
     .array(shoppingListItemInputSchema)
     .min(1, { message: "Shopping list must include at least one item" })
@@ -84,12 +54,7 @@ export const createShoppingListInputSchema = z.object({
 const shoppingListItemChangeSchema = z.object({
   itemId: itemIdSchema,
   productName: z.string().trim().min(1).max(200).optional(),
-  quantity: z.coerce
-    .number()
-    .min(0)
-    .max(999)
-    .optional()
-    .describe("0 removes the item"),
+  quantity: z.coerce.number().min(0).max(999).optional().describe("0 removes the item"),
   notes: z.string().max(500).optional(),
   checked: z.boolean().optional(),
 });
@@ -97,11 +62,7 @@ const shoppingListItemChangeSchema = z.object({
 export const updateShoppingListInputSchema = z
   .object({
     listId: listIdSchema,
-    add: z
-      .array(shoppingListItemInputSchema)
-      .min(1)
-      .max(MAX_CATALOG_REQUESTS)
-      .optional(),
+    add: z.array(shoppingListItemInputSchema).min(1).max(MAX_CATALOG_REQUESTS).optional(),
     change: z
       .array(shoppingListItemChangeSchema)
       .min(1)
@@ -119,21 +80,12 @@ export const updateShoppingListInputSchema = z
 
 export const getShoppingListInputSchema = z.object({
   listId: listIdSchema.optional(),
-  name: z
-    .string()
-    .trim()
-    .min(1)
-    .max(200)
-    .optional()
-    .describe("List name, instead of listId"),
+  name: z.string().trim().min(1).max(200).optional().describe("List name, instead of listId"),
 });
 
 type ShoppingListItemInput = z.output<typeof shoppingListItemInputSchema>;
 
-export type ShoppingListProductService = Pick<
-  ProductService,
-  "enrichProductNames"
->;
+export type ShoppingListProductService = Pick<ProductService, "enrichProductNames">;
 
 export type ShoppingListToolDependencies = {
   weeklyDealsCache: WeeklyDealsCache;
@@ -151,30 +103,30 @@ async function toStoredItems(
   productService: ShoppingListProductService,
   items: ShoppingListItemInput[],
 ): Promise<Result<ShoppingListItem[], AppError>> {
-  const missingUpcs = items.flatMap((item) =>
-    !item.productName && item.upc ? [item.upc] : [],
-  );
+  const missingUpcs = items.flatMap((item) => (!item.productName && item.upc ? [item.upc] : []));
 
   const enriched = await productService.enrichProductNames(missingUpcs);
 
   return enriched.map((names) => {
-    const nameByUpc = new Map(
-      missingUpcs.map((upc, index) => [upc, names[index]]),
-    );
+    const nameByUpc = new Map(missingUpcs.map((upc, index) => [upc, names[index]]));
 
     return items.map((item) => {
       const stored: ShoppingListItem = {
-        productName:
-          item.productName ??
-          (item.upc ? (nameByUpc.get(item.upc) ?? item.upc) : ""),
+        productName: item.productName ?? (item.upc ? (nameByUpc.get(item.upc) ?? item.upc) : ""),
         quantity: item.quantity,
       };
 
-      if (item.upc !== undefined) stored.upc = item.upc;
+      if (item.upc !== undefined) {
+        stored.upc = item.upc;
+      }
 
-      if (item.notes !== undefined) stored.notes = item.notes;
+      if (item.notes !== undefined) {
+        stored.notes = item.notes;
+      }
 
-      if (item.price !== undefined) stored.price = item.price;
+      if (item.price !== undefined) {
+        stored.price = item.price;
+      }
 
       return stored;
     });
@@ -192,10 +144,9 @@ export function createShoppingListRecord(
   name: string,
   items: ShoppingListItem[],
 ): ResultAsync<CreateShoppingListResult, AppError> {
-  return safeStorage(
-    () => shoppingList.create({ name, items }),
-    "create shopping list",
-  ).map((list) => ({ listId: list.id, list }));
+  return safeStorage(() => shoppingList.create({ name, items }), "create shopping list").map(
+    (list) => ({ listId: list.id, list }),
+  );
 }
 
 /** Text plus the editable shopping-list app view for one list. */
@@ -230,8 +181,7 @@ function describeList(list: ShoppingList): string {
 function listSummaryLines(lists: ShoppingListSummary[]): string {
   return lists
     .map(
-      (list, index) =>
-        `${index + 1}. listId=${list.id} "${list.name}" (${list.itemCount} items)`,
+      (list, index) => `${index + 1}. listId=${list.id} "${list.name}" (${list.itemCount} items)`,
     )
     .join("\n");
 }
@@ -254,14 +204,18 @@ export function matchListsByName(
   const query = name.trim().toLowerCase();
   const exact = lists.filter((list) => list.name.toLowerCase() === query);
 
-  if (exact.length > 0) return exact;
+  if (exact.length > 0) {
+    return exact;
+  }
 
   return lists.filter((list) => list.name.toLowerCase().includes(query));
 }
 
 /** Earlier edits in a batch already committed; say which before the error. */
 function partialFailure(error: AppError, applied: string[]) {
-  if (applied.length === 0) return toMcpError(error);
+  if (applied.length === 0) {
+    return toMcpError(error);
+  }
 
   return toMcpError({
     ...error,
@@ -300,7 +254,10 @@ export function registerShoppingListTools(
 
       const enriched = await toStoredItems(productService, items);
 
-      if (enriched.isErr()) return toMcpError(enriched.error);
+      if (enriched.isErr()) {
+        return toMcpError(enriched.error);
+      }
+
       const enrichedItems = enriched.value;
 
       // Best-effort pantry/deal flags (see item-flags.ts): a storage/cache
@@ -312,9 +269,7 @@ export function registerShoppingListTools(
         safeResolveLocationId(preferredLocation, undefined),
       ]);
 
-      const locationId = resolvedLocation.isOk()
-        ? resolvedLocation.value.locationId
-        : undefined;
+      const locationId = resolvedLocation.isOk() ? resolvedLocation.value.locationId : undefined;
 
       const deals = await getDealsForFlags(weeklyDealsCache, locationId);
 
@@ -323,20 +278,18 @@ export function registerShoppingListTools(
           const flags = itemFlagLabels(item.productName, pantryItems, deals);
           const base = formatShoppingListItemCompact(item);
 
-          const suffixed =
-            flags.length > 0 ? `${base} | ${flags.join(" | ")}` : base;
+          const suffixed = flags.length > 0 ? `${base} | ${flags.join(" | ")}` : base;
 
           return `${index + 1}. ${suffixed}`;
         })
         .join("\n");
 
-      const result = await createShoppingListRecord(
-        shoppingList,
-        listName,
-        enrichedItems,
-      );
+      const result = await createShoppingListRecord(shoppingList, listName, enrichedItems);
 
-      if (result.isErr()) return toMcpError(result.error);
+      if (result.isErr()) {
+        return toMcpError(result.error);
+      }
+
       const { listId, list } = result.value;
 
       return {
@@ -375,12 +328,11 @@ export function registerShoppingListTools(
       let resolvedId = listId;
 
       if (!resolvedId) {
-        const result = await safeStorage(
-          () => shoppingList.list(),
-          "read shopping lists",
-        );
+        const result = await safeStorage(() => shoppingList.list(), "read shopping lists");
 
-        if (result.isErr()) return toMcpError(result.error);
+        if (result.isErr()) {
+          return toMcpError(result.error);
+        }
 
         const lists = result.value;
 
@@ -422,12 +374,11 @@ export function registerShoppingListTools(
 
       const listIdToRead = resolvedId;
 
-      const result = await safeStorage(
-        () => shoppingList.get(listIdToRead),
-        "read shopping list",
-      );
+      const result = await safeStorage(() => shoppingList.get(listIdToRead), "read shopping list");
 
-      if (result.isErr()) return toMcpError(result.error);
+      if (result.isErr()) {
+        return toMcpError(result.error);
+      }
 
       const list = result.value;
 
@@ -464,9 +415,7 @@ export function registerShoppingListTools(
       const summary: string[] = [];
 
       // quantity 0 means "take it off the list".
-      const change = (requestedChanges ?? []).filter(
-        (entry) => entry.quantity !== 0,
-      );
+      const change = (requestedChanges ?? []).filter((entry) => entry.quantity !== 0);
 
       const removeRefs = [
         ...(requested ?? []),
@@ -477,7 +426,9 @@ export function registerShoppingListTools(
 
       const resolved = await resolveItemIds(listId, removeRefs);
 
-      if (resolved.isErr()) return toMcpError(resolved.error);
+      if (resolved.isErr()) {
+        return toMcpError(resolved.error);
+      }
 
       for (const itemId of resolved.value) {
         // oxlint-disable-next-line eslint/no-await-in-loop -- edits apply in order so a failure reports what already changed
@@ -486,7 +437,10 @@ export function registerShoppingListTools(
           "remove shopping list item",
         );
 
-        if (removed.isErr()) return partialFailure(removed.error, summary);
+        if (removed.isErr()) {
+          return partialFailure(removed.error, summary);
+        }
+
         summary.push(`Removed itemId=${itemId}.`);
       }
 
@@ -510,7 +464,10 @@ export function registerShoppingListTools(
           "update shopping list item",
         );
 
-        if (updated.isErr()) return partialFailure(updated.error, summary);
+        if (updated.isErr()) {
+          return partialFailure(updated.error, summary);
+        }
+
         const item = updated.value;
         summary.push(
           `Updated itemId=${itemId}: ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
@@ -520,27 +477,27 @@ export function registerShoppingListTools(
       if (add) {
         const storedItems = await toStoredItems(productService, add);
 
-        if (storedItems.isErr())
+        if (storedItems.isErr()) {
           return partialFailure(storedItems.error, summary);
+        }
 
         const added = await safeStorage(
           () => shoppingList.addItems(listId, storedItems.value),
           "add shopping list items",
         );
 
-        if (added.isErr()) return partialFailure(added.error, summary);
+        if (added.isErr()) {
+          return partialFailure(added.error, summary);
+        }
+
         summary.push(
           ...added.value.map(
-            (item) =>
-              `Added itemId=${item.id} ${formatShoppingListItemCompact(item)}`,
+            (item) => `Added itemId=${item.id} ${formatShoppingListItemCompact(item)}`,
           ),
         );
       }
 
-      return withUpdatedList(
-        listId,
-        `Updated listId=${listId}:\n${summary.join("\n")}`,
-      );
+      return withUpdatedList(listId, `Updated listId=${listId}:\n${summary.join("\n")}`);
     },
   );
 
@@ -548,21 +505,15 @@ export function registerShoppingListTools(
    * Maps remove references to itemIds. Models sometimes pass an item's name
    * instead of its id; an exact (case-insensitive) name match is accepted.
    */
-  function resolveItemIds(
-    listId: string,
-    refs: string[],
-  ): ResultAsync<string[], AppError> {
-    if (refs.length === 0) return okAsync([]);
+  function resolveItemIds(listId: string, refs: string[]): ResultAsync<string[], AppError> {
+    if (refs.length === 0) {
+      return okAsync([]);
+    }
 
-    return safeStorage(
-      () => shoppingList.get(listId),
-      "read shopping list",
-    ).andThen((list) => {
+    return safeStorage(() => shoppingList.get(listId), "read shopping list").andThen((list) => {
       if (!list) {
         return errAsync(
-          notFoundError(
-            `No list with listId=${listId}. Call get_shopping_list with no listId.`,
-          ),
+          notFoundError(`No list with listId=${listId}. Call get_shopping_list with no listId.`),
         );
       }
 
@@ -573,18 +524,13 @@ export function registerShoppingListTools(
 
         const item =
           list.items.find((candidate) => candidate.id === ref) ??
-          list.items.find(
-            (candidate) => candidate.productName.toLowerCase() === key,
-          );
+          list.items.find((candidate) => candidate.productName.toLowerCase() === key);
 
         if (!item) {
           return errAsync(
             notFoundError(
               `No item "${ref}" on listId=${listId}. Nothing was changed. Items: ${list.items
-                .map(
-                  (candidate) =>
-                    `itemId=${candidate.id} ${candidate.productName}`,
-                )
+                .map((candidate) => `itemId=${candidate.id} ${candidate.productName}`)
                 .join("; ")}`,
             ),
           );
@@ -609,11 +555,10 @@ export function registerShoppingListTools(
 
     const list = listResult.isOk() ? listResult.value : null;
 
-    if (!list) return textResult(text);
+    if (!list) {
+      return textResult(text);
+    }
 
-    return shoppingListViewResult(
-      list,
-      `${text}\n\nList now has ${formatListSize(list.items)}.`,
-    );
+    return shoppingListViewResult(list, `${text}\n\nList now has ${formatListSize(list.items)}.`);
   }
 }

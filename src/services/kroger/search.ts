@@ -12,6 +12,8 @@ import { fromApiResponse } from "../../utils/result.js";
 
 import { MAX_TEXT_TERMS, mapCatalogRequests } from "./catalog-workload.js";
 
+export type ProductSearchOptions = { locationId?: string; limitPerTerm: number };
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 export type ProductSearchRequest = {
@@ -49,16 +51,14 @@ function toKrogerTerm(term: string): string {
 export async function searchProductsForTerms(
   productClient: KrogerClients["productClient"],
   requests: ProductSearchRequest[],
-  params: { locationId?: string; limitPerTerm: number },
+  params: ProductSearchOptions,
   onSearchComplete?: (completed: number, total: number) => Promise<void> | void,
 ): Promise<ProductSearchResult[]> {
   if (requests.length > MAX_TEXT_TERMS) {
     return requests.map((request) => ({
       ...request,
       status: "failed" as const,
-      error: validationError(
-        `Maximum ${MAX_TEXT_TERMS} text search terms per call.`,
-      ),
+      error: validationError(`Maximum ${MAX_TEXT_TERMS} text search terms per call.`),
     }));
   }
 
@@ -86,7 +86,9 @@ export async function searchProductsForTerms(
       "filter.limit": params.limitPerTerm,
     };
 
-    if (params.locationId) queryParams["filter.locationId"] = params.locationId;
+    if (params.locationId) {
+      queryParams["filter.locationId"] = params.locationId;
+    }
 
     const apiResult = await fromApiResponse(
       () =>
@@ -109,9 +111,7 @@ export async function searchProductsForTerms(
     // Preserve Result type — map Ok to success shape, log and convert Err
     return apiResult
       .map((data) => {
-        const products = (data?.data || []).filter((product) =>
-          Boolean(product.upc?.trim()),
-        );
+        const products = (data?.data || []).filter((product) => Boolean(product.upc?.trim()));
 
         return Object.assign(
           {
@@ -136,9 +136,13 @@ export async function searchProductsForTerms(
         const aPickup = aItem?.fulfillment?.curbside === true;
         const bPickup = bItem?.fulfillment?.curbside === true;
 
-        if (aPickup && !bPickup) return -1;
+        if (aPickup && !bPickup) {
+          return -1;
+        }
 
-        if (!aPickup && bPickup) return 1;
+        if (!aPickup && bPickup) {
+          return 1;
+        }
 
         return 0;
       });

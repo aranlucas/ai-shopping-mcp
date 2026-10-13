@@ -33,10 +33,7 @@ describe("error actionability", () => {
     await reset();
   });
 
-  async function call(
-    name: string,
-    args: ToolArguments,
-  ): Promise<ToolCallResult> {
+  async function call(name: string, args: ToolArguments): Promise<ToolCallResult> {
     try {
       return await client.callTool({
         name,
@@ -112,7 +109,9 @@ describe("error actionability", () => {
     const storeId = contentText(stores).match(/storeId=([A-Za-z0-9]{8})/)?.[1];
     expect(storeId).toBeDefined();
 
-    if (!storeId) throw new Error("Search returned no store identifier");
+    if (!storeId) {
+      throw new Error("Search returned no store identifier");
+    }
 
     const saved = await call("set_preferred_store", {
       storeId,

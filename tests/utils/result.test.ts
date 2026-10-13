@@ -6,12 +6,7 @@ import * as z from "zod/v4";
 
 import type { Props } from "../../src/tools/types.js";
 
-import {
-  AppErrorException,
-  apiError,
-  authError,
-  notFoundError,
-} from "../../src/errors.js";
+import { AppErrorException, apiError, authError, notFoundError } from "../../src/errors.js";
 import { KrogerTokenExpiredError } from "../../src/services/kroger/client.js";
 import type { PreferredLocationStore } from "../../src/utils/shopping-store.js";
 import {
@@ -73,10 +68,7 @@ describe("safeJsonParseWithSchema", () => {
   });
 
   it("returns validated data for valid JSON matching the schema", () => {
-    const result = safeJsonParseWithSchema(
-      '{"name":"milk","quantity":2}',
-      schema,
-    );
+    const result = safeJsonParseWithSchema('{"name":"milk","quantity":2}', schema);
 
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({ name: "milk", quantity: 2 });
@@ -90,10 +82,7 @@ describe("safeJsonParseWithSchema", () => {
   });
 
   it("returns a ZodError for JSON that does not match the schema", () => {
-    const result = safeJsonParseWithSchema(
-      '{"name":"milk","quantity":0}',
-      schema,
-    );
+    const result = safeJsonParseWithSchema('{"name":"milk","quantity":0}', schema);
 
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr()).toBeInstanceOf(z.ZodError);
@@ -192,10 +181,7 @@ describe("fromApiResponse", () => {
   });
 
   it("returns Err on promise rejection with Error instance", async () => {
-    const result = await fromApiResponse(
-      Promise.reject(new Error("network fail")),
-      "test api",
-    );
+    const result = await fromApiResponse(Promise.reject(new Error("network fail")), "test api");
 
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
@@ -205,10 +191,7 @@ describe("fromApiResponse", () => {
   });
 
   it("uses String() coercion in NETWORK_ERROR message when rejected value is not an Error instance", async () => {
-    const result = await fromApiResponse(
-      Promise.reject("plain string rejection"),
-      "test api",
-    );
+    const result = await fromApiResponse(Promise.reject("plain string rejection"), "test api");
 
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
@@ -228,11 +211,7 @@ describe("fromApiResponse", () => {
 
   it("preserves Kroger expired-token rejections as auth errors", async () => {
     const result = await fromApiResponse(
-      Promise.reject(
-        new KrogerTokenExpiredError(
-          "Kroger access token has expired. Reconnect.",
-        ),
-      ),
+      Promise.reject(new KrogerTokenExpiredError("Kroger access token has expired. Reconnect.")),
       "search products",
     );
 
@@ -246,17 +225,14 @@ describe("fromApiResponse", () => {
 // --- getProps ---
 
 describe("getProps", () => {
-  it.each(["unknown", "", "  ", " unknown "])(
-    "rejects the legacy or invalid identity %j",
-    (id) => {
-      authMock.context = {
-        props: { id, accessToken: "token", tokenExpiresAt: Date.now() + 1000 },
-      };
-      expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
-        "outside an authenticated MCP request",
-      );
-    },
-  );
+  it.each(["unknown", "", "  ", " unknown "])("rejects the legacy or invalid identity %j", (id) => {
+    authMock.context = {
+      props: { id, accessToken: "token", tokenExpiresAt: Date.now() + 1000 },
+    };
+    expect(() => parseAuthenticatedProps(authMock.context)).toThrow(
+      "outside an authenticated MCP request",
+    );
+  });
   it("returns the props when the request is authenticated", () => {
     const props: Props = {
       id: "user-123",
@@ -329,14 +305,10 @@ describe("getProps", () => {
 
 // --- safeResolveLocationId ---
 
-function makeMockUserStorage(
-  preferredLocation: PreferredLocation | null = null,
-) {
+function makeMockUserStorage(preferredLocation: PreferredLocation | null = null) {
   return {
     preferredLocation: {
-      get: vi
-        .fn<PreferredLocationStore["get"]>()
-        .mockResolvedValue(preferredLocation),
+      get: vi.fn<PreferredLocationStore["get"]>().mockResolvedValue(preferredLocation),
       set: vi.fn<PreferredLocationStore["set"]>(async () => {}),
       delete: vi.fn<PreferredLocationStore["delete"]>(async () => {}),
     },
@@ -349,10 +321,7 @@ describe("safeResolveLocationId", () => {
   it("returns Ok with provided locationId without touching storage", async () => {
     const storage = mockStorage();
 
-    const result = await safeResolveLocationId(
-      storage.preferredLocation,
-      "70500847",
-    );
+    const result = await safeResolveLocationId(storage.preferredLocation, "70500847");
 
     expect(result.isOk()).toBe(true);
     expect(result._unsafeUnwrap()).toEqual({ locationId: "70500847" });
@@ -387,9 +356,7 @@ describe("safeResolveLocationId", () => {
   it("returns STORAGE_ERROR when storage read fails", async () => {
     const storage = {
       preferredLocation: strictFake<PreferredLocationStore>({
-        get: vi
-          .fn<PreferredLocationStore["get"]>()
-          .mockRejectedValue(new Error("KV unavailable")),
+        get: vi.fn<PreferredLocationStore["get"]>().mockRejectedValue(new Error("KV unavailable")),
       }),
     };
 
@@ -436,10 +403,7 @@ describe("safeStorage", () => {
   });
 
   it("returns STORAGE_ERROR including context and error message on failure", async () => {
-    const result = await safeStorage(
-      () => Promise.reject(new Error("boom")),
-      "test op",
-    );
+    const result = await safeStorage(() => Promise.reject(new Error("boom")), "test op");
 
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
@@ -449,10 +413,7 @@ describe("safeStorage", () => {
   });
 
   it("uses String() coercion in STORAGE_ERROR message when rejected value is not an Error instance", async () => {
-    const result = await safeStorage(
-      () => Promise.reject("storage quota exceeded"),
-      "save pantry",
-    );
+    const result = await safeStorage(() => Promise.reject("storage quota exceeded"), "save pantry");
 
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
@@ -462,10 +423,7 @@ describe("safeStorage", () => {
   });
 
   it("uses String() coercion for non-Error non-string rejection values", async () => {
-    const result = await safeStorage(
-      () => Promise.reject(503),
-      "write equipment",
-    );
+    const result = await safeStorage(() => Promise.reject(503), "write equipment");
 
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();

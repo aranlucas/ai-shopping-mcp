@@ -74,11 +74,7 @@ Clients that require a local proxy can use `mcp-remote`:
   "mcpServers": {
     "kroger-shopping": {
       "command": "pnpm",
-      "args": [
-        "dlx",
-        "mcp-remote",
-        "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"
-      ]
+      "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"]
     }
   }
 }
@@ -312,11 +308,7 @@ For a client that still needs a local proxy:
   "mcpServers": {
     "kroger-shopping": {
       "command": "pnpm",
-      "args": [
-        "dlx",
-        "mcp-remote",
-        "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"
-      ]
+      "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"]
     }
   }
 }

@@ -52,7 +52,9 @@ function registerAllTools() {
 function toolByName(tools: CapturedTool[], name: string): CapturedTool {
   const tool = tools.find((candidate) => candidate.name === name);
 
-  if (!tool) throw new Error(`Missing tool ${name}`);
+  if (!tool) {
+    throw new Error(`Missing tool ${name}`);
+  }
 
   return tool;
 }
@@ -113,35 +115,31 @@ describe("MCP agent contract", () => {
     const appTools = registerAllTools().filter((tool) => resourceUri(tool));
 
     expect(appTools.length).toBeGreaterThan(0);
-    expect(
-      appTools.map((tool) => tool.config._meta?.["ui/resourceUri"]),
-    ).toEqual(appTools.map((tool) => resourceUri(tool)));
+    expect(appTools.map((tool) => tool.config._meta?.["ui/resourceUri"])).toEqual(
+      appTools.map((tool) => resourceUri(tool)),
+    );
   });
 
   it("gives every tool metadata and exact annotations", () => {
     const tools = registerAllTools();
 
     for (const tool of tools) {
-      if (tool.name === "get_shopping_profile") continue; // plain registerTool, no app UI
-      expect(tool.config.title, `${tool.name} title`).toEqual(
-        expect.any(String),
+      if (tool.name === "get_shopping_profile") {
+        continue;
+      } // plain registerTool, no app UI
+
+      expect(tool.config.title, `${tool.name} title`).toEqual(expect.any(String));
+      expect(tool.config.description, `${tool.name} description`).toEqual(expect.any(String));
+      expect(tool.config.description?.length, `${tool.name} description length`).toBeGreaterThan(
+        60,
       );
-      expect(tool.config.description, `${tool.name} description`).toEqual(
-        expect.any(String),
-      );
-      expect(
-        tool.config.description?.length,
-        `${tool.name} description length`,
-      ).toBeGreaterThan(60);
       expect(tool.config.inputSchema, `${tool.name} inputSchema`).toBeDefined();
-      expect(tool.config.annotations, `${tool.name} annotations`).toMatchObject(
-        {
-          readOnlyHint: expect.any(Boolean),
-          destructiveHint: expect.any(Boolean),
-          idempotentHint: expect.any(Boolean),
-          openWorldHint: expect.any(Boolean),
-        },
-      );
+      expect(tool.config.annotations, `${tool.name} annotations`).toMatchObject({
+        readOnlyHint: expect.any(Boolean),
+        destructiveHint: expect.any(Boolean),
+        idempotentHint: expect.any(Boolean),
+        openWorldHint: expect.any(Boolean),
+      });
     }
 
     for (const name of [
@@ -153,10 +151,7 @@ describe("MCP agent contract", () => {
       "view_cart",
       "shop_for_items",
     ]) {
-      expect(
-        toolByName(tools, name).config.annotations?.readOnlyHint,
-        `${name}`,
-      ).toBe(true);
+      expect(toolByName(tools, name).config.annotations?.readOnlyHint, `${name}`).toBe(true);
     }
 
     for (const name of ["update_inventory", "update_shopping_list"]) {
@@ -212,9 +207,7 @@ describe("MCP agent contract", () => {
     const searchProducts = toolByName(tools, "search_products");
     const createShoppingList = toolByName(tools, "create_shopping_list");
 
-    expect(searchProducts.config.inputSchema?.safeParse({}).success).toBe(
-      false,
-    );
+    expect(searchProducts.config.inputSchema?.safeParse({}).success).toBe(false);
     expect(
       searchProducts.config.inputSchema?.safeParse({
         terms: ["0001111041700"],

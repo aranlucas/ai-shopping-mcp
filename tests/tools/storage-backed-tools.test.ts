@@ -73,9 +73,7 @@ describe("storage-backed tools", () => {
     registerShoppingListTools(makeContext(storage));
     const handler = getCapturedHandler("create_shopping_list");
 
-    await expect(handler({ name: "Empty", items: [] })).rejects.toThrow(
-      "at least one item",
-    );
+    await expect(handler({ name: "Empty", items: [] })).rejects.toThrow("at least one item");
     expect(await storage.shoppingList.list()).toEqual([]);
   });
 
@@ -93,23 +91,13 @@ describe("storage-backed tools", () => {
       items: [{ upc: "0001111000002", quantity: 2 }],
     });
 
-    const firstId = parseToolPayload(
-      appPayloadSchemas.create_shopping_list,
-      first,
-    ).listId;
+    const firstId = parseToolPayload(appPayloadSchemas.create_shopping_list, first).listId;
 
-    const secondId = parseToolPayload(
-      appPayloadSchemas.create_shopping_list,
-      second,
-    ).listId;
+    const secondId = parseToolPayload(appPayloadSchemas.create_shopping_list, second).listId;
 
     expect(firstId).not.toBe(secondId);
-    expect(
-      parseToolPayload(appPayloadSchemas.create_shopping_list, first).name,
-    ).toBe("First");
-    expect(
-      parseToolPayload(appPayloadSchemas.create_shopping_list, second).name,
-    ).toBe("Second");
+    expect(parseToolPayload(appPayloadSchemas.create_shopping_list, first).name).toBe("First");
+    expect(parseToolPayload(appPayloadSchemas.create_shopping_list, second).name).toBe("Second");
   });
 
   describe("create_shopping_list pantry/deal flags", () => {
@@ -198,10 +186,7 @@ describe("storage-backed tools", () => {
         }),
       );
 
-      const context = makeContext(
-        undefined,
-        makeProductService({ "0001111000001": "Whole Milk" }),
-      );
+      const context = makeContext(undefined, makeProductService({ "0001111000001": "Whole Milk" }));
 
       context.cache = memoryKv(store);
       registerShoppingListTools(context);
@@ -226,10 +211,7 @@ describe("storage-backed tools", () => {
 
       store.set(cacheKey, "{not-valid-json");
 
-      const context = makeContext(
-        undefined,
-        makeProductService({ "0001111000001": "Whole Milk" }),
-      );
+      const context = makeContext(undefined, makeProductService({ "0001111000001": "Whole Milk" }));
 
       context.cache = memoryKv(store);
       registerShoppingListTools(context);
@@ -267,10 +249,7 @@ describe("storage-backed tools", () => {
       items: [{ upc: "0001111042578", quantity: 2 }],
     });
 
-    const listId = parseToolPayload(
-      appPayloadSchemas.create_shopping_list,
-      createResult,
-    ).listId;
+    const listId = parseToolPayload(appPayloadSchemas.create_shopping_list, createResult).listId;
 
     registerCartTools(ctx);
     const addHandler = getCapturedHandler("add_shopping_list_to_cart");
@@ -279,10 +258,7 @@ describe("storage-backed tools", () => {
 
     expect(result.isError).toBe(false);
 
-    const sc = parseToolPayload(
-      appPayloadSchemas.add_shopping_list_to_cart,
-      result,
-    );
+    const sc = parseToolPayload(appPayloadSchemas.add_shopping_list_to_cart, result);
 
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
@@ -318,15 +294,15 @@ describe("storage-backed tools", () => {
       items: [{ upc: "0001111042578", quantity: 2 }],
     });
 
-    const listId = parseToolPayload(
-      appPayloadSchemas.create_shopping_list,
-      createResult,
-    ).listId;
+    const listId = parseToolPayload(appPayloadSchemas.create_shopping_list, createResult).listId;
 
     const putCalls: Request[] = [];
     ctx.cartClient.use({
       onRequest: ({ request }) => {
-        if (request.method !== "PUT") return undefined;
+        if (request.method !== "PUT") {
+          return undefined;
+        }
+
         putCalls.push(request);
 
         return new Response(null, { status: 204 });
@@ -348,9 +324,7 @@ describe("storage-backed tools", () => {
     const lookups: string[] = [];
     const storage = makeStorage();
 
-    let savedList: Awaited<
-      ReturnType<typeof storage.shoppingList.create>
-    > | null = null;
+    let savedList: Awaited<ReturnType<typeof storage.shoppingList.create>> | null = null;
 
     storage.shoppingList = {
       create: async ({ name, items }) => {
@@ -388,11 +362,7 @@ describe("storage-backed tools", () => {
       },
     };
 
-    const ctx = makeCartContext(
-      storage,
-      204,
-      makeProductService({ "0001111042578": "Milk" }),
-    );
+    const ctx = makeCartContext(storage, 204, makeProductService({ "0001111042578": "Milk" }));
 
     registerShoppingListTools(ctx);
     registerCartTools(ctx);
@@ -434,10 +404,7 @@ describe("storage-backed tools", () => {
 
     expect(result.isError).toBe(false);
 
-    const sc = parseToolPayload(
-      appPayloadSchemas.add_shopping_list_to_cart,
-      result,
-    );
+    const sc = parseToolPayload(appPayloadSchemas.add_shopping_list_to_cart, result);
 
     expect(sc.items.length).toBe(0);
     expect(sc.needsUpc.map((i) => i.productName)).toEqual(["Strawberries"]);
@@ -477,10 +444,7 @@ describe("storage-backed tools", () => {
 
     expect(result.isError).toBe(false);
 
-    const sc = parseToolPayload(
-      appPayloadSchemas.add_shopping_list_to_cart,
-      result,
-    );
+    const sc = parseToolPayload(appPayloadSchemas.add_shopping_list_to_cart, result);
 
     expect(result).toMatchObject({
       _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },

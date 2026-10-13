@@ -36,16 +36,10 @@ export interface EquipmentStore {
 
 /** Durable named shopping-list data scoped to one verified Kroger shopper. */
 export interface ShoppingListStore {
-  create(input: {
-    name: string;
-    items: ShoppingListItem[];
-  }): Promise<ShoppingList>;
+  create(input: { name: string; items: ShoppingListItem[] }): Promise<ShoppingList>;
   get(listId: string): Promise<ShoppingList | null>;
   list(): Promise<ShoppingListSummary[]>;
-  addItems(
-    listId: string,
-    items: ShoppingListItem[],
-  ): Promise<StoredShoppingListItem[]>;
+  addItems(listId: string, items: ShoppingListItem[]): Promise<StoredShoppingListItem[]>;
   updateItem(
     listId: string,
     itemId: string,

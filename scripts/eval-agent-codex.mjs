@@ -4,13 +4,7 @@
 // Each run keeps its transcript and standard vitest-evals report in a new directory.
 import { execFileSync, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import {
-  appendFile,
-  mkdir,
-  mkdtemp,
-  readFile,
-  writeFile,
-} from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { once } from "node:events";
@@ -63,7 +57,9 @@ let pending;
 async function readJson(request) {
   const chunks = [];
 
-  for await (const chunk of request) chunks.push(chunk);
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
 
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
@@ -77,16 +73,17 @@ async function handle(request, response) {
   if (request.method === "GET" && request.url === "/pending") {
     json(response, 200, pending?.turn ?? null);
   } else if (request.method === "POST" && request.url === "/turn") {
-    if (pending)
+    if (pending) {
       return json(response, 409, { error: "A turn is already pending" });
+    }
+
     const turn = { ...(await readJson(request)), id: randomUUID() };
-    await appendFile(
-      `${directory}/transcript.jsonl`,
-      `${JSON.stringify({ turn })}\n`,
-    );
+    await appendFile(`${directory}/transcript.jsonl`, `${JSON.stringify({ turn })}\n`);
     pending = { turn, response };
     response.on("close", () => {
-      if (pending?.response === response) pending = undefined;
+      if (pending?.response === response) {
+        pending = undefined;
+      }
     });
   } else if (request.method === "POST" && request.url === "/action") {
     const { id, action } = await readJson(request);
@@ -100,12 +97,12 @@ async function handle(request, response) {
     const { response: workerResponse } = claimed;
 
     try {
-      await appendFile(
-        `${directory}/transcript.jsonl`,
-        `${JSON.stringify({ id, action })}\n`,
-      );
+      await appendFile(`${directory}/transcript.jsonl`, `${JSON.stringify({ id, action })}\n`);
     } catch (error) {
-      if (!workerResponse.destroyed) pending = claimed;
+      if (!workerResponse.destroyed) {
+        pending = claimed;
+      }
+
       throw error;
     }
 
@@ -120,8 +117,11 @@ const server = createServer((request, response) => {
   handle(request, response).catch((error) => {
     console.error(error);
 
-    if (!response.headersSent) json(response, 500, { error: String(error) });
-    else response.end();
+    if (!response.headersSent) {
+      json(response, 500, { error: String(error) });
+    } else {
+      response.end();
+    }
   });
 });
 
@@ -135,10 +135,7 @@ const port = server.address().port;
 
 const driver = { url: `http://127.0.0.1:${port}`, directory };
 
-await writeFile(
-  `${directory}/driver.json`,
-  `${JSON.stringify(driver, null, 2)}\n`,
-);
+await writeFile(`${directory}/driver.json`, `${JSON.stringify(driver, null, 2)}\n`);
 
 console.log(`Codex eval driver: ${driver.url}\nRun directory: ${directory}`);
 

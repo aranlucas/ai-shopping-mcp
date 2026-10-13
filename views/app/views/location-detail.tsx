@@ -9,14 +9,14 @@ import { useCallback, useMemo, useState } from "react";
 
 import { ActionButton, Badge } from "../../shared/components.js";
 
+type LocationDetailViewProps = {
+  data: StoreDetailContent;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+};
+
 const PREFERRED_STAR_ICON = (
-  <svg
-    aria-hidden="true"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={2}
-    stroke="currentColor"
-  >
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -25,18 +25,8 @@ const PREFERRED_STAR_ICON = (
   </svg>
 );
 
-export function LocationDetailView({
-  data,
-  app,
-  canCallTools,
-}: {
-  data: StoreDetailContent;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-}) {
-  const [prefState, setPrefState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+export function LocationDetailView({ data, app, canCallTools }: LocationDetailViewProps) {
+  const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const { store: location } = data;
   const id = location.locationId || "";
@@ -44,11 +34,11 @@ export function LocationDetailView({
   const mapsUrl = useMemo(() => {
     const a = location.address;
 
-    if (!a?.addressLine1) return null;
+    if (!a?.addressLine1) {
+      return null;
+    }
 
-    const parts = [a.addressLine1, a.city, a.state, a.zipCode]
-      .filter(Boolean)
-      .join(", ");
+    const parts = [a.addressLine1, a.city, a.state, a.zipCode].filter(Boolean).join(", ");
 
     return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
   }, [location.address]);
@@ -62,7 +52,10 @@ export function LocationDetailView({
         arguments: { storeId: id },
       });
 
-      if (result?.isError) throw new Error("Failed");
+      if (result?.isError) {
+        throw new Error("Failed");
+      }
+
       setPrefState("done");
     } catch {
       setPrefState("error");
@@ -143,8 +136,7 @@ export function LocationDetailView({
                 <span>
                   {location.address.addressLine1}
                   <br />
-                  {location.address.city}, {location.address.state}{" "}
-                  {location.address.zipCode}
+                  {location.address.city}, {location.address.state} {location.address.zipCode}
                 </span>
               </div>
             </div>

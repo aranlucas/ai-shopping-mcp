@@ -1,8 +1,4 @@
-import type {
-  ShoppingAppClient,
-  ProductData,
-  ShoppingListSummaryData,
-} from "./types.js";
+import type { ShoppingAppClient, ProductData, ShoppingListSummaryData } from "./types.js";
 import type { CartState } from "../app/cart-action.js";
 import { useCartAction } from "../app/use-cart-action.js";
 import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
@@ -16,16 +12,88 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardFooter } from "./ui/card";
 
+type SectionHeaderProps = {
+  title: string;
+  badge?: ReactNode;
+  subtitle?: string;
+  trailing?: ReactNode;
+};
+
+type DisplayModeToggleProps = {
+  app: ShoppingAppClient | null | undefined;
+  hostContext: McpUiHostContext | undefined;
+};
+
+type ProductDisplayProps = { product: ProductData };
+
+type FulfillmentTag = { label: string; tone: "info" | "danger" };
+
+type ActionButtonProps = {
+  state: "idle" | "loading" | "done" | "error";
+  onClick: () => void | Promise<void>;
+  disabled?: boolean;
+  icon?: ReactNode;
+  idleLabel: string;
+  loadingLabel?: string;
+  doneLabel?: string;
+  failLabel?: string;
+  variant?: "primary" | "secondary";
+  labelContext?: string;
+  /** Show only the icon; the state label stays available to screen readers. */
+  iconOnly?: boolean;
+};
+
+type HostLinkProps = {
+  app: ShoppingAppClient | null;
+  href: string;
+  children: ReactNode;
+};
+
+type CheckCartButtonProps = {
+  app: ShoppingAppClient | null;
+  label?: string;
+};
+
+type CartButtonProps = {
+  app: ShoppingAppClient | null;
+  state: CartState;
+  onSubmit: () => Promise<void>;
+  disabled?: boolean;
+  idleLabel: string;
+  loadingLabel: string;
+  doneLabel: string;
+  failLabel: string;
+  labelContext?: string;
+};
+
+type SaveToListButtonProps = {
+  app: ShoppingAppClient | null;
+  product: SaveableProduct;
+  disabled?: boolean;
+  onSave: SaveProductToList;
+};
+
+type ProductActionsProps = {
+  app: ShoppingAppClient | null;
+  upc: string;
+  name: string;
+  price?: number;
+  disabled?: boolean;
+  cartDisabled?: boolean;
+  onAddToList: SaveProductToList;
+};
+
+type ProductCardProps = {
+  app: ShoppingAppClient | null;
+  product: ProductData;
+  canCallTools: boolean;
+  onAddToList: SaveProductToList;
+};
+
 export { Badge };
 
 const CART_ICON = (
-  <svg
-    aria-hidden="true"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={2}
-    stroke="currentColor"
-  >
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -35,32 +103,12 @@ const CART_ICON = (
 );
 
 const PLUS_ICON = (
-  <svg
-    aria-hidden="true"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={2}
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M12 4.5v15m7.5-7.5h-15"
-    />
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
   </svg>
 );
 
-export function SectionHeader({
-  title,
-  badge,
-  subtitle,
-  trailing,
-}: {
-  title: string;
-  badge?: ReactNode;
-  subtitle?: string;
-  trailing?: ReactNode;
-}) {
+export function SectionHeader({ title, badge, subtitle, trailing }: SectionHeaderProps) {
   return (
     <div className="mb-5">
       <div className="flex items-start justify-between gap-3">
@@ -77,13 +125,7 @@ export function SectionHeader({
   );
 }
 
-export function DisplayModeToggle({
-  app,
-  hostContext,
-}: {
-  app: ShoppingAppClient | null | undefined;
-  hostContext: McpUiHostContext | undefined;
-}) {
+export function DisplayModeToggle({ app, hostContext }: DisplayModeToggleProps) {
   const current = hostContext?.displayMode;
   const available = hostContext?.availableDisplayModes ?? [];
   const supportsFullscreen = available.includes("fullscreen");
@@ -95,7 +137,9 @@ export function DisplayModeToggle({
     app?.requestDisplayMode({ mode: next }).catch(console.error);
   }, [app, next]);
 
-  if (!app || !supportsFullscreen || !supportsInline) return null;
+  if (!app || !supportsFullscreen || !supportsInline) {
+    return null;
+  }
 
   return (
     <Button
@@ -131,14 +175,16 @@ export function DisplayModeToggle({
   );
 }
 
-export function FulfillmentTags({ product }: { product: ProductData }) {
-  const tags: Array<{ label: string; tone: "info" | "danger" }> = product.pickup
-    ? [{ label: "Pickup", tone: "info" }]
-    : [];
+export function FulfillmentTags({ product }: ProductDisplayProps) {
+  const tags: Array<FulfillmentTag> = product.pickup ? [{ label: "Pickup", tone: "info" }] : [];
 
-  if (!product.available) tags.push({ label: "Out of Stock", tone: "danger" });
+  if (!product.available) {
+    tags.push({ label: "Out of Stock", tone: "danger" });
+  }
 
-  if (tags.length === 0) return null;
+  if (tags.length === 0) {
+    return null;
+  }
 
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">
@@ -151,13 +197,12 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
   );
 }
 
-export function PriceDisplay({ product }: { product: ProductData }) {
+export function PriceDisplay({ product }: ProductDisplayProps) {
   if (product.price === undefined) {
     return <span className="text-xs text-gray-500">Price unavailable</span>;
   }
 
-  const hasPromo =
-    product.regularPrice !== undefined && product.regularPrice > product.price;
+  const hasPromo = product.regularPrice !== undefined && product.regularPrice > product.price;
 
   return (
     <span className="inline-flex flex-wrap items-baseline gap-2">
@@ -190,20 +235,7 @@ export function ActionButton({
   variant = "primary",
   labelContext,
   iconOnly = false,
-}: {
-  state: "idle" | "loading" | "done" | "error";
-  onClick: () => void | Promise<void>;
-  disabled?: boolean;
-  icon?: ReactNode;
-  idleLabel: string;
-  loadingLabel?: string;
-  doneLabel?: string;
-  failLabel?: string;
-  variant?: "primary" | "secondary";
-  labelContext?: string;
-  /** Show only the icon; the state label stays available to screen readers. */
-  iconOnly?: boolean;
-}) {
+}: ActionButtonProps) {
   const handleClick = useCallback(() => {
     // Callers own their visible loading/error state. This event boundary also
     // catches unexpected throws and rejected promises before returning to React.
@@ -240,9 +272,7 @@ export function ActionButton({
       aria-label={labelContext ? `${label}: ${labelContext}` : undefined}
       onClick={handleClick}
     >
-      {icon && state === "idle" && (
-        <span className="size-3 shrink-0">{icon}</span>
-      )}
+      {icon && state === "idle" && <span className="size-3 shrink-0">{icon}</span>}
       {state === "loading" && (
         <svg
           aria-hidden="true"
@@ -273,33 +303,27 @@ export function ActionButton({
 }
 
 /** A link that opens through the host when it can, else as a normal link. */
-export function ExternalLink({
-  app,
-  href,
-  children,
-}: {
-  app: ShoppingAppClient | null;
-  href: string;
-  children: ReactNode;
-}) {
+export function ExternalLink({ app, href, children }: HostLinkProps) {
   const [error, setError] = useState<string | null>(null);
 
   const handleClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
-      if (!app?.getHostCapabilities?.()?.openLinks) return;
+      if (!app?.getHostCapabilities?.()?.openLinks) {
+        return;
+      }
+
       event.preventDefault();
       setError(null);
       app
         .openLink({ url: href })
         .then((result) => {
-          if (result.isError)
+          if (result.isError) {
             setError("Could not open Kroger. Open it in your browser instead.");
+          }
 
           return result;
         })
-        .catch(() =>
-          setError("Could not open Kroger. Open it in your browser instead."),
-        );
+        .catch(() => setError("Could not open Kroger. Open it in your browser instead."));
     },
     [app, href],
   );
@@ -320,13 +344,7 @@ export function ExternalLink({
   );
 }
 
-export function CartCheckLink({
-  app,
-  label = "Check Kroger cart",
-}: {
-  app: ShoppingAppClient | null;
-  label?: string;
-}) {
+export function CartCheckLink({ app, label = "Check Kroger cart" }: CheckCartButtonProps) {
   return (
     <ExternalLink app={app} href="https://www.kroger.com/cart">
       {label}
@@ -343,22 +361,7 @@ const CART_BUTTON_STATE = {
 } as const;
 
 /** Render recovery and button state from the same cart outcome. */
-export function CartActionControl({
-  app,
-  state,
-  onSubmit,
-  ...labels
-}: {
-  app: ShoppingAppClient | null;
-  state: CartState;
-  onSubmit: () => Promise<void>;
-  disabled?: boolean;
-  idleLabel: string;
-  loadingLabel: string;
-  doneLabel: string;
-  failLabel: string;
-  labelContext?: string;
-}) {
+export function CartActionControl({ app, state, onSubmit, ...labels }: CartButtonProps) {
   if (state.status === "needs_match") {
     return (
       <div>
@@ -387,17 +390,9 @@ export function CartActionControl({
         <ActionButton
           {...labels}
           state={CART_BUTTON_STATE[state.status]}
-          doneLabel={
-            state.status === "already_added"
-              ? "Already added"
-              : labels.doneLabel
-          }
+          doneLabel={state.status === "already_added" ? "Already added" : labels.doneLabel}
           onClick={onSubmit}
-          disabled={
-            labels.disabled ||
-            state.status === "added" ||
-            state.status === "already_added"
-          }
+          disabled={labels.disabled || state.status === "added" || state.status === "already_added"}
           icon={CART_ICON}
         />
       )}
@@ -405,9 +400,7 @@ export function CartActionControl({
         <p
           role="alert"
           className={`mt-2 text-sm ${
-            state.status === "already_added"
-              ? "text-emerald-700"
-              : "text-red-600"
+            state.status === "already_added" ? "text-emerald-700" : "text-red-600"
           }`}
         >
           {state.message}
@@ -425,10 +418,7 @@ export type SaveableProduct = {
   price?: number;
 };
 
-export type SaveProductToList = (
-  product: SaveableProduct,
-  listId?: string,
-) => Promise<void>;
+export type SaveProductToList = (product: SaveableProduct, listId?: string) => Promise<void>;
 
 const NEW_LIST = "";
 
@@ -436,29 +426,15 @@ const NEW_LIST = "";
  * "Save to list" that asks which list to use. Lists load on first open; if
  * they cannot load, the product can still go to a new list.
  */
-function SaveToListControl({
-  app,
-  product,
-  disabled,
-  onSave,
-}: {
-  app: ShoppingAppClient | null;
-  product: SaveableProduct;
-  disabled?: boolean;
-  onSave: SaveProductToList;
-}) {
+function SaveToListControl({ app, product, disabled, onSave }: SaveToListButtonProps) {
   const [open, setOpen] = useState(false);
   const [lists, setLists] = useState<ShoppingListSummaryData[] | null>(null);
 
-  const [listsState, setListsState] = useState<"idle" | "loading" | "error">(
-    "idle",
-  );
+  const [listsState, setListsState] = useState<"idle" | "loading" | "error">("idle");
 
   const [target, setTarget] = useState(NEW_LIST);
 
-  const [saveState, setSaveState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [saveState, setSaveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const [error, setError] = useState<string | null>(null);
   const selectId = useId();
@@ -467,7 +443,10 @@ function SaveToListControl({
     setOpen(true);
     setError(null);
 
-    if (lists !== null) return;
+    if (lists !== null) {
+      return;
+    }
+
     setListsState("loading");
 
     try {
@@ -498,7 +477,10 @@ function SaveToListControl({
       setSaveState("done");
 
       // A new list now exists; reload next time the picker opens.
-      if (!target) setLists(null);
+      if (!target) {
+        setLists(null);
+      }
+
       setTimeout(() => {
         setOpen(false);
         setSaveState("idle");
@@ -583,15 +565,7 @@ export function ProductActions({
   disabled,
   cartDisabled,
   onAddToList,
-}: {
-  app: ShoppingAppClient | null;
-  upc: string;
-  name: string;
-  price?: number;
-  disabled?: boolean;
-  cartDisabled?: boolean;
-  onAddToList: SaveProductToList;
-}) {
+}: ProductActionsProps) {
   const cart = useCartAction(
     app,
     {
@@ -626,24 +600,16 @@ export function ProductActions({
         failLabel="Retry cart"
         labelContext={name}
       />
-      <SaveToListControl
-        app={app}
-        product={saveable}
-        disabled={disabled}
-        onSave={onAddToList}
-      />
+      <SaveToListControl app={app} product={saveable} disabled={disabled} onSave={onAddToList} />
     </div>
   );
 }
 
-function ProductImage({ product }: { product: ProductData }) {
+function ProductImage({ product }: ProductDisplayProps) {
   const thumbnail = product.imageUrl;
   const [failedUrl, setFailedUrl] = useState<string | undefined>();
 
-  const handleImageError = useCallback(
-    () => setFailedUrl(thumbnail),
-    [thumbnail],
-  );
+  const handleImageError = useCallback(() => setFailedUrl(thumbnail), [thumbnail]);
 
   if (!thumbnail || failedUrl === thumbnail) {
     const initials = product.name
@@ -655,10 +621,7 @@ function ProductImage({ product }: { product: ProductData }) {
 
     return (
       <div className="flex aspect-4/3 w-full flex-col items-center justify-center gap-1 bg-muted">
-        <span
-          aria-hidden="true"
-          className="text-2xl font-semibold text-gray-500"
-        >
+        <span aria-hidden="true" className="text-2xl font-semibold text-gray-500">
           {initials}
         </span>
         <span className="text-xs text-gray-500">No image</span>
@@ -679,17 +642,7 @@ function ProductImage({ product }: { product: ProductData }) {
   );
 }
 
-export function ProductCard({
-  app,
-  product,
-  canCallTools,
-  onAddToList,
-}: {
-  app: ShoppingAppClient | null;
-  product: ProductData;
-  canCallTools: boolean;
-  onAddToList: SaveProductToList;
-}) {
+export function ProductCard({ app, product, canCallTools, onAddToList }: ProductCardProps) {
   const name = product.name;
   const brand = product.brand;
   const upc = product.upc;
@@ -704,9 +657,7 @@ export function ProductCard({
       <ProductImage product={product} />
       <CardContent className="flex flex-1 flex-col pt-2">
         <div className="flex-1">
-          <h3 className="text-sm leading-snug font-semibold text-gray-900">
-            {name}
-          </h3>
+          <h3 className="text-sm leading-snug font-semibold text-gray-900">{name}</h3>
           {(brand || size) && (
             <div className="mt-0.5 text-xs text-gray-400">
               {brand}

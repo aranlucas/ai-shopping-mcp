@@ -28,6 +28,10 @@ import {
   computeRestockSuggestions,
 } from "../services/order-insights.js";
 
+type PantryConsumption = { name: string; quantity?: number };
+
+type PantryQuantityUpdate = { name: string; quantity: number };
+
 const pantryAddSchema = z.object({
   name: z.string().trim().min(1).max(200).describe("Item name, e.g. 'Eggs'"),
   quantity: z.coerce.number().min(1).max(999).optional().default(1),
@@ -45,12 +49,7 @@ const pantryRemoveSchema = z.object({
 });
 
 const equipmentAddSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1)
-    .max(200)
-    .describe("Equipment name, e.g. 'Dutch oven'"),
+  name: z.string().trim().min(1).max(200).describe("Equipment name, e.g. 'Dutch oven'"),
   category: z.string().max(100).optional().describe("e.g. 'Baking'"),
 });
 
@@ -102,49 +101,42 @@ export const updateInventoryInputSchema = z
  */
 async function consumePantryItems(
   pantry: PantryStore,
-  items: Array<{ name: string; quantity?: number }>,
+  items: Array<PantryConsumption>,
 ): Promise<PantryItem[]> {
   const partial = items.filter((item) => item.quantity !== undefined);
 
-  const removeNames = items.flatMap((item) =>
-    item.quantity === undefined ? [item.name] : [],
-  );
+  const removeNames = items.flatMap((item) => (item.quantity === undefined ? [item.name] : []));
 
   if (partial.length > 0) {
     const current = new Map(
-      (await pantry.getAll()).map((item) => [
-        item.productName.trim().toLowerCase(),
-        item,
-      ]),
+      (await pantry.getAll()).map((item) => [item.productName.trim().toLowerCase(), item]),
     );
 
-    const updates: Array<{ name: string; quantity: number }> = [];
+    const updates: Array<PantryQuantityUpdate> = [];
 
     for (const item of partial) {
       const stored = current.get(item.name.trim().toLowerCase());
 
-      if (!stored) continue;
+      if (!stored) {
+        continue;
+      }
+
       const remaining = stored.quantity - (item.quantity ?? 0);
 
-      if (remaining > 0) updates.push({ name: item.name, quantity: remaining });
-      else removeNames.push(item.name);
+      if (remaining > 0) {
+        updates.push({ name: item.name, quantity: remaining });
+      } else {
+        removeNames.push(item.name);
+      }
     }
 
-    await Promise.all(
-      updates.map((update) =>
-        pantry.updateQuantity(update.name, update.quantity),
-      ),
-    );
+    await Promise.all(updates.map((update) => pantry.updateQuantity(update.name, update.quantity)));
   }
 
   return removeNames.length > 0 ? pantry.remove(removeNames) : pantry.getAll();
 }
 
-function pantryResponse(
-  text: string,
-  items: PantryItem[],
-  actionDetail: string,
-) {
+function pantryResponse(text: string, items: PantryItem[], actionDetail: string) {
   return {
     content: [{ type: "text" as const, text }],
     ...appResult("pantry", {
@@ -154,11 +146,7 @@ function pantryResponse(
   };
 }
 
-function equipmentResponse(
-  text: string,
-  items: EquipmentItem[],
-  actionDetail: string,
-) {
+function equipmentResponse(text: string, items: EquipmentItem[], actionDetail: string) {
   return {
     content: [{ type: "text" as const, text }],
     ...appResult("kitchen_equipment", {
@@ -225,7 +213,10 @@ export function registerInventoryTools(
           "add pantry items",
         );
 
-        if (added.isErr()) return toMcpError(added.error);
+        if (added.isErr()) {
+          return toMcpError(added.error);
+        }
+
         pantryItems = added.value;
         summary.push(`Added ${additions.length} pantry item(s).`);
       }
@@ -238,7 +229,10 @@ export function registerInventoryTools(
           "remove pantry items",
         );
 
-        if (removed.isErr()) return toMcpError(removed.error);
+        if (removed.isErr()) {
+          return toMcpError(removed.error);
+        }
+
         pantryItems = removed.value;
         summary.push(`Used or removed ${removals.length} pantry item(s).`);
       }
@@ -260,7 +254,10 @@ export function registerInventoryTools(
           "add equipment items",
         );
 
-        if (added.isErr()) return toMcpError(added.error);
+        if (added.isErr()) {
+          return toMcpError(added.error);
+        }
+
         equipmentItems = added.value;
         summary.push(`Added ${additions.length} equipment item(s).`);
       }
@@ -268,12 +265,12 @@ export function registerInventoryTools(
       if (equipmentChanges?.remove) {
         const names = equipmentChanges.remove;
 
-        const removed = await safeStorage(
-          () => equipment.remove(names),
-          "remove equipment items",
-        );
+        const removed = await safeStorage(() => equipment.remove(names), "remove equipment items");
 
-        if (removed.isErr()) return toMcpError(removed.error);
+        if (removed.isErr()) {
+          return toMcpError(removed.error);
+        }
+
         equipmentItems = removed.value;
         summary.push(`Removed ${names.length} equipment item(s).`);
       }
@@ -285,9 +282,7 @@ export function registerInventoryTools(
       }
 
       if (equipmentItems) {
-        sections.push(
-          `Equipment now:\n${formatEquipmentListCompact(equipmentItems)}`,
-        );
+        sections.push(`Equipment now:\n${formatEquipmentListCompact(equipmentItems)}`);
       }
 
       const text = sections.join("\n\n");
@@ -336,10 +331,11 @@ export function registerInventoryTools(
           : Promise.resolve(undefined),
       ]);
 
-      if (profileResult.isErr()) return toMcpError(profileResult.error);
+      if (profileResult.isErr()) {
+        return toMcpError(profileResult.error);
+      }
 
-      const [preferredStore, pantryItems, equipmentItems, recentOrders] =
-        profileResult.value;
+      const [preferredStore, pantryItems, equipmentItems, recentOrders] = profileResult.value;
 
       const now = Date.now();
 
@@ -357,8 +353,7 @@ export function registerInventoryTools(
         })
         .toSorted(
           (a, b) =>
-            (a.daysUntil ?? Number.POSITIVE_INFINITY) -
-            (b.daysUntil ?? Number.POSITIVE_INFINITY),
+            (a.daysUntil ?? Number.POSITIVE_INFINITY) - (b.daysUntil ?? Number.POSITIVE_INFINITY),
         );
 
       const frequentItems = computeFrequentlyPurchasedItems(recentOrders, 10);
@@ -374,7 +369,9 @@ export function registerInventoryTools(
         "Pantry:",
       ];
 
-      if (pantryView.length === 0) parts.push("- empty");
+      if (pantryView.length === 0) {
+        parts.push("- empty");
+      }
 
       for (const item of pantryView) {
         const note =
@@ -391,17 +388,19 @@ export function registerInventoryTools(
 
       parts.push("", "Kitchen equipment:");
 
-      if (equipmentItems.length === 0) parts.push("- none");
+      if (equipmentItems.length === 0) {
+        parts.push("- none");
+      }
 
       for (const item of equipmentItems) {
-        parts.push(
-          `- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`,
-        );
+        parts.push(`- ${item.equipmentName}${item.category ? ` (${item.category})` : ""}`);
       }
 
       parts.push("", "Frequently purchased:");
 
-      if (frequentItems.length === 0) parts.push("- no order history yet");
+      if (frequentItems.length === 0) {
+        parts.push("- no order history yet");
+      }
 
       for (const { name, count } of frequentItems) {
         parts.push(`- ${name} (ordered ${count}x)`);
@@ -409,19 +408,19 @@ export function registerInventoryTools(
 
       parts.push("", "Due to restock:");
 
-      if (restockSuggestions.length === 0) parts.push("- nothing due");
+      if (restockSuggestions.length === 0) {
+        parts.push("- nothing due");
+      }
 
-      for (const {
-        name,
-        daysSinceLast,
-        medianIntervalDays,
-      } of restockSuggestions) {
+      for (const { name, daysSinceLast, medianIntervalDays } of restockSuggestions) {
         parts.push(
           `- ${name} (last bought ${daysSinceLast}d ago, usually every ~${medianIntervalDays}d)`,
         );
       }
 
-      if (weeklyDeals) parts.push(weeklyDeals);
+      if (weeklyDeals) {
+        parts.push(weeklyDeals);
+      }
 
       return {
         content: [{ type: "text" as const, text: parts.join("\n") }],

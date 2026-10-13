@@ -44,9 +44,7 @@ function listWith(...items: StoredShoppingListItem[]) {
   });
 }
 
-function storedItem(
-  overrides: Partial<StoredShoppingListItem> = {},
-): StoredShoppingListItem {
+function storedItem(overrides: Partial<StoredShoppingListItem> = {}): StoredShoppingListItem {
   return {
     id: "item-1",
     checked: false,
@@ -88,9 +86,7 @@ describe("shopping list editing tools", () => {
       get: async () => ({
         id: "list-a",
         name: "Tuesday dinner",
-        items: [
-          storedItem({ id: "item-7", productName: "Chili Onion Crunch" }),
-        ],
+        items: [storedItem({ id: "item-7", productName: "Chili Onion Crunch" })],
         createdAt: "2026-08-01T00:00:00Z",
       }),
     });
@@ -121,10 +117,7 @@ describe("shopping list editing tools", () => {
 
   it("appends an item that has a name but no UPC", async () => {
     const addItems = vi.fn<
-      (
-        listId: string,
-        items: ShoppingListItem[],
-      ) => Promise<StoredShoppingListItem[]>
+      (listId: string, items: ShoppingListItem[]) => Promise<StoredShoppingListItem[]>
     >(async (_listId, items) =>
       items.map((item, index) => ({
         ...item,
@@ -154,23 +147,16 @@ describe("shopping list editing tools", () => {
 
   it("looks a name up from the UPC when only a UPC is given", async () => {
     const addItems = vi.fn<
-      (
-        listId: string,
-        items: ShoppingListItem[],
-      ) => Promise<StoredShoppingListItem[]>
-    >(async (_listId, items) =>
-      items.map((item) => ({ ...item, checked: false, id: "item-1" })),
-    );
+      (listId: string, items: ShoppingListItem[]) => Promise<StoredShoppingListItem[]>
+    >(async (_listId, items) => items.map((item) => ({ ...item, checked: false, id: "item-1" })));
 
     const ctx = makeContext(makeListStorage({ addItems }));
     ctx.productService = {
       getProduct: () => {
         throw new Error("productService not used in this test");
       },
-      enrichProductNames: async (upcs: string[]) =>
-        ok(upcs.map(() => "Whole Milk")),
-      resolveProducts: async () =>
-        ok({ results: [], exactUpcs: new Set<string>() }),
+      enrichProductNames: async (upcs: string[]) => ok(upcs.map(() => "Whole Milk")),
+      resolveProducts: async () => ok({ results: [], exactUpcs: new Set<string>() }),
     };
     registerShoppingListTools(ctx);
 
@@ -221,10 +207,7 @@ describe("shopping list editing tools", () => {
 
     const { inputSchema } = config;
 
-    expect(
-      inputSchema.safeParse({ listId: "list-a", add: [{ quantity: 1 }] })
-        .success,
-    ).toBe(false);
+    expect(inputSchema.safeParse({ listId: "list-a", add: [{ quantity: 1 }] }).success).toBe(false);
   });
 
   it("rejects productRef instead of UPC", () => {
@@ -275,9 +258,7 @@ describe("shopping list editing tools", () => {
       ) => Promise<StoredShoppingListItem>
     >(async () => storedItem({ checked: true }));
 
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
-      async () => {},
-    );
+    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
 
     const fixture = makeContext(makeListStorage({ updateItem, removeItem }));
     registerShoppingListTools(fixture);
@@ -303,9 +284,7 @@ describe("shopping list editing tools", () => {
       ) => Promise<StoredShoppingListItem>
     >(async () => storedItem());
 
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
-      async () => {},
-    );
+    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
 
     const fixture = makeContext(
       makeListStorage({ updateItem, removeItem, get: listWith(storedItem()) }),
@@ -370,12 +349,7 @@ describe("shopping list editing tools", () => {
     });
 
     expect(result.isError).toBe(false);
-    expect(calls).toEqual([
-      "remove cheese",
-      "change milk",
-      "change bread",
-      "add 1",
-    ]);
+    expect(calls).toEqual(["remove cheese", "change milk", "change bread", "add 1"]);
     expect(result.text).toContain("Removed itemId=cheese");
     expect(result.text).toContain("checked off");
     expect(result.text).toContain("Added itemId=new-1");
@@ -405,9 +379,7 @@ describe("shopping list editing tools", () => {
   });
 
   it("removes by item name or quantity 0, as models often send", async () => {
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
-      async () => {},
-    );
+    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
 
     const fixture = makeContext(
       makeListStorage({
@@ -435,13 +407,9 @@ describe("shopping list editing tools", () => {
   });
 
   it("changes nothing when a removal names an unknown item", async () => {
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(
-      async () => {},
-    );
+    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
 
-    const fixture = makeContext(
-      makeListStorage({ removeItem, get: listWith(storedItem()) }),
-    );
+    const fixture = makeContext(makeListStorage({ removeItem, get: listWith(storedItem()) }));
 
     registerShoppingListTools(fixture);
 

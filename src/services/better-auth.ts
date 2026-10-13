@@ -2,6 +2,8 @@ import { verifyBearerToken } from "better-auth/oauth2";
 import type { JWTPayload } from "jose";
 import { z } from "zod/v4";
 
+type McpSettingsEnv = { MCP_RESOURCE_URL: string; MCP_ALLOWED_ORIGINS?: string };
+
 export type AuthIdentity = { id: string; issuer: string; subject: string };
 
 type AuthBindings = {
@@ -16,13 +18,7 @@ export function authIdentity(issuer: string, subject: string): AuthIdentity {
 const httpsUrl = z.url().refine((value) => {
   const url = new URL(value);
 
-  return (
-    url.protocol === "https:" &&
-    !url.username &&
-    !url.password &&
-    !url.search &&
-    !url.hash
-  );
+  return url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash;
 });
 
 const settingsSchema = z.object({
@@ -40,10 +36,7 @@ export function authSettings(env: AuthBindings) {
 }
 
 /** The resource identifier is the protected endpoint, not its host origin. */
-export function mcpSettings(env: {
-  MCP_RESOURCE_URL: string;
-  MCP_ALLOWED_ORIGINS?: string;
-}) {
+export function mcpSettings(env: McpSettingsEnv) {
   const resource = httpsUrl
     .refine((value) => new URL(value).pathname === "/mcp")
     .parse(env.MCP_RESOURCE_URL);
@@ -54,9 +47,7 @@ export function mcpSettings(env: {
 
   return {
     resource,
-    allowedOrigins: [
-      ...new Set([new URL(resource).origin, ...configuredOrigins]),
-    ],
+    allowedOrigins: [...new Set([new URL(resource).origin, ...configuredOrigins])],
   };
 }
 
@@ -92,8 +83,9 @@ export function shoppingIdentity(issuer: string, payload: JWTPayload) {
     !claims.success ||
     claims.data.iat > Math.floor(Date.now() / 1000) + 30 ||
     payload.cnf !== undefined
-  )
+  ) {
     return null;
+  }
 
   return {
     props: authIdentity(issuer, claims.data.sub),
@@ -104,15 +96,8 @@ export function shoppingIdentity(issuer: string, payload: JWTPayload) {
 }
 
 /** Verify a resource access token through Better Auth. */
-export async function validateAccessToken(
-  env: AuthBindings,
-  resource: string,
-  token: string,
-) {
-  const payload = await verifyBearerToken(
-    token,
-    accessTokenOptions(env, resource),
-  );
+export async function validateAccessToken(env: AuthBindings, resource: string, token: string) {
+  const payload = await verifyBearerToken(token, accessTokenOptions(env, resource));
 
   return shoppingIdentity(authSettings(env).issuer, payload);
 }

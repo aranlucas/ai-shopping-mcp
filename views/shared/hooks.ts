@@ -1,5 +1,7 @@
 import { type Dispatch, type SetStateAction, useState } from "react";
 
+type ResettableState<T> = [T, Dispatch<SetStateAction<T>>];
+
 /**
  * State that is seeded from `source` but can be overridden locally, and that
  * re-seeds whenever `source` changes identity (compared with `Object.is`).
@@ -22,10 +24,7 @@ import { type Dispatch, type SetStateAction, useState } from "react";
  *   parseToolResult(r),
  * );
  */
-export function useResettableState<S, T>(
-  source: S,
-  derive: (source: S) => T,
-): [T, Dispatch<SetStateAction<T>>] {
+export function useResettableState<S, T>(source: S, derive: (source: S) => T): ResettableState<T> {
   const [value, setValue] = useState<T>(() => derive(source));
   const [seenSource, setSeenSource] = useState(source);
 

@@ -29,9 +29,7 @@ describe("Auth-owned Kroger credentials", () => {
       expect(JSON.stringify(result)).not.toContain("refreshToken");
     }
 
-    expect(
-      await (await env.AUTH.fetch("https://auth-stub/stats")).json(),
-    ).toEqual({
+    expect(await (await env.AUTH.fetch("https://auth-stub/stats")).json()).toEqual({
       maxActive: 1,
       calls: Array(8).fill("shopper"),
     });
@@ -56,9 +54,7 @@ describe("Auth-owned Kroger credentials", () => {
     await seedKrogerConnection("shopper-a");
     const identity = authIdentity(env.BETTER_AUTH_ISSUER, "shopper-b");
     expect(
-      await exports.KrogerConnections.getByName(identity.id).getToken(
-        identity.subject,
-      ),
+      await exports.KrogerConnections.getByName(identity.id).getToken(identity.subject),
     ).toEqual({ status: "not_connected" });
   });
 
@@ -68,9 +64,9 @@ describe("Auth-owned Kroger credentials", () => {
 
     await env.AUTH.fetch("https://auth-stub/fail");
     // Convert the RPC thenable to a native Promise before Vitest attaches rejection handlers.
-    await expect(
-      Promise.resolve(connection.getToken("shopper")),
-    ).rejects.toThrow("Auth service unavailable");
+    await expect(Promise.resolve(connection.getToken("shopper"))).rejects.toThrow(
+      "Auth service unavailable",
+    );
     await env.AUTH.fetch("https://auth-stub/reset");
     await seedKrogerConnection("shopper");
     expect(await connection.getToken("shopper")).toMatchObject({
@@ -81,11 +77,7 @@ describe("Auth-owned Kroger credentials", () => {
   it("rejects an expired token returned by Auth", async () => {
     const identity = await seedKrogerConnection("shopper", Date.now() - 1000);
     await expect(
-      Promise.resolve(
-        exports.KrogerConnections.getByName(identity.id).getToken(
-          identity.subject,
-        ),
-      ),
+      Promise.resolve(exports.KrogerConnections.getByName(identity.id).getToken(identity.subject)),
     ).rejects.toThrow("expired Kroger token");
   });
 });

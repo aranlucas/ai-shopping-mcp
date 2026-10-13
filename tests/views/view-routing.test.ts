@@ -60,18 +60,15 @@ describe("MCP App view routing", () => {
     const names = Object.keys(APP_VIEW_NAMES);
     expect(new Set(names).size).toBe(names.length);
   });
-  it.each(Object.keys(appPayloadSchemas))(
-    "rejects a missing payload for %s",
-    (view) => {
-      expect(
-        parseAppResult({
-          content: [],
-          _meta: { "dev.aranlucas/view": view },
-          structuredContent: {},
-        }),
-      ).toBeNull();
-    },
-  );
+  it.each(Object.keys(appPayloadSchemas))("rejects a missing payload for %s", (view) => {
+    expect(
+      parseAppResult({
+        content: [],
+        _meta: { "dev.aranlucas/view": view },
+        structuredContent: {},
+      }),
+    ).toBeNull();
+  });
 
   it.each([
     { results: null, totalProducts: 0 },
@@ -97,9 +94,7 @@ describe("MCP App view routing", () => {
       ...appResult("create_shopping_list", {
         listId: "list-1",
         name: "Groceries",
-        items: [
-          { id: "item-1", checked: true, productName: "Milk", quantity: 2 },
-        ],
+        items: [{ id: "item-1", checked: true, productName: "Milk", quantity: 2 }],
       }),
     };
 
@@ -205,24 +200,19 @@ describe("MCP App view routing", () => {
     [
       "shopping_lists",
       {
-        lists: [
-          { id: "1", name: "Groceries", itemCount: 2, updatedAt: "2026-09" },
-        ],
+        lists: [{ id: "1", name: "Groceries", itemCount: 2, updatedAt: "2026-09" }],
       },
     ],
     ["view_cart", { source: "assistant", items: [{ upc: "1", quantity: 2 }] }],
-  ])(
-    "accepts valid %s payloads including optional-field omissions",
-    (view, payload) => {
-      expect(
-        parseAppResult({
-          content: [],
-          _meta: { "dev.aranlucas/view": view },
-          structuredContent: payload,
-        }),
-      ).toEqual({ ...payload, view });
-    },
-  );
+  ])("accepts valid %s payloads including optional-field omissions", (view, payload) => {
+    expect(
+      parseAppResult({
+        content: [],
+        _meta: { "dev.aranlucas/view": view },
+        structuredContent: payload,
+      }),
+    ).toEqual({ ...payload, view });
+  });
 
   it("requires a UPC in product payloads", () => {
     expect(

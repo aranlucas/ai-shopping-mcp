@@ -14,7 +14,13 @@ import {
   normalizeProductTerm,
   mapCatalogRequests,
 } from "./catalog-workload.js";
-import { searchProductsForTerms, type ProductSearchResult } from "./search.js";
+import {
+  searchProductsForTerms,
+  type ProductSearchResult,
+  type ProductSearchOptions,
+} from "./search.js";
+
+type ResolvedProducts = { results: ProductSearchResult[]; exactUpcs: Set<string> };
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -53,11 +59,9 @@ export class ProductService {
   /** Reject excess work before any provider calls; deduplicate after normalizing. */
   async resolveProducts(
     terms: string[],
-    params: { locationId?: string; limitPerTerm: number },
+    params: ProductSearchOptions,
     onComplete?: (completed: number, total: number) => Promise<void> | void,
-  ): Promise<
-    Result<{ results: ProductSearchResult[]; exactUpcs: Set<string> }, AppError>
-  > {
+  ): Promise<Result<ResolvedProducts, AppError>> {
     if (terms.length > MAX_CATALOG_REQUESTS) {
       return err(
         validationError(
@@ -69,51 +73,40 @@ export class ProductService {
     const normalized = terms.map(normalizeProductTerm);
 
     if (normalized.filter((term) => !isUpcTerm(term)).length > MAX_TEXT_TERMS) {
-      return err(
-        validationError(
-          `Maximum ${MAX_TEXT_TERMS} text search terms per call.`,
-        ),
-      );
+      return err(validationError(`Maximum ${MAX_TEXT_TERMS} text search terms per call.`));
     }
 
     const uniqueTerms = [...new Set(normalized)];
     const exactUpcs = new Set(uniqueTerms.filter(isUpcTerm));
     let completed = 0;
 
-    const results = await mapCatalogRequests(
-      uniqueTerms,
-      async (term, index) => {
-        const request = { requestId: `product_${index}`, term };
-        let result: ProductSearchResult;
+    const results = await mapCatalogRequests(uniqueTerms, async (term, index) => {
+      const request = { requestId: `product_${index}`, term };
+      let result: ProductSearchResult;
 
-        if (exactUpcs.has(term)) {
-          result = (await this.getProduct(term, params.locationId)).match(
-            (product) => ({
-              ...request,
-              status: "success" as const,
-              products: [product],
-            }),
-            (error) => ({ ...request, status: "failed" as const, error }),
-          );
-        } else {
-          [result] = await searchProductsForTerms(
-            this.productClient,
-            [request],
-            params,
-          );
-        }
+      if (exactUpcs.has(term)) {
+        result = (await this.getProduct(term, params.locationId)).match(
+          (product) => ({
+            ...request,
+            status: "success" as const,
+            products: [product],
+          }),
+          (error) => ({ ...request, status: "failed" as const, error }),
+        );
+      } else {
+        [result] = await searchProductsForTerms(this.productClient, [request], params);
+      }
 
-        completed++;
+      completed++;
 
-        try {
-          await onComplete?.(completed, uniqueTerms.length);
-        } catch (cause) {
-          console.warn("Search progress notification failed:", cause);
-        }
+      try {
+        await onComplete?.(completed, uniqueTerms.length);
+      } catch (cause) {
+        console.warn("Search progress notification failed:", cause);
+      }
 
-        return result;
-      },
-    );
+      return result;
+    });
 
     return ok({ results, exactUpcs });
   }
@@ -134,9 +127,7 @@ export class ProductService {
       const names = new Map(
         results.map((result) => [
           result.term,
-          result.status === "success"
-            ? (result.products[0]?.description ?? null)
-            : null,
+          result.status === "success" ? (result.products[0]?.description ?? null) : null,
         ]),
       );
 
@@ -144,10 +135,7 @@ export class ProductService {
     });
   }
 
-  async enrichProductName(
-    upc: string,
-    locationId?: string,
-  ): Promise<string | null> {
+  async enrichProductName(upc: string, locationId?: string): Promise<string | null> {
     return this.getProduct(upc, locationId).match(
       (product) => product.description ?? null,
       () => null,

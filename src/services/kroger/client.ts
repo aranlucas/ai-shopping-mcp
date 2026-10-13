@@ -24,32 +24,25 @@ export class KrogerTokenExpiredError extends Error {
   }
 }
 
-const REAUTH_MSG =
-  "Please sign in to your MCP client again to reconnect Kroger.";
+const REAUTH_MSG = "Please sign in to your MCP client again to reconnect Kroger.";
 
 /**
  * Middleware that adds Kroger Bearer tokens to requests.
  * Auth owns refresh; KrogerConnections serializes token requests before the request is built, so runtime
  * API calls cannot race Kroger's single-use refresh tokens.
  */
-export function createKrogerAuthMiddleware(
-  getTokenInfo: () => KrogerTokenInfo | null,
-): Middleware {
+export function createKrogerAuthMiddleware(getTokenInfo: () => KrogerTokenInfo | null): Middleware {
   return {
     async onRequest({ request }) {
       const tokenInfo = getTokenInfo();
 
       if (!tokenInfo) {
-        throw new KrogerTokenExpiredError(
-          `No Kroger token available. ${REAUTH_MSG}`,
-        );
+        throw new KrogerTokenExpiredError(`No Kroger token available. ${REAUTH_MSG}`);
       }
 
       // Allow one minute of clock skew.
       if (Date.now() - 60_000 >= tokenInfo.tokenExpiresAt) {
-        throw new KrogerTokenExpiredError(
-          `Kroger access token has expired. ${REAUTH_MSG}`,
-        );
+        throw new KrogerTokenExpiredError(`Kroger access token has expired. ${REAUTH_MSG}`);
       }
 
       request.headers.set("Authorization", `Bearer ${tokenInfo.accessToken}`);
@@ -59,9 +52,7 @@ export function createKrogerAuthMiddleware(
 
     async onResponse({ response }) {
       if (response.status === 401) {
-        throw new KrogerTokenExpiredError(
-          `Kroger rejected the access token. ${REAUTH_MSG}`,
-        );
+        throw new KrogerTokenExpiredError(`Kroger rejected the access token. ${REAUTH_MSG}`);
       }
 
       return response;
@@ -104,26 +95,27 @@ export function createKrogerCacheMiddleware(
 ): Middleware {
   return {
     async onRequest({ request }) {
-      if (!kv || request.method !== "GET") return;
+      if (!kv || request.method !== "GET") {
+        return;
+      }
 
       const key = krogerCacheKeyFor(request.url);
 
-      const cacheResult = await safeStorage(
-        () => kv.get(key),
-        "read Kroger response cache",
-      );
+      const cacheResult = await safeStorage(() => kv.get(key), "read Kroger response cache");
 
       const raw = cacheResult.isOk() ? cacheResult.value : null;
 
-      if (!raw) return;
+      if (!raw) {
+        return;
+      }
 
       const parseResult = safeJsonParseWithSchema(raw, krogerCacheEntrySchema);
 
-      const entry: KrogerCacheEntry | null = parseResult.isOk()
-        ? parseResult.value
-        : null;
+      const entry: KrogerCacheEntry | null = parseResult.isOk() ? parseResult.value : null;
 
-      if (!entry) return;
+      if (!entry) {
+        return;
+      }
 
       return new Response(entry.body, {
         status: entry.status,
@@ -132,7 +124,9 @@ export function createKrogerCacheMiddleware(
     },
 
     async onResponse({ request, response }) {
-      if (!kv || request.method !== "GET" || !response.ok) return;
+      if (!kv || request.method !== "GET" || !response.ok) {
+        return;
+      }
 
       const key = krogerCacheKeyFor(request.url);
       const copy = response.clone();
@@ -144,14 +138,14 @@ export function createKrogerCacheMiddleware(
           expirationTtl: ttlSeconds,
         });
       }, "write Kroger response cache").orTee((error) =>
-        console.warn(
-          "Kroger response cache write failed (non-fatal):",
-          error.message,
-        ),
+        console.warn("Kroger response cache write failed (non-fatal):", error.message),
       );
 
-      if (waitUntil) waitUntil(Promise.resolve(write));
-      else await write;
+      if (waitUntil) {
+        waitUntil(Promise.resolve(write));
+      } else {
+        await write;
+      }
     },
   };
 }
@@ -174,11 +168,7 @@ export function createKrogerClients(
 ) {
   const authMiddleware = createKrogerAuthMiddleware(getTokenInfo);
 
-  const cacheMiddleware = createKrogerCacheMiddleware(
-    kv,
-    KROGER_CACHE_TTL_SECONDS,
-    waitUntil,
-  );
+  const cacheMiddleware = createKrogerCacheMiddleware(kv, KROGER_CACHE_TTL_SECONDS, waitUntil);
 
   const base = { baseUrl: "https://api.kroger.com", fetch: fetchWithReadRetry };
 
@@ -187,12 +177,7 @@ export function createKrogerClients(
   const locationClient = createClient<LocationPaths>(base);
   const productClient = createClient<ProductPaths>(base);
 
-  for (const client of [
-    cartClient,
-    identityClient,
-    locationClient,
-    productClient,
-  ]) {
+  for (const client of [cartClient, identityClient, locationClient, productClient]) {
     client.use(requestTimeoutMiddleware(signal));
   }
 

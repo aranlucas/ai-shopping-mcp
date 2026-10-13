@@ -15,43 +15,39 @@ export type CapturedTool = {
   handler: TestToolHandler;
 };
 
-export function capturingServer(
-  tools: CapturedTool[],
-  auth: () => McpAuthContext | undefined,
-) {
+export function capturingServer(tools: CapturedTool[], auth: () => McpAuthContext | undefined) {
   const server = new McpServer({
     name: "registered-tool-test",
     version: "1.0.0",
   });
 
   const register = server.registerTool.bind(server);
-  vi.spyOn(server, "registerTool").mockImplementation(
-    (name, config, handler) => {
-      const registered = register(name, config, handler);
+  vi.spyOn(server, "registerTool").mockImplementation((name, config, handler) => {
+    const registered = register(name, config, handler);
 
-      if (!(registered.inputSchema instanceof z.ZodObject))
-        throw new Error(`Tool ${name} needs its real Zod schema`);
-      const registration = { ...config, inputSchema: registered.inputSchema };
-      tools.push({
-        name,
-        config: registration,
-        handler: async (args, context) => {
-          const parsed = await registration.inputSchema.parseAsync(args);
+    if (!(registered.inputSchema instanceof z.ZodObject)) {
+      throw new Error(`Tool ${name} needs its real Zod schema`);
+    }
 
-          const result = await authenticatedRequest(
-            (requestContext) =>
-              Promise.resolve(handler(parsed, requestContext)),
-            auth(),
-            context,
-          );
+    const registration = { ...config, inputSchema: registered.inputSchema };
+    tools.push({
+      name,
+      config: registration,
+      handler: async (args, context) => {
+        const parsed = await registration.inputSchema.parseAsync(args);
 
-          return parseTestToolResult(result);
-        },
-      });
+        const result = await authenticatedRequest(
+          (requestContext) => Promise.resolve(handler(parsed, requestContext)),
+          auth(),
+          context,
+        );
 
-      return registered;
-    },
-  );
+        return parseTestToolResult(result);
+      },
+    });
+
+    return registered;
+  });
 
   return server;
 }

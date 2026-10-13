@@ -4,16 +4,14 @@ import type { OrderRecord } from "../../src/domain/shopping.js";
 
 import { computeRestockSuggestions } from "../../src/services/order-insights.js";
 
+type OrderItemInput = { productName: string; quantity?: number };
+
 describe("order history insights", () => {
   describe("computeRestockSuggestions", () => {
     const DAY = 24 * 60 * 60 * 1000;
     const now = Date.parse("2026-07-02T00:00:00Z");
 
-    function makeOrder(
-      id: string,
-      daysAgo: number,
-      items: Array<{ productName: string; quantity?: number }>,
-    ): OrderRecord {
+    function makeOrder(id: string, daysAgo: number, items: Array<OrderItemInput>): OrderRecord {
       return {
         orderId: id,
         items: items.map((item) => ({
@@ -133,6 +131,19 @@ describe("order history insights", () => {
 
       expect(computeRestockSuggestions(orders, now)).toEqual([
         { name: "Milk", daysSinceLast: 30, medianIntervalDays: 10 },
+      ]);
+    });
+
+    it("recognizes a most recent purchase at the Unix epoch", () => {
+      const orders: OrderRecord[] = ["1969-12-12", "1969-12-22", "1970-01-01"].map((date) => ({
+        orderId: date,
+        items: [{ productName: "Milk", quantity: 1 }],
+        totalItems: 1,
+        placedAt: `${date}T00:00:00Z`,
+      }));
+
+      expect(computeRestockSuggestions(orders, Date.parse("1970-01-20T00:00:00Z"))).toEqual([
+        { name: "Milk", daysSinceLast: 19, medianIntervalDays: 10 },
       ]);
     });
   });
