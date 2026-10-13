@@ -103,7 +103,7 @@ export function registerLocationTools(
     async (input) => {
       const { storeId, zipCode, limit, chain } = input;
 
-      if (storeId) return getStoreDetails(storeId);
+      if (storeId) {return getStoreDetails(storeId);}
 
       if (!zipCode || !/^\d{5}$/.test(zipCode)) {
         return toMcpError(
@@ -119,7 +119,7 @@ export function registerLocationTools(
           "filter.zipCode.near": zipCode,
         };
 
-      if (chain) queryParams["filter.chain"] = chain;
+      if (chain) {queryParams["filter.chain"] = chain;}
 
       const result = await fromApiResponse(
         () =>
@@ -129,7 +129,8 @@ export function registerLocationTools(
         "search locations",
       ).map((data) => data?.data || []);
 
-      if (result.isErr()) return toMcpError(result.error);
+      if (result.isErr()) {return toMcpError(result.error);}
+
       const stores = result.value;
 
       return {
@@ -162,7 +163,8 @@ export function registerLocationTools(
       return ok(location);
     });
 
-    if (result.isErr()) return toMcpError(result.error);
+    if (result.isErr()) {return toMcpError(result.error);}
+
     const location = result.value;
 
     return {

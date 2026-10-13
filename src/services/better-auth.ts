@@ -93,7 +93,7 @@ export function shoppingIdentity(issuer: string, payload: JWTPayload) {
     claims.data.iat > Math.floor(Date.now() / 1000) + 30 ||
     payload.cnf !== undefined
   )
-    return null;
+    {return null;}
 
   return {
     props: authIdentity(issuer, claims.data.sub),

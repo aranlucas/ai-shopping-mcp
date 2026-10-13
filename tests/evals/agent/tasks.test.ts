@@ -10,7 +10,7 @@ describe("missing-item grading", () => {
   const task = AGENT_TASKS.find((candidate) => candidate.id === "missing-item");
 
   function missingItemPasses(answer: string): boolean {
-    if (!task) throw new Error("Missing training task");
+    if (!task) {throw new Error("Missing training task");}
 
     return task.checks(emptyOutput(answer), [])[1]?.pass ?? false;
   }
@@ -48,7 +48,8 @@ describe("missing-item grading", () => {
 it("allows read-only product discovery but still detects cart writes", () => {
   const task = AGENT_TASKS.find((candidate) => candidate.id === "use-first");
 
-  if (!task) throw new Error("Missing training task");
+  if (!task) {throw new Error("Missing training task");}
+
   const output = emptyOutput("Use spinach first, then yogurt.");
 
   const readOnly = task.checks(output, [

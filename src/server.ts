@@ -30,7 +30,7 @@ function invalidIdentity(resource: string) {
     { challengeScopes: ["mcp:tools"] },
   );
 
-  if (!challenge) throw new Error("Unable to build authentication challenge");
+  if (!challenge) {throw new Error("Unable to build authentication challenge");}
 
   return Response.json(
     {
@@ -65,14 +65,14 @@ async function mcpApiHandler(
       );
 
       if (!identity || !authorization?.token)
-        return invalidIdentity(env.MCP_RESOURCE_URL);
+        {return invalidIdentity(env.MCP_RESOURCE_URL);}
 
       const connection = await exports.KrogerConnections.getByName(
         identity.props.id,
       ).getToken(identity.props.subject);
 
       if (connection.status !== "connected")
-        return invalidIdentity(env.MCP_RESOURCE_URL);
+        {return invalidIdentity(env.MCP_RESOURCE_URL);}
 
       const props = { id: identity.props.id, ...connection.token };
 
@@ -113,7 +113,8 @@ function withMcpCors(
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Origin", origin);
 
-  if (origin !== "*") headers.append("Vary", "Origin");
+  if (origin !== "*") {headers.append("Vary", "Origin");}
+
   headers.set("Access-Control-Allow-Methods", methods);
   headers.set(
     "Access-Control-Allow-Headers",
@@ -139,12 +140,12 @@ export async function handleRequest(
     const settings = authSettings(env);
     const resource = mcpSettings(env).resource;
 
-    if (request.method === "OPTIONS") return withMcpCors(new Response(null));
+    if (request.method === "OPTIONS") {return withMcpCors(new Response(null));}
 
     if (request.method !== "GET")
-      return withMcpCors(
+      {return withMcpCors(
         new Response(null, { status: 405, headers: { Allow: "GET, OPTIONS" } }),
-      );
+      );}
 
     return withMcpCors(
       metadataResponse({
@@ -161,17 +162,18 @@ export async function handleRequest(
     const origin = request.headers.get("Origin");
 
     if (origin !== null && !settings.allowedOrigins.includes(origin))
-      return new Response("Origin not allowed", { status: 403 });
+      {return new Response("Origin not allowed", { status: 403 });}
 
     const hostRejection = hostHeaderValidationResponse(request, [
       new URL(settings.resource).hostname,
     ]);
 
-    if (hostRejection) return hostRejection;
+    if (hostRejection) {return hostRejection;}
+
     const corsOrigin = origin ?? new URL(settings.resource).origin;
 
     if (request.method === "OPTIONS")
-      return withMcpCors(new Response(null), corsOrigin, "POST, OPTIONS");
+      {return withMcpCors(new Response(null), corsOrigin, "POST, OPTIONS");}
 
     return withMcpCors(
       await mcpApiHandler(request, env, ctx),
@@ -181,9 +183,9 @@ export async function handleRequest(
   }
 
   if (path === "/")
-    return new Response(
+    {return new Response(
       "Shopping MCP: connect your AI client to /mcp and sign in to link Kroger.",
-    );
+    );}
 
   return new Response("Not found", { status: 404 });
 }

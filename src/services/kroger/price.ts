@@ -19,7 +19,7 @@ export function formatKrogerPrice(price?: {
 }): string | undefined {
   const normalized = normalizeKrogerPrice(price);
 
-  if (normalized.price === undefined) return undefined;
+  if (normalized.price === undefined) {return undefined;}
 
   return normalized.regularPrice === undefined
     ? `$${normalized.price}`

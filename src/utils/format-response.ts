@@ -58,7 +58,7 @@ export function formatPantryItemCompact(item: PantryItem): string {
  * COMPACT: Format pantry list efficiently
  */
 export function formatPantryListCompact(items: PantryItem[]): string {
-  if (items.length === 0) return "Pantry empty.";
+  if (items.length === 0) {return "Pantry empty.";}
 
   return items
     .map((item, index) => `${index + 1}. ${formatPantryItemCompact(item)}`)
@@ -85,7 +85,7 @@ export function formatOrderRecordCompact(order: OrderRecord): string {
   parts.push(itemsSummary);
 
   // Location
-  if (order.locationId) parts.push(order.locationId);
+  if (order.locationId) {parts.push(order.locationId);}
 
   return parts.join(" | ");
 }
@@ -94,7 +94,7 @@ export function formatOrderRecordCompact(order: OrderRecord): string {
  * COMPACT: Format order history efficiently
  */
 export function formatOrderHistoryCompact(orders: OrderRecord[]): string {
-  if (orders.length === 0) return "No orders.";
+  if (orders.length === 0) {return "No orders.";}
 
   return orders
     .map((order, index) => `${index + 1}. ${formatOrderRecordCompact(order)}`)
@@ -123,7 +123,7 @@ export function formatEquipmentItemCompact(item: EquipmentItem): string {
  * COMPACT: Format equipment list efficiently
  */
 export function formatEquipmentListCompact(items: EquipmentItem[]): string {
-  if (items.length === 0) return "Equipment list empty.";
+  if (items.length === 0) {return "Equipment list empty.";}
 
   return items
     .map((item, index) => `${index + 1}. ${formatEquipmentItemCompact(item)}`)
@@ -148,7 +148,7 @@ export function formatListSize(items: readonly ShoppingListItem[]): string {
   const count = `${items.length} item(s)`;
   const { total, pricedCount } = estimateListTotal(items);
 
-  if (pricedCount === 0) return count;
+  if (pricedCount === 0) {return count;}
 
   const coverage =
     pricedCount === items.length ? "" : `, ${pricedCount} priced`;
@@ -180,7 +180,7 @@ export function formatShoppingListItemCompact(item: ShoppingListItem): string {
  * COMPACT: Format shopping list efficiently
  */
 export function formatShoppingListCompact(items: ShoppingListItem[]): string {
-  if (items.length === 0) return "Shopping list empty.";
+  if (items.length === 0) {return "Shopping list empty.";}
 
   return items
     .map(
@@ -207,9 +207,9 @@ export function formatProductLine(
 ): string {
   const parts: string[] = [`upc=${product.upc}`, product.name];
 
-  if (product.brand) parts.push(product.brand);
+  if (product.brand) {parts.push(product.brand);}
 
-  if (product.size) parts.push(product.size);
+  if (product.size) {parts.push(product.size);}
 
   if (product.price !== undefined) {
     parts.push(
@@ -221,7 +221,7 @@ export function formatProductLine(
 
   parts.push(`pickup: ${product.pickup ? "yes" : "no"}`);
 
-  if (!product.available) parts.push("out of stock");
+  if (!product.available) {parts.push("out of stock");}
 
   const aisle = product.aisle;
 
@@ -234,19 +234,19 @@ export function formatProductLine(
         ? `${description} ${number}`
         : (description ?? number);
 
-    if (locationLabel) parts.push(`location: ${locationLabel}`);
+    if (locationLabel) {parts.push(`location: ${locationLabel}`);}
 
     if (aisle.sequenceNumber)
-      parts.push(`route sequence: ${aisle.sequenceNumber}`);
+      {parts.push(`route sequence: ${aisle.sequenceNumber}`);}
 
-    if (aisle.bayNumber) parts.push(`bay: ${aisle.bayNumber}`);
+    if (aisle.bayNumber) {parts.push(`bay: ${aisle.bayNumber}`);}
 
-    if (aisle.side) parts.push(`side: ${aisle.side}`);
+    if (aisle.side) {parts.push(`side: ${aisle.side}`);}
 
-    if (aisle.shelfNumber) parts.push(`shelf: ${aisle.shelfNumber}`);
+    if (aisle.shelfNumber) {parts.push(`shelf: ${aisle.shelfNumber}`);}
 
     if (aisle.shelfPositionInBay)
-      parts.push(`shelf position: ${aisle.shelfPositionInBay}`);
+      {parts.push(`shelf position: ${aisle.shelfPositionInBay}`);}
   }
 
   return `- ${parts.join(" | ")}`;
@@ -314,10 +314,10 @@ export function formatProductSearchMarkdown(
   }
 
   if (options.includeNextStep !== false)
-    lines.push(
+    {lines.push(
       "",
       "Next: pass these UPCs to create_shopping_list or add_shopping_list_to_cart.",
-    );
+    );}
 
   return lines.join("\n");
 }
@@ -343,7 +343,7 @@ function formatProductFacts(product: Product): string[] {
     ...(product.manufacturerDeclarations ?? []),
   ].filter(Boolean);
 
-  if (claims.length > 0) lines.push(`  claims: ${claims.join(", ")}`);
+  if (claims.length > 0) {lines.push(`  claims: ${claims.join(", ")}`);}
 
   const allergens =
     product.allergensDescription ??
@@ -356,7 +356,7 @@ function formatProductFacts(product: Product): string[] {
       .filter(Boolean)
       .join(", ");
 
-  if (allergens) lines.push(`  allergens: ${allergens}`);
+  if (allergens) {lines.push(`  allergens: ${allergens}`);}
 
   const nutrition = product.nutritionInformation;
   const ingredients = nutrition?.ingredientStatement?.trim();
@@ -376,7 +376,7 @@ function formatProductFacts(product: Product): string[] {
     .flatMap((nutrient) => {
       const name = nutrient.displayName ?? nutrient.description;
 
-      if (!name || nutrient.quantity === undefined) return [];
+      if (!name || nutrient.quantity === undefined) {return [];}
 
       return [
         `${name} ${nutrient.quantity}${nutrient.unitOfMeasure?.abbreviation ?? ""}`,
@@ -416,7 +416,7 @@ function formatProductFacts(product: Product): string[] {
     lines.push(`  restrictions: ${restrictions.join(", ")}`);
   }
 
-  if (product.countryOrigin) lines.push(`  origin: ${product.countryOrigin}`);
+  if (product.countryOrigin) {lines.push(`  origin: ${product.countryOrigin}`);}
 
   return lines;
 }
@@ -444,16 +444,19 @@ function formatExactProductLines(product: Product, upc: string): string[] {
     for (const item of variants) {
       const parts: string[] = [];
 
-      if (item.itemId) parts.push(`upc=${item.itemId}`);
+      if (item.itemId) {parts.push(`upc=${item.itemId}`);}
 
-      if (item.size) parts.push(item.size);
+      if (item.size) {parts.push(item.size);}
+
       const price = formatKrogerPrice(item.price);
 
-      if (price) parts.push(price);
+      if (price) {parts.push(price);}
+
       parts.push(`pickup: ${item.fulfillment?.curbside ? "yes" : "no"}`);
 
       if (item.inventory?.stockLevel === "TEMPORARILY_OUT_OF_STOCK")
-        parts.push("out of stock");
+        {parts.push("out of stock");}
+
       lines.push(`  - ${parts.join(" | ")}`);
     }
   }
@@ -479,24 +482,24 @@ export function formatStoreLineMarkdown(location: Location): string {
 
     const full = [addressLine1, cityStateZip].filter(Boolean).join(", ");
 
-    if (full) parts.push(full);
+    if (full) {parts.push(full);}
   }
 
-  if (location.phone) parts.push(`phone ${location.phone}`);
+  if (location.phone) {parts.push(`phone ${location.phone}`);}
 
   return `- ${parts.join(" | ")}`;
 }
 
 /** Markdown for search_stores: one line per store. */
 export function formatStoreListMarkdown(stores: Location[]): string {
-  if (stores.length === 0) return "No stores found.";
+  if (stores.length === 0) {return "No stores found.";}
 
   return stores.map(formatStoreLineMarkdown).join("\n");
 }
 
 /** Hours block for a single-store lookup. */
 function formatStoreHoursMarkdown(location: Location): string {
-  if (!location.hours) return "";
+  if (!location.hours) {return "";}
 
   const days = [
     "monday",
@@ -514,7 +517,7 @@ function formatStoreHoursMarkdown(location: Location): string {
     const hours = location.hours[day];
 
     if (hours)
-      lines.push(`- ${day}: ${hours.open ?? "?"}-${hours.close ?? "?"}`);
+      {lines.push(`- ${day}: ${hours.open ?? "?"}-${hours.close ?? "?"}`);}
   }
 
   return lines.length > 1 ? lines.join("\n") : "";
@@ -525,7 +528,7 @@ export function formatStoreDetailMarkdown(location: Location): string {
   const lines = [formatStoreLineMarkdown(location)];
   const hours = formatStoreHoursMarkdown(location);
 
-  if (hours) lines.push(hours);
+  if (hours) {lines.push(hours);}
 
   return lines.join("\n");
 }
@@ -543,11 +546,11 @@ export type WeeklyDealMarkdownItem = {
 function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
   const parts: string[] = [deal.title];
 
-  if (deal.details) parts.push(deal.details);
+  if (deal.details) {parts.push(deal.details);}
 
-  if (deal.price) parts.push(deal.price);
+  if (deal.price) {parts.push(deal.price);}
 
-  if (deal.savings) parts.push(deal.savings);
+  if (deal.savings) {parts.push(deal.savings);}
 
   return `- ${parts.join(" | ")}`;
 }
@@ -576,7 +579,7 @@ export function formatWeeklyDealsMarkdown(
     lines.push(`warnings: ${warnings.join("; ")}`);
   }
 
-  if (deals.length === 0) return lines.join("\n");
+  if (deals.length === 0) {return lines.join("\n");}
 
   let lastCategory: string | undefined;
 

@@ -97,7 +97,8 @@ export function registerProductTools(
           "fetch preferred location",
         );
 
-        if (preferred.isErr()) return toMcpError(preferred.error);
+        if (preferred.isErr()) {return toMcpError(preferred.error);}
+
         locationId = preferred.value?.locationId;
       }
 
@@ -107,7 +108,8 @@ export function registerProductTools(
         terms,
         { locationId, limitPerTerm },
         async (completed, total) => {
-          if (progressToken === undefined) return;
+          if (progressToken === undefined) {return;}
+
           await requestContext.mcpReq.notify({
             method: "notifications/progress",
             params: { progressToken, progress: completed, total },
@@ -115,7 +117,8 @@ export function registerProductTools(
         },
       );
 
-      if (resolved.isErr()) return toMcpError(resolved.error);
+      if (resolved.isErr()) {return toMcpError(resolved.error);}
+
       const { results, exactUpcs } = resolved.value;
 
       const totalProducts = results.reduce(
@@ -130,7 +133,7 @@ export function registerProductTools(
         failures.find((result) => result.error.type === "AUTH_ERROR") ??
         failures[0];
 
-      if (totalProducts === 0 && failure) return toMcpError(failure.error);
+      if (totalProducts === 0 && failure) {return toMcpError(failure.error);}
 
       const text = `${locationId ? "" : `${NO_STORE_NOTICE}\n\n`}${formatProductSearchMarkdown(results, { includeLocation, exactUpcs })}`;
 

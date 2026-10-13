@@ -42,7 +42,7 @@ export function createWeeklyDealsLoader(
         searchProducts: createProductSearch(dependencies.productClient, signal),
       };
 
-      if (signal) options.signal = signal;
+      if (signal) {options.signal = signal;}
 
       return (dependencies.fetchDeals ?? getQfcWeeklyDeals)(options);
     },
@@ -66,7 +66,7 @@ function createProductSearch(
       },
     };
 
-    if (signal) options.signal = signal;
+    if (signal) {options.signal = signal;}
 
     const apiResult = await fromApiResponse(
       () => productClient.GET("/v1/products", options),

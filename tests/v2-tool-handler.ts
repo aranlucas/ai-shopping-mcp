@@ -15,7 +15,8 @@ import type { z } from "zod";
 export function parseTestToolResult(value: unknown) {
   const parsed = specTypeSchemas.CallToolResult["~standard"].validate(value);
 
-  if (parsed.issues) throw new TypeError("Invalid MCP tool response");
+  if (parsed.issues) {throw new TypeError("Invalid MCP tool response");}
+
   const result = parsed.value;
 
   return {

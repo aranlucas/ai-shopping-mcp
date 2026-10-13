@@ -56,7 +56,7 @@ export function buildWeeklyDealsCacheKey(params: {
 export function parseWeeklyDealsCacheEntry(
   raw: string | null,
 ): WeeklyDealsCacheEntry | null {
-  if (!raw) return null;
+  if (!raw) {return null;}
 
   return safeJsonParseWithSchema(raw, weeklyDealCacheEntrySchema).match(
     (entry) => entry,
@@ -78,13 +78,13 @@ export function readWeeklyDealsCache(
   )().map((raw) => {
     const entry = parseWeeklyDealsCacheEntry(raw);
 
-    if (!entry) return { kind: "miss" as const };
+    if (!entry) {return { kind: "miss" as const };}
 
     const now = Date.now();
 
-    if (now <= entry.freshUntil) return { kind: "fresh" as const, entry };
+    if (now <= entry.freshUntil) {return { kind: "fresh" as const, entry };}
 
-    if (now <= entry.staleUntil) return { kind: "stale" as const, entry };
+    if (now <= entry.staleUntil) {return { kind: "stale" as const, entry };}
 
     return { kind: "miss" as const };
   });

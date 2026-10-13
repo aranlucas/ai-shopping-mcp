@@ -95,7 +95,7 @@ export function DisplayModeToggle({
     app?.requestDisplayMode({ mode: next }).catch(console.error);
   }, [app, next]);
 
-  if (!app || !supportsFullscreen || !supportsInline) return null;
+  if (!app || !supportsFullscreen || !supportsInline) {return null;}
 
   return (
     <Button
@@ -136,9 +136,9 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
     ? [{ label: "Pickup", tone: "info" }]
     : [];
 
-  if (!product.available) tags.push({ label: "Out of Stock", tone: "danger" });
+  if (!product.available) {tags.push({ label: "Out of Stock", tone: "danger" });}
 
-  if (tags.length === 0) return null;
+  if (tags.length === 0) {return null;}
 
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">
@@ -286,14 +286,15 @@ export function ExternalLink({
 
   const handleClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
-      if (!app?.getHostCapabilities?.()?.openLinks) return;
+      if (!app?.getHostCapabilities?.()?.openLinks) {return;}
+
       event.preventDefault();
       setError(null);
       app
         .openLink({ url: href })
         .then((result) => {
           if (result.isError)
-            setError("Could not open Kroger. Open it in your browser instead.");
+            {setError("Could not open Kroger. Open it in your browser instead.");}
 
           return result;
         })
@@ -467,7 +468,8 @@ function SaveToListControl({
     setOpen(true);
     setError(null);
 
-    if (lists !== null) return;
+    if (lists !== null) {return;}
+
     setListsState("loading");
 
     try {
@@ -498,7 +500,8 @@ function SaveToListControl({
       setSaveState("done");
 
       // A new list now exists; reload next time the picker opens.
-      if (!target) setLists(null);
+      if (!target) {setLists(null);}
+
       setTimeout(() => {
         setOpen(false);
         setSaveState("idle");

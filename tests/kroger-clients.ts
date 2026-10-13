@@ -38,7 +38,8 @@ export type ProductRequest = (
 export function productClientWith(get: ProductRequest) {
   return productClient(async (request) => {
     if (request.method !== "GET")
-      throw new Error(`Unexpected product method ${request.method}`);
+      {throw new Error(`Unexpected product method ${request.method}`);}
+
     const url = new URL(request.url);
     const query: Record<string, string | number> = {};
 
@@ -51,13 +52,13 @@ export function productClientWith(get: ProductRequest) {
 
     const params: ProductRequestParameters["params"] = {};
 
-    if (url.search) params.query = query;
+    if (url.search) {params.query = query;}
 
     const id = url.pathname.startsWith("/v1/products/")
       ? decodeURIComponent(url.pathname.slice("/v1/products/".length))
       : undefined;
 
-    if (id !== undefined) params.path = { id };
+    if (id !== undefined) {params.path = { id };}
 
     const fixture = await get(
       id === undefined ? url.pathname : "/v1/products/{id}",

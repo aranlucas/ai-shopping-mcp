@@ -101,7 +101,7 @@ function failKrogerFetches() {
       );
 
       if (url.hostname === "api.kroger.com")
-        throw new Error("fixture Kroger outage");
+        {throw new Error("fixture Kroger outage");}
 
       return originalFetch(input, init);
     }),

@@ -206,7 +206,7 @@ function getCapturedHandler(name: string): ToolHandler {
 function getCapturedTool(name: string): CapturedTool {
   const tool = testState.capturedTools.find((t) => t.name === name);
 
-  if (!tool) throw new Error(`Missing registered tool ${name}`);
+  if (!tool) {throw new Error(`Missing registered tool ${name}`);}
 
   return tool;
 }
@@ -374,7 +374,7 @@ describe("search_products", () => {
     registerProducts(async (_path, opts) => {
       const term = opts.params.query?.["filter.term"];
 
-      if (term === "milk") return makeSearchResponse([product]);
+      if (term === "milk") {return makeSearchResponse([product]);}
 
       return makeErrorResponse(500);
     });
@@ -403,7 +403,7 @@ describe("search_products", () => {
   it("passes provided storeId as 'filter.locationId' in the API query params", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
-      if (opts.params.query) capturedQueries.push(opts.params.query);
+      if (opts.params.query) {capturedQueries.push(opts.params.query);}
 
       return makeSearchResponse([]);
     });
@@ -419,7 +419,7 @@ describe("search_products", () => {
   it("respects a custom limitPerTerm in the 'filter.limit' query param", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
-      if (opts.params.query) capturedQueries.push(opts.params.query);
+      if (opts.params.query) {capturedQueries.push(opts.params.query);}
 
       return makeSearchResponse([]);
     });
@@ -435,7 +435,7 @@ describe("search_products", () => {
   it("defaults limitPerTerm to 5 when omitted", async () => {
     const capturedQueries: Array<Record<string, string | number>> = [];
     registerProducts(async (_path, opts) => {
-      if (opts.params.query) capturedQueries.push(opts.params.query);
+      if (opts.params.query) {capturedQueries.push(opts.params.query);}
 
       return makeSearchResponse([]);
     });
@@ -509,7 +509,7 @@ describe("search_products", () => {
     });
 
     registerProducts(async (_path, opts) => {
-      if (opts.params.query) capturedQueries.push(opts.params.query);
+      if (opts.params.query) {capturedQueries.push(opts.params.query);}
 
       return makeSearchResponse([]);
     }, preferredLocation);

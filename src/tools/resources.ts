@@ -217,7 +217,7 @@ export function registerResources(
 
       const result = await productService.getProduct(upc, locationId);
 
-      if (result.isOk()) return toonResource(uri.href, result.value);
+      if (result.isOk()) {return toonResource(uri.href, result.value);}
 
       if (result.error.type === "NOT_FOUND") {
         return toonResource(uri.href, {

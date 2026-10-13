@@ -122,7 +122,7 @@ function makeServer() {
     const handler: ResourceHandler = async (uri) => {
       const result = await authenticatedRequest((context) => {
         if (isStaticRegistration(registration))
-          return Promise.resolve(registration[3](uri, context));
+          {return Promise.resolve(registration[3](uri, context));}
 
         return Promise.resolve(registration[3](uri, {}, context));
       }, testState.authContext);
@@ -211,7 +211,7 @@ function registerTestResources(fixture: ReturnType<typeof makeContext>) {
 function getResource(name: string): CapturedResource {
   const resource = testState.capturedResources.find((r) => r.name === name);
 
-  if (!resource) throw new Error(`Missing resource ${name}`);
+  if (!resource) {throw new Error(`Missing resource ${name}`);}
 
   return resource;
 }
@@ -224,10 +224,11 @@ function getCompleteFn(name: string, field: string): CompleteFn {
   const template = getResource(name).uriOrTemplate;
 
   if (!(template instanceof ResourceTemplate))
-    throw new Error("Resource has no template");
+    {throw new Error("Resource has no template");}
+
   const complete = template.completeCallback(field);
 
-  if (!complete) throw new Error(`No completion for ${field}`);
+  if (!complete) {throw new Error(`No completion for ${field}`);}
 
   return (value) =>
     authenticatedRequest(
@@ -241,7 +242,7 @@ function makeProductClient(
 ) {
   return createProductClient(async () => {
     if (overrides.error)
-      return new Response(null, { status: 500, statusText: "Server Error" });
+      {return new Response(null, { status: 500, statusText: "Server Error" });}
 
     const product =
       "product" in overrides

@@ -27,12 +27,13 @@ export async function authenticatedRequest<T>(
 
     server.registerTool("invoke", {}, async (context) => {
       if (customization?._meta !== undefined)
-        context.mcpReq._meta = customization._meta;
+        {context.mcpReq._meta = customization._meta;}
 
       if (customization?.notify)
-        vi.spyOn(context.mcpReq, "notify").mockImplementation(
+        {vi.spyOn(context.mcpReq, "notify").mockImplementation(
           customization.notify,
-        );
+        );}
+
       // Explicit synthetic user consent preserves the pre-existing test harness policy.
       vi.spyOn(context.mcpReq, "elicitInput").mockResolvedValue({
         action: "accept",
@@ -84,10 +85,10 @@ export async function authenticatedRequest<T>(
 
   await response.text();
 
-  if (failure) throw failure.cause;
+  if (failure) {throw failure.cause;}
 
   if (!outcome)
-    throw new Error(`MCP test invocation failed (${response.status})`);
+    {throw new Error(`MCP test invocation failed (${response.status})`);}
 
   return outcome.value;
 }

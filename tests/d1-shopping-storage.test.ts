@@ -105,7 +105,7 @@ describe("D1 shopping storage", () => {
 
     expect(added).toBeDefined();
 
-    if (!added) throw new Error("Expected the added item");
+    if (!added) {throw new Error("Expected the added item");}
 
     const edited = await user.shoppingList.updateItem(created.id, added.id, {
       quantity: 3,

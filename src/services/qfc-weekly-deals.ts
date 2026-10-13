@@ -84,13 +84,13 @@ function getDefaultLocationId(locationId?: string): string {
 }
 
 function inferDivisionCode(locationId: string, explicit?: string): string {
-  if (explicit) return explicit;
+  if (explicit) {return explicit;}
 
   return locationId.slice(0, 3);
 }
 
 function safeErrorMessage(cause: unknown): string {
-  if (cause instanceof Error) return cause.message;
+  if (cause instanceof Error) {return cause.message;}
 
   return String(cause);
 }
@@ -105,7 +105,7 @@ function formatPrice(
   value: number | null | undefined,
   uom?: string | null,
 ): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "";
+  if (value === null || value === undefined || Number.isNaN(value)) {return "";}
 
   const price =
     value >= 1 ? `$${value.toFixed(2)}` : `${Math.round(value * 100)}¢`;
@@ -319,7 +319,8 @@ async function fetchDealsBySearchApi(params: {
   if (failures.length === results.length) {
     const firstFailure = failures[0];
 
-    if (firstFailure instanceof AppErrorException) throw firstFailure;
+    if (firstFailure instanceof AppErrorException) {throw firstFailure;}
+
     throw new Error(
       `All weekly deal searches failed: ${safeErrorMessage(firstFailure)}`,
     );
@@ -344,7 +345,8 @@ async function fetchDealsBySearchApi(params: {
   const unique = onSale.filter((product) => {
     const id = product.productId || product.upc;
 
-    if (!id || seen.has(id)) return false;
+    if (!id || seen.has(id)) {return false;}
+
     seen.add(id);
 
     return true;
@@ -451,12 +453,12 @@ function parseDacsOfferFromMapConfig(
     () => null,
   );
 
-  if (!parsed || !parsed.success) return null;
+  if (!parsed || !parsed.success) {return null;}
 
   const { content } = parsed.data;
   const title = content.headline.trim();
 
-  if (!title) return null;
+  if (!title) {return null;}
 
   const bodyCopy = content.bodyCopy?.trim() ? content.bodyCopy : undefined;
 
@@ -511,7 +513,8 @@ function dedupeDealsById<T extends { id: string }>(deals: T[]): T[] {
   const unique: T[] = [];
 
   for (const deal of deals) {
-    if (seen.has(deal.id)) continue;
+    if (seen.has(deal.id)) {continue;}
+
     seen.add(deal.id);
     unique.push(deal);
   }
@@ -544,7 +547,7 @@ async function normalizePrintDeals(params: {
 
   const pageResponses = await Promise.all(
     selectedPages.map(async (page) => {
-      if (!page.eventPageId) return { contents: [], error: undefined };
+      if (!page.eventPageId) {return { contents: [], error: undefined };}
 
       try {
         const response = await fetchPrintAdPage({
@@ -579,10 +582,12 @@ async function normalizePrintDeals(params: {
 
   for (const page of pageResponses) {
     for (const content of page.contents || []) {
-      if (content.contentType !== "Offer" || !content.mapConfig) continue;
+      if (content.contentType !== "Offer" || !content.mapConfig) {continue;}
+
       const parsed = parseDacsOfferFromMapConfig(content.mapConfig);
 
-      if (!parsed) continue;
+      if (!parsed) {continue;}
+
       parsedOffers.push(parsed);
     }
   }
@@ -602,7 +607,7 @@ async function normalizePrintDeals(params: {
         source: "print",
       };
 
-      if (!parsed.offerVersionProductGroupId) return deal;
+      if (!parsed.offerVersionProductGroupId) {return deal;}
 
       try {
         const offer = await fetchPrintAdOfferDetails({
@@ -662,11 +667,11 @@ async function augmentPrintDealsWithSearchApi(
         (p) => normalizeKrogerPrice(p.items?.[0]?.price).price !== undefined,
       );
 
-    if (!match) return deal;
+    if (!match) {return deal;}
 
     const { price, savings } = productDealPrice(match);
 
-    if (!price) return deal;
+    if (!price) {return deal;}
 
     return { ...deal, price, savings };
   });
@@ -760,7 +765,7 @@ export async function getQfcWeeklyDeals(
         augmentedCount,
       };
 
-      if (failedPageCount > 0) meta.degraded = true;
+      if (failedPageCount > 0) {meta.degraded = true;}
 
       return normalizedResult({
         sourceMode: "print_fallback",
@@ -808,9 +813,9 @@ export async function getQfcWeeklyDeals(
       }
 
       if (failures.length > 0)
-        meta.failureMessages = failures
+        {meta.failureMessages = failures
           .map((failure) => safeErrorMessage(failure))
-          .slice(0, 3);
+          .slice(0, 3);}
 
       return normalizedResult({
         sourceMode: "search_api",

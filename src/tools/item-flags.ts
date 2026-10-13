@@ -61,7 +61,7 @@ export function pantryFlagLabel(
 ): string | undefined {
   const lower = requestedName.toLowerCase().trim();
 
-  if (!lower) return undefined;
+  if (!lower) {return undefined;}
 
   const inPantry = pantry.some((item) => {
     const itemLower = item.productName.toLowerCase();
@@ -79,7 +79,7 @@ export function dealFlagLabel(
 ): string | undefined {
   const deal = findDealForItem(requestedName, deals);
 
-  if (!deal) return undefined;
+  if (!deal) {return undefined;}
 
   return deal.price ? `on sale: ${deal.price}` : "on sale";
 }
@@ -92,11 +92,11 @@ export function itemFlagLabels(
   const labels: string[] = [];
   const pantryLabel = pantryFlagLabel(requestedName, pantry);
 
-  if (pantryLabel) labels.push(pantryLabel);
+  if (pantryLabel) {labels.push(pantryLabel);}
 
   const dealLabel = dealFlagLabel(requestedName, deals);
 
-  if (dealLabel) labels.push(dealLabel);
+  if (dealLabel) {labels.push(dealLabel);}
 
   return labels;
 }

@@ -142,10 +142,11 @@ export function KitchenEquipmentView({
         arguments: { equipment: { remove: [name] } },
       });
 
-      if (result?.isError) throw new Error("Failed to remove equipment");
+      if (result?.isError) {throw new Error("Failed to remove equipment");}
+
       const updated = parseToolResult(result);
 
-      if (updated) setData(updated);
+      if (updated) {setData(updated);}
     },
     [app, setData],
   );

@@ -30,19 +30,20 @@ export function strictFake<T extends object>(
 
       // Promise resolution probes every returned object for a then method; an ordinary non-thenable must report its absence.
       if (!descriptor && key === "then" && options.nonThenable)
-        return undefined;
+        {return undefined;}
 
       if (!descriptor)
-        throw new Error(`Unimplemented fake member: ${String(key)}`);
+        {throw new Error(`Unimplemented fake member: ${String(key)}`);}
 
       const value = descriptor.get
         ? descriptor.get.call(target)
         : descriptor.value;
 
       if (value === undefined)
-        throw new Error(`Unimplemented fake member: ${String(key)}`);
+        {throw new Error(`Unimplemented fake member: ${String(key)}`);}
 
-      if (!isMethod(value) || key === "constructor") return value;
+      if (!isMethod(value) || key === "constructor") {return value;}
+
       let method = methods.get(value);
 
       if (!method) {

@@ -94,7 +94,8 @@ export async function loadWeeklyDeals(
         WeeklyDealsServiceDependencies["fetchLive"]
       >[0] = { locationId, limit, pageLimit };
 
-      if (signal) options.signal = signal;
+      if (signal) {options.signal = signal;}
+
       const liveData = await deps.fetchLive(options);
 
       // A timed-out source must not replace a usable stale entry or be cached
@@ -190,9 +191,9 @@ export async function getCachedWeeklyDealsForFlags(
   const key = buildWeeklyDealsCacheKey(params);
   const result = await weeklyDealsCache.read(key);
 
-  if (result.isErr()) return null;
+  if (result.isErr()) {return null;}
 
-  if (result.value.kind === "miss") return null;
+  if (result.value.kind === "miss") {return null;}
 
   return result.value.entry.data;
 }

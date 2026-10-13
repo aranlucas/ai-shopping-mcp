@@ -45,7 +45,7 @@ export function createCartAction(input: CartRequest) {
   const transition = (next: CartState) => {
     state = next;
 
-    for (const listener of listeners) listener();
+    for (const listener of listeners) {listener();}
   };
 
   async function run(
@@ -108,7 +108,8 @@ export function createCartAction(input: CartRequest) {
     submit(app: ShoppingAppClient | null): Promise<void> {
       // Repeated clicks share the in-flight request; terminal outcomes cannot resubmit.
       if (state.status !== "idle" && state.status !== "retryable")
-        return pending;
+        {return pending;}
+
       const request = state.request;
       pending = Promise.resolve().then(() => run(app, request));
       transition({ status: "submitting", request });
@@ -118,7 +119,7 @@ export function createCartAction(input: CartRequest) {
     reset() {
       // Only confirmed success can start a new intentional add.
       if (state.status === "added" || state.status === "already_added")
-        transition({ status: "idle", request: initialRequest });
+        {transition({ status: "idle", request: initialRequest });}
     },
   };
 }

@@ -89,7 +89,7 @@ export function registerWeeklyDealsTools(
         signal: requestContext.mcpReq.signal,
       });
 
-      if (result.isErr()) return toMcpError(result.error);
+      if (result.isErr()) {return toMcpError(result.error);}
 
       return formatWeeklyDealsToolResponse(
         result.value.data,
@@ -102,10 +102,11 @@ export function registerWeeklyDealsTools(
 
 /** Page footer: which slice this is and how to get the next one. */
 function formatDealsPage(offset: number, shown: number, total: number) {
-  if (shown === total) return "";
+  if (shown === total) {return "";}
+
   const end = offset + shown;
 
-  if (shown === 0) return `\nNo deals at offset ${offset}; there are ${total}.`;
+  if (shown === 0) {return `\nNo deals at offset ${offset}; there are ${total}.`;}
 
   return end < total
     ? `\nDeals ${offset + 1}-${end} of ${total}. More: nextOffset=${end}`

@@ -75,9 +75,9 @@ export function callTool(
   call: ToolCall,
 ): Promise<CallToolResult> {
   if (!app)
-    return Promise.reject(
+    {return Promise.reject(
       new Error("The shopping app is disconnected. Reopen it and try again."),
-    );
+    );}
 
   return app.callServerTool(call);
 }
@@ -87,7 +87,8 @@ export async function openExternalLink(
   app: ShoppingAppClient | null | undefined,
   url: string,
 ): Promise<void> {
-  if (!app?.getHostCapabilities()?.openLinks) return;
+  if (!app?.getHostCapabilities()?.openLinks) {return;}
+
   await app.openLink({ url });
 }
 
@@ -97,9 +98,9 @@ export async function sendUserMessage(
   text: string,
 ): Promise<void> {
   if (!app)
-    throw new Error(
+    {throw new Error(
       "The shopping app is disconnected. Reopen it and try again.",
-    );
+    );}
 
   const result = await app.sendMessage({
     role: "user",
@@ -107,5 +108,5 @@ export async function sendUserMessage(
   });
 
   if (result.isError)
-    throw new Error("The assistant could not receive your request. Try again.");
+    {throw new Error("The assistant could not receive your request. Try again.");}
 }

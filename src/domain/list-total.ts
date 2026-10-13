@@ -6,7 +6,8 @@ export function estimateListTotal(
   let pricedCount = 0;
 
   for (const item of items) {
-    if (item.price === undefined) continue;
+    if (item.price === undefined) {continue;}
+
     total += item.price * item.quantity;
     pricedCount += 1;
   }

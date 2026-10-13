@@ -101,13 +101,13 @@ export async function selectProductMatches(params: {
     const selection = selections.get(requestId);
 
     if (!selection)
-      throw new Error(`Missing selection for request ${requestId}`);
+      {throw new Error(`Missing selection for request ${requestId}`);}
 
     return selection;
   };
 
   if (entries.length === 0)
-    return items.map((item) => getSelection(item.requestId));
+    {return items.map((item) => getSelection(item.requestId));}
 
   const questions = Object.fromEntries(
     entries.map((entry) => [
@@ -179,7 +179,7 @@ export async function selectProductMatches(params: {
       );
 
       if (!response.ok)
-        throw new Error(`Jev request failed with HTTP ${response.status}`);
+        {throw new Error(`Jev request failed with HTTP ${response.status}`);}
 
       return response.json();
     };

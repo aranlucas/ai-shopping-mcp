@@ -150,7 +150,7 @@ const fixtureCatalog = new Map<string, FixtureProductSpec[]>(
 export function upcsForTerm(term: string): string[] {
   const specs = fixtureCatalog.get(term.toLowerCase());
 
-  if (!specs) throw new Error(`No fixture catalog entry for term "${term}"`);
+  if (!specs) {throw new Error(`No fixture catalog entry for term "${term}"`);}
 
   return specs.map((spec) => spec.upc);
 }
@@ -270,11 +270,11 @@ function productsForTerm(
 
   // "zzz…" terms (and the "frobnut" in them, if a model retries a shorter
   // term) have no products, for not-found paths.
-  if (normalized.startsWith("zzz") || normalized.includes("frobnut")) return [];
+  if (normalized.startsWith("zzz") || normalized.includes("frobnut")) {return [];}
 
   const exact = fixtureCatalog.get(normalized);
 
-  if (exact) return exact.map(makeFixtureProduct);
+  if (exact) {return exact.map(makeFixtureProduct);}
 
   const partialKey = Object.keys(FIXTURE_CATALOG).find(
     (key) => normalized.includes(key) || key.includes(normalized),
@@ -282,14 +282,15 @@ function productsForTerm(
 
   const partial = partialKey ? fixtureCatalog.get(partialKey) : undefined;
 
-  if (partial) return partial.map(makeFixtureProduct);
+  if (partial) {return partial.map(makeFixtureProduct);}
 
   // Synthesize a deterministic generic product so open-ended (live-model)
   // searches always find something.
   let hash = 0;
 
   for (const char of normalized)
-    hash = (hash * 31 + char.charCodeAt(0)) % 1_000_000;
+    {hash = (hash * 31 + char.charCodeAt(0)) % 1_000_000;}
+
   const upc = String(2_000_000_000_000 + hash).padStart(13, "0");
 
   return [
@@ -309,10 +310,10 @@ function findProductByUpc(upc: string) {
   for (const specs of Object.values(FIXTURE_CATALOG)) {
     const spec = specs.find((candidate) => candidate.upc === upc);
 
-    if (spec) return makeFixtureProduct(spec);
+    if (spec) {return makeFixtureProduct(spec);}
   }
 
-  if (upc.startsWith("9")) return null; // reserved for not-found tests
+  if (upc.startsWith("9")) {return null;} // reserved for not-found tests
 
   return makeFixtureProduct({
     upc,
@@ -350,7 +351,7 @@ export function installKrogerFetchStub(): KrogerFetchStub {
       const url = new URL(request ? request.url : input.toString());
 
       if (url.href === env.BETTER_AUTH_JWKS_URL)
-        return Response.json(await fixtureJwks());
+        {return Response.json(await fixtureJwks());}
 
       if (url.href === "https://api.kroger.com/v1/connect/oauth2/token") {
         return Response.json({

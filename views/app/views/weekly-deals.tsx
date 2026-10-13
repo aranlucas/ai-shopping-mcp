@@ -223,7 +223,8 @@ export function WeeklyDealsView({
     : groups;
 
   useEffect(() => {
-    if (!app || deals.length === 0) return;
+    if (!app || deals.length === 0) {return;}
+
     app
       .updateModelContext({
         content: [
@@ -243,7 +244,7 @@ export function WeeklyDealsView({
   }, [app, deals.length, validFrom, validTill]);
 
   useEffect(() => {
-    if (searchResult) contentRef.current?.focus();
+    if (searchResult) {contentRef.current?.focus();}
   }, [searchResult]);
 
   const handleSearch = useCallback(
@@ -254,15 +255,17 @@ export function WeeklyDealsView({
       });
 
       if (result.isError)
-        throw new Error(
+        {throw new Error(
           toolResultErrorMessage(result, "Product search failed. Try again."),
-        );
+        );}
+
       const parsed = parseToolResult(result);
 
       if (parsed?.view !== "search_products")
-        throw new Error(
+        {throw new Error(
           "No product results were returned. Try searching with your assistant.",
-        );
+        );}
+
       setSearchResult(parsed);
     },
     [app, data.storeId, setSearchResult],
@@ -307,7 +310,7 @@ export function WeeklyDealsView({
       : [];
 
   if (searchResult)
-    return (
+    {return (
       <div
         ref={contentRef}
         tabIndex={-1}
@@ -326,7 +329,7 @@ export function WeeklyDealsView({
           hostContext={hostContext}
         />
       </div>
-    );
+    );}
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-5 sm:px-6">

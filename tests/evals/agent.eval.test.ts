@@ -54,19 +54,21 @@ const tasks = taskFilter
 let session: AgentSession | undefined;
 
 function getSession(): AgentSession {
-  if (!session) throw new Error("MCP session not initialized");
+  if (!session) {throw new Error("MCP session not initialized");}
 
   return session;
 }
 
 beforeEach(async () => {
-  if (!enabled) return;
+  if (!enabled) {return;}
+
   const stub = installKrogerFetchStub();
   session = { stub, client: await createEvalMcpClient() };
 });
 
 afterEach(async () => {
-  if (!session) return;
+  if (!session) {return;}
+
   await session.client.close();
   session.stub.restore();
   session = undefined;

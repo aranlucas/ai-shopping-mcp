@@ -40,14 +40,14 @@ export function findDealForItem(
 ): Deal | undefined {
   const itemTokens = normalizeTokens(itemName);
 
-  if (itemTokens.length === 0) return undefined;
+  if (itemTokens.length === 0) {return undefined;}
 
   let best: { deal: Deal; ratio: number } | undefined;
 
   for (const deal of deals) {
     const dealTokens = new Set(normalizeTokens(deal.title));
 
-    if (dealTokens.size === 0) continue;
+    if (dealTokens.size === 0) {continue;}
 
     const matchedCount = itemTokens.filter((token) =>
       dealTokens.has(token),

@@ -225,13 +225,14 @@ function makeContext(
 
         putCalls.push({ path: url.pathname, options });
 
-        if (putConfig.throws === true) throw new Error("Network failure");
+        if (putConfig.throws === true) {throw new Error("Network failure");}
 
         return new Response(null, { status: putConfig.status });
       }
 
       if (request.method !== "GET")
-        throw new Error(`Unexpected cart method: ${request.method}`);
+        {throw new Error(`Unexpected cart method: ${request.method}`);}
+
       getCalls.push({
         path: url.pathname,
         options: {
@@ -244,10 +245,10 @@ function makeContext(
       });
 
       if (getConfig.status !== 200)
-        return Response.json(
+        {return Response.json(
           { reason: "cart not found" },
           { status: getConfig.status },
-        );
+        );}
 
       return Response.json({ data: getConfig.cart });
     }),
@@ -381,7 +382,8 @@ describe("add_shopping_list_to_cart tool", () => {
       storage.cartSnapshot.get = async () => {
         reads += 1;
 
-        if (reads === 1) return null;
+        if (reads === 1) {return null;}
+
         throw new Error("corrupt legacy receipt");
       };
 
@@ -1238,7 +1240,8 @@ describe("view_cart tool", () => {
     registerCartTools(context.server, context);
     const tool = testState.capturedTools.find((t) => t.name === "view_cart");
 
-    if (!tool) throw new Error("Missing registered tool");
+    if (!tool) {throw new Error("Missing registered tool");}
+
     const config = tool.config;
 
     expect(config.annotations?.openWorldHint).toBe(true);

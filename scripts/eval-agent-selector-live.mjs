@@ -17,7 +17,7 @@ const model = process.env.EVAL_SELECTOR_MODEL ?? "openai/gpt-5.4-mini";
 const sources = process.argv.slice(2);
 
 if (sources.length === 0)
-  throw new Error("Supply one or more paired JEV report paths");
+  {throw new Error("Supply one or more paired JEV report paths");}
 
 const workerSource = await readFile(
   new URL("./agent-selector-live-worker.ts", import.meta.url),

@@ -55,9 +55,9 @@ export const coercedBooleanSchema = z.preprocess((value) => {
   if (parsed.success) {
     const normalized = parsed.data.trim().toLowerCase();
 
-    if (normalized === "true") return true;
+    if (normalized === "true") {return true;}
 
-    if (normalized === "false") return false;
+    if (normalized === "false") {return false;}
   }
 
   return value;

@@ -122,7 +122,7 @@ export default {
       raw = await response.json();
 
       if (!response.ok)
-        throw new Error(`Agent request failed with HTTP ${response.status}`);
+        {throw new Error(`Agent request failed with HTTP ${response.status}`);}
 
       const parsed = z
         .object({
@@ -177,7 +177,7 @@ export default {
           (_, candidateIndex) => choice === `candidate_${candidateIndex}`,
         );
 
-        if (index < 0) throw new Error("Invalid agent candidate choice");
+        if (index < 0) {throw new Error("Invalid agent candidate choice");}
 
         return {
           requestId: entry.requestId,

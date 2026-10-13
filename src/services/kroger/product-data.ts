@@ -9,7 +9,7 @@ function toAisle(
 ): NonNullable<ProductData["aisle"]> | undefined {
   const location = product.aisleLocations?.[0];
 
-  if (!location) return undefined;
+  if (!location) {return undefined;}
 
   return {
     description: location.description,
@@ -45,12 +45,12 @@ const KROGER_ORIGIN = "https://www.kroger.com";
 
 /** Kroger returns a site-relative page path; never follow it off kroger.com. */
 export function toProductPageUrl(path: string | undefined): string | undefined {
-  if (!path?.startsWith("/")) return undefined;
+  if (!path?.startsWith("/")) {return undefined;}
 
   try {
     const url = new URL(path, KROGER_ORIGIN);
 
-    if (url.origin !== KROGER_ORIGIN) return undefined;
+    if (url.origin !== KROGER_ORIGIN) {return undefined;}
 
     return `${url.origin}${url.pathname}`;
   } catch {
@@ -66,7 +66,7 @@ export function toProductData(
   const item = product.items?.[0];
   const upc = product.upc?.trim() || fallbackUpc?.trim();
 
-  if (!upc) throw new Error("Kroger product response is missing a UPC");
+  if (!upc) {throw new Error("Kroger product response is missing a UPC");}
 
   const data: ProductData = {
     upc,
@@ -82,7 +82,7 @@ export function toProductData(
     pickup: item?.fulfillment?.curbside === true,
   };
 
-  if (includeLocation) data.aisle = toAisle(product);
+  if (includeLocation) {data.aisle = toAisle(product);}
 
   return data;
 }

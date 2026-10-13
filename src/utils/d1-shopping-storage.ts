@@ -42,7 +42,7 @@ function toPantryItems(rows: (typeof pantryItems.$inferSelect)[]) {
       addedAt: row.addedAt,
     };
 
-    if (row.expiresAt !== null) item.expiresAt = row.expiresAt;
+    if (row.expiresAt !== null) {item.expiresAt = row.expiresAt;}
 
     return item;
   });
@@ -55,7 +55,7 @@ function toEquipmentItems(rows: (typeof equipmentItems.$inferSelect)[]) {
       addedAt: row.addedAt,
     };
 
-    if (row.category !== null) item.category = row.category;
+    if (row.category !== null) {item.category = row.category;}
 
     return item;
   });
@@ -155,7 +155,7 @@ export function createD1ShoppingStore(
         )
         .run();
 
-      if (updated.meta.changes === 1) return changed.result;
+      if (updated.meta.changes === 1) {return changed.result;}
     }
 
     throw new AppErrorException(
@@ -383,9 +383,10 @@ export function createD1ShoppingStore(
           const index = items.findIndex((item) => item.id === itemId);
 
           if (index < 0)
-            throw new AppErrorException(
+            {throw new AppErrorException(
               notFoundError(`No list item ${itemId}.`),
-            );
+            );}
+
           const updated = { ...items[index], ...patch };
 
           return {
@@ -398,9 +399,9 @@ export function createD1ShoppingStore(
       removeItem: (listId, itemId) =>
         mutateList(listId, (items) => {
           if (!items.some((item) => item.id === itemId))
-            throw new AppErrorException(
+            {throw new AppErrorException(
               notFoundError(`No list item ${itemId}.`),
-            );
+            );}
 
           return {
             items: items.filter((item) => item.id !== itemId),

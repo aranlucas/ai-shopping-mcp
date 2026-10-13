@@ -60,28 +60,28 @@ function ExpiryBadge({
 }) {
   const expiry = classifyExpiry(expiresAt, now);
 
-  if (expiry.status === "none" || expiry.status === "invalid") return null;
+  if (expiry.status === "none" || expiry.status === "invalid") {return null;}
 
   if (expiry.status === "expired")
-    return (
+    {return (
       <Badge variant="outline" tone="danger">
         Expired
       </Badge>
-    );
+    );}
 
   if (expiry.status === "today")
-    return (
+    {return (
       <Badge variant="outline" tone="danger">
         Today
       </Badge>
-    );
+    );}
 
   if (expiry.status === "soon")
-    return (
+    {return (
       <Badge variant="outline" tone="warning">
         {expiry.daysUntil}d left
       </Badge>
-    );
+    );}
 
   return (
     <span className="text-xs text-gray-400">
@@ -245,10 +245,11 @@ export function PantryView({
         arguments: { pantry: { remove: [{ name }] } },
       });
 
-      if (result?.isError) throw new Error("Failed to remove item");
+      if (result?.isError) {throw new Error("Failed to remove item");}
+
       const updated = parseToolResult(result);
 
-      if (updated) setData(updated);
+      if (updated) {setData(updated);}
     },
     [app, setData],
   );
@@ -260,10 +261,11 @@ export function PantryView({
         arguments: { pantry: { remove: [{ name, quantity: 1 }] } },
       });
 
-      if (result?.isError) throw new Error("Failed to update item");
+      if (result?.isError) {throw new Error("Failed to update item");}
+
       const updated = parseToolResult(result);
 
-      if (updated) setData(updated);
+      if (updated) {setData(updated);}
     },
     [app, setData],
   );

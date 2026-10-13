@@ -177,23 +177,24 @@ export async function addLineItemsToCart(
     "claim cart operation",
   );
 
-  if (claim.isErr()) return err<CartAddStatus, AppError>(claim.error);
+  if (claim.isErr()) {return err<CartAddStatus, AppError>(claim.error);}
 
   if (claim.value.status === "conflict")
-    return err<CartAddStatus, AppError>(
+    {return err<CartAddStatus, AppError>(
       validationError(
         "This cart operation was already used with different items. Check the Kroger cart before starting a new operation.",
       ),
-    );
+    );}
 
-  if (claim.value.status === "completed") return ok("already_added");
+  if (claim.value.status === "completed") {return ok("already_added");}
 
   if (claim.value.status === "pending")
-    return err<CartAddStatus, AppError>(
+    {return err<CartAddStatus, AppError>(
       mutationOutcomeUnknown(
         "This cart add is pending or its outcome is unknown; do not retry or create a replacement list. Check the Kroger cart first.",
       ),
-    );
+    );}
+
   const { attempt } = claim.value;
 
   // A list with no cartable items still claims and reconciles the operation so
@@ -205,7 +206,7 @@ export async function addLineItemsToCart(
       "release empty cart operation",
     );
 
-    if (released.isErr()) return err<CartAddStatus, AppError>(released.error);
+    if (released.isErr()) {return err<CartAddStatus, AppError>(released.error);}
 
     return ok("needs_match");
   }
@@ -255,12 +256,12 @@ export async function addLineItemsToCart(
   );
 
   if (committed.isErr() || !committed.value)
-    return err<CartAddStatus, AppError>(
+    {return err<CartAddStatus, AppError>(
       mutationOutcomeUnknown(
         "Kroger accepted the cart add, but its retry receipt could not be confirmed; do not retry. Check the Kroger cart first.",
         committed.isErr() ? committed.error : undefined,
       ),
-    );
+    );}
 
   const mirrorItems = toCartSnapshotItems(lineItems, modality);
   await safeStorage(
@@ -297,7 +298,7 @@ async function handleInlineItemsCart(
     storeId,
   );
 
-  if (locationResult.isErr()) return toMcpError(locationResult.error);
+  if (locationResult.isErr()) {return toMcpError(locationResult.error);}
 
   const addResult = await addLineItemsToCart(
     carts,
@@ -309,10 +310,10 @@ async function handleInlineItemsCart(
     },
   );
 
-  if (addResult.isErr()) return toMcpError(addResult.error);
+  if (addResult.isErr()) {return toMcpError(addResult.error);}
 
   if (addResult.value === "already_added")
-    return {
+    {return {
       content: [
         {
           type: "text" as const,
@@ -328,7 +329,8 @@ async function handleInlineItemsCart(
         requestedCount: items.length,
         actionDetail: "Already added to cart for this operation",
       }),
-    };
+    };}
+
   const resolved = locationResult.value;
 
   const locationInfo = resolved.locationName
@@ -368,7 +370,8 @@ async function handleListIdCart(
     "fetch shopping list",
   );
 
-  if (listResult.isErr()) return toMcpError(listResult.error);
+  if (listResult.isErr()) {return toMcpError(listResult.error);}
+
   const list = listResult.value;
 
   if (!list) {
@@ -395,7 +398,7 @@ async function handleListIdCart(
       { receiptListId: listId },
     );
 
-    if (emptyAddResult.isErr()) return toMcpError(emptyAddResult.error);
+    if (emptyAddResult.isErr()) {return toMcpError(emptyAddResult.error);}
 
     return {
       content: [
@@ -429,7 +432,8 @@ async function handleListIdCart(
     storeId,
   );
 
-  if (locationResult.isErr()) return toMcpError(locationResult.error);
+  if (locationResult.isErr()) {return toMcpError(locationResult.error);}
+
   const resolved = locationResult.value;
 
   const lineItems: LineItem[] = cartable.map(({ item, upc }) => ({
@@ -448,7 +452,8 @@ async function handleListIdCart(
     },
   );
 
-  if (addResult.isErr()) return toMcpError(addResult.error);
+  if (addResult.isErr()) {return toMcpError(addResult.error);}
+
   const snapshot = toCartSnapshotItems(lineItems, modality);
   const alreadyAdded = addResult.value === "already_added";
 
@@ -525,7 +530,7 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
     "fetch cart mirror",
   );
 
-  if (mirrorResult.isErr()) return toMcpError(mirrorResult.error);
+  if (mirrorResult.isErr()) {return toMcpError(mirrorResult.error);}
 
   const parts: string[] = note ? [note] : [];
 
@@ -554,7 +559,7 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
     })),
   };
 
-  if (note) payload.note = note;
+  if (note) {payload.note = note;}
 
   return {
     ...textResult(parts.join("\n\n")),
@@ -665,7 +670,8 @@ export function registerCartTools(
           "read stored cart id",
         );
 
-        if (storedIdResult.isErr()) return toMcpError(storedIdResult.error);
+        if (storedIdResult.isErr()) {return toMcpError(storedIdResult.error);}
+
         resolvedId = storedIdResult.value ?? undefined;
       }
 
@@ -688,7 +694,7 @@ export function registerCartTools(
 
       if (liveResult.isErr()) {
         if (liveResult.error.type === "AUTH_ERROR")
-          return toMcpError(liveResult.error);
+          {return toMcpError(liveResult.error);}
 
         return mirrorFallbackResult(
           carts,

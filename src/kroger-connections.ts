@@ -22,11 +22,12 @@ export class KrogerConnections extends DurableObject<AppEnv> {
         try {
           const result = await this.env.AUTH.accessToken(userId);
 
-          if (result === null) return { state: { status: "not_connected" } };
+          if (result === null) {return { state: { status: "not_connected" } };}
+
           const token = tokenSchema.parse(result);
 
           if (token.expiresAt <= Date.now())
-            throw new Error("Auth returned an expired Kroger token");
+            {throw new Error("Auth returned an expired Kroger token");}
 
           return {
             state: {
@@ -44,7 +45,7 @@ export class KrogerConnections extends DurableObject<AppEnv> {
       },
     );
 
-    if ("error" in outcome) throw outcome.error;
+    if ("error" in outcome) {throw outcome.error;}
 
     return outcome.state;
   }

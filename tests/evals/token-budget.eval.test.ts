@@ -30,7 +30,7 @@ import {
 const logEnabled = () => Boolean(env.EVAL_LOG);
 
 function log(...parts: unknown[]) {
-  if (logEnabled()) console.log("[eval]", ...parts);
+  if (logEnabled()) {console.log("[eval]", ...parts);}
 }
 
 describe("token budget: tool surface", () => {

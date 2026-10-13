@@ -25,14 +25,14 @@ type MiddlewareResult = Awaited<
 
 function responseResult(value: MiddlewareResult): Response {
   if (!(value instanceof Response))
-    throw new Error("Expected a middleware Response");
+    {throw new Error("Expected a middleware Response");}
 
   return value;
 }
 
 function requestResult(value: MiddlewareResult): Request {
   if (!(value instanceof Request))
-    throw new Error("Expected a middleware Request");
+    {throw new Error("Expected a middleware Request");}
 
   return value;
 }
@@ -86,7 +86,7 @@ function callOnRequest(
 ) {
   const onRequest = middleware.onRequest;
 
-  if (!onRequest) throw new Error("onRequest not defined");
+  if (!onRequest) {throw new Error("onRequest not defined");}
 
   return onRequest(makeRequestParams(request));
 }
@@ -98,7 +98,7 @@ function callOnResponse(
 ) {
   const onResponse = middleware.onResponse;
 
-  if (!onResponse) throw new Error("onResponse not defined");
+  if (!onResponse) {throw new Error("onResponse not defined");}
 
   return onResponse(makeResponseParams(request, response));
 }
@@ -336,7 +336,8 @@ describe("createKrogerCacheMiddleware", () => {
 
     const call = vi.mocked(kv.put).mock.calls[0];
 
-    if (!call) throw new Error("Missing KV write");
+    if (!call) {throw new Error("Missing KV write");}
+
     const [key, value, options] = call;
 
     expect(key).toBe(

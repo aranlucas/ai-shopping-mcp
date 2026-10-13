@@ -12,7 +12,7 @@ describe("request deadlines", () => {
       fetch: async (request) => {
         signals.push(request.signal);
 
-        if (signals.length > 1) return Response.json({ data: [] });
+        if (signals.length > 1) {return Response.json({ data: [] });}
 
         return new Promise<Response>((_resolve, reject) => {
           request.signal.addEventListener(

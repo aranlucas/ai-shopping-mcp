@@ -44,7 +44,7 @@ export function LocationDetailView({
   const mapsUrl = useMemo(() => {
     const a = location.address;
 
-    if (!a?.addressLine1) return null;
+    if (!a?.addressLine1) {return null;}
 
     const parts = [a.addressLine1, a.city, a.state, a.zipCode]
       .filter(Boolean)
@@ -62,7 +62,8 @@ export function LocationDetailView({
         arguments: { storeId: id },
       });
 
-      if (result?.isError) throw new Error("Failed");
+      if (result?.isError) {throw new Error("Failed");}
+
       setPrefState("done");
     } catch {
       setPrefState("error");

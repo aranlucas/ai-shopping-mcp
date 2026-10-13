@@ -86,7 +86,7 @@ class MemoryKv {
     };
 
     const json = (value: string | null): T | null => {
-      if (value === null) return null;
+      if (value === null) {return null;}
 
       // SAFETY: KV's generic JSON overload delegates the serialized value contract to its caller, exactly as JSON.parse does; this fake does not claim schema validation.
       return JSON.parse(value) as T;
@@ -94,7 +94,7 @@ class MemoryKv {
 
     if (Array.isArray(key)) {
       if (format !== undefined && format !== "text" && format !== "json")
-        throw new Error("Unsupported multi-key KV format");
+        {throw new Error("Unsupported multi-key KV format");}
 
       return new Map(
         key.map((name) => [
@@ -106,16 +106,16 @@ class MemoryKv {
 
     const value = read(key);
 
-    if (value === null) return null;
+    if (value === null) {return null;}
 
-    if (format === "json") return json(value);
+    if (format === "json") {return json(value);}
 
-    if (format === "arrayBuffer") return new Response(value).arrayBuffer();
+    if (format === "arrayBuffer") {return new Response(value).arrayBuffer();}
 
     if (format === "stream") {
       const stream = new Response(value).body;
 
-      if (!stream) throw new Error("Text response unexpectedly has no body");
+      if (!stream) {throw new Error("Text response unexpectedly has no body");}
 
       return stream;
     }
@@ -128,7 +128,8 @@ class MemoryKv {
     options?: KVNamespacePutOptions,
   ): Promise<void> {
     if (options?.metadata !== undefined)
-      throw new Error("KV metadata is not configured in this test");
+      {throw new Error("KV metadata is not configured in this test");}
+
     const value = await new Response(input).text();
     this.store.set(key, value);
     this.expirations.set(

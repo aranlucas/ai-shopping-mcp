@@ -52,7 +52,7 @@ function registerAllTools() {
 function toolByName(tools: CapturedTool[], name: string): CapturedTool {
   const tool = tools.find((candidate) => candidate.name === name);
 
-  if (!tool) throw new Error(`Missing tool ${name}`);
+  if (!tool) {throw new Error(`Missing tool ${name}`);}
 
   return tool;
 }
@@ -122,7 +122,8 @@ describe("MCP agent contract", () => {
     const tools = registerAllTools();
 
     for (const tool of tools) {
-      if (tool.name === "get_shopping_profile") continue; // plain registerTool, no app UI
+      if (tool.name === "get_shopping_profile") {continue;} // plain registerTool, no app UI
+
       expect(tool.config.title, `${tool.name} title`).toEqual(
         expect.any(String),
       );

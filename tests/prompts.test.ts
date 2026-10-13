@@ -48,7 +48,8 @@ function makeServer(): McpServer {
       const argsSchema = config.argsSchema;
 
       if (argsSchema !== undefined && !(argsSchema instanceof z.ZodObject))
-        throw new Error("Expected registered Zod prompt arguments");
+        {throw new Error("Expected registered Zod prompt arguments");}
+
       capturedPrompts.push({
         name,
         config: { ...config, argsSchema },
@@ -71,7 +72,7 @@ function makeServer(): McpServer {
 function getPrompt(name: string): CapturedPrompt {
   const prompt = capturedPrompts.find((p) => p.name === name);
 
-  if (!prompt) throw new Error(`Missing prompt ${name}`);
+  if (!prompt) {throw new Error(`Missing prompt ${name}`);}
 
   return prompt;
 }

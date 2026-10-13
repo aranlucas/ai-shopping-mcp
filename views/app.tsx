@@ -99,9 +99,9 @@ function ShoppingApp() {
 
   useHostStyles(app, app?.getHostContext());
 
-  if (error) return <ErrorDisplay message={error.message} />;
+  if (error) {return <ErrorDisplay message={error.message} />;}
 
-  if (!app) return <Loading />;
+  if (!app) {return <Loading />;}
 
   return (
     <ShoppingAppInner
@@ -128,7 +128,7 @@ function getPartialLoadingMessage(
     case "search_products": {
       const terms = args.terms;
 
-      if (terms?.length) return `Searching for ${terms.join(", ")}…`;
+      if (terms?.length) {return `Searching for ${terms.join(", ")}…`;}
 
       return "Searching products…";
     }
@@ -303,6 +303,6 @@ function ShoppingAppInner({
 
 const rootElement = document.getElementById("root");
 
-if (!rootElement) throw new Error("Shopping app root element is missing");
+if (!rootElement) {throw new Error("Shopping app root element is missing");}
 
 createRoot(rootElement).render(<ShoppingApp />);

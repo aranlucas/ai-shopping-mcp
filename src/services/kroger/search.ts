@@ -86,7 +86,7 @@ export async function searchProductsForTerms(
       "filter.limit": params.limitPerTerm,
     };
 
-    if (params.locationId) queryParams["filter.locationId"] = params.locationId;
+    if (params.locationId) {queryParams["filter.locationId"] = params.locationId;}
 
     const apiResult = await fromApiResponse(
       () =>
@@ -136,9 +136,9 @@ export async function searchProductsForTerms(
         const aPickup = aItem?.fulfillment?.curbside === true;
         const bPickup = bItem?.fulfillment?.curbside === true;
 
-        if (aPickup && !bPickup) return -1;
+        if (aPickup && !bPickup) {return -1;}
 
-        if (!aPickup && bPickup) return 1;
+        if (!aPickup && bPickup) {return 1;}
 
         return 0;
       });

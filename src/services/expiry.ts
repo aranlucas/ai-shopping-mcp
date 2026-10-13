@@ -29,19 +29,19 @@ export function classifyExpiry(
   expiresAt: string | undefined,
   now: number = Date.now(),
 ): ExpiryClassification {
-  if (!expiresAt) return { status: "none" };
+  if (!expiresAt) {return { status: "none" };}
 
   const expiresAtMs = new Date(expiresAt).getTime();
 
-  if (Number.isNaN(expiresAtMs)) return { status: "invalid" };
+  if (Number.isNaN(expiresAtMs)) {return { status: "invalid" };}
 
   const daysUntil = Math.floor((expiresAtMs - now) / MS_PER_DAY);
 
-  if (daysUntil < 0) return { status: "expired", daysUntil };
+  if (daysUntil < 0) {return { status: "expired", daysUntil };}
 
-  if (daysUntil === 0) return { status: "today", daysUntil };
+  if (daysUntil === 0) {return { status: "today", daysUntil };}
 
-  if (daysUntil <= 3) return { status: "soon", daysUntil };
+  if (daysUntil <= 3) {return { status: "soon", daysUntil };}
 
   return { status: "ok", daysUntil };
 }

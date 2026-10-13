@@ -142,7 +142,7 @@ function recordedOrderItems(toolCalls: ToolCall[]) {
   return toolCalls
     .filter((call) => call.name === "record_order" && call.status === "ok")
     .flatMap((call) => {
-      if (!Array.isArray(call.arguments?.items)) return [];
+      if (!Array.isArray(call.arguments?.items)) {return [];}
 
       // A successful tool call has passed this same input contract, including coercions.
       return recordOrderInputSchema.parse(call.arguments).items;

@@ -105,7 +105,7 @@ export function makeStorage(
   const requireList = (id: string) => {
     const list = createdLists.find((candidate) => candidate.id === id);
 
-    if (!list) throw new Error(`Missing list ${id}`);
+    if (!list) {throw new Error(`Missing list ${id}`);}
 
     return list;
   };
@@ -123,7 +123,7 @@ export function makeStorage(
             (item) => item.productName === productName,
           );
 
-          if (index >= 0) pantryItems.splice(index, 1);
+          if (index >= 0) {pantryItems.splice(index, 1);}
         }
 
         return pantryItems;
@@ -137,7 +137,7 @@ export function makeStorage(
           (candidate) => candidate.productName === name,
         );
 
-        if (item) item.quantity = quantity;
+        if (item) {item.quantity = quantity;}
 
         return pantryItems;
       },
@@ -154,7 +154,7 @@ export function makeStorage(
             (item) => item.equipmentName === equipmentName,
           );
 
-          if (index >= 0) equipmentItems.splice(index, 1);
+          if (index >= 0) {equipmentItems.splice(index, 1);}
         }
 
         return equipmentItems;
@@ -221,7 +221,8 @@ export function makeStorage(
           (candidate) => candidate.id === itemId,
         );
 
-        if (!item) throw new Error(`Missing item ${itemId}`);
+        if (!item) {throw new Error(`Missing item ${itemId}`);}
+
         Object.assign(item, patch);
 
         return item;
@@ -388,7 +389,7 @@ export function getCapturedHandler(name: string): ToolHandler {
     (captured) => captured.name === name,
   );
 
-  if (!tool) throw new Error(`Tool ${name} was not captured`);
+  if (!tool) {throw new Error(`Tool ${name} was not captured`);}
 
   return tool.handler;
 }
@@ -398,7 +399,7 @@ export function getCapturedTool(name: string): CapturedTool {
     (captured) => captured.name === name,
   );
 
-  if (!tool) throw new Error(`Tool ${name} was not captured`);
+  if (!tool) {throw new Error(`Tool ${name} was not captured`);}
 
   return tool;
 }

@@ -47,7 +47,7 @@ async function createList(
 
   const data = parseAppResult(result);
 
-  if (data?.view !== "create_shopping_list") throw new Error("no list view");
+  if (data?.view !== "create_shopping_list") {throw new Error("no list view");}
 
   return data;
 }

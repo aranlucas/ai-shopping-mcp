@@ -77,17 +77,18 @@ function applyItemEdit(
   edit: ItemEdit,
 ): ShoppingListContent {
   if (edit.remove)
-    return { ...list, items: list.items.filter((item) => item.id !== itemId) };
+    {return { ...list, items: list.items.filter((item) => item.id !== itemId) };}
 
   return {
     ...list,
     items: list.items.map((item) => {
-      if (item.id !== itemId) return item;
+      if (item.id !== itemId) {return item;}
+
       const updated = { ...item };
 
-      if (edit.checked !== undefined) updated.checked = edit.checked;
+      if (edit.checked !== undefined) {updated.checked = edit.checked;}
 
-      if (edit.quantity !== undefined) updated.quantity = Number(edit.quantity);
+      if (edit.quantity !== undefined) {updated.quantity = Number(edit.quantity);}
 
       return updated;
     }),
@@ -111,7 +112,8 @@ function ShoppingItemRow({
 
   const apply = useCallback(
     async (edit: ItemEdit) => {
-      if (itemId === undefined) return;
+      if (itemId === undefined) {return;}
+
       setPending(true);
       setError(null);
 
@@ -321,9 +323,10 @@ export function ShoppingListView({
           ...edit,
         });
 
-        if (editNumber === latestEdit.current) setData?.(updated);
+        if (editNumber === latestEdit.current) {setData?.(updated);}
       } catch (error) {
-        if (editNumber === latestEdit.current) setData?.(data);
+        if (editNumber === latestEdit.current) {setData?.(data);}
+
         throw error;
       }
     },

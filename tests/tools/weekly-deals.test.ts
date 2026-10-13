@@ -695,7 +695,7 @@ function getWeeklyDealsHandler(): ToolHandler {
     (t) => t.name === "get_weekly_deals",
   );
 
-  if (!tool) throw new Error("get_weekly_deals not captured");
+  if (!tool) {throw new Error("get_weekly_deals not captured");}
 
   return tool.handler;
 }

@@ -59,7 +59,7 @@ export function computeRestockSuggestions(
   for (const order of orders) {
     const placedAt = new Date(order.placedAt).getTime();
 
-    if (Number.isNaN(placedAt)) continue;
+    if (Number.isNaN(placedAt)) {continue;}
 
     for (const item of order.items) {
       const key = item.productName.toLowerCase();
@@ -79,7 +79,7 @@ export function computeRestockSuggestions(
   const suggestions: RestockSuggestion[] = [];
 
   for (const { displayName, timestamps } of purchasesByName.values()) {
-    if (timestamps.length < 3) continue;
+    if (timestamps.length < 3) {continue;}
 
     const sorted = [...timestamps].toSorted((a, b) => a - b);
     const intervals: number[] = [];
@@ -89,7 +89,7 @@ export function computeRestockSuggestions(
     }
 
     const medianIntervalMs = median(intervals);
-    const lastPurchase = sorted[sorted.length - 1];
+    const lastPurchase = sorted.at(-1);
     const sinceLastMs = now - lastPurchase;
 
     if (sinceLastMs > medianIntervalMs) {

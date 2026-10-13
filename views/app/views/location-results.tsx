@@ -60,7 +60,7 @@ const PREFERRED_STAR_ICON = (
 function locationToMapsUrl(loc: LocationData): string | null {
   const a = loc.address;
 
-  if (!a?.addressLine1) return null;
+  if (!a?.addressLine1) {return null;}
 
   const parts = [a.addressLine1, a.city, a.state, a.zipCode]
     .filter(Boolean)
@@ -281,7 +281,7 @@ export function LocationResultsView({
         arguments: { storeId: id },
       });
 
-      if (result?.isError) throw new Error("Failed to set preferred location");
+      if (result?.isError) {throw new Error("Failed to set preferred location");}
     },
     [app],
   );
@@ -293,10 +293,11 @@ export function LocationResultsView({
         arguments: { storeId: id },
       });
 
-      if (result?.isError) throw new Error("Failed to load details");
+      if (result?.isError) {throw new Error("Failed to load details");}
+
       const parsed = parseToolResult(result);
 
-      if (parsed) setData(parsed);
+      if (parsed) {setData(parsed);}
     },
     [app, setData],
   );

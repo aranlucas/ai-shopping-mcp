@@ -215,7 +215,7 @@ const CATEGORY_KEYWORDS: Record<KeywordCategory, string[]> = {
 };
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 const CATEGORY_PATTERNS: Array<{ category: KeywordCategory; pattern: RegExp }> =
@@ -245,7 +245,7 @@ export function classifyDealCategory(title: string): DealCategory {
   const normalized = normalizeTitle(title);
 
   for (const { category, pattern } of CATEGORY_PATTERNS) {
-    if (pattern.test(normalized)) return category;
+    if (pattern.test(normalized)) {return category;}
   }
 
   return "Other";

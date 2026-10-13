@@ -121,7 +121,8 @@ export function registerShopTools(
       );
 
       const results = searches.map((result) => {
-        if (result.status === "failed") return result;
+        if (result.status === "failed") {return result;}
+
         const seen = new Set<string>();
 
         return Object.assign({}, result, {
@@ -138,7 +139,8 @@ export function registerShopTools(
                   ? variant?.fulfillment?.curbside !== true
                   : variant?.fulfillment?.delivery !== true)
               )
-                return false;
+                {return false;}
+
               seen.add(upc);
 
               return true;
@@ -194,7 +196,7 @@ export function registerShopTools(
         } satisfies AppResultPayloads["search_products"]["results"][number];
 
         if (result.status === "failed")
-          return { ...group, error: result.error.message };
+          {return { ...group, error: result.error.message };}
 
         return group;
       });

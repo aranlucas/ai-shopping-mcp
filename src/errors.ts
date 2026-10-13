@@ -83,12 +83,12 @@ export class AppErrorException extends Error {
 
 /** Coerce an unknown value into an ErrorCause for safe storage */
 function toErrorCause(cause: unknown): ErrorCause {
-  if (cause === undefined || cause === null) return undefined;
+  if (cause === undefined || cause === null) {return undefined;}
 
-  if (cause instanceof Error) return cause;
+  if (cause instanceof Error) {return cause;}
 
   // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Opaque error retention distinguishes primitives without interpreting or cloning third-party objects.
-  if (typeof cause === "string") return cause;
+  if (typeof cause === "string") {return cause;}
 
   // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Preserve arbitrary non-null error objects, including arrays, without inspecting their contents.
   if (typeof cause === "object") {

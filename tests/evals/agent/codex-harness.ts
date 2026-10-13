@@ -84,7 +84,8 @@ export function codexAgentHarness(options: {
         });
 
         if (!response.ok)
-          throw new Error(`Codex driver HTTP ${response.status}`);
+          {throw new Error(`Codex driver HTTP ${response.status}`);}
+
         // oxlint-disable-next-line eslint/no-await-in-loop -- parse the current turn before choosing the next
         const action = actionSchema.parse(await response.json());
 
@@ -119,7 +120,8 @@ export function codexAgentHarness(options: {
         }
 
         if (calls >= MAX_STEPS)
-          throw new Error(`Exceeded ${MAX_STEPS} tool calls`);
+          {throw new Error(`Exceeded ${MAX_STEPS} tool calls`);}
+
         const id = `call_${++calls}`;
         events.push({
           type: "tool_call",
@@ -140,7 +142,8 @@ export function codexAgentHarness(options: {
             content: text,
           };
 
-          if (result.isError) event.error = { message: text };
+          if (result.isError) {event.error = { message: text };}
+
           events.push(event);
           observation = {
             name: action.name,

@@ -104,7 +104,7 @@ export function createKrogerCacheMiddleware(
 ): Middleware {
   return {
     async onRequest({ request }) {
-      if (!kv || request.method !== "GET") return;
+      if (!kv || request.method !== "GET") {return;}
 
       const key = krogerCacheKeyFor(request.url);
 
@@ -115,7 +115,7 @@ export function createKrogerCacheMiddleware(
 
       const raw = cacheResult.isOk() ? cacheResult.value : null;
 
-      if (!raw) return;
+      if (!raw) {return;}
 
       const parseResult = safeJsonParseWithSchema(raw, krogerCacheEntrySchema);
 
@@ -123,7 +123,7 @@ export function createKrogerCacheMiddleware(
         ? parseResult.value
         : null;
 
-      if (!entry) return;
+      if (!entry) {return;}
 
       return new Response(entry.body, {
         status: entry.status,
@@ -132,7 +132,7 @@ export function createKrogerCacheMiddleware(
     },
 
     async onResponse({ request, response }) {
-      if (!kv || request.method !== "GET" || !response.ok) return;
+      if (!kv || request.method !== "GET" || !response.ok) {return;}
 
       const key = krogerCacheKeyFor(request.url);
       const copy = response.clone();
@@ -150,8 +150,8 @@ export function createKrogerCacheMiddleware(
         ),
       );
 
-      if (waitUntil) waitUntil(Promise.resolve(write));
-      else await write;
+      if (waitUntil) {waitUntil(Promise.resolve(write));}
+      else {await write;}
     },
   };
 }

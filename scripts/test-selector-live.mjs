@@ -5,7 +5,7 @@ import { unstable_dev } from "wrangler";
 import { fileURLToPath } from "node:url";
 
 function assert(condition, message) {
-  if (!condition) throw new Error(message);
+  if (!condition) {throw new Error(message);}
 }
 
 async function main() {

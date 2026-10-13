@@ -74,13 +74,13 @@ export function fromApiResponse<T>(
   context: string,
 ): ResultAsync<T, AppError> {
   const mapFailure = (cause: unknown): AppError => {
-    if (cause instanceof AppErrorException) return cause.appError;
+    if (cause instanceof AppErrorException) {return cause.appError;}
 
     if (cause instanceof SyntaxError)
-      return invalidResponseError(
+      {return invalidResponseError(
         `${context}: upstream returned malformed JSON.`,
         cause,
-      );
+      );}
 
     if (cause instanceof Error && cause.name === "KrogerTokenExpiredError") {
       return authError(cause.message);
@@ -100,9 +100,9 @@ export function fromApiResponse<T>(
 
   return result.andThen(({ data, error, response }) => {
     if (response.status === 401)
-      return err(
+      {return err(
         authError("Authentication expired. Reconnect the MCP server."),
-      );
+      );}
 
     if (error !== undefined || !response.ok) {
       return err(apiError(`Failed to ${context}`, error, response.status));
@@ -150,7 +150,7 @@ export function parseAuthenticatedProps(value: unknown): Props {
   const parsed = authenticatedPropsSchema.safeParse(value);
 
   if (!parsed.success)
-    throw new Error("getProps() called outside an authenticated MCP request");
+    {throw new Error("getProps() called outside an authenticated MCP request");}
 
   return parsed.data.props;
 }

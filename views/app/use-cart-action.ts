@@ -27,7 +27,8 @@ export function useCartAction(
       (state.status !== "added" && state.status !== "already_added") ||
       resetAfterMs === undefined
     )
-      return;
+      {return;}
+
     const timer = setTimeout(action.reset, resetAfterMs);
 
     return () => clearTimeout(timer);

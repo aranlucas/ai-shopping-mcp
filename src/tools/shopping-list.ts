@@ -170,11 +170,11 @@ async function toStoredItems(
         quantity: item.quantity,
       };
 
-      if (item.upc !== undefined) stored.upc = item.upc;
+      if (item.upc !== undefined) {stored.upc = item.upc;}
 
-      if (item.notes !== undefined) stored.notes = item.notes;
+      if (item.notes !== undefined) {stored.notes = item.notes;}
 
-      if (item.price !== undefined) stored.price = item.price;
+      if (item.price !== undefined) {stored.price = item.price;}
 
       return stored;
     });
@@ -254,14 +254,14 @@ export function matchListsByName(
   const query = name.trim().toLowerCase();
   const exact = lists.filter((list) => list.name.toLowerCase() === query);
 
-  if (exact.length > 0) return exact;
+  if (exact.length > 0) {return exact;}
 
   return lists.filter((list) => list.name.toLowerCase().includes(query));
 }
 
 /** Earlier edits in a batch already committed; say which before the error. */
 function partialFailure(error: AppError, applied: string[]) {
-  if (applied.length === 0) return toMcpError(error);
+  if (applied.length === 0) {return toMcpError(error);}
 
   return toMcpError({
     ...error,
@@ -300,7 +300,8 @@ export function registerShoppingListTools(
 
       const enriched = await toStoredItems(productService, items);
 
-      if (enriched.isErr()) return toMcpError(enriched.error);
+      if (enriched.isErr()) {return toMcpError(enriched.error);}
+
       const enrichedItems = enriched.value;
 
       // Best-effort pantry/deal flags (see item-flags.ts): a storage/cache
@@ -336,7 +337,8 @@ export function registerShoppingListTools(
         enrichedItems,
       );
 
-      if (result.isErr()) return toMcpError(result.error);
+      if (result.isErr()) {return toMcpError(result.error);}
+
       const { listId, list } = result.value;
 
       return {
@@ -380,7 +382,7 @@ export function registerShoppingListTools(
           "read shopping lists",
         );
 
-        if (result.isErr()) return toMcpError(result.error);
+        if (result.isErr()) {return toMcpError(result.error);}
 
         const lists = result.value;
 
@@ -427,7 +429,7 @@ export function registerShoppingListTools(
         "read shopping list",
       );
 
-      if (result.isErr()) return toMcpError(result.error);
+      if (result.isErr()) {return toMcpError(result.error);}
 
       const list = result.value;
 
@@ -477,7 +479,7 @@ export function registerShoppingListTools(
 
       const resolved = await resolveItemIds(listId, removeRefs);
 
-      if (resolved.isErr()) return toMcpError(resolved.error);
+      if (resolved.isErr()) {return toMcpError(resolved.error);}
 
       for (const itemId of resolved.value) {
         // oxlint-disable-next-line eslint/no-await-in-loop -- edits apply in order so a failure reports what already changed
@@ -486,7 +488,8 @@ export function registerShoppingListTools(
           "remove shopping list item",
         );
 
-        if (removed.isErr()) return partialFailure(removed.error, summary);
+        if (removed.isErr()) {return partialFailure(removed.error, summary);}
+
         summary.push(`Removed itemId=${itemId}.`);
       }
 
@@ -510,7 +513,8 @@ export function registerShoppingListTools(
           "update shopping list item",
         );
 
-        if (updated.isErr()) return partialFailure(updated.error, summary);
+        if (updated.isErr()) {return partialFailure(updated.error, summary);}
+
         const item = updated.value;
         summary.push(
           `Updated itemId=${itemId}: ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
@@ -521,14 +525,15 @@ export function registerShoppingListTools(
         const storedItems = await toStoredItems(productService, add);
 
         if (storedItems.isErr())
-          return partialFailure(storedItems.error, summary);
+          {return partialFailure(storedItems.error, summary);}
 
         const added = await safeStorage(
           () => shoppingList.addItems(listId, storedItems.value),
           "add shopping list items",
         );
 
-        if (added.isErr()) return partialFailure(added.error, summary);
+        if (added.isErr()) {return partialFailure(added.error, summary);}
+
         summary.push(
           ...added.value.map(
             (item) =>
@@ -552,7 +557,7 @@ export function registerShoppingListTools(
     listId: string,
     refs: string[],
   ): ResultAsync<string[], AppError> {
-    if (refs.length === 0) return okAsync([]);
+    if (refs.length === 0) {return okAsync([]);}
 
     return safeStorage(
       () => shoppingList.get(listId),
@@ -609,7 +614,7 @@ export function registerShoppingListTools(
 
     const list = listResult.isOk() ? listResult.value : null;
 
-    if (!list) return textResult(text);
+    if (!list) {return textResult(text);}
 
     return shoppingListViewResult(
       list,

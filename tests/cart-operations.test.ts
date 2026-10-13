@@ -18,7 +18,8 @@ describe("cart operation journal", () => {
       1,
     );
 
-    if (!owner || owner.status !== "started") throw new Error("Missing owner");
+    if (!owner || owner.status !== "started") {throw new Error("Missing owner");}
+
     await journal.complete("list:one", owner.attempt);
     expect(await journal.begin("list:one", "milk")).toMatchObject({
       status: "completed",
@@ -32,7 +33,8 @@ describe("cart operation journal", () => {
     const journal = cartOperationStore();
     const first = await journal.begin("list:one", "milk");
 
-    if (first.status !== "started") throw new Error("Missing owner");
+    if (first.status !== "started") {throw new Error("Missing owner");}
+
     await journal.reject("list:one", first.attempt);
     const second = await journal.begin("list:one", "milk");
     expect(second.status).toBe("started");
@@ -99,7 +101,8 @@ describe("cart operation journal", () => {
     const fingerprint = cartItemsFingerprint(items);
     const owner = await journal.begin("list:known", fingerprint);
 
-    if (owner.status !== "started") throw new Error("Missing owner");
+    if (owner.status !== "started") {throw new Error("Missing owner");}
+
     await journal.complete("list:known", owner.attempt);
 
     let reads = 0;

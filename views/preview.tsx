@@ -230,7 +230,7 @@ function updatePreviewList(
       .map((item) => {
         const change = item.id ? changes.get(item.id) : undefined;
 
-        if (!change) return item;
+        if (!change) {return item;}
 
         return Object.assign(
           {},
@@ -290,7 +290,7 @@ function Preview() {
         await new Promise((resolve) => setTimeout(resolve, 600));
 
         if (unknownCart && call.name === "add_shopping_list_to_cart")
-          return {
+          {return {
             content: [
               {
                 type: "text",
@@ -304,10 +304,10 @@ function Preview() {
                 recovery: "check_cart",
               },
             },
-          };
+          };}
 
         if (fail)
-          return {
+          {return {
             content: [
               {
                 type: "text",
@@ -315,25 +315,26 @@ function Preview() {
               },
             ],
             isError: true,
-          };
+          };}
+
         setLastAction(`Completed ${call.name}.`);
 
         if (call.name === "search_products")
-          return { content: [], ...appResult("search_products", PRODUCTS) };
+          {return { content: [], ...appResult("search_products", PRODUCTS) };}
 
         if (call.name === "create_shopping_list")
-          return {
+          {return {
             content: [],
             structuredContent: { listId: "preview-created-list" },
-          };
+          };}
 
         if (call.name === "get_shopping_list")
-          return call.arguments.listId
+          {return call.arguments.listId
             ? {
                 content: [],
                 ...appResult("create_shopping_list", listRef.current),
               }
-            : { content: [], ...appResult("shopping_lists", LISTS) };
+            : { content: [], ...appResult("shopping_lists", LISTS) };}
 
         if (call.name === "update_shopping_list") {
           listRef.current = updatePreviewList(listRef.current, call.arguments);
@@ -345,7 +346,7 @@ function Preview() {
         }
 
         if (call.name === "record_order")
-          return {
+          {return {
             content: [],
             ...appResult("record_order", {
               orderId: "preview-order",
@@ -353,16 +354,16 @@ function Preview() {
               totalItems: 0,
               placedAt: new Date().toISOString(),
             }),
-          };
+          };}
 
         if (call.name === "update_inventory")
-          return {
+          {return {
             content: [],
             ...appResult("pantry", { items: [] }),
-          };
+          };}
 
         if (call.name === "add_shopping_list_to_cart")
-          return {
+          {return {
             content: [],
             ...appResult("add_shopping_list_to_cart", {
               outcome: "added",
@@ -380,7 +381,7 @@ function Preview() {
               needsUpc: [],
               actionDetail: "Added 1 item(s) to cart",
             }),
-          };
+          };}
 
         return { content: [] };
       },
@@ -388,7 +389,8 @@ function Preview() {
         setLastAction("Asking assistant…");
         await new Promise((resolve) => setTimeout(resolve, 600));
 
-        if (fail) return { isError: true };
+        if (fail) {return { isError: true };}
+
         setLastAction("Message received by preview assistant.");
 
         return {};
@@ -532,7 +534,8 @@ function Preview() {
 if (import.meta.env.DEV) {
   const element = document.getElementById("root");
 
-  if (!element) throw new Error("Preview root element is missing");
+  if (!element) {throw new Error("Preview root element is missing");}
+
   const root = createRoot(element);
   root.render(<Preview />);
   import.meta.hot?.dispose(() => root.unmount());

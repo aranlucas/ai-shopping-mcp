@@ -340,11 +340,12 @@ export function parseAppResult(
     result?._meta?.[APP_VIEW_META_KEY],
   );
 
-  if (!structuredContent || !parsedView.success) return null;
+  if (!structuredContent || !parsedView.success) {return null;}
+
   const view = parsedView.data;
   const parsed = appPayloadSchemas[view].safeParse(structuredContent);
 
-  if (!parsed.success) return null;
+  if (!parsed.success) {return null;}
 
   // SAFETY: the finite validated view key selects precisely its associated payload schema, preserving the AppData discriminator/payload correlation.
   return { ...parsed.data, view } as AppData;

@@ -84,7 +84,7 @@ function makeMapConfig(
   };
 
   if (offerVersionProductGroupId !== undefined)
-    content.offerVersionProductGroupId = offerVersionProductGroupId;
+    {content.offerVersionProductGroupId = offerVersionProductGroupId;}
 
   return JSON.stringify({ content });
 }

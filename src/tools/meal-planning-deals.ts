@@ -41,9 +41,9 @@ export async function getMealPlanningDeals(
   }
 
   if (deals.length === 0)
-    parts.push(
+    {parts.push(
       "No weekly offers found. Plan from pantry and regular-price ingredients.",
-    );
+    );}
 
   for (const deal of deals) {
     const circular =
@@ -67,7 +67,7 @@ export async function getMealPlanningDeals(
   }
 
   if (data.deals.length > deals.length)
-    parts.push("Use get_weekly_deals for more offers.");
+    {parts.push("Use get_weekly_deals for more offers.");}
 
   return parts.join("\n");
 }

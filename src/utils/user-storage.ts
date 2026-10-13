@@ -108,7 +108,7 @@ async function readOptional<TSchema extends z.ZodType>(
 ): Promise<z.output<TSchema> | null> {
   const value = await kv.get(key);
 
-  if (value == null) return null;
+  if (value == null) {return null;}
 
   return decode(key, value, schema);
 }
@@ -120,7 +120,7 @@ async function readCollection<TSchema extends z.ZodType>(
 ): Promise<z.output<TSchema>[]> {
   const value = await kv.get(key);
 
-  if (value == null) return [];
+  if (value == null) {return [];}
 
   return decode(key, value, z.array(schema));
 }
@@ -133,7 +133,8 @@ async function readCollectionTolerant<TSchema extends z.ZodType>(
   try {
     return await readCollection(kv, key, schema);
   } catch (error) {
-    if (!(error instanceof CorruptPersistenceEntryError)) throw error;
+    if (!(error instanceof CorruptPersistenceEntryError)) {throw error;}
+
     console.warn("Discarding corrupted KV entry:", error);
 
     return [];

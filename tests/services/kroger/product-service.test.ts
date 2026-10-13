@@ -266,7 +266,8 @@ describe("ProductService catalog budget", () => {
       async (_path, options) => {
         const upc = options.params.path?.id;
 
-        if (!upc) throw new Error("Missing fixture UPC path");
+        if (!upc) {throw new Error("Missing fixture UPC path");}
+
         inFlight++;
         peak = Math.max(peak, inFlight);
         await new Promise((resolve) => {
@@ -309,7 +310,7 @@ describe("ProductService catalog budget", () => {
     const service = new ProductService(
       stubProductClient((_path, options) => {
         if (options.params.path?.id === "0000000000001")
-          throw new Error("adapter failed");
+          {throw new Error("adapter failed");}
 
         return Promise.resolve({
           data: { data: makeProduct() },

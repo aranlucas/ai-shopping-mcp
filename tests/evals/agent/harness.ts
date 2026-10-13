@@ -46,7 +46,7 @@ export function taskInput(task: AgentTask): AgentInput {
 export function findTask(taskId: string): AgentTask {
   const task = AGENT_TASKS.find((candidate) => candidate.id === taskId);
 
-  if (!task) throw new Error(`Unknown agent task ${taskId}`);
+  if (!task) {throw new Error(`Unknown agent task ${taskId}`);}
 
   return task;
 }
@@ -82,7 +82,7 @@ async function mcpToolSet(client: Client): Promise<ToolSet> {
 
           // Thrown errors reach the model as tool errors and are recorded
           // with status "error" on the harness run.
-          if (result.isError) throw new Error(text);
+          if (result.isError) {throw new Error(text);}
 
           return text;
         },
@@ -162,7 +162,7 @@ type FeedbackParts = { answer: string; feedback: string };
 function splitFeedback(text: string): FeedbackParts {
   const index = text.search(/TOOL FEEDBACK:/i);
 
-  if (index === -1) return { answer: text.trim(), feedback: "" };
+  if (index === -1) {return { answer: text.trim(), feedback: "" };}
 
   return {
     answer: text.slice(0, index).trim(),
@@ -228,7 +228,7 @@ export function shoppingAgentHarness(options: {
       return result;
     },
     output: ({ result }): AgentOutput => {
-      if (!observed) throw new Error("harness output read before run");
+      if (!observed) {throw new Error("harness output read before run");}
 
       return { ...splitFeedback(result.text), ...observed };
     },

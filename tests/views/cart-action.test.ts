@@ -71,9 +71,9 @@ function makeApp(results: Array<CallToolResult | Error>) {
     .mockImplementation(async () => {
       const result = results.shift();
 
-      if (result instanceof Error) throw result;
+      if (result instanceof Error) {throw result;}
 
-      if (!result) throw new Error("Unexpected tool call");
+      if (!result) {throw new Error("Unexpected tool call");}
 
       return result;
     });
@@ -253,7 +253,8 @@ describe("cart action state transitions", () => {
     const request = structuredClone(productRequest);
     const action = createCartAction(request);
 
-    if (request.kind !== "product") throw new Error("Expected product fixture");
+    if (request.kind !== "product") {throw new Error("Expected product fixture");}
+
     request.product.quantity = 99;
     const { app, callServerTool } = makeApp([listCreated, success]);
     await action.submit(app);

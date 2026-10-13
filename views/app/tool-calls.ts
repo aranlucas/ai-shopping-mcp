@@ -126,7 +126,7 @@ export function shoppingListIdFromResult(
     .object({ listId: z.string().min(1) })
     .safeParse(result?.structuredContent);
 
-  if (!parsed.success) throw new Error("Shopping list id missing");
+  if (!parsed.success) {throw new Error("Shopping list id missing");}
 
   return parsed.data.listId;
 }
@@ -148,9 +148,9 @@ export async function createProductList(
   input: ProductShoppingListInput,
 ): Promise<string> {
   if (!app)
-    throw new Error(
+    {throw new Error(
       "The shopping app is disconnected. Reopen it and try again.",
-    );
+    );}
 
   let result: CallToolResult;
 
@@ -224,10 +224,11 @@ export async function callForView(
 ): Promise<AppData> {
   const result = await callTool(app, call);
 
-  if (result.isError) throw new Error(toolResultErrorMessage(result, fallback));
+  if (result.isError) {throw new Error(toolResultErrorMessage(result, fallback));}
+
   const data = parseToolResult(result);
 
-  if (!data) throw new Error(fallback);
+  if (!data) {throw new Error(fallback);}
 
   return data;
 }
@@ -255,7 +256,7 @@ export async function openShoppingList(
   );
 
   if (data.view !== "create_shopping_list")
-    throw new Error("Could not open that list");
+    {throw new Error("Could not open that list");}
 
   return data;
 }
@@ -287,7 +288,7 @@ export async function editShoppingListItem(
   );
 
   if (data.view !== "create_shopping_list")
-    throw new Error("Could not update the list");
+    {throw new Error("Could not update the list");}
 
   return data;
 }
@@ -311,7 +312,8 @@ export async function recordPurchase(
   );
 
   if (purchased.length === 0)
-    throw new Error("No Kroger items to record as purchased");
+    {throw new Error("No Kroger items to record as purchased");}
+
   await callForView(
     app,
     { name: "record_order", arguments: { items: purchased } },
@@ -326,9 +328,10 @@ export async function addListToCart(
   modality: AddShoppingListToCartArgs["modality"] = "PICKUP",
 ): Promise<AddShoppingListToCartContent> {
   if (!app)
-    throw new Error(
+    {throw new Error(
       "The shopping app is disconnected. Reopen it and try again.",
-    );
+    );}
+
   let result: CallToolResult;
 
   try {
