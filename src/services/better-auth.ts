@@ -2,10 +2,7 @@ import { verifyBearerToken } from "better-auth/oauth2";
 import type { JWTPayload } from "jose";
 import { z } from "zod/v4";
 
-interface McpSettingsEnv {
-  MCP_RESOURCE_URL: string;
-  MCP_ALLOWED_ORIGINS?: string;
-}
+type McpSettingsEnv = { MCP_RESOURCE_URL: string; MCP_ALLOWED_ORIGINS?: string };
 
 export type AuthIdentity = { id: string; issuer: string; subject: string };
 

@@ -25,9 +25,24 @@ import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
 import { textResult } from "./types.js";
 
-interface CartQuantity {
-  quantity: number;
-}
+type CartQuantity = { quantity: number };
+
+type CartResultPayload = {
+  listId?: string;
+  name: string;
+  items: CartSnapshotItem[];
+  needsUpc: Array<{ productName: string; quantity: number }>;
+  outcome: CartOutcome;
+  requestedCount: number;
+  actionDetail: string;
+};
+
+type SubmitCartOptions = {
+  receiptListId?: string;
+  operationId?: string;
+};
+
+type CartLineItem = { upc: string; quantity: number };
 
 type CartItem = components["schemas"]["cart.cartItemModel"];
 
@@ -107,16 +122,6 @@ function toCartSnapshotItems(
   }));
 }
 
-interface CartResultPayload {
-  listId?: string;
-  name: string;
-  items: CartSnapshotItem[];
-  needsUpc: Array<{ productName: string; quantity: number }>;
-  outcome: CartOutcome;
-  requestedCount: number;
-  actionDetail: string;
-}
-
 function cartResultPayload(payload: CartResultPayload) {
   return appResult("add_shopping_list_to_cart", {
     ...payload,
@@ -133,17 +138,12 @@ function cartResultPayload(payload: CartResultPayload) {
  * write failure does not fail the tool call. List-backed writes also persist
  * their retry receipt here so every caller gets the same duplicate protection.
  */
-interface AddLineItemsOptions {
-  receiptListId?: string;
-  operationId?: string;
-}
-
 export async function addLineItemsToCart(
   carts: CartStore,
   cartClient: KrogerClients["cartClient"],
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
-  options: AddLineItemsOptions = {},
+  options: SubmitCartOptions = {},
 ): Promise<Result<CartAddStatus, AppError>> {
   const cartItems: CartItem[] = lineItems.map((item) => ({
     upc: item.upc,
@@ -280,13 +280,11 @@ export async function addLineItemsToCart(
   return ok("added");
 }
 
-type InlineCartItem = { upc: string; quantity: number };
-
 async function handleInlineItemsCart(
   preferredLocation: PreferredLocationStore,
   carts: CartStore,
   cartClient: KrogerClients["cartClient"],
-  items: InlineCartItem[],
+  items: Array<CartLineItem>,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
   operationId?: string,

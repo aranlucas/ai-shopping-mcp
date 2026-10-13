@@ -2,7 +2,7 @@ import { ResultAsync, err, ok, type Result } from "neverthrow";
 
 import type { AppError } from "../../errors.js";
 import type { QfcDealsApiResponse, WeeklyDealsCacheEntry } from "./schema.js";
-import type { WeeklyDealsCache, WeeklyDealsCacheKeyOptions } from "./cache.js";
+import type { WeeklyDealsCache, WeeklyDealsCacheParams } from "./cache.js";
 
 import { AppErrorException, networkError, notFoundError } from "../../errors.js";
 import { addWeeklyDealsWarning as addWarning, buildWeeklyDealsCacheKey } from "./cache.js";
@@ -175,7 +175,7 @@ export async function loadWeeklyDeals(
  */
 export async function getCachedWeeklyDealsForFlags(
   weeklyDealsCache: WeeklyDealsCache,
-  params: WeeklyDealsCacheKeyOptions,
+  params: WeeklyDealsCacheParams,
 ): Promise<QfcDealsApiResponse | null> {
   const key = buildWeeklyDealsCacheKey(params);
   const result = await weeklyDealsCache.read(key);

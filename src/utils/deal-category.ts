@@ -1,3 +1,6 @@
+type CategoryPattern = { category: KeywordCategory; pattern: RegExp };
+
+type CategoryKeywordsEntry = [KeywordCategory, string[]];
 /**
  * Deterministic keyword classifier that groups weekly-deal titles into meal-
  * planning categories. Neither deal source carries reliable category data:
@@ -18,13 +21,6 @@ export const DEAL_CATEGORIES = [
 export type DealCategory = (typeof DEAL_CATEGORIES)[number];
 
 type KeywordCategory = Exclude<DealCategory, "Other">;
-
-interface CategoryPattern {
-  category: KeywordCategory;
-  pattern: RegExp;
-}
-
-type CategoryKeywordsEntry = [KeywordCategory, string[]];
 
 const CATEGORY_KEYWORDS: Record<KeywordCategory, string[]> = {
   "Meat & Seafood": [

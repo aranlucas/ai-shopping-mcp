@@ -12,30 +12,49 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardFooter } from "./ui/card";
 
-interface SectionHeaderProps {
+type SectionHeaderProps = {
   title: string;
   badge?: ReactNode;
   subtitle?: string;
   trailing?: ReactNode;
-}
+};
 
-interface FulfillmentTag {
-  label: string;
-  tone: "info" | "danger";
-}
+type DisplayModeToggleProps = {
+  app: ShoppingAppClient | null | undefined;
+  hostContext: McpUiHostContext | undefined;
+};
 
-interface ExternalLinkProps {
+type ProductDisplayProps = { product: ProductData };
+
+type FulfillmentTag = { label: string; tone: "info" | "danger" };
+
+type ActionButtonProps = {
+  state: "idle" | "loading" | "done" | "error";
+  onClick: () => void | Promise<void>;
+  disabled?: boolean;
+  icon?: ReactNode;
+  idleLabel: string;
+  loadingLabel?: string;
+  doneLabel?: string;
+  failLabel?: string;
+  variant?: "primary" | "secondary";
+  labelContext?: string;
+  /** Show only the icon; the state label stays available to screen readers. */
+  iconOnly?: boolean;
+};
+
+type HostLinkProps = {
   app: ShoppingAppClient | null;
   href: string;
   children: ReactNode;
-}
+};
 
-interface CartCheckLinkProps {
+type CheckCartButtonProps = {
   app: ShoppingAppClient | null;
   label?: string;
-}
+};
 
-interface CartActionControlProps {
+type CartButtonProps = {
   app: ShoppingAppClient | null;
   state: CartState;
   onSubmit: () => Promise<void>;
@@ -45,14 +64,31 @@ interface CartActionControlProps {
   doneLabel: string;
   failLabel: string;
   labelContext?: string;
-}
+};
 
-interface SaveToListControlProps {
+type SaveToListButtonProps = {
   app: ShoppingAppClient | null;
   product: SaveableProduct;
   disabled?: boolean;
   onSave: SaveProductToList;
-}
+};
+
+type ProductActionsProps = {
+  app: ShoppingAppClient | null;
+  upc: string;
+  name: string;
+  price?: number;
+  disabled?: boolean;
+  cartDisabled?: boolean;
+  onAddToList: SaveProductToList;
+};
+
+type ProductCardProps = {
+  app: ShoppingAppClient | null;
+  product: ProductData;
+  canCallTools: boolean;
+  onAddToList: SaveProductToList;
+};
 
 export { Badge };
 
@@ -87,11 +123,6 @@ export function SectionHeader({ title, badge, subtitle, trailing }: SectionHeade
       {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
     </div>
   );
-}
-
-export interface DisplayModeToggleProps {
-  app: ShoppingAppClient | null | undefined;
-  hostContext: McpUiHostContext | undefined;
 }
 
 export function DisplayModeToggle({ app, hostContext }: DisplayModeToggleProps) {
@@ -144,11 +175,7 @@ export function DisplayModeToggle({ app, hostContext }: DisplayModeToggleProps) 
   );
 }
 
-export interface FulfillmentTagsProps {
-  product: ProductData;
-}
-
-export function FulfillmentTags({ product }: FulfillmentTagsProps) {
+export function FulfillmentTags({ product }: ProductDisplayProps) {
   const tags: Array<FulfillmentTag> = product.pickup ? [{ label: "Pickup", tone: "info" }] : [];
 
   if (!product.available) {
@@ -170,11 +197,7 @@ export function FulfillmentTags({ product }: FulfillmentTagsProps) {
   );
 }
 
-export interface PriceDisplayProps {
-  product: ProductData;
-}
-
-export function PriceDisplay({ product }: PriceDisplayProps) {
+export function PriceDisplay({ product }: ProductDisplayProps) {
   if (product.price === undefined) {
     return <span className="text-xs text-gray-500">Price unavailable</span>;
   }
@@ -198,21 +221,6 @@ export function PriceDisplay({ product }: PriceDisplayProps) {
       )}
     </span>
   );
-}
-
-export interface ActionButtonProps {
-  state: "idle" | "loading" | "done" | "error";
-  onClick: () => void | Promise<void>;
-  disabled?: boolean;
-  icon?: ReactNode;
-  idleLabel: string;
-  loadingLabel?: string;
-  doneLabel?: string;
-  failLabel?: string;
-  variant?: "primary" | "secondary";
-  labelContext?: string;
-  /** Show only the icon; the state label stays available to screen readers. */
-  iconOnly?: boolean;
 }
 
 export function ActionButton({
@@ -295,7 +303,7 @@ export function ActionButton({
 }
 
 /** A link that opens through the host when it can, else as a normal link. */
-export function ExternalLink({ app, href, children }: ExternalLinkProps) {
+export function ExternalLink({ app, href, children }: HostLinkProps) {
   const [error, setError] = useState<string | null>(null);
 
   const handleClick = useCallback(
@@ -336,7 +344,7 @@ export function ExternalLink({ app, href, children }: ExternalLinkProps) {
   );
 }
 
-export function CartCheckLink({ app, label = "Check Kroger cart" }: CartCheckLinkProps) {
+export function CartCheckLink({ app, label = "Check Kroger cart" }: CheckCartButtonProps) {
   return (
     <ExternalLink app={app} href="https://www.kroger.com/cart">
       {label}
@@ -353,7 +361,7 @@ const CART_BUTTON_STATE = {
 } as const;
 
 /** Render recovery and button state from the same cart outcome. */
-export function CartActionControl({ app, state, onSubmit, ...labels }: CartActionControlProps) {
+export function CartActionControl({ app, state, onSubmit, ...labels }: CartButtonProps) {
   if (state.status === "needs_match") {
     return (
       <div>
@@ -418,7 +426,7 @@ const NEW_LIST = "";
  * "Save to list" that asks which list to use. Lists load on first open; if
  * they cannot load, the product can still go to a new list.
  */
-function SaveToListControl({ app, product, disabled, onSave }: SaveToListControlProps) {
+function SaveToListControl({ app, product, disabled, onSave }: SaveToListButtonProps) {
   const [open, setOpen] = useState(false);
   const [lists, setLists] = useState<ShoppingListSummaryData[] | null>(null);
 
@@ -549,16 +557,6 @@ function SaveToListControl({ app, product, disabled, onSave }: SaveToListControl
   );
 }
 
-export interface ProductActionsProps {
-  app: ShoppingAppClient | null;
-  upc: string;
-  name: string;
-  price?: number;
-  disabled?: boolean;
-  cartDisabled?: boolean;
-  onAddToList: SaveProductToList;
-}
-
 export function ProductActions({
   app,
   upc,
@@ -607,11 +605,7 @@ export function ProductActions({
   );
 }
 
-export interface ProductImageProps {
-  product: ProductData;
-}
-
-function ProductImage({ product }: ProductImageProps) {
+function ProductImage({ product }: ProductDisplayProps) {
   const thumbnail = product.imageUrl;
   const [failedUrl, setFailedUrl] = useState<string | undefined>();
 
@@ -646,13 +640,6 @@ function ProductImage({ product }: ProductImageProps) {
       />
     </div>
   );
-}
-
-export interface ProductCardProps {
-  app: ShoppingAppClient | null;
-  product: ProductData;
-  canCallTools: boolean;
-  onAddToList: SaveProductToList;
 }
 
 export function ProductCard({ app, product, canCallTools, onAddToList }: ProductCardProps) {

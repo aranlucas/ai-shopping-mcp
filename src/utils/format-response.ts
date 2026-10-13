@@ -22,16 +22,14 @@ import type {
   ShoppingListItem,
 } from "../domain/shopping.js";
 
-interface ProductLineOptions {
-  includeLocation?: boolean;
-}
+type ProductLineOptions = { includeLocation?: boolean };
 
-interface ProductSearchMarkdownOptions {
+type ProductSearchFormatOptions = {
   includeLocation?: boolean;
   exactUpcs?: ReadonlySet<string>;
   includeMatchingFacts?: boolean;
   includeNextStep?: boolean;
-}
+};
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -289,7 +287,7 @@ export function formatProductDetails(product: ProductData): string {
  */
 export function formatProductSearchMarkdown(
   results: ProductSearchResult[],
-  options: ProductSearchMarkdownOptions = {},
+  options: ProductSearchFormatOptions = {},
 ): string {
   const lines: string[] = [];
 

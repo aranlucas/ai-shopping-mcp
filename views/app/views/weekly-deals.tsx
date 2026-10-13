@@ -18,6 +18,21 @@ import { EmptyState } from "../../shared/status.js";
 import { toolResultErrorMessage } from "../tool-calls.js";
 import { ProductSearchView } from "./product-search.js";
 
+type DealCardProps = {
+  deal: DealData;
+  canCallTools: boolean;
+  canMessage: boolean;
+  onSearch: (title: string) => Promise<void>;
+  onPlanMeal: (title: string) => Promise<void>;
+};
+
+type WeeklyDealsViewProps = {
+  data: WeeklyDealsContent;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+  hostContext?: McpUiHostContext;
+};
+
 const SEARCH_ICON = (
   <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
     <path
@@ -45,14 +60,6 @@ const EMPTY_DEALS_ICON = (
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
   </svg>
 );
-
-interface DealCardProps {
-  deal: DealData;
-  canCallTools: boolean;
-  canMessage: boolean;
-  onSearch: (title: string) => Promise<void>;
-  onPlanMeal: (title: string) => Promise<void>;
-}
 
 function DealCard({ deal, canCallTools, canMessage, onSearch, onPlanMeal }: DealCardProps) {
   const [searchState, setSearchState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -139,13 +146,6 @@ function DealCard({ deal, canCallTools, canMessage, onSearch, onPlanMeal }: Deal
       </CardFooter>
     </Card>
   );
-}
-
-interface WeeklyDealsViewProps {
-  data: WeeklyDealsContent;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-  hostContext?: McpUiHostContext;
 }
 
 export function WeeklyDealsView({ data, app, canCallTools, hostContext }: WeeklyDealsViewProps) {

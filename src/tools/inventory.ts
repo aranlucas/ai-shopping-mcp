@@ -28,10 +28,9 @@ import {
   computeRestockSuggestions,
 } from "../services/order-insights.js";
 
-interface PantryQuantityUpdate {
-  name: string;
-  quantity: number;
-}
+type PantryConsumption = { name: string; quantity?: number };
+
+type PantryQuantityUpdate = { name: string; quantity: number };
 
 const pantryAddSchema = z.object({
   name: z.string().trim().min(1).max(200).describe("Item name, e.g. 'Eggs'"),
@@ -100,14 +99,9 @@ export const updateInventoryInputSchema = z
  * Removes whole pantry items, or subtracts a quantity and removes the item
  * once none is left. Names match case-insensitively, like storage.
  */
-interface ConsumePantryItem {
-  name: string;
-  quantity?: number;
-}
-
 async function consumePantryItems(
   pantry: PantryStore,
-  items: ConsumePantryItem[],
+  items: Array<PantryConsumption>,
 ): Promise<PantryItem[]> {
   const partial = items.filter((item) => item.quantity !== undefined);
 

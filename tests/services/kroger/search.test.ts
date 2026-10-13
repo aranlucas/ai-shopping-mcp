@@ -7,7 +7,7 @@ import {
   type ProductSearchRequest,
 } from "../../../src/services/kroger/search.js";
 
-type SearchProgress = [completed: number, total: number];
+type SearchProgress = [number, number];
 
 type SearchResponse = {
   data?: unknown;

@@ -11,13 +11,11 @@ import {
 } from "./tool-test-harness.js";
 import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop.js";
 
+type ProductRequestOptions = { params: { query?: Record<string, string | number> } };
+
+type ProductResponse = { data: { data: Product[] }; response: Response };
+
 type Product = components["schemas"]["products.productModel"];
-
-interface ProductClientGetOptions {
-  params: { query?: Record<string, string | number> };
-}
-
-type ProductClientGetResult = Promise<{ data: { data: Product[] }; response: Response }>;
 
 const product = (index: number, overrides: Partial<Product> = {}): Product => ({
   upc: String(index).padStart(13, "0"),
@@ -43,8 +41,8 @@ async function setup(products: Product[] = [product(1)]) {
     setAt: new Date().toISOString(),
   });
 
-  const get = vi.fn(
-    async (_path: string, _options: ProductClientGetOptions): ProductClientGetResult => ({
+  const get = vi.fn<(path: string, options: ProductRequestOptions) => Promise<ProductResponse>>(
+    async (_path: string, _options: ProductRequestOptions) => ({
       data: { data: products },
       response: new Response(null, { status: 200 }),
     }),

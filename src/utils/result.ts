@@ -23,16 +23,9 @@ import {
   invalidResponseError,
 } from "../errors.js";
 
-interface ApiResponse<T> {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}
+type ApiResponse<T> = { data?: T; error?: unknown; response: Response };
 
-interface ResolvedLocation {
-  locationId: string;
-  locationName?: string;
-}
+type ResolvedLocation = { locationId: string; locationName?: string };
 
 export { safeJsonParse, safeJsonParseWithSchema } from "./json.js";
 
@@ -102,6 +95,7 @@ export function fromApiResponse<T>(
   };
 
   const result =
+    // This typed Promise-or-thunk overload dispatch must recognize cross-realm functions without changing the public API.
     typeof promise === "function"
       ? ResultAsync.fromThrowable(promise, mapFailure)()
       : ResultAsync.fromPromise(promise, mapFailure);
@@ -147,6 +141,7 @@ const authenticatedPropsSchema = z.object({
 });
 
 /** Parse provider-owned request data without trusting its declared extension types. */
+// The provider auth-context boundary is untrusted until authenticatedPropsSchema validates it below.
 export function parseAuthenticatedProps(value: unknown): Props {
   const parsed = authenticatedPropsSchema.safeParse(value);
 

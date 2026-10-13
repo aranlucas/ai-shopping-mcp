@@ -12,10 +12,7 @@ import { fromApiResponse } from "../../utils/result.js";
 
 import { MAX_TEXT_TERMS, mapCatalogRequests } from "./catalog-workload.js";
 
-export interface ProductSearchOptions {
-  locationId?: string;
-  limitPerTerm: number;
-}
+export type ProductSearchOptions = { locationId?: string; limitPerTerm: number };
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 

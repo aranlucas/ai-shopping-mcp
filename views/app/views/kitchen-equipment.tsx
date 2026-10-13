@@ -14,18 +14,18 @@ import { Badge } from "../../shared/ui/badge";
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
-interface KitchenEquipmentRowProps {
+type EquipmentItemProps = {
   item: KitchenEquipmentItemData;
   canCallTools: boolean;
   onRemove: (name: string) => Promise<void>;
-}
+};
 
-interface KitchenEquipmentViewProps {
+type KitchenEquipmentViewProps = {
   data: KitchenEquipmentContent;
   setData: (data: AppData | null) => void;
   app: ShoppingAppClient | null;
   canCallTools: boolean;
-}
+};
 
 const REMOVE_ICON = (
   <svg
@@ -57,7 +57,7 @@ const EMPTY_EQUIPMENT_ICON = (
   </svg>
 );
 
-function KitchenEquipmentRow({ item, canCallTools, onRemove }: KitchenEquipmentRowProps) {
+function KitchenEquipmentRow({ item, canCallTools, onRemove }: EquipmentItemProps) {
   const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleRemove = useCallback(async () => {

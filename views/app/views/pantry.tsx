@@ -17,25 +17,22 @@ import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import { classifyExpiry } from "../../../src/services/expiry.js";
 
-interface ExpiryBadgeProps {
-  expiresAt: string | undefined;
-  now: number;
-}
+type ExpiryBadgeProps = { expiresAt: string | undefined; now: number };
 
-interface PantryItemRowProps {
+type PantryItemProps = {
   item: PantryItemData;
   canCallTools: boolean;
   onRemove: (name: string) => Promise<void>;
   onUse: (name: string) => Promise<void>;
   now: number;
-}
+};
 
-interface PantryViewProps {
+type PantryViewProps = {
   data: PantryListContent;
   setData: (data: AppData | null) => void;
   app: ShoppingAppClient | null;
   canCallTools: boolean;
-}
+};
 
 const REMOVE_ICON = (
   <svg
@@ -109,7 +106,7 @@ function ExpiryBadge({ expiresAt, now }: ExpiryBadgeProps) {
   );
 }
 
-function PantryItemRow({ item, canCallTools, onRemove, onUse, now }: PantryItemRowProps) {
+function PantryItemRow({ item, canCallTools, onRemove, onUse, now }: PantryItemProps) {
   const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const [consumeState, setConsumeState] = useState<"idle" | "loading" | "done" | "error">("idle");

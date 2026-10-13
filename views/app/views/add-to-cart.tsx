@@ -6,6 +6,8 @@ import type { AddShoppingListToCartContent } from "../../shared/types.js";
 import { SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
+type AddToCartViewProps = { data: AddShoppingListToCartContent };
+
 const EMPTY_CART_ICON = (
   <svg
     aria-hidden="true"
@@ -22,10 +24,6 @@ const EMPTY_CART_ICON = (
     />
   </svg>
 );
-
-export interface AddToCartViewProps {
-  data: AddShoppingListToCartContent;
-}
 
 export function AddToCartView({ data }: AddToCartViewProps) {
   const { listId, name, items, needsUpc, actionDetail, outcome, addedCount, requestedCount } = data;

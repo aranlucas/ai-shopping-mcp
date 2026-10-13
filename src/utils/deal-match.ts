@@ -7,10 +7,7 @@
  */
 import type { NormalizedWeeklyDeal } from "../services/qfc-weekly-deals.js";
 
-interface DealMatch {
-  deal: Deal;
-  ratio: number;
-}
+type RankedDeal = { deal: Deal; ratio: number };
 
 export type Deal = NormalizedWeeklyDeal;
 
@@ -44,7 +41,7 @@ export function findDealForItem(itemName: string, deals: Deal[]): Deal | undefin
     return undefined;
   }
 
-  let best: DealMatch | undefined;
+  let best: RankedDeal | undefined;
 
   for (const deal of deals) {
     const dealTokens = new Set(normalizeTokens(deal.title));

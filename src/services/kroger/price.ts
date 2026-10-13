@@ -1,7 +1,4 @@
-interface KrogerPrice {
-  regular?: number;
-  promo?: number;
-}
+type KrogerPrice = { regular?: number; promo?: number };
 
 /** Kroger uses promo=0 to mean no promotion, not a free product. */
 export function normalizeKrogerPrice(price?: KrogerPrice) {

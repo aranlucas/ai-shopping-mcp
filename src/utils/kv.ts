@@ -1,8 +1,6 @@
 import { z } from "zod/v4";
 
-interface UserDataKvEnv {
-  USER_DATA_KV?: unknown;
-}
+type UserDataKvEnv = { USER_DATA_KV?: unknown };
 
 /** Minimal KV surface shared by every KV-backed cache in this codebase. */
 export type KvLike = Pick<KVNamespace, "get" | "put">;

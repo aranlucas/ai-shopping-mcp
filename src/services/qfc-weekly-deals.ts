@@ -22,71 +22,63 @@ import {
   weeklyDealWarning,
 } from "./weekly-deals/schema.js";
 
-interface ValidatedJsonResponse<TSchema extends z.ZodType> {
-  data: z.output<TSchema>;
-  response: Response;
-}
+type JsonResponse<TSchema extends z.ZodType> = { data: z.output<TSchema>; response: Response };
 
-interface CircularRequest {
+type CircularsParams = {
   divisionCode: string;
   signal?: AbortSignal;
-}
+};
 
-interface SearchDealsOptions {
+type SearchDealsParams = {
   locationId: string;
   searchProducts: ProductSearchFn;
   limit?: number;
-}
+};
 
-interface SearchDealsResult {
+type SearchDealsResult = {
   deals: NormalizedWeeklyDeal[];
   termCount: number;
   failedTermCount: number;
   failures: unknown[];
-}
+};
 
-interface PrintAdListingRequest {
+type PrintAdListingParams = {
   eventId: string;
   locationId: string;
   signal?: AbortSignal;
-}
+};
 
-interface PrintAdPageRequest {
+type PrintAdPageParams = {
   eventId: string;
   eventPageId: string;
   locationId: string;
   signal?: AbortSignal;
-}
+};
 
-interface PrintAdOfferRequest {
+type PrintAdOfferParams = {
   eventId: string;
   offerVersionProductGroupId: string;
   locationId: string;
   signal?: AbortSignal;
-}
+};
 
-interface IdentifiedDeal {
-  id: string;
-}
+type IdentifiedDeal = { id: string };
 
-interface PrintDealsOptions {
+type NormalizePrintDealsParams = {
   printCircular: Circular;
   locationId: string;
   pageLimit?: number;
   limit?: number;
   signal?: AbortSignal;
-}
+};
 
-interface PrintDealsResult {
+type PrintDealsResult = {
   deals: NormalizedWeeklyDeal[];
   pageCount: number;
   failedPageCount: number;
-}
+};
 
-interface AugmentedDealsResult {
-  augmented: NormalizedWeeklyDeal[];
-  augmentedCount: number;
-}
+type AugmentedDealsResult = { augmented: NormalizedWeeklyDeal[]; augmentedCount: number };
 
 export type {
   NormalizedWeeklyDeal,
@@ -185,7 +177,7 @@ async function fetchJson<TSchema extends z.ZodType>(
   url: string,
   schema: TSchema,
   init?: RequestInit,
-): Promise<ValidatedJsonResponse<TSchema>> {
+): Promise<JsonResponse<TSchema>> {
   const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
 
   const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
@@ -224,7 +216,7 @@ async function fetchJson<TSchema extends z.ZodType>(
   return { data: validated.data, response };
 }
 
-async function fetchQfcWeeklyCirculars(params: CircularRequest): Promise<Circular[]> {
+async function fetchQfcWeeklyCirculars(params: CircularsParams): Promise<Circular[]> {
   const url = new URL("/digitalads/v1/circulars", KROGER_DIGITAL_ADS_BASE);
   url.searchParams.append("filter.tags", "SHOPPABLE");
   url.searchParams.append("filter.tags", "CLASSIC_VIEW");
@@ -323,7 +315,7 @@ function normalizeProductAsDeal(product: DealProduct): NormalizedWeeklyDeal {
   };
 }
 
-async function fetchDealsBySearchApi(params: SearchDealsOptions): Promise<SearchDealsResult> {
+async function fetchDealsBySearchApi(params: SearchDealsParams): Promise<SearchDealsResult> {
   const limit = Math.max(1, Math.min(params.limit || 50, 200));
 
   const searchPromises = DEAL_SEARCH_TERMS.map((term) =>
@@ -399,7 +391,7 @@ async function fetchDealsBySearchApi(params: SearchDealsOptions): Promise<Search
 // Print-ad fallback (DACS)
 // ---------------------------------------------------------------------------
 
-async function fetchPrintAdListing(params: PrintAdListingRequest): Promise<DacsListingResponse> {
+async function fetchPrintAdListing(params: PrintAdListingParams): Promise<DacsListingResponse> {
   const url = new URL(`/api/dacs/${params.eventId}`, DACS_BASE);
   url.searchParams.set("location", params.locationId);
 
@@ -418,7 +410,7 @@ async function fetchPrintAdListing(params: PrintAdListingRequest): Promise<DacsL
   return data;
 }
 
-async function fetchPrintAdPage(params: PrintAdPageRequest): Promise<DacsPageResponse> {
+async function fetchPrintAdPage(params: PrintAdPageParams): Promise<DacsPageResponse> {
   const url = new URL(`/api/dacs/${params.eventId}/pages/${params.eventPageId}`, DACS_BASE);
 
   url.searchParams.set("location", params.locationId);
@@ -438,7 +430,7 @@ async function fetchPrintAdPage(params: PrintAdPageRequest): Promise<DacsPageRes
   return data;
 }
 
-async function fetchPrintAdOfferDetails(params: PrintAdOfferRequest): Promise<DacsOfferDetails> {
+async function fetchPrintAdOfferDetails(params: PrintAdOfferParams): Promise<DacsOfferDetails> {
   const url = new URL(
     `/api/dacs/${params.eventId}/offers/${params.offerVersionProductGroupId}`,
     DACS_BASE,
@@ -538,7 +530,7 @@ function dedupeDealsById<T extends IdentifiedDeal>(deals: T[]): T[] {
   return unique;
 }
 
-async function normalizePrintDeals(params: PrintDealsOptions): Promise<PrintDealsResult> {
+async function normalizePrintDeals(params: NormalizePrintDealsParams): Promise<PrintDealsResult> {
   const listing = await fetchPrintAdListing({
     eventId: params.printCircular.eventId,
     locationId: params.locationId,

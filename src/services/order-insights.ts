@@ -1,14 +1,8 @@
 import type { OrderRecord } from "../domain/shopping.js";
 
-interface FrequentlyPurchasedItem {
-  name: string;
-  count: number;
-}
+type PurchaseFrequency = { name: string; count: number };
 
-interface PurchaseHistory {
-  displayName: string;
-  timestamps: number[];
-}
+type PurchaseHistory = { displayName: string; timestamps: number[] };
 
 /**
  * Ranks item names by purchase frequency across recent orders. Used by
@@ -17,7 +11,7 @@ interface PurchaseHistory {
 export function computeFrequentlyPurchasedItems(
   recentOrders: OrderRecord[],
   limit = 10,
-): Array<FrequentlyPurchasedItem> {
+): Array<PurchaseFrequency> {
   const itemFrequency = new Map<string, number>();
 
   for (const order of recentOrders) {
@@ -98,8 +92,12 @@ export function computeRestockSuggestions(
     }
 
     const medianIntervalMs = median(intervals);
-    // The minimum purchase count above guarantees a final timestamp.
-    const lastPurchase = sorted.at(-1)!;
+    const lastPurchase = sorted.at(-1);
+
+    if (lastPurchase === undefined) {
+      continue;
+    }
+
     const sinceLastMs = now - lastPurchase;
 
     if (sinceLastMs > medianIntervalMs) {

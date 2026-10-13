@@ -1,8 +1,6 @@
 import { selectProductMatches, type SelectorAi } from "./fixtures/jev-product-selector.js";
 
-interface SelectorEnv {
-  AI: SelectorAi;
-}
+type SelectorEnv = { AI: SelectorAi };
 
 type DiagnosticCall = { elapsedMs: number; status: number; response: unknown };
 

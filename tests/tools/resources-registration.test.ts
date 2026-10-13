@@ -28,13 +28,9 @@ import type {
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
 
-interface ResourceResult {
-  contents: Array<ResourceText>;
-}
+type TextResourceResult = { contents: Array<{ text: string }> };
 
-interface ResourceText {
-  text: string;
-}
+type ProductClientOverrides = { product?: unknown; error?: boolean };
 
 type AuthContext = {
   props: { id: string; accessToken: string; tokenExpiresAt: number };
@@ -78,7 +74,7 @@ function unauthenticate() {
   testState.authContext = undefined;
 }
 
-function decodeResource(result: ResourceResult) {
+function decodeResource(result: TextResourceResult) {
   return z.record(z.string(), z.json()).parse(decode(result.contents[0]?.text ?? ""));
 }
 
@@ -236,11 +232,6 @@ function getCompleteFn(name: string, field: string): CompleteFn {
 
   return (value) =>
     authenticatedRequest(() => Promise.resolve(complete(value)), testState.authContext);
-}
-
-interface ProductClientOverrides {
-  product?: unknown;
-  error?: boolean;
 }
 
 function makeProductClient(overrides: ProductClientOverrides = {}) {

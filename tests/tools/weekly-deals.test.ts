@@ -33,6 +33,8 @@ import {
 import { createWeeklyDealsCache } from "../../src/services/weekly-deals/cache.js";
 import { createWeeklyDealsLoader } from "../../src/services/weekly-deals/runtime.js";
 
+type TextContent = { type: "text"; text: string };
+
 type AuthState = { authContext: { props: Props } | undefined };
 
 const weeklyDealsAuthState: AuthState = { authContext: undefined };
@@ -42,11 +44,6 @@ const weeklyDealsAuthState: AuthState = { authContext: undefined };
 // ---------------------------------------------------------------------------
 
 /** Extract the text content from the first text item in a tool response */
-interface TextContent {
-  type: "text";
-  text: string;
-}
-
 function getTextContent(response: ReturnType<typeof formatWeeklyDealsToolResponse>): string {
   const textItem = response.content.find((c): c is TextContent => "type" in c && c.type === "text");
 

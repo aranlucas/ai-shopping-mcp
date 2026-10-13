@@ -16,6 +16,19 @@ import { EmptyState } from "../../shared/status.js";
 import { editShoppingListItem, recordPurchase } from "../tool-calls.js";
 import { useCartAction } from "../use-cart-action.js";
 
+type ShoppingListItemProps = {
+  item: ShoppingListItemData;
+  canEdit: boolean;
+  onEdit: (itemId: string, edit: ItemEdit) => Promise<void>;
+};
+
+type ShoppingListViewProps = {
+  data: ShoppingListContent;
+  setData?: (data: AppData | null) => void;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+};
+
 const MAX_QUANTITY = 999;
 
 const EMPTY_LIST_ICON = (
@@ -85,13 +98,7 @@ function applyItemEdit(
   };
 }
 
-interface ShoppingItemRowProps {
-  item: ShoppingListItemData;
-  canEdit: boolean;
-  onEdit: (itemId: string, edit: ItemEdit) => Promise<void>;
-}
-
-function ShoppingItemRow({ item, canEdit, onEdit }: ShoppingItemRowProps) {
+function ShoppingItemRow({ item, canEdit, onEdit }: ShoppingListItemProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const itemId = item.id;
@@ -226,13 +233,6 @@ function ShoppingItemRow({ item, canEdit, onEdit }: ShoppingItemRowProps) {
       </div>
     </li>
   );
-}
-
-interface ShoppingListViewProps {
-  data: ShoppingListContent;
-  setData?: (data: AppData | null) => void;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
 }
 
 export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingListViewProps) {

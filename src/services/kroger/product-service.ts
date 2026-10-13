@@ -20,10 +20,7 @@ import {
   type ProductSearchOptions,
 } from "./search.js";
 
-interface ProductResolution {
-  results: ProductSearchResult[];
-  exactUpcs: Set<string>;
-}
+type ResolvedProducts = { results: ProductSearchResult[]; exactUpcs: Set<string> };
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -64,7 +61,7 @@ export class ProductService {
     terms: string[],
     params: ProductSearchOptions,
     onComplete?: (completed: number, total: number) => Promise<void> | void,
-  ): Promise<Result<ProductResolution, AppError>> {
+  ): Promise<Result<ResolvedProducts, AppError>> {
     if (terms.length > MAX_CATALOG_REQUESTS) {
       return err(
         validationError(

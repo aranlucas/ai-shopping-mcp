@@ -15,9 +15,7 @@ import { vi } from "vitest";
 import { ensureShoppingSchema } from "../d1-schema.js";
 import { fixtureJwks, fixtureToken, seedKrogerConnection } from "../better-auth-fixture.js";
 
-interface CapturedCartPut {
-  items: CapturedCartItem[];
-}
+type CapturedCartPut = { items: CapturedCartItem[] };
 
 const MCP_URL = env.MCP_RESOURCE_URL;
 
@@ -498,6 +496,7 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+// Token estimation deliberately delegates arbitrary values to JSON.stringify, without treating them as validated application data.
 export function estimateJsonTokens(value: unknown): number {
   return estimateTokens(JSON.stringify(value) ?? "");
 }

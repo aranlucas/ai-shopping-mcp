@@ -7,14 +7,14 @@ import type { ProductSearchFn } from "../../src/services/qfc-weekly-deals.js";
 import { AppErrorException, authError } from "../../src/errors.js";
 import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
 
-interface ProductOptions {
+type ProductOptions = {
   productId?: string;
   description?: string;
   regular?: number;
   promo?: number;
   categories?: string[];
   size?: string;
-}
+};
 
 type KrogerProduct = ProductComponents["schemas"]["products.productModel"];
 

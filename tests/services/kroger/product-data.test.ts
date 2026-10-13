@@ -4,10 +4,7 @@ import type { components as ProductComponents } from "../../../src/services/krog
 
 import { toProductData, toProductPageUrl } from "../../../src/services/kroger/product-data.js";
 
-interface StockAvailabilityCase {
-  stockLevel: Inventory["stockLevel"];
-  available: boolean;
-}
+type StockAvailabilityCase = { stockLevel: Inventory["stockLevel"]; available: boolean };
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 

@@ -11,18 +11,18 @@ import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import { openShoppingList } from "../tool-calls.js";
 
-interface ListRowProps {
+type ShoppingListSummaryProps = {
   list: ShoppingListSummaryData;
   canOpen: boolean;
   onOpen: (listId: string) => Promise<void>;
-}
+};
 
-interface ShoppingListsViewProps {
+type ShoppingListsViewProps = {
   data: ShoppingListsContent;
   setData: (data: AppData | null) => void;
   app: ShoppingAppClient | null;
   canCallTools: boolean;
-}
+};
 
 const EMPTY_LISTS_ICON = (
   <svg
@@ -49,7 +49,7 @@ function formatUpdated(value: string): string {
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function ListRow({ list, canOpen, onOpen }: ListRowProps) {
+function ListRow({ list, canOpen, onOpen }: ShoppingListSummaryProps) {
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleOpen = useCallback(async () => {

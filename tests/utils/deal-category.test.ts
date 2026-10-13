@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { DEAL_CATEGORIES, classifyDealCategory } from "../../src/utils/deal-category.js";
 
+type CategoryCase = [string, string];
+
 describe("DEAL_CATEGORIES", () => {
   it("lists categories in meal-planning priority order, ending with Other", () => {
     expect(DEAL_CATEGORIES).toEqual([
@@ -16,10 +18,8 @@ describe("DEAL_CATEGORIES", () => {
   });
 });
 
-type CategoryCase = [string, string];
-
 describe("classifyDealCategory", () => {
-  const cases: CategoryCase[] = [
+  const cases: Array<CategoryCase> = [
     // Meat & Seafood
     ["Fresh Coastal Range Organic Boneless Chicken Full Line Sale", "Meat & Seafood"],
     ["Oscar Mayer Beef Franks", "Meat & Seafood"],

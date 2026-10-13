@@ -2,6 +2,7 @@ import { err, fromThrowable, ok, type Result } from "neverthrow";
 import type * as z from "zod/v4";
 
 export const safeJsonParse: (raw: string) => Result<unknown, SyntaxError> = fromThrowable(
+  // This syntax-only parser deliberately returns untrusted JSON; domain callers must use a schema before access.
   (raw: string): unknown => JSON.parse(raw),
   (error): SyntaxError =>
     error instanceof SyntaxError

@@ -14,21 +14,21 @@ import { useCallback, useMemo, useState } from "react";
 import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
-interface LocationCardProps {
+type LocationCardProps = {
   location: LocationData;
   canCallTools: boolean;
   app: ShoppingAppClient | null;
   onSetPreferred: (id: string) => Promise<void>;
   onViewDetails: (id: string) => Promise<void>;
-}
+};
 
-interface LocationResultsViewProps {
+type LocationResultsViewProps = {
   data: StoreResultsContent;
   setData: (data: AppData | null) => void;
   app: ShoppingAppClient | null;
   canCallTools: boolean;
   hostContext?: McpUiHostContext;
-}
+};
 
 const EMPTY_LOCATIONS_ICON = (
   <svg

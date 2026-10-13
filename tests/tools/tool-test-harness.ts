@@ -35,10 +35,7 @@ import type {
 } from "../../src/domain/shopping.js";
 import { type TestToolHandler as ToolHandler, type TestToolConfig } from "../v2-tool-handler.js";
 
-interface CreateShoppingListInput {
-  name: string;
-  items: ShoppingListItem[];
-}
+type CreateShoppingListInput = { name: string; items: ShoppingListItem[] };
 
 type ShoppingListRecord = {
   id: string;

@@ -8,11 +8,11 @@ import type { QfcDealsApiResponse, WeeklyDealWarning, WeeklyDealsCacheEntry } fr
 import { storageError } from "../../errors.js";
 import { weeklyDealCacheEntrySchema } from "./schema.js";
 
-export interface WeeklyDealsCacheKeyOptions {
+export type WeeklyDealsCacheParams = {
   locationId?: string;
   limit: number;
   pageLimit: number;
-}
+};
 
 export const WEEKLY_DEALS_CACHE_VERSION = 1;
 
@@ -37,7 +37,7 @@ export interface WeeklyDealsCache {
   write(key: string, data: QfcDealsApiResponse): ResultAsync<void, AppError>;
 }
 
-export function buildWeeklyDealsCacheKey(params: WeeklyDealsCacheKeyOptions): string {
+export function buildWeeklyDealsCacheKey(params: WeeklyDealsCacheParams): string {
   const locationId = params.locationId || "default";
 
   return [

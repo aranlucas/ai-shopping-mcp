@@ -16,6 +16,8 @@ import { toMcpError } from "../utils/result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema } from "./schemas.js";
 
+type WeeklyDealsPage = { limit: number; offset: number };
+
 export type { LoadedWeeklyDeals, WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 
 export type { WeeklyDealsCacheEntry } from "../services/weekly-deals/schema.js";
@@ -112,11 +114,6 @@ function formatDealsPage(offset: number, shown: number, total: number) {
 
 /** Fetch size behind every weekly-deals read, so all readers share one cache key. */
 export const WEEKLY_DEALS_FETCH = { limit: 50, pageLimit: 2 } as const;
-
-interface WeeklyDealsPage {
-  limit: number;
-  offset: number;
-}
 
 export function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,

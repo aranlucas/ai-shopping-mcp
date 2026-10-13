@@ -2,13 +2,9 @@ import { createMcpHandler, type McpAuthContext } from "agents/mcp/server";
 import { McpServer, type ServerContext } from "@modelcontextprotocol/server";
 import { vi } from "vitest";
 
-interface RequestOutcome<T> {
-  value: T;
-}
+type RequestOutcome<T> = { value: T };
 
-interface RequestFailure {
-  cause: unknown;
-}
+type RequestFailure = { cause: unknown };
 
 export type RequestCustomization = {
   _meta?: ServerContext["mcpReq"]["_meta"];

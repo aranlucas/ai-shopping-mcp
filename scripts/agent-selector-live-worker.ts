@@ -2,9 +2,7 @@ import * as z from "zod/v4";
 
 import type { selectProductMatches } from "./fixtures/jev-product-selector.js";
 
-interface AgentSelectorEnv {
-  AI: Ai;
-}
+type AgentSelectorEnv = { AI: Ai };
 
 type Input = Omit<Parameters<typeof selectProductMatches>[0], "ai"> & {
   model: string;

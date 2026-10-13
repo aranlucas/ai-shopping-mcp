@@ -2,17 +2,11 @@ import * as z from "zod/v4";
 
 import type { components as ProductComponents } from "../../src/services/kroger/product.js";
 
-interface ProductSelectionOptions {
+type ProductSelectionParams = {
   ai: SelectorAi;
-  items: Array<ProductSelectionRequest>;
+  items: Array<{ requestId: string; query: string; products: Product[] }>;
   forPickup: boolean;
-}
-
-interface ProductSelectionRequest {
-  requestId: string;
-  query: string;
-  products: Product[];
-}
+};
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -79,7 +73,7 @@ function candidateDescription(product: Product) {
 
 /** One Jev request for the entire list. Failures propagate without fallback. */
 export async function selectProductMatches(
-  params: ProductSelectionOptions,
+  params: ProductSelectionParams,
 ): Promise<ProductSelection[]> {
   const { ai, items, forPickup } = params;
 

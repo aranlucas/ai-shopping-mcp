@@ -6,7 +6,7 @@ import type { components as ProductComponents } from "../../../src/services/krog
 
 import { ProductService } from "../../../src/services/kroger/product-service.js";
 
-type SearchProgress = [completed: number, total: number];
+type SearchProgress = [number, number];
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 

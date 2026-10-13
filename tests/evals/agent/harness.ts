@@ -16,11 +16,11 @@ import { type AgentOutput, type AgentTask, AGENT_TASKS } from "./tasks.js";
 
 type ToolEntry = [string, Tool];
 
-interface ShoppingAgentHarnessOptions {
+type ShoppingHarnessOptions = {
   model: string;
   apiKey: string;
   session: () => AgentSession;
-}
+};
 
 export type AgentInput = { taskId: string; prompt: string };
 
@@ -170,7 +170,7 @@ function splitFeedback(text: string): FeedbackParts {
   };
 }
 
-export function shoppingAgentHarness(options: ShoppingAgentHarnessOptions) {
+export function shoppingAgentHarness(options: ShoppingHarnessOptions) {
   const openrouter = createOpenRouter({
     apiKey: options.apiKey,
     fetch: realFetch,

@@ -6,9 +6,15 @@ import { Skeleton } from "./ui/skeleton";
 import { Spinner } from "./ui/spinner";
 import { AlertCircleIcon } from "lucide-react";
 
-export interface LoadingProps {
-  message?: string;
-}
+type LoadingProps = { message?: string };
+
+type ErrorDisplayProps = { message: string };
+
+type EmptyStateProps = {
+  icon: ReactNode;
+  message: string;
+  description?: string;
+};
 
 export function Loading({ message }: LoadingProps) {
   return (
@@ -19,10 +25,6 @@ export function Loading({ message }: LoadingProps) {
   );
 }
 
-export interface ErrorDisplayProps {
-  message: string;
-}
-
 export function ErrorDisplay({ message }: ErrorDisplayProps) {
   return (
     <Alert role="alert" className="mx-4 my-5 w-auto">
@@ -31,12 +33,6 @@ export function ErrorDisplay({ message }: ErrorDisplayProps) {
       <AlertDescription>{message}</AlertDescription>
     </Alert>
   );
-}
-
-export interface EmptyStateProps {
-  icon: ReactNode;
-  message: string;
-  description?: string;
 }
 
 export function EmptyState({ icon, message, description }: EmptyStateProps) {

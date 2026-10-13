@@ -1,8 +1,6 @@
 import type { PreferredStoreContent } from "../../shared/types.js";
 
-interface PreferredStoreViewProps {
-  data: PreferredStoreContent;
-}
+type PreferredStoreViewProps = { data: PreferredStoreContent };
 
 export function PreferredStoreView({ data }: PreferredStoreViewProps) {
   const { store } = data;
