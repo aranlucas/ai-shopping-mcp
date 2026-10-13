@@ -56,11 +56,7 @@ describe("inventory and profile tools", () => {
 
     await update({
       pantry: {
-        add: [
-          { name: "Eggs", quantity: 12 },
-          { name: "Bread", quantity: 2 },
-          { name: "Milk" },
-        ],
+        add: [{ name: "Eggs", quantity: 12 }, { name: "Bread", quantity: 2 }, { name: "Milk" }],
       },
     });
 
@@ -80,9 +76,7 @@ describe("inventory and profile tools", () => {
 
     const { inputSchema } = getCapturedTool("update_inventory").config;
 
-    expect(inputSchema.safeParse({ pantry: { all: true } }).success).toBe(
-      false,
-    );
+    expect(inputSchema.safeParse({ pantry: { all: true } }).success).toBe(false);
   });
 
   it("throws when inventory tools are used outside an authenticated request", async () => {
@@ -144,9 +138,7 @@ describe("inventory and profile tools", () => {
 
       expect(result.isError).toBe(false);
       const text = result.text;
-      expect(text).toContain(
-        "Preferred store: none set; use search_stores + set_preferred_store",
-      );
+      expect(text).toContain("Preferred store: none set; use search_stores + set_preferred_store");
       expect(text).toContain("Pantry:\n- empty");
       expect(text).toContain("Kitchen equipment:\n- none");
       expect(text).toContain("Frequently purchased:\n- no order history yet");
@@ -161,8 +153,7 @@ describe("inventory and profile tools", () => {
       const DAY = 24 * 60 * 60 * 1000;
       const now = Date.now();
 
-      const daysAgoIso = (days: number) =>
-        new Date(now - days * DAY).toISOString();
+      const daysAgoIso = (days: number) => new Date(now - days * DAY).toISOString();
 
       // Milk bought every ~10 days, but the most recent purchase was 30 days
       // ago — well past due.
@@ -171,25 +162,19 @@ describe("inventory and profile tools", () => {
           getRecent: async () => [
             {
               orderId: "o3",
-              items: [
-                { upc: "0000000000001", productName: "Milk", quantity: 1 },
-              ],
+              items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
               totalItems: 1,
               placedAt: daysAgoIso(30),
             },
             {
               orderId: "o2",
-              items: [
-                { upc: "0000000000001", productName: "Milk", quantity: 1 },
-              ],
+              items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
               totalItems: 1,
               placedAt: daysAgoIso(40),
             },
             {
               orderId: "o1",
-              items: [
-                { upc: "0000000000001", productName: "Milk", quantity: 1 },
-              ],
+              items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
               totalItems: 1,
               placedAt: daysAgoIso(50),
             },
@@ -237,24 +222,18 @@ describe("inventory and profile tools", () => {
               productName: "Yogurt",
               quantity: 1,
               addedAt: new Date().toISOString(),
-              expiresAt: new Date(
-                Date.now() - 24 * 60 * 60 * 1000,
-              ).toISOString(),
+              expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
             },
           ],
         }),
         equipment: strictFake<ShoppingStore["equipment"]>({
-          getAll: async () => [
-            { equipmentName: "Dutch oven", category: "Cooking", addedAt: "" },
-          ],
+          getAll: async () => [{ equipmentName: "Dutch oven", category: "Cooking", addedAt: "" }],
         }),
         orderHistory: strictFake<ShoppingStore["orderHistory"]>({
           getRecent: async () => [
             {
               orderId: "o1",
-              items: [
-                { upc: "0000000000001", productName: "Milk", quantity: 1 },
-              ],
+              items: [{ upc: "0000000000001", productName: "Milk", quantity: 1 }],
               totalItems: 1,
               placedAt: new Date().toISOString(),
             },

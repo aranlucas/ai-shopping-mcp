@@ -1,8 +1,4 @@
-import type {
-  ShoppingAppClient,
-  ProductData,
-  ShoppingListSummaryData,
-} from "./types.js";
+import type { ShoppingAppClient, ProductData, ShoppingListSummaryData } from "./types.js";
 import type { CartState } from "../app/cart-action.js";
 import { useCartAction } from "../app/use-cart-action.js";
 import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
@@ -19,13 +15,7 @@ import { Card, CardContent, CardFooter } from "./ui/card";
 export { Badge };
 
 const CART_ICON = (
-  <svg
-    aria-hidden="true"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={2}
-    stroke="currentColor"
-  >
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -35,18 +25,8 @@ const CART_ICON = (
 );
 
 const PLUS_ICON = (
-  <svg
-    aria-hidden="true"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={2}
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M12 4.5v15m7.5-7.5h-15"
-    />
+  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
   </svg>
 );
 
@@ -95,7 +75,9 @@ export function DisplayModeToggle({
     app?.requestDisplayMode({ mode: next }).catch(console.error);
   }, [app, next]);
 
-  if (!app || !supportsFullscreen || !supportsInline) {return null;}
+  if (!app || !supportsFullscreen || !supportsInline) {
+    return null;
+  }
 
   return (
     <Button
@@ -136,9 +118,13 @@ export function FulfillmentTags({ product }: { product: ProductData }) {
     ? [{ label: "Pickup", tone: "info" }]
     : [];
 
-  if (!product.available) {tags.push({ label: "Out of Stock", tone: "danger" });}
+  if (!product.available) {
+    tags.push({ label: "Out of Stock", tone: "danger" });
+  }
 
-  if (tags.length === 0) {return null;}
+  if (tags.length === 0) {
+    return null;
+  }
 
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">
@@ -156,8 +142,7 @@ export function PriceDisplay({ product }: { product: ProductData }) {
     return <span className="text-xs text-gray-500">Price unavailable</span>;
   }
 
-  const hasPromo =
-    product.regularPrice !== undefined && product.regularPrice > product.price;
+  const hasPromo = product.regularPrice !== undefined && product.regularPrice > product.price;
 
   return (
     <span className="inline-flex flex-wrap items-baseline gap-2">
@@ -240,9 +225,7 @@ export function ActionButton({
       aria-label={labelContext ? `${label}: ${labelContext}` : undefined}
       onClick={handleClick}
     >
-      {icon && state === "idle" && (
-        <span className="size-3 shrink-0">{icon}</span>
-      )}
+      {icon && state === "idle" && <span className="size-3 shrink-0">{icon}</span>}
       {state === "loading" && (
         <svg
           aria-hidden="true"
@@ -286,21 +269,22 @@ export function ExternalLink({
 
   const handleClick = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
-      if (!app?.getHostCapabilities?.()?.openLinks) {return;}
+      if (!app?.getHostCapabilities?.()?.openLinks) {
+        return;
+      }
 
       event.preventDefault();
       setError(null);
       app
         .openLink({ url: href })
         .then((result) => {
-          if (result.isError)
-            {setError("Could not open Kroger. Open it in your browser instead.");}
+          if (result.isError) {
+            setError("Could not open Kroger. Open it in your browser instead.");
+          }
 
           return result;
         })
-        .catch(() =>
-          setError("Could not open Kroger. Open it in your browser instead."),
-        );
+        .catch(() => setError("Could not open Kroger. Open it in your browser instead."));
     },
     [app, href],
   );
@@ -388,17 +372,9 @@ export function CartActionControl({
         <ActionButton
           {...labels}
           state={CART_BUTTON_STATE[state.status]}
-          doneLabel={
-            state.status === "already_added"
-              ? "Already added"
-              : labels.doneLabel
-          }
+          doneLabel={state.status === "already_added" ? "Already added" : labels.doneLabel}
           onClick={onSubmit}
-          disabled={
-            labels.disabled ||
-            state.status === "added" ||
-            state.status === "already_added"
-          }
+          disabled={labels.disabled || state.status === "added" || state.status === "already_added"}
           icon={CART_ICON}
         />
       )}
@@ -406,9 +382,7 @@ export function CartActionControl({
         <p
           role="alert"
           className={`mt-2 text-sm ${
-            state.status === "already_added"
-              ? "text-emerald-700"
-              : "text-red-600"
+            state.status === "already_added" ? "text-emerald-700" : "text-red-600"
           }`}
         >
           {state.message}
@@ -426,10 +400,7 @@ export type SaveableProduct = {
   price?: number;
 };
 
-export type SaveProductToList = (
-  product: SaveableProduct,
-  listId?: string,
-) => Promise<void>;
+export type SaveProductToList = (product: SaveableProduct, listId?: string) => Promise<void>;
 
 const NEW_LIST = "";
 
@@ -451,15 +422,11 @@ function SaveToListControl({
   const [open, setOpen] = useState(false);
   const [lists, setLists] = useState<ShoppingListSummaryData[] | null>(null);
 
-  const [listsState, setListsState] = useState<"idle" | "loading" | "error">(
-    "idle",
-  );
+  const [listsState, setListsState] = useState<"idle" | "loading" | "error">("idle");
 
   const [target, setTarget] = useState(NEW_LIST);
 
-  const [saveState, setSaveState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [saveState, setSaveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const [error, setError] = useState<string | null>(null);
   const selectId = useId();
@@ -468,7 +435,9 @@ function SaveToListControl({
     setOpen(true);
     setError(null);
 
-    if (lists !== null) {return;}
+    if (lists !== null) {
+      return;
+    }
 
     setListsState("loading");
 
@@ -500,7 +469,9 @@ function SaveToListControl({
       setSaveState("done");
 
       // A new list now exists; reload next time the picker opens.
-      if (!target) {setLists(null);}
+      if (!target) {
+        setLists(null);
+      }
 
       setTimeout(() => {
         setOpen(false);
@@ -629,12 +600,7 @@ export function ProductActions({
         failLabel="Retry cart"
         labelContext={name}
       />
-      <SaveToListControl
-        app={app}
-        product={saveable}
-        disabled={disabled}
-        onSave={onAddToList}
-      />
+      <SaveToListControl app={app} product={saveable} disabled={disabled} onSave={onAddToList} />
     </div>
   );
 }
@@ -643,10 +609,7 @@ function ProductImage({ product }: { product: ProductData }) {
   const thumbnail = product.imageUrl;
   const [failedUrl, setFailedUrl] = useState<string | undefined>();
 
-  const handleImageError = useCallback(
-    () => setFailedUrl(thumbnail),
-    [thumbnail],
-  );
+  const handleImageError = useCallback(() => setFailedUrl(thumbnail), [thumbnail]);
 
   if (!thumbnail || failedUrl === thumbnail) {
     const initials = product.name
@@ -658,10 +621,7 @@ function ProductImage({ product }: { product: ProductData }) {
 
     return (
       <div className="flex aspect-4/3 w-full flex-col items-center justify-center gap-1 bg-muted">
-        <span
-          aria-hidden="true"
-          className="text-2xl font-semibold text-gray-500"
-        >
+        <span aria-hidden="true" className="text-2xl font-semibold text-gray-500">
           {initials}
         </span>
         <span className="text-xs text-gray-500">No image</span>
@@ -707,9 +667,7 @@ export function ProductCard({
       <ProductImage product={product} />
       <CardContent className="flex flex-1 flex-col pt-2">
         <div className="flex-1">
-          <h3 className="text-sm leading-snug font-semibold text-gray-900">
-            {name}
-          </h3>
+          <h3 className="text-sm leading-snug font-semibold text-gray-900">{name}</h3>
           {(brand || size) && (
             <div className="mt-0.5 text-xs text-gray-400">
               {brand}

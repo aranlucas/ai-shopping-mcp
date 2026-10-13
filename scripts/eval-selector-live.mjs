@@ -33,13 +33,10 @@ const compact = process.argv.includes("--compact");
 
 const rankedControl = process.argv.includes("--ranked-control");
 
-const orders = rankedControl
-  ? ["acceptable-first"]
-  : ["original", "reversed", "shuffled"];
+const orders = rankedControl ? ["acceptable-first"] : ["original", "reversed", "shuffled"];
 
 const outputPath =
-  process.argv.slice(2).find((arg) => !arg.startsWith("--")) ??
-  "jev-evaluation-latest.json";
+  process.argv.slice(2).find((arg) => !arg.startsWith("--")) ?? "jev-evaluation-latest.json";
 
 const selectorSource = await readFile(
   new URL("./fixtures/jev-product-selector.ts", import.meta.url),
@@ -159,10 +156,7 @@ try {
 
         const baselineCorrect = expectedAbstention
           ? !firstEligible
-          : Boolean(
-              firstEligible &&
-              testCase.acceptableUpcs.includes(firstEligible.upc),
-            );
+          : Boolean(firstEligible && testCase.acceptableUpcs.includes(firstEligible.upc));
 
         const answer = body.calls?.[0]?.response?.answers?.[`item_${index}`];
         report.results.push({
@@ -181,9 +175,7 @@ try {
           expected: expectedAbstention
             ? "unresolved"
             : testCase.candidates
-                .filter((product) =>
-                  testCase.acceptableUpcs.includes(product.upc),
-                )
+                .filter((product) => testCase.acceptableUpcs.includes(product.upc))
                 .map((product) => ({
                   upc: product.upc,
                   name: product.description,
@@ -214,13 +206,9 @@ try {
     (result) => selectedActualSchema.safeParse(result.actual).success,
   );
 
-  const expectedAbstentions = results.filter(
-    (result) => result.expected === "unresolved",
-  );
+  const expectedAbstentions = results.filter((result) => result.expected === "unresolved");
 
-  const durations = report.batches
-    .map((batch) => batch.elapsedMs)
-    .toSorted((a, b) => a - b);
+  const durations = report.batches.map((batch) => batch.elapsedMs).toSorted((a, b) => a - b);
 
   report.summary = {
     ...summarize(results),
@@ -228,9 +216,8 @@ try {
     matchableRequests: {
       jev: summarize(results.filter((row) => row.expected !== "unresolved")),
       firstEligible: {
-        correct: results.filter(
-          (row) => row.expected !== "unresolved" && row.baselineCorrect,
-        ).length,
+        correct: results.filter((row) => row.expected !== "unresolved" && row.baselineCorrect)
+          .length,
         total: results.filter((row) => row.expected !== "unresolved").length,
       },
     },
@@ -239,24 +226,16 @@ try {
       correct: results.filter((row) => row.baselineCorrect).length,
       total: results.length,
       wrongSelections: results.filter(
-        (row) =>
-          selectedActualSchema.safeParse(row.baselineActual).success &&
-          !row.baselineCorrect,
+        (row) => selectedActualSchema.safeParse(row.baselineActual).success && !row.baselineCorrect,
       ).length,
-      selected: results.filter(
-        (row) => selectedActualSchema.safeParse(row.baselineActual).success,
-      ).length,
+      selected: results.filter((row) => selectedActualSchema.safeParse(row.baselineActual).success)
+        .length,
     },
     paired: {
-      jevWins: results.filter((row) => row.correct && !row.baselineCorrect)
-        .length,
-      jevRegressions: results.filter(
-        (row) => !row.correct && row.baselineCorrect,
-      ).length,
-      bothCorrect: results.filter((row) => row.correct && row.baselineCorrect)
-        .length,
-      bothWrong: results.filter((row) => !row.correct && !row.baselineCorrect)
-        .length,
+      jevWins: results.filter((row) => row.correct && !row.baselineCorrect).length,
+      jevRegressions: results.filter((row) => !row.correct && row.baselineCorrect).length,
+      bothCorrect: results.filter((row) => row.correct && row.baselineCorrect).length,
+      bothWrong: results.filter((row) => !row.correct && !row.baselineCorrect).length,
     },
     wrongSelections: selections.filter((row) => !row.correct).length,
     missedMatches: results.filter(
@@ -282,17 +261,13 @@ try {
     expectedAbstentions: summarize(expectedAbstentions),
     errors: results.filter((result) => result.actual === "error").length,
     casesPassingAllOrders: cases.filter((testCase) =>
-      results
-        .filter((result) => result.id === testCase.id)
-        .every((result) => result.correct),
+      results.filter((result) => result.id === testCase.id).every((result) => result.correct),
     ).length,
     byCategory: Object.fromEntries(
-      [...new Set(cases.map((testCase) => testCase.category))].map(
-        (category) => [
-          category,
-          summarize(results.filter((result) => result.category === category)),
-        ],
-      ),
+      [...new Set(cases.map((testCase) => testCase.category))].map((category) => [
+        category,
+        summarize(results.filter((result) => result.category === category)),
+      ]),
     ),
     latencyMs: {
       min: durations[0],
@@ -304,10 +279,7 @@ try {
       .reduce((sum, call) => sum + (call.response?.usage?.cost ?? 0), 0),
     inputTokens: report.batches
       .flatMap((batch) => batch.calls ?? [])
-      .reduce(
-        (sum, call) => sum + (call.response?.usage?.input_tokens ?? 0),
-        0,
-      ),
+      .reduce((sum, call) => sum + (call.response?.usage?.input_tokens ?? 0), 0),
   };
   report.completedAt = new Date().toISOString();
   console.log(JSON.stringify(report.summary, null, 2));

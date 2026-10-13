@@ -1,10 +1,7 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import { describe, expect, it, vi } from "vitest";
-import {
-  createCartAction,
-  type CartRequest,
-} from "../../views/app/cart-action.js";
+import { createCartAction, type CartRequest } from "../../views/app/cart-action.js";
 
 const productRequest: CartRequest = {
   kind: "product",
@@ -27,9 +24,7 @@ const listCreated = {
   structuredContent: { listId: "original-list" },
 };
 
-function cartSuccess(
-  outcome: "added" | "already_added" | "needs_match" = "added",
-): CallToolResult {
+function cartSuccess(outcome: "added" | "already_added" | "needs_match" = "added"): CallToolResult {
   return {
     content: [],
     _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
@@ -43,8 +38,7 @@ function cartSuccess(
         outcome === "needs_match"
           ? []
           : [{ upc: "0001111041700", quantity: 1, modality: "PICKUP" }],
-      needsUpc:
-        outcome === "needs_match" ? [{ productName: "Milk", quantity: 1 }] : [],
+      needsUpc: outcome === "needs_match" ? [{ productName: "Milk", quantity: 1 }] : [],
       actionDetail:
         outcome === "added"
           ? 'Added 1 item(s) from list "Milk" to cart'
@@ -66,17 +60,19 @@ const failure = (code: string, recovery: string): CallToolResult => ({
 function makeApp(results: Array<CallToolResult | Error>) {
   const app = new App({ name: "cart-action-test", version: "1.0.0" });
 
-  const callServerTool = vi
-    .spyOn(app, "callServerTool")
-    .mockImplementation(async () => {
-      const result = results.shift();
+  const callServerTool = vi.spyOn(app, "callServerTool").mockImplementation(async () => {
+    const result = results.shift();
 
-      if (result instanceof Error) {throw result;}
+    if (result instanceof Error) {
+      throw result;
+    }
 
-      if (!result) {throw new Error("Unexpected tool call");}
+    if (!result) {
+      throw new Error("Unexpected tool call");
+    }
 
-      return result;
-    });
+    return result;
+  });
 
   return { app, callServerTool };
 }
@@ -87,16 +83,10 @@ describe("cart action state transitions", () => {
     const action = createCartAction(productRequest);
     const observed: string[] = [];
     action.subscribe(() =>
-      observed.push(
-        `${action.getSnapshot().status}:${action.getSnapshot().request.kind}`,
-      ),
+      observed.push(`${action.getSnapshot().status}:${action.getSnapshot().request.kind}`),
     );
     await action.submit(app);
-    expect(observed).toEqual([
-      "submitting:product",
-      "submitting:list",
-      "added:list",
-    ]);
+    expect(observed).toEqual(["submitting:product", "submitting:list", "added:list"]);
     expect(callServerTool.mock.calls.map(([call]) => call)).toEqual([
       {
         name: "create_shopping_list",
@@ -129,9 +119,7 @@ describe("cart action state transitions", () => {
       message: "Cart request failed",
     });
     await action.submit(second.app);
-    expect(second.callServerTool.mock.calls[0]).toEqual(
-      first.callServerTool.mock.calls[1],
-    );
+    expect(second.callServerTool.mock.calls[0]).toEqual(first.callServerTool.mock.calls[1]);
     expect(action.getSnapshot().status).toBe("added");
   });
 
@@ -169,17 +157,13 @@ describe("cart action state transitions", () => {
     expect(action.getSnapshot()).toMatchObject({
       status: "check_cart",
       request: listRequest,
-      message:
-        "The cart response was malformed. Check your Kroger cart before retrying.",
+      message: "The cart response was malformed. Check your Kroger cart before retrying.",
     });
     await action.submit(app);
     expect(callServerTool).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    failure("MUTATION_OUTCOME_UNKNOWN", "check_cart"),
-    new Error("host disconnected"),
-  ])(
+  it.each([failure("MUTATION_OUTCOME_UNKNOWN", "check_cart"), new Error("host disconnected")])(
     "blocks retries and resets after an ambiguous outcome %j",
     async (error) => {
       const { app, callServerTool } = makeApp([listCreated, error]);
@@ -198,8 +182,7 @@ describe("cart action state transitions", () => {
   it.each([productRequest, listRequest])(
     "coalesces concurrent clicks for $kind actions",
     async (request) => {
-      const results =
-        request.kind === "product" ? [listCreated, success] : [success];
+      const results = request.kind === "product" ? [listCreated, success] : [success];
 
       const expectedCalls = results.length;
       const { app, callServerTool } = makeApp(results);
@@ -233,9 +216,7 @@ describe("cart action state transitions", () => {
   });
 
   it("blocks retry when the list creation response is uncertain", async () => {
-    const { app, callServerTool } = makeApp([
-      new Error("list service unavailable"),
-    ]);
+    const { app, callServerTool } = makeApp([new Error("list service unavailable")]);
 
     const action = createCartAction(productRequest);
     await action.submit(app);
@@ -244,16 +225,16 @@ describe("cart action state transitions", () => {
       request: productRequest,
     });
     await action.submit(app);
-    expect(callServerTool.mock.calls.map(([call]) => call.name)).toEqual([
-      "create_shopping_list",
-    ]);
+    expect(callServerTool.mock.calls.map(([call]) => call.name)).toEqual(["create_shopping_list"]);
   });
 
   it("snapshots the input so caller mutations cannot change a pending request", async () => {
     const request = structuredClone(productRequest);
     const action = createCartAction(request);
 
-    if (request.kind !== "product") {throw new Error("Expected product fixture");}
+    if (request.kind !== "product") {
+      throw new Error("Expected product fixture");
+    }
 
     request.product.quantity = 99;
     const { app, callServerTool } = makeApp([listCreated, success]);

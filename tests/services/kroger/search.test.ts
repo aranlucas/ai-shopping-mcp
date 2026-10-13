@@ -17,10 +17,7 @@ type SearchOptions = {
   params: { query?: Record<string, string | number> };
 };
 
-type SearchGet = (
-  path: string,
-  options: SearchOptions,
-) => Promise<SearchResponse>;
+type SearchGet = (path: string, options: SearchOptions) => Promise<SearchResponse>;
 
 function productClient(get: SearchGet): KrogerClients["productClient"] {
   return productClientWith(get);
@@ -150,9 +147,7 @@ describe("text search workload budget", () => {
     expect(results).toHaveLength(11);
     expect(
       results.every(
-        (result) =>
-          result.status === "failed" &&
-          result.error.type === "VALIDATION_ERROR",
+        (result) => result.status === "failed" && result.error.type === "VALIDATION_ERROR",
       ),
     ).toBe(true);
     expect(get).not.toHaveBeenCalled();

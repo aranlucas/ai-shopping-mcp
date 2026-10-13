@@ -3,10 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { OrderRecord } from "../domain/shopping.js";
-import type {
-  OrderHistoryStore,
-  PreferredLocationStore,
-} from "../utils/shopping-store.js";
+import type { OrderHistoryStore, PreferredLocationStore } from "../utils/shopping-store.js";
 
 import { appResult } from "../app-results.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
@@ -15,9 +12,7 @@ import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { storeIdSchema, upcSchema } from "./schemas.js";
 
 const orderItemSchema = z.strictObject({
-  upc: upcSchema
-    .optional()
-    .describe("13-digit UPC from search_products, if known"),
+  upc: upcSchema.optional().describe("13-digit UPC from search_products, if known"),
   productName: z.string().trim().min(1).max(200),
   quantity: z.coerce.number().int().min(1).max(999).default(1),
   price: z.coerce.number().min(0).optional(),
@@ -66,10 +61,7 @@ export function registerOrderTools(
 
       const locationId =
         storeId ??
-        (await safeStorage(
-          () => preferredLocation.get(),
-          "fetch preferred store",
-        ).match(
+        (await safeStorage(() => preferredLocation.get(), "fetch preferred store").match(
           (store) => store?.locationId,
           () => undefined,
         ));
@@ -92,10 +84,7 @@ export function registerOrderTools(
         notes,
       };
 
-      const result = await safeStorage(
-        () => orderHistory.add(order),
-        "record order",
-      ).map(() =>
+      const result = await safeStorage(() => orderHistory.add(order), "record order").map(() =>
         Object.assign(
           {
             content: [
@@ -109,9 +98,7 @@ export function registerOrderTools(
                     : [
                         `Estimated total: $${order.estimatedTotal.toFixed(2)} (${items.filter((item) => item.price !== undefined).length}/${items.length} lines priced)`,
                       ]),
-                  ...items.map(
-                    (item) => `- ${formatShoppingListItemCompact(item)}`,
-                  ),
+                  ...items.map((item) => `- ${formatShoppingListItemCompact(item)}`),
                   ...(notes ? [`Notes: ${notes}`] : []),
                 ].join("\n"),
               },

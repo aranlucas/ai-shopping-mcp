@@ -7,14 +7,10 @@ import { readFile, readdir } from "node:fs/promises";
 
 const directory = process.argv[2] ?? "eval-results";
 
-const files = (await readdir(directory)).filter((file) =>
-  /^agent.*\.json$/.test(file),
-);
+const files = (await readdir(directory)).filter((file) => /^agent.*\.json$/.test(file));
 
 const reports = await Promise.all(
-  files.map(async (file) =>
-    JSON.parse(await readFile(`${directory}/${file}`, "utf8")),
-  ),
+  files.map(async (file) => JSON.parse(await readFile(`${directory}/${file}`, "utf8"))),
 );
 
 const testResults = reports.flatMap((report) => report.testResults);
@@ -55,9 +51,7 @@ const avg = (rows, key) => {
   const measured = rows.filter((row) => z.number().safeParse(row[key]).success);
 
   return measured.length
-    ? (
-        measured.reduce((sum, row) => sum + row[key], 0) / measured.length
-      ).toFixed(1)
+    ? (measured.reduce((sum, row) => sum + row[key], 0) / measured.length).toFixed(1)
     : "-";
 };
 
@@ -106,9 +100,7 @@ if (failures.length || errored.length) {
   }
 }
 
-const feedback = runs.filter(
-  (run) => run.feedback && !/^none\.?$/i.test(run.feedback),
-);
+const feedback = runs.filter((run) => run.feedback && !/^none\.?$/i.test(run.feedback));
 
 if (feedback.length) {
   lines.push("", "### Model tool feedback", "");

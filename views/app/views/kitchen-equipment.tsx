@@ -23,11 +23,7 @@ const REMOVE_ICON = (
     strokeWidth={2.5}
     stroke="currentColor"
   >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M6 18 18 6M6 6l12 12"
-    />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
   </svg>
 );
 
@@ -57,9 +53,7 @@ function KitchenEquipmentRow({
   canCallTools: boolean;
   onRemove: (name: string) => Promise<void>;
 }) {
-  const [removeState, setRemoveState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleRemove = useCallback(async () => {
     setRemoveState("loading");
@@ -94,9 +88,7 @@ function KitchenEquipmentRow({
         </svg>
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-gray-900">
-          {item.equipmentName}
-        </div>
+        <div className="truncate text-sm font-medium text-gray-900">{item.equipmentName}</div>
         {item.category && (
           <div className="mt-0.5">
             <Badge variant="secondary" tone="muted">
@@ -142,21 +134,21 @@ export function KitchenEquipmentView({
         arguments: { equipment: { remove: [name] } },
       });
 
-      if (result?.isError) {throw new Error("Failed to remove equipment");}
+      if (result?.isError) {
+        throw new Error("Failed to remove equipment");
+      }
 
       const updated = parseToolResult(result);
 
-      if (updated) {setData(updated);}
+      if (updated) {
+        setData(updated);
+      }
     },
     [app, setData],
   );
 
   const headerBadge = useMemo(
-    () => (
-      <span className="font-mono text-xs text-gray-400">
-        {items.length} items
-      </span>
-    ),
+    () => <span className="font-mono text-xs text-gray-400">{items.length} items</span>,
     [items.length],
   );
 
@@ -177,11 +169,7 @@ export function KitchenEquipmentView({
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader
-        title="Kitchen Equipment"
-        badge={headerBadge}
-        subtitle={actionDetail}
-      />
+      <SectionHeader title="Kitchen Equipment" badge={headerBadge} subtitle={actionDetail} />
       <div className="divide-y divide-border">
         {items.map((item) => (
           <KitchenEquipmentRow

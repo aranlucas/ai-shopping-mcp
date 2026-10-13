@@ -56,9 +56,7 @@ export async function searchProductsForTerms(
     return requests.map((request) => ({
       ...request,
       status: "failed" as const,
-      error: validationError(
-        `Maximum ${MAX_TEXT_TERMS} text search terms per call.`,
-      ),
+      error: validationError(`Maximum ${MAX_TEXT_TERMS} text search terms per call.`),
     }));
   }
 
@@ -86,7 +84,9 @@ export async function searchProductsForTerms(
       "filter.limit": params.limitPerTerm,
     };
 
-    if (params.locationId) {queryParams["filter.locationId"] = params.locationId;}
+    if (params.locationId) {
+      queryParams["filter.locationId"] = params.locationId;
+    }
 
     const apiResult = await fromApiResponse(
       () =>
@@ -109,9 +109,7 @@ export async function searchProductsForTerms(
     // Preserve Result type — map Ok to success shape, log and convert Err
     return apiResult
       .map((data) => {
-        const products = (data?.data || []).filter((product) =>
-          Boolean(product.upc?.trim()),
-        );
+        const products = (data?.data || []).filter((product) => Boolean(product.upc?.trim()));
 
         return Object.assign(
           {
@@ -136,9 +134,13 @@ export async function searchProductsForTerms(
         const aPickup = aItem?.fulfillment?.curbside === true;
         const bPickup = bItem?.fulfillment?.curbside === true;
 
-        if (aPickup && !bPickup) {return -1;}
+        if (aPickup && !bPickup) {
+          return -1;
+        }
 
-        if (!aPickup && bPickup) {return 1;}
+        if (!aPickup && bPickup) {
+          return 1;
+        }
 
         return 0;
       });

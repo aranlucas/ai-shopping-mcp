@@ -1,7 +1,4 @@
-import {
-  selectProductMatches,
-  type SelectorAi,
-} from "./fixtures/jev-product-selector.js";
+import { selectProductMatches, type SelectorAi } from "./fixtures/jev-product-selector.js";
 
 type DiagnosticCall = { elapsedMs: number; status: number; response: unknown };
 
@@ -39,17 +36,12 @@ export default {
       : env.AI;
 
     try {
-      const input =
-        await request.json<
-          Omit<Parameters<typeof selectProductMatches>[0], "ai">
-        >();
+      const input = await request.json<Omit<Parameters<typeof selectProductMatches>[0], "ai">>();
 
       const selections = await selectProductMatches({ ...input, ai });
 
       return Response.json(
-        diagnostic
-          ? { selections, calls, elapsedMs: Date.now() - started }
-          : selections,
+        diagnostic ? { selections, calls, elapsedMs: Date.now() - started } : selections,
       );
     } catch (error) {
       const body: DiagnosticError = {

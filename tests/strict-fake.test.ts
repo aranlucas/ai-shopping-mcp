@@ -38,9 +38,7 @@ describe("strict runtime fakes", () => {
     expect(counter.count).toBe(1);
     expect(members.count).toBe(1);
     expect(counter.increment).toBe(counter.increment);
-    expect(() => counter.missing()).toThrow(
-      "Unimplemented fake member: missing",
-    );
+    expect(() => counter.missing()).toThrow("Unimplemented fake member: missing");
   });
   it("rejects missing and undefined properties, including symbol keys", () => {
     const value = strictFake<SymbolOwner>({ [token]: "present" });
@@ -48,9 +46,7 @@ describe("strict runtime fakes", () => {
     expect(() => value.absent).toThrow("Unimplemented fake member: absent");
     const absent = strictFake<SymbolOwner>({ absent: undefined });
     expect(() => absent.absent).toThrow("Unimplemented fake member: absent");
-    expect(() => absent[token]).toThrow(
-      "Unimplemented fake member: Symbol(token)",
-    );
+    expect(() => absent[token]).toThrow("Unimplemented fake member: Symbol(token)");
   });
   it("resolves prototype descriptors without losing private-field receivers", () => {
     const owner = new PrivateCounter();
@@ -66,7 +62,5 @@ it("requires an explicit ordinary-data contract before allowing Promise assimila
   const data = strictFake<Counter>({ count: 2 }, { nonThenable: true });
   expect(await Promise.resolve(data)).toBe(data);
   const missingPromise = strictFake<Promise<number>>({});
-  await expect(Promise.resolve(missingPromise)).rejects.toThrow(
-    "Unimplemented fake member: then",
-  );
+  await expect(Promise.resolve(missingPromise)).rejects.toThrow("Unimplemented fake member: then");
 });

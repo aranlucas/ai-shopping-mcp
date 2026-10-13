@@ -1,9 +1,6 @@
 import { exports } from "cloudflare:workers";
 import { z } from "zod/v4";
-import {
-  McpServer,
-  type McpRequestContext,
-} from "@modelcontextprotocol/server";
+import { McpServer, type McpRequestContext } from "@modelcontextprotocol/server";
 import { getMcpAuthContext } from "agents/mcp/server";
 
 import type { AppEnv } from "./env.js";
@@ -64,12 +61,7 @@ export function buildServer(
       const parsed = z
         .object({
           accessToken: z.string(),
-          tokenExpiresAt: z.union([
-            z.number(),
-            z.nan(),
-            z.literal(Infinity),
-            z.literal(-Infinity),
-          ]),
+          tokenExpiresAt: z.union([z.number(), z.nan(), z.literal(Infinity), z.literal(-Infinity)]),
         })
         .safeParse(props);
 
@@ -82,30 +74,22 @@ export function buildServer(
 
   const shoppingStore = createD1ShoppingStore(env.SHOPPING_DB, userId);
 
-  const { preferredLocation, pantry, equipment, orderHistory, shoppingList } =
-    shoppingStore;
+  const { preferredLocation, pantry, equipment, orderHistory, shoppingList } = shoppingStore;
 
   const cartJournal = exports.CartOperations.getByName(userId);
 
-  const carts = createCartPersistence(
-    env.USER_DATA_KV,
-    () => ({ userId, clientId }),
-    {
-      begin: (key, fingerprint) =>
-        cartJournal.begin(JSON.stringify([clientId, key]), fingerprint),
-      reconcileLegacy: (key, attempt, fingerprint, legacyFingerprint) =>
-        cartJournal.reconcileLegacy(
-          JSON.stringify([clientId, key]),
-          attempt,
-          fingerprint,
-          legacyFingerprint,
-        ),
-      complete: (key, attempt) =>
-        cartJournal.complete(JSON.stringify([clientId, key]), attempt),
-      reject: (key, attempt) =>
-        cartJournal.reject(JSON.stringify([clientId, key]), attempt),
-    },
-  );
+  const carts = createCartPersistence(env.USER_DATA_KV, () => ({ userId, clientId }), {
+    begin: (key, fingerprint) => cartJournal.begin(JSON.stringify([clientId, key]), fingerprint),
+    reconcileLegacy: (key, attempt, fingerprint, legacyFingerprint) =>
+      cartJournal.reconcileLegacy(
+        JSON.stringify([clientId, key]),
+        attempt,
+        fingerprint,
+        legacyFingerprint,
+      ),
+    complete: (key, attempt) => cartJournal.complete(JSON.stringify([clientId, key]), attempt),
+    reject: (key, attempt) => cartJournal.reject(JSON.stringify([clientId, key]), attempt),
+  });
 
   const productService = new ProductService(clients.productClient);
   const weeklyDealsCache = createWeeklyDealsCache(userDataKv);

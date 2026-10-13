@@ -58,10 +58,7 @@ function legacyWarning(message: string): WeeklyDealWarning {
 function conciseDeals(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     id: `deal-${index + 1}`,
-    title:
-      index === 0
-        ? "Kroger 2% Reduced Fat Milk"
-        : `Weeknight Offer ${index + 1}`,
+    title: index === 0 ? "Kroger 2% Reduced Fat Milk" : `Weeknight Offer ${index + 1}`,
     details: index === 0 ? "1 gal" : "12 oz",
     price: index === 0 ? "$3.49" : "$2.00",
     savings: index === 0 ? "Save $0.50 (was $3.99)" : "Save $1.00",
@@ -96,12 +93,11 @@ function failKrogerFetches() {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = new URL(
-        input instanceof Request ? input.url : input.toString(),
-      );
+      const url = new URL(input instanceof Request ? input.url : input.toString());
 
-      if (url.hostname === "api.kroger.com")
-        {throw new Error("fixture Kroger outage");}
+      if (url.hostname === "api.kroger.com") {
+        throw new Error("fixture Kroger outage");
+      }
 
       return originalFetch(input, init);
     }),
@@ -124,10 +120,7 @@ describe("meal planning weekly deals (wire eval)", () => {
     await reset();
   });
 
-  async function call(
-    name: string,
-    args: ToolArguments,
-  ): Promise<ToolCallResult> {
+  async function call(name: string, args: ToolArguments): Promise<ToolCallResult> {
     toolCalls++;
 
     const result = await client.callTool({
@@ -135,10 +128,7 @@ describe("meal planning weekly deals (wire eval)", () => {
       arguments: args,
     });
 
-    expect(
-      result.isError,
-      `${name} failed: ${contentText(result)}`,
-    ).toBeFalsy();
+    expect(result.isError, `${name} failed: ${contentText(result)}`).toBeFalsy();
 
     return result;
   }
@@ -191,9 +181,7 @@ describe("meal planning weekly deals (wire eval)", () => {
         freshUntil: Date.now() - 60_000,
         staleUntil: Date.now() + 60 * 60 * 1000,
       },
-      dealsData(conciseDeals(2), [
-        legacyWarning("Member prices require a loyalty card."),
-      ]),
+      dealsData(conciseDeals(2), [legacyWarning("Member prices require a loyalty card.")]),
     );
     failKrogerFetches();
 

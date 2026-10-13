@@ -124,9 +124,7 @@ describe("formatPantryItemCompact", () => {
 
   it("shows day count warning when item expires within 1-3 days", () => {
     // 2.5 days from now → Math.floor(2.5) = 2
-    const expiresAt = new Date(
-      Date.now() + 2.5 * 24 * 60 * 60 * 1000,
-    ).toISOString();
+    const expiresAt = new Date(Date.now() + 2.5 * 24 * 60 * 60 * 1000).toISOString();
 
     const item: PantryItem = {
       productName: "Cheese",
@@ -339,9 +337,7 @@ describe("formatShoppingListItemCompact", () => {
       notes: "large",
     };
 
-    expect(formatShoppingListItemCompact(item)).toBe(
-      "Eggs x12 | upc=0001111042010 | large",
-    );
+    expect(formatShoppingListItemCompact(item)).toBe("Eggs x12 | upc=0001111042010 | large");
   });
 });
 
@@ -414,9 +410,7 @@ describe("formatProductLine", () => {
   });
 
   it("omits the 'was' price when there is no promo", () => {
-    const line = formatProductLine(
-      productData({ price: 3.49, regularPrice: undefined }),
-    );
+    const line = formatProductLine(productData({ price: 3.49, regularPrice: undefined }));
 
     expect(line).toContain("$3.49");
     expect(line).not.toContain("was");
@@ -515,9 +509,7 @@ describe("formatProductSearchMarkdown", () => {
 
 describe("formatProductDetails", () => {
   it("does not present zero promo as free or invent a missing regular price", () => {
-    const zeroPromo = toProductData(
-      makeProduct({ items: [{ price: { regular: 4, promo: 0 } }] }),
-    );
+    const zeroPromo = toProductData(makeProduct({ items: [{ price: { regular: 4, promo: 0 } }] }));
 
     expect(formatProductDetails(zeroPromo)).toContain("$4");
     expect(formatProductDetails(zeroPromo)).not.toContain("$0");
@@ -621,25 +613,19 @@ describe("formatWeeklyDealsMarkdown", () => {
       "2026-07-01",
     );
 
-    expect(text).toContain(
-      "Deals valid 2026-06-25 to 2026-07-01. dealCount: 1",
-    );
+    expect(text).toContain("Deals valid 2026-06-25 to 2026-07-01. dealCount: 1");
     expect(text).toContain("- Ground Beef | 80% Lean | $3.99/lb | Save $2.00");
   });
 
   it("falls back to a bare dealCount header when dates are missing", () => {
-    const text = formatWeeklyDealsMarkdown([
-      { title: "Bananas", category: "Produce" },
-    ]);
+    const text = formatWeeklyDealsMarkdown([{ title: "Bananas", category: "Produce" }]);
 
     expect(text).toContain("dealCount: 1");
     expect(text).not.toContain("Deals valid");
   });
 
   it("includes warnings when present", () => {
-    const text = formatWeeklyDealsMarkdown([], undefined, undefined, [
-      "Live refresh failed",
-    ]);
+    const text = formatWeeklyDealsMarkdown([], undefined, undefined, ["Live refresh failed"]);
 
     expect(text).toContain("warnings: Live refresh failed");
   });

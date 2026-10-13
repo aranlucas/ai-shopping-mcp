@@ -83,8 +83,7 @@ export async function selectProductMatches(params: {
 
         return (
           variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
-          (!forPickup ||
-            (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
+          (!forPickup || (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
         );
       }),
     }))
@@ -100,14 +99,16 @@ export async function selectProductMatches(params: {
   const getSelection = (requestId: string): ProductSelection => {
     const selection = selections.get(requestId);
 
-    if (!selection)
-      {throw new Error(`Missing selection for request ${requestId}`);}
+    if (!selection) {
+      throw new Error(`Missing selection for request ${requestId}`);
+    }
 
     return selection;
   };
 
-  if (entries.length === 0)
-    {return items.map((item) => getSelection(item.requestId));}
+  if (entries.length === 0) {
+    return items.map((item) => getSelection(item.requestId));
+  }
 
   const questions = Object.fromEntries(
     entries.map((entry) => [
@@ -134,8 +135,7 @@ export async function selectProductMatches(params: {
           ),
           no_match:
             "Every candidate conflicts with the requested product or an explicit attribute.",
-          needs_review:
-            "The request is ambiguous or evidence for a required attribute is missing.",
+          needs_review: "The request is ambiguous or evidence for a required attribute is missing.",
         },
       },
     ]),
@@ -166,10 +166,7 @@ export async function selectProductMatches(params: {
             model: JEV_MODEL,
             state: {
               items: Object.fromEntries(
-                entries.map((entry) => [
-                  entry.id,
-                  { requestedItem: entry.query },
-                ]),
+                entries.map((entry) => [entry.id, { requestedItem: entry.query }]),
               ),
             },
             questions,
@@ -178,8 +175,9 @@ export async function selectProductMatches(params: {
         { signal: controller.signal },
       );
 
-      if (!response.ok)
-        {throw new Error(`Jev request failed with HTTP ${response.status}`);}
+      if (!response.ok) {
+        throw new Error(`Jev request failed with HTTP ${response.status}`);
+      }
 
       return response.json();
     };
@@ -204,13 +202,8 @@ export async function selectProductMatches(params: {
         !Object.hasOwn(criteria, answer.choice) ||
         Object.keys(probabilities).length !== keys.length ||
         keys.some((key) => !Object.hasOwn(probabilities, key)) ||
-        Math.abs(
-          Object.values(probabilities).reduce((sum, value) => sum + value, 0) -
-            1,
-        ) > 0.02 ||
-        Object.values(probabilities).some(
-          (value) => value > probabilities[answer.choice] + 0.001,
-        )
+        Math.abs(Object.values(probabilities).reduce((sum, value) => sum + value, 0) - 1) > 0.02 ||
+        Object.values(probabilities).some((value) => value > probabilities[answer.choice] + 0.001)
       ) {
         throw new Error("Invalid Jev choice distribution");
       }

@@ -25,8 +25,7 @@ export const storeIdSchema = z
   .string()
   .trim()
   .refine((value) => value.length === 8, {
-    message:
-      "Store ID must be the 8-character storeId from search_stores output.",
+    message: "Store ID must be the 8-character storeId from search_stores output.",
   });
 
 /** A quantity field coerced from string/number input, bounded by min/max. */
@@ -55,9 +54,13 @@ export const coercedBooleanSchema = z.preprocess((value) => {
   if (parsed.success) {
     const normalized = parsed.data.trim().toLowerCase();
 
-    if (normalized === "true") {return true;}
+    if (normalized === "true") {
+      return true;
+    }
 
-    if (normalized === "false") {return false;}
+    if (normalized === "false") {
+      return false;
+    }
   }
 
   return value;

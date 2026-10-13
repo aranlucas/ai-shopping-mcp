@@ -74,13 +74,13 @@ export function fromApiResponse<T>(
   context: string,
 ): ResultAsync<T, AppError> {
   const mapFailure = (cause: unknown): AppError => {
-    if (cause instanceof AppErrorException) {return cause.appError;}
+    if (cause instanceof AppErrorException) {
+      return cause.appError;
+    }
 
-    if (cause instanceof SyntaxError)
-      {return invalidResponseError(
-        `${context}: upstream returned malformed JSON.`,
-        cause,
-      );}
+    if (cause instanceof SyntaxError) {
+      return invalidResponseError(`${context}: upstream returned malformed JSON.`, cause);
+    }
 
     if (cause instanceof Error && cause.name === "KrogerTokenExpiredError") {
       return authError(cause.message);
@@ -99,10 +99,9 @@ export function fromApiResponse<T>(
       : ResultAsync.fromPromise(promise, mapFailure);
 
   return result.andThen(({ data, error, response }) => {
-    if (response.status === 401)
-      {return err(
-        authError("Authentication expired. Reconnect the MCP server."),
-      );}
+    if (response.status === 401) {
+      return err(authError("Authentication expired. Reconnect the MCP server."));
+    }
 
     if (error !== undefined || !response.ok) {
       return err(apiError(`Failed to ${context}`, error, response.status));
@@ -135,12 +134,7 @@ const authenticatedPropsSchema = z.object({
     id: z.string().refine(isVerifiedShopperId),
     accessToken: z.string(),
     // Preserve the existing number contract; token expiry is enforced by the client.
-    tokenExpiresAt: z.union([
-      z.number(),
-      z.nan(),
-      z.literal(Infinity),
-      z.literal(-Infinity),
-    ]),
+    tokenExpiresAt: z.union([z.number(), z.nan(), z.literal(Infinity), z.literal(-Infinity)]),
   }),
 });
 
@@ -149,8 +143,9 @@ const authenticatedPropsSchema = z.object({
 export function parseAuthenticatedProps(value: unknown): Props {
   const parsed = authenticatedPropsSchema.safeParse(value);
 
-  if (!parsed.success)
-    {throw new Error("getProps() called outside an authenticated MCP request");}
+  if (!parsed.success) {
+    throw new Error("getProps() called outside an authenticated MCP request");
+  }
 
   return parsed.data.props;
 }
@@ -175,23 +170,22 @@ export function safeResolveLocationId(
     });
   }
 
-  return safeStorage(
-    () => preferredLocation.get(),
-    "fetch preferred location",
-  ).andThen((location) => {
-    if (!location) {
-      return err(
-        notFoundError(
-          "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
-        ),
-      );
-    }
+  return safeStorage(() => preferredLocation.get(), "fetch preferred location").andThen(
+    (location) => {
+      if (!location) {
+        return err(
+          notFoundError(
+            "No location specified and no preferred store set. Please provide a locationId or set your preferred store using set_preferred_store.",
+          ),
+        );
+      }
 
-    return ok({
-      locationId: location.locationId,
-      locationName: location.locationName,
-    });
-  });
+      return ok({
+        locationId: location.locationId,
+        locationName: location.locationName,
+      });
+    },
+  );
 }
 
 // --- Storage Wrappers ---
@@ -206,9 +200,6 @@ export function safeStorage<T>(
   return ResultAsync.fromThrowable(operation, (e): AppError =>
     e instanceof AppErrorException
       ? e.appError
-      : storageError(
-          `${context}: ${e instanceof Error ? e.message : String(e)}`,
-          e,
-        ),
+      : storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
   )();
 }

@@ -19,20 +19,20 @@ const middlewareOptions: MergedOptions = {
   },
 };
 
-type MiddlewareResult = Awaited<
-  ReturnType<NonNullable<Middleware["onRequest"]>>
->;
+type MiddlewareResult = Awaited<ReturnType<NonNullable<Middleware["onRequest"]>>>;
 
 function responseResult(value: MiddlewareResult): Response {
-  if (!(value instanceof Response))
-    {throw new Error("Expected a middleware Response");}
+  if (!(value instanceof Response)) {
+    throw new Error("Expected a middleware Response");
+  }
 
   return value;
 }
 
 function requestResult(value: MiddlewareResult): Request {
-  if (!(value instanceof Request))
-    {throw new Error("Expected a middleware Request");}
+  if (!(value instanceof Request)) {
+    throw new Error("Expected a middleware Request");
+  }
 
   return value;
 }
@@ -86,7 +86,9 @@ function callOnRequest(
 ) {
   const onRequest = middleware.onRequest;
 
-  if (!onRequest) {throw new Error("onRequest not defined");}
+  if (!onRequest) {
+    throw new Error("onRequest not defined");
+  }
 
   return onRequest(makeRequestParams(request));
 }
@@ -98,7 +100,9 @@ function callOnResponse(
 ) {
   const onResponse = middleware.onResponse;
 
-  if (!onResponse) {throw new Error("onResponse not defined");}
+  if (!onResponse) {
+    throw new Error("onResponse not defined");
+  }
 
   return onResponse(makeResponseParams(request, response));
 }
@@ -108,9 +112,7 @@ describe("createKrogerAuthMiddleware", () => {
     const middleware = createKrogerAuthMiddleware(() => null);
     const request = new Request("https://api.kroger.com/v1/products");
 
-    await expect(callOnRequest(middleware, request)).rejects.toThrow(
-      KrogerTokenExpiredError,
-    );
+    await expect(callOnRequest(middleware, request)).rejects.toThrow(KrogerTokenExpiredError);
   });
 
   it("adds Authorization Bearer header when token is valid", async () => {
@@ -122,9 +124,7 @@ describe("createKrogerAuthMiddleware", () => {
     const request = new Request("https://api.kroger.com/v1/products");
     const result = await callOnRequest(middleware, request);
 
-    expect(requestResult(result).headers.get("Authorization")).toBe(
-      "Bearer my-access-token",
-    );
+    expect(requestResult(result).headers.get("Authorization")).toBe("Bearer my-access-token");
   });
 
   it("throws KrogerTokenExpiredError when token expired more than 60 seconds ago", async () => {
@@ -135,9 +135,7 @@ describe("createKrogerAuthMiddleware", () => {
 
     const request = new Request("https://api.kroger.com/v1/products");
 
-    await expect(callOnRequest(middleware, request)).rejects.toThrow(
-      KrogerTokenExpiredError,
-    );
+    await expect(callOnRequest(middleware, request)).rejects.toThrow(KrogerTokenExpiredError);
   });
 
   it("does not throw for a token that expired less than 60 seconds ago (clock-skew grace period)", async () => {
@@ -151,9 +149,7 @@ describe("createKrogerAuthMiddleware", () => {
     const request = new Request("https://api.kroger.com/v1/products");
     const result = await callOnRequest(middleware, request);
 
-    expect(requestResult(result).headers.get("Authorization")).toBe(
-      "Bearer recent-token",
-    );
+    expect(requestResult(result).headers.get("Authorization")).toBe("Bearer recent-token");
   });
 
   it("throws KrogerTokenExpiredError on 401 response from Kroger", async () => {
@@ -208,9 +204,7 @@ describe("createKrogerClients", () => {
     // verifying one is sufficient — the middleware throw happens before fetch is called.
     const { cartClient } = createKrogerClients(() => null);
 
-    await expect(cartClient.PUT("/v1/cart/add", {})).rejects.toThrow(
-      KrogerTokenExpiredError,
-    );
+    await expect(cartClient.PUT("/v1/cart/add", {})).rejects.toThrow(KrogerTokenExpiredError);
   });
 });
 
@@ -251,13 +245,9 @@ describe("createKrogerCacheMiddleware", () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
 
-    const request = new Request(
-      "https://api.kroger.com/v1/products/0001111041700",
-    );
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
 
-    const result = await middleware.onRequest?.(
-      makeCacheRequestParams(request),
-    );
+    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
 
     expect(result).toBeUndefined();
     expect(kv.get).toHaveBeenCalledWith(
@@ -278,9 +268,7 @@ describe("createKrogerCacheMiddleware", () => {
     const middleware = createKrogerCacheMiddleware(kv, 600);
     const request = new Request(url);
 
-    const result = await middleware.onRequest?.(
-      makeCacheRequestParams(request),
-    );
+    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
 
     expect(result).toBeInstanceOf(Response);
     const response = responseResult(result);
@@ -296,9 +284,7 @@ describe("createKrogerCacheMiddleware", () => {
       method: "PUT",
     });
 
-    const result = await middleware.onRequest?.(
-      makeCacheRequestParams(request),
-    );
+    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
 
     expect(result).toBeUndefined();
     expect(kv.get).not.toHaveBeenCalled();
@@ -307,13 +293,9 @@ describe("createKrogerCacheMiddleware", () => {
   it("onRequest is a no-op when kv is null", async () => {
     const middleware = createKrogerCacheMiddleware(null, 600);
 
-    const request = new Request(
-      "https://api.kroger.com/v1/products/0001111041700",
-    );
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
 
-    const result = await middleware.onRequest?.(
-      makeCacheRequestParams(request),
-    );
+    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
 
     expect(result).toBeUndefined();
   });
@@ -322,9 +304,7 @@ describe("createKrogerCacheMiddleware", () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
 
-    const request = new Request(
-      "https://api.kroger.com/v1/products/0001111041700",
-    );
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
 
     const response = new Response('{"data":{"upc":"0001111041700"}}', {
       status: 200,
@@ -336,13 +316,13 @@ describe("createKrogerCacheMiddleware", () => {
 
     const call = vi.mocked(kv.put).mock.calls[0];
 
-    if (!call) {throw new Error("Missing KV write");}
+    if (!call) {
+      throw new Error("Missing KV write");
+    }
 
     const [key, value, options] = call;
 
-    expect(key).toBe(
-      "kroger-cache|v1|https://api.kroger.com/v1/products/0001111041700",
-    );
+    expect(key).toBe("kroger-cache|v1|https://api.kroger.com/v1/products/0001111041700");
     expect(JSON.parse(z.string().parse(value))).toEqual({
       status: 200,
       body: '{"data":{"upc":"0001111041700"}}',
@@ -382,15 +362,11 @@ describe("createKrogerCacheMiddleware", () => {
       deferred.push(promise);
     });
 
-    const request = new Request(
-      "https://api.kroger.com/v1/products/0001111041700",
-    );
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
 
     const response = new Response('{"data":{"upc":"0001111041700"}}');
 
-    const result = await middleware.onResponse?.(
-      makeCacheResponseParams(request, response),
-    );
+    const result = await middleware.onResponse?.(makeCacheResponseParams(request, response));
 
     expect(result).toBeUndefined();
     expect(await response.text()).toBe('{"data":{"upc":"0001111041700"}}');
@@ -418,9 +394,7 @@ describe("createKrogerCacheMiddleware", () => {
     const kv = makeCacheMockKv();
     const middleware = createKrogerCacheMiddleware(kv, 600);
 
-    const request = new Request(
-      "https://api.kroger.com/v1/products/0009999999999",
-    );
+    const request = new Request("https://api.kroger.com/v1/products/0009999999999");
 
     const response = new Response('{"error":"not found"}', { status: 500 });
 
@@ -432,9 +406,7 @@ describe("createKrogerCacheMiddleware", () => {
   it("onResponse is a no-op when kv is null", async () => {
     const middleware = createKrogerCacheMiddleware(null, 600);
 
-    const request = new Request(
-      "https://api.kroger.com/v1/products/0001111041700",
-    );
+    const request = new Request("https://api.kroger.com/v1/products/0001111041700");
 
     const response = new Response('{"data":{}}', { status: 200 });
 
@@ -454,9 +426,7 @@ describe("createKrogerCacheMiddleware", () => {
     const middleware = createKrogerCacheMiddleware(kv, 600);
     const request = new Request(url);
 
-    const result = await middleware.onRequest?.(
-      makeCacheRequestParams(request),
-    );
+    const result = await middleware.onRequest?.(makeCacheRequestParams(request));
 
     expect(result).toBeUndefined();
   });
@@ -472,9 +442,7 @@ describe("createKrogerClients cache wiring", () => {
   it("defaults to no caching when kv is omitted", async () => {
     const mockFetch = vi
       .fn<typeof fetch>()
-      .mockImplementation(
-        async () => new Response('{"upc":"0001111041700"}', { status: 200 }),
-      );
+      .mockImplementation(async () => new Response('{"upc":"0001111041700"}', { status: 200 }));
 
     vi.stubGlobal("fetch", mockFetch);
 
@@ -500,9 +468,7 @@ describe("createKrogerClients cache wiring", () => {
 
     const mockFetch = vi
       .fn<typeof fetch>()
-      .mockImplementation(
-        async () => new Response('{"upc":"0001111041700"}', { status: 200 }),
-      );
+      .mockImplementation(async () => new Response('{"upc":"0001111041700"}', { status: 200 }));
 
     vi.stubGlobal("fetch", mockFetch);
 

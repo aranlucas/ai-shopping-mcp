@@ -15,11 +15,7 @@ import { env, reset } from "cloudflare:test";
 import { afterEach, beforeEach } from "vitest";
 import { describeEval } from "vitest-evals";
 
-import {
-  type AgentSession,
-  shoppingAgentHarness,
-  taskInput,
-} from "./agent/harness.js";
+import { type AgentSession, shoppingAgentHarness, taskInput } from "./agent/harness.js";
 import { TaskChecksJudge } from "./agent/judges.js";
 import { codexAgentHarness } from "./agent/codex-harness.js";
 import { AGENT_TASKS } from "./agent/tasks.js";
@@ -31,8 +27,7 @@ const apiKey = evalEnv.OPENROUTER_API_KEY ?? "";
 
 const codexDriver = env.EVAL_CODEX_DRIVER;
 
-const enabled =
-  Boolean(codexDriver) || (evalEnv.EVAL_AGENT === "1" && apiKey !== "");
+const enabled = Boolean(codexDriver) || (evalEnv.EVAL_AGENT === "1" && apiKey !== "");
 
 const DEFAULT_MODELS = [
   "stealth/space-bunny-alpha",
@@ -47,27 +42,31 @@ const models = codexDriver
 
 const taskFilter = evalEnv.EVAL_TASKS?.split(",").filter(Boolean);
 
-const tasks = taskFilter
-  ? AGENT_TASKS.filter((task) => taskFilter.includes(task.id))
-  : AGENT_TASKS;
+const tasks = taskFilter ? AGENT_TASKS.filter((task) => taskFilter.includes(task.id)) : AGENT_TASKS;
 
 let session: AgentSession | undefined;
 
 function getSession(): AgentSession {
-  if (!session) {throw new Error("MCP session not initialized");}
+  if (!session) {
+    throw new Error("MCP session not initialized");
+  }
 
   return session;
 }
 
 beforeEach(async () => {
-  if (!enabled) {return;}
+  if (!enabled) {
+    return;
+  }
 
   const stub = installKrogerFetchStub();
   session = { stub, client: await createEvalMcpClient() };
 });
 
 afterEach(async () => {
-  if (!session) {return;}
+  if (!session) {
+    return;
+  }
 
   await session.client.close();
   session.stub.restore();

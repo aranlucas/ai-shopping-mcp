@@ -27,9 +27,7 @@ export const weeklyDealWarningSchema = z.object({
   details: z.record(z.string(), warningDetailValueSchema).optional(),
 });
 
-export type WeeklyDealWarningCode = z.output<
-  typeof weeklyDealWarningCodeSchema
->;
+export type WeeklyDealWarningCode = z.output<typeof weeklyDealWarningCodeSchema>;
 
 export type WeeklyDealWarning = z.output<typeof weeklyDealWarningSchema>;
 
@@ -197,9 +195,7 @@ export const normalizedWeeklyDealsResultSchema = z.object({
 
 export type NormalizedWeeklyDeal = z.output<typeof normalizedDealSchema>;
 
-export type QfcDealsApiResponse = z.output<
-  typeof normalizedWeeklyDealsResultSchema
->;
+export type QfcDealsApiResponse = z.output<typeof normalizedWeeklyDealsResultSchema>;
 
 /**
  * A cache entry may contain warnings written by the previous string-based
@@ -214,14 +210,11 @@ const cacheWarningSchema = z.union([
   })),
 ]);
 
-export const cacheWeeklyDealsResultSchema =
-  normalizedWeeklyDealsResultSchema.extend({
-    warnings: z.array(cacheWarningSchema),
-  });
+export const cacheWeeklyDealsResultSchema = normalizedWeeklyDealsResultSchema.extend({
+  warnings: z.array(cacheWarningSchema),
+});
 
-export type CachedQfcDealsApiResponse = z.output<
-  typeof cacheWeeklyDealsResultSchema
->;
+export type CachedQfcDealsApiResponse = z.output<typeof cacheWeeklyDealsResultSchema>;
 
 export const weeklyDealCacheEntrySchema = z
   .object({

@@ -7,10 +7,7 @@
     "./node_modules/@aranlucas/oxforge/configs/tailwind.json",
     "./node_modules/@aranlucas/oxforge/configs/type-aware.json"
   ],
-  "jsPlugins": [
-    "oxlint-tailwindcss",
-    "@shadcn/lint"
-  ],
+  "jsPlugins": ["oxlint-tailwindcss", "@shadcn/lint"],
   "plugins": [
     "eslint",
     "typescript",
@@ -104,11 +101,7 @@
     "eslint/no-underscore-dangle": [
       "error",
       {
-        "allow": [
-          "_meta",
-          "_unsafeUnwrap",
-          "_unsafeUnwrapErr"
-        ]
+        "allow": ["_meta", "_unsafeUnwrap", "_unsafeUnwrapErr"]
       }
     ],
     "unicorn/no-array-sort": "error",
@@ -161,9 +154,7 @@
   },
   "overrides": [
     {
-      "files": [
-        "tests/strict-fake.ts"
-      ],
+      "files": ["tests/strict-fake.ts"],
       "rules": {
         "anti-slop/no-runtime-typeof": [
           "error",
@@ -174,37 +165,24 @@
       }
     },
     {
-      "files": [
-        "views/**/*.tsx"
-      ],
+      "files": ["views/**/*.tsx"],
       "rules": {
         "shadcn/no-restyle": [
           "error",
           {
-            "allow": [
-              "layout"
-            ],
+            "allow": ["layout"],
             "contracts": [
               {
                 "pattern": "^(Card|CardHeader|CardContent|CardFooter|Empty)$",
-                "allow": [
-                  "layout",
-                  "spacing"
-                ]
+                "allow": ["layout", "spacing"]
               },
               {
                 "pattern": "^CarouselItem$",
-                "allow": [
-                  "layout",
-                  "ps"
-                ]
+                "allow": ["layout", "ps"]
               },
               {
                 "pattern": "^Skeleton$",
-                "allow": [
-                  "layout",
-                  "rounded"
-                ]
+                "allow": ["layout", "rounded"]
               }
             ]
           }
@@ -214,19 +192,13 @@
       }
     },
     {
-      "files": [
-        "scripts/**/*.mjs",
-        "scripts/**/*.js"
-      ],
+      "files": ["scripts/**/*.mjs", "scripts/**/*.js"],
       "rules": {
         "eslint/no-await-in-loop": "warn"
       }
     },
     {
-      "files": [
-        "tests/**/*.test.ts",
-        "tests/**/*.ts"
-      ],
+      "files": ["tests/**/*.test.ts", "tests/**/*.ts"],
       "rules": {
         "typescript/no-explicit-any": "error"
       }

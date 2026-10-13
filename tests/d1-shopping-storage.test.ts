@@ -94,9 +94,7 @@ describe("D1 shopping storage", () => {
     expect(created.items[0]).toMatchObject({ checked: false, quantity: 2 });
     expect(await other.shoppingList.get(created.id)).toBeNull();
     await expect(
-      other.shoppingList.addItems(created.id, [
-        { productName: "Onions", quantity: 1 },
-      ]),
+      other.shoppingList.addItems(created.id, [{ productName: "Onions", quantity: 1 }]),
     ).rejects.toThrow(`No shopping list ${created.id}`);
 
     const [added] = await user.shoppingList.addItems(created.id, [
@@ -105,7 +103,9 @@ describe("D1 shopping storage", () => {
 
     expect(added).toBeDefined();
 
-    if (!added) {throw new Error("Expected the added item");}
+    if (!added) {
+      throw new Error("Expected the added item");
+    }
 
     const edited = await user.shoppingList.updateItem(created.id, added.id, {
       quantity: 3,
@@ -114,9 +114,7 @@ describe("D1 shopping storage", () => {
 
     expect(edited).toMatchObject({ quantity: 3, checked: true });
     expect((await user.shoppingList.get(created.id))?.items).toHaveLength(2);
-    expect(await user.shoppingList.list()).toMatchObject([
-      { id: created.id, itemCount: 2 },
-    ]);
+    expect(await user.shoppingList.list()).toMatchObject([{ id: created.id, itemCount: 2 }]);
     await user.shoppingList.removeItem(created.id, added.id);
     expect((await user.shoppingList.get(created.id))?.items).toHaveLength(1);
     expect(await other.shoppingList.list()).toEqual([]);

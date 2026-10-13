@@ -1,12 +1,12 @@
 /** Sum of known unit prices times quantity; unpriced items are skipped. */
-export function estimateListTotal(
-  items: ReadonlyArray<{ quantity: number; price?: number }>,
-) {
+export function estimateListTotal(items: ReadonlyArray<{ quantity: number; price?: number }>) {
   let total = 0;
   let pricedCount = 0;
 
   for (const item of items) {
-    if (item.price === undefined) {continue;}
+    if (item.price === undefined) {
+      continue;
+    }
 
     total += item.price * item.quantity;
     pricedCount += 1;

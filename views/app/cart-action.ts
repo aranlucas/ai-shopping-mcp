@@ -1,7 +1,4 @@
-import type {
-  ShoppingAppClient,
-  AddShoppingListToCartArgs,
-} from "../shared/types.js";
+import type { ShoppingAppClient, AddShoppingListToCartArgs } from "../shared/types.js";
 
 import {
   addListToCart,
@@ -45,13 +42,12 @@ export function createCartAction(input: CartRequest) {
   const transition = (next: CartState) => {
     state = next;
 
-    for (const listener of listeners) {listener();}
+    for (const listener of listeners) {
+      listener();
+    }
   };
 
-  async function run(
-    app: ShoppingAppClient | null,
-    request: CartRequest,
-  ): Promise<void> {
+  async function run(app: ShoppingAppClient | null, request: CartRequest): Promise<void> {
     try {
       if (request.kind === "product") {
         const listId = await createProductList(app, request.product);
@@ -65,9 +61,7 @@ export function createCartAction(input: CartRequest) {
         transition({
           status: "already_added",
           request,
-          message:
-            result.actionDetail ??
-            "These items were already added to your Kroger cart.",
+          message: result.actionDetail ?? "These items were already added to your Kroger cart.",
         });
       } else if (result.outcome === "needs_match") {
         transition({
@@ -90,8 +84,7 @@ export function createCartAction(input: CartRequest) {
       transition({
         status,
         request,
-        message:
-          error instanceof Error ? error.message : "Failed to add to cart",
+        message: error instanceof Error ? error.message : "Failed to add to cart",
       });
     }
   }
@@ -107,8 +100,9 @@ export function createCartAction(input: CartRequest) {
     },
     submit(app: ShoppingAppClient | null): Promise<void> {
       // Repeated clicks share the in-flight request; terminal outcomes cannot resubmit.
-      if (state.status !== "idle" && state.status !== "retryable")
-        {return pending;}
+      if (state.status !== "idle" && state.status !== "retryable") {
+        return pending;
+      }
 
       const request = state.request;
       pending = Promise.resolve().then(() => run(app, request));
@@ -118,8 +112,9 @@ export function createCartAction(input: CartRequest) {
     },
     reset() {
       // Only confirmed success can start a new intentional add.
-      if (state.status === "added" || state.status === "already_added")
-        {transition({ status: "idle", request: initialRequest });}
+      if (state.status === "added" || state.status === "already_added") {
+        transition({ status: "idle", request: initialRequest });
+      }
     },
   };
 }

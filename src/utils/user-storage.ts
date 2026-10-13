@@ -29,10 +29,7 @@ export interface CartStore {
   };
   cartMirror: {
     getAll(): Promise<CartMirrorItem[]>;
-    append(
-      items: CartSnapshotItem[],
-      addedAt: string,
-    ): Promise<CartMirrorItem[]>;
+    append(items: CartSnapshotItem[], addedAt: string): Promise<CartMirrorItem[]>;
     clear(): Promise<void>;
   };
   cartId: {
@@ -75,10 +72,7 @@ function userKey(userId: string, dataType: string): string {
   return `user:${userId}:${dataType}`;
 }
 
-function listIdentity(
-  { userId, clientId }: PersistenceIdentity,
-  listId: string,
-): string {
+function listIdentity({ userId, clientId }: PersistenceIdentity, listId: string): string {
   return `${userId}:client:${clientId}:list:${listId}`;
 }
 
@@ -86,11 +80,7 @@ function cartReceiptKey(identity: PersistenceIdentity, listId: string): string {
   return userKey(listIdentity(identity, listId), "cart_snapshot");
 }
 
-function decode<TSchema extends z.ZodType>(
-  key: string,
-  value: string,
-  schema: TSchema,
-) {
+function decode<TSchema extends z.ZodType>(key: string, value: string, schema: TSchema) {
   const result = safeJsonParseWithSchema(value, schema);
 
   return result.match(
@@ -108,7 +98,9 @@ async function readOptional<TSchema extends z.ZodType>(
 ): Promise<z.output<TSchema> | null> {
   const value = await kv.get(key);
 
-  if (value == null) {return null;}
+  if (value == null) {
+    return null;
+  }
 
   return decode(key, value, schema);
 }
@@ -120,7 +112,9 @@ async function readCollection<TSchema extends z.ZodType>(
 ): Promise<z.output<TSchema>[]> {
   const value = await kv.get(key);
 
-  if (value == null) {return [];}
+  if (value == null) {
+    return [];
+  }
 
   return decode(key, value, z.array(schema));
 }
@@ -133,7 +127,9 @@ async function readCollectionTolerant<TSchema extends z.ZodType>(
   try {
     return await readCollection(kv, key, schema);
   } catch (error) {
-    if (!(error instanceof CorruptPersistenceEntryError)) {throw error;}
+    if (!(error instanceof CorruptPersistenceEntryError)) {
+      throw error;
+    }
 
     console.warn("Discarding corrupted KV entry:", error);
 
@@ -166,13 +162,9 @@ export class CartPersistence implements CartStore {
         z.array(cartSnapshotItemSchema),
       ),
     set: async (listId: string, items: CartSnapshotItem[]): Promise<void> => {
-      await this.kv.put(
-        cartReceiptKey(this.getIdentity(), listId),
-        JSON.stringify(items),
-        {
-          expirationTtl: SEVEN_DAYS_SECONDS,
-        },
-      );
+      await this.kv.put(cartReceiptKey(this.getIdentity(), listId), JSON.stringify(items), {
+        expirationTtl: SEVEN_DAYS_SECONDS,
+      });
     },
     clear: async (listId: string): Promise<void> => {
       await this.kv.delete(cartReceiptKey(this.getIdentity(), listId));
@@ -186,28 +178,20 @@ export class CartPersistence implements CartStore {
         userKey(this.getIdentity().userId, "cart_mirror"),
         cartMirrorItemSchema,
       ),
-    append: async (
-      items: CartSnapshotItem[],
-      addedAt: string,
-    ): Promise<CartMirrorItem[]> => {
+    append: async (items: CartSnapshotItem[], addedAt: string): Promise<CartMirrorItem[]> => {
       const existing = await readCollection(
         this.kv,
         userKey(this.getIdentity().userId, "cart_mirror"),
         cartMirrorItemSchema,
       );
 
-      const merged = [
-        ...existing,
-        ...items.map((item) => ({ ...item, addedAt })),
-      ].slice(-CART_MIRROR_MAX_ITEMS);
-
-      await this.kv.put(
-        userKey(this.getIdentity().userId, "cart_mirror"),
-        JSON.stringify(merged),
-        {
-          expirationTtl: SEVEN_DAYS_SECONDS,
-        },
+      const merged = [...existing, ...items.map((item) => ({ ...item, addedAt }))].slice(
+        -CART_MIRROR_MAX_ITEMS,
       );
+
+      await this.kv.put(userKey(this.getIdentity().userId, "cart_mirror"), JSON.stringify(merged), {
+        expirationTtl: SEVEN_DAYS_SECONDS,
+      });
 
       return merged;
     },
@@ -220,10 +204,7 @@ export class CartPersistence implements CartStore {
     get: async (): Promise<string | null> =>
       this.kv.get(userKey(this.getIdentity().userId, "kroger-cart-id")),
     set: async (cartId: string): Promise<void> => {
-      await this.kv.put(
-        userKey(this.getIdentity().userId, "kroger-cart-id"),
-        cartId,
-      );
+      await this.kv.put(userKey(this.getIdentity().userId, "kroger-cart-id"), cartId);
     },
   };
 }

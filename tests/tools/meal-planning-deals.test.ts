@@ -43,17 +43,13 @@ const CACHE_KEY = buildWeeklyDealsCacheKey({
   pageLimit: 2,
 });
 
-function dealsResponse(
-  overrides: Partial<QfcDealsApiResponse> = {},
-): QfcDealsApiResponse {
+function dealsResponse(overrides: Partial<QfcDealsApiResponse> = {}): QfcDealsApiResponse {
   return {
     locationId: STORE_ID,
     divisionCode: "705",
     sourceMode: "print_fallback",
     warnings: [],
-    deals: [
-      { id: "deal-1", title: "Black beans", price: "$0.99", source: "print" },
-    ],
+    deals: [{ id: "deal-1", title: "Black beans", price: "$0.99", source: "print" }],
     ...overrides,
   };
 }
@@ -153,9 +149,7 @@ describe("shopping profile with weekly deals", () => {
   it("honors an explicit Kroger store without changing the preferred store", async () => {
     await context.preferredLocation.set(OTHER_STORE);
     await call({ includeWeeklyDeals: true, storeId: ` ${STORE_ID} ` });
-    expect(fetchDeals).toHaveBeenCalledWith(
-      expect.objectContaining({ locationId: STORE_ID }),
-    );
+    expect(fetchDeals).toHaveBeenCalledWith(expect.objectContaining({ locationId: STORE_ID }));
     expect(await context.preferredLocation.get()).toMatchObject({
       locationId: "70500123",
     });
@@ -242,9 +236,7 @@ describe("shopping profile with weekly deals", () => {
     );
     expect(result.text).not.toContain("Offer 11");
     expect(result.text).toContain("get_weekly_deals for more offers");
-    expect(JSON.parse(cache.get(CACHE_KEY) ?? "{}").data.deals).toHaveLength(
-      12,
-    );
+    expect(JSON.parse(cache.get(CACHE_KEY) ?? "{}").data.deals).toHaveLength(12);
   });
 
   it("normalizes string booleans without treating false as an opt-in", async () => {
@@ -259,9 +251,7 @@ describe("shopping profile with weekly deals", () => {
     seedCache({ freshUntil: Date.now() - 60_000 });
     const originalCache = cache.get(CACHE_KEY);
 
-    const signal = AbortSignal.abort(
-      new DOMException("Deal request timed out", "TimeoutError"),
-    );
+    const signal = AbortSignal.abort(new DOMException("Deal request timed out", "TimeoutError"));
 
     vi.spyOn(AbortSignal, "timeout").mockReturnValue(signal);
     fetchDeals.mockResolvedValue(dealsResponse({ deals: [] }));
@@ -269,9 +259,7 @@ describe("shopping profile with weekly deals", () => {
     expect(result.isError).toBe(false);
     expect(result.text).toContain("cache=stale");
     expect(result.text).toContain("Black beans");
-    expect(fetchDeals).toHaveBeenCalledWith(
-      expect.objectContaining({ signal }),
-    );
+    expect(fetchDeals).toHaveBeenCalledWith(expect.objectContaining({ signal }));
     expect(cache.get(CACHE_KEY)).toBe(originalCache);
   });
 });

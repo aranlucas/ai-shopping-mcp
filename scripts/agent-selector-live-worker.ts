@@ -34,8 +34,7 @@ export default {
 
           return (
             variant?.inventory?.stockLevel !== "TEMPORARILY_OUT_OF_STOCK" &&
-            (!input.forPickup ||
-              (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
+            (!input.forPickup || (Boolean(product.upc) && variant?.fulfillment?.curbside === true))
           );
         }),
       }));
@@ -55,8 +54,7 @@ export default {
               categories: product.categories ?? [],
               declarations: product.manufacturerDeclarations ?? [],
               allergens: product.allergensDescription ?? null,
-              ingredients:
-                product.nutritionInformation?.ingredientStatement ?? null,
+              ingredients: product.nutritionInformation?.ingredientStatement ?? null,
             },
           ]),
         ),
@@ -95,8 +93,7 @@ export default {
                 type: "function",
                 function: {
                   name: "select_products",
-                  description:
-                    "Submit a product choice or abstention for each requested item.",
+                  description: "Submit a product choice or abstention for each requested item.",
                   strict: true,
                   parameters: {
                     type: "object",
@@ -121,8 +118,9 @@ export default {
 
       raw = await response.json();
 
-      if (!response.ok)
-        {throw new Error(`Agent request failed with HTTP ${response.status}`);}
+      if (!response.ok) {
+        throw new Error(`Agent request failed with HTTP ${response.status}`);
+      }
 
       const parsed = z
         .object({
@@ -149,11 +147,7 @@ export default {
 
       const choices = z
         .record(z.string(), z.string())
-        .parse(
-          JSON.parse(
-            parsed.choices[0].message.tool_calls[0].function.arguments,
-          ),
-        );
+        .parse(JSON.parse(parsed.choices[0].message.tool_calls[0].function.arguments));
 
       if (
         Object.keys(choices).length !== questions.length ||
@@ -165,11 +159,7 @@ export default {
       const selections = entries.map((entry) => {
         const choice = choices[entry.requestId];
 
-        if (
-          entry.products.length === 0 ||
-          choice === "no_match" ||
-          choice === "needs_review"
-        ) {
+        if (entry.products.length === 0 || choice === "no_match" || choice === "needs_review") {
           return { requestId: entry.requestId, status: "unresolved" };
         }
 
@@ -177,7 +167,9 @@ export default {
           (_, candidateIndex) => choice === `candidate_${candidateIndex}`,
         );
 
-        if (index < 0) {throw new Error("Invalid agent candidate choice");}
+        if (index < 0) {
+          throw new Error("Invalid agent candidate choice");
+        }
 
         return {
           requestId: entry.requestId,

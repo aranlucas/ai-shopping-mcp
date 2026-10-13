@@ -43,9 +43,7 @@ function ShoppingApp() {
 
   const [partialArgs, setPartialArgs] = useState<PartialToolInput | null>(null);
 
-  const [hostContext, setHostContext] = useState<
-    McpUiHostContext | undefined
-  >();
+  const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
 
   const { app, error } = useApp({
     appInfo: { name: "shopping-app", version: "1.0.0" },
@@ -99,9 +97,13 @@ function ShoppingApp() {
 
   useHostStyles(app, app?.getHostContext());
 
-  if (error) {return <ErrorDisplay message={error.message} />;}
+  if (error) {
+    return <ErrorDisplay message={error.message} />;
+  }
 
-  if (!app) {return <Loading />;}
+  if (!app) {
+    return <Loading />;
+  }
 
   return (
     <ShoppingAppInner
@@ -120,15 +122,14 @@ interface ShoppingAppInnerProps {
   hostContext?: McpUiHostContext;
 }
 
-function getPartialLoadingMessage(
-  viewKey: string | null,
-  args: PartialToolInput,
-): string {
+function getPartialLoadingMessage(viewKey: string | null, args: PartialToolInput): string {
   switch (viewKey) {
     case "search_products": {
       const terms = args.terms;
 
-      if (terms?.length) {return `Searching for ${terms.join(", ")}…`;}
+      if (terms?.length) {
+        return `Searching for ${terms.join(", ")}…`;
+      }
 
       return "Searching products…";
     }
@@ -158,12 +159,7 @@ function getPartialLoadingMessage(
   }
 }
 
-function ShoppingAppInner({
-  app,
-  toolResult,
-  partialArgs,
-  hostContext,
-}: ShoppingAppInnerProps) {
+function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: ShoppingAppInnerProps) {
   const toolName = hostContext?.toolInfo?.tool?.name ?? null;
   // `data` is seeded from `toolResult` but child views edit it locally (optimistic
   // updates via `setData`), so it isn't purely derived — we can't compute it inline.
@@ -224,9 +220,7 @@ function ShoppingAppInner({
         />
       );
     case "get_product":
-      return (
-        <ProductDetailView data={data} app={app} canCallTools={canCallTools} />
-      );
+      return <ProductDetailView data={data} app={app} canCallTools={canCallTools} />;
     case "search_stores":
       return (
         <LocationResultsView
@@ -238,50 +232,26 @@ function ShoppingAppInner({
         />
       );
     case "get_store":
-      return (
-        <LocationDetailView data={data} app={app} canCallTools={canCallTools} />
-      );
+      return <LocationDetailView data={data} app={app} canCallTools={canCallTools} />;
     case "set_preferred_store":
       return <PreferredStoreView data={data} />;
     case "create_shopping_list":
       return (
-        <ShoppingListView
-          data={data}
-          setData={setData}
-          app={app}
-          canCallTools={canCallTools}
-        />
+        <ShoppingListView data={data} setData={setData} app={app} canCallTools={canCallTools} />
       );
     case "shopping_lists":
       return (
-        <ShoppingListsView
-          data={data}
-          setData={setData}
-          app={app}
-          canCallTools={canCallTools}
-        />
+        <ShoppingListsView data={data} setData={setData} app={app} canCallTools={canCallTools} />
       );
     case "add_shopping_list_to_cart":
       return <AddToCartView data={data} />;
     case "view_cart":
       return <CartView data={data} app={app} />;
     case "pantry":
-      return (
-        <PantryView
-          data={data}
-          setData={setData}
-          app={app}
-          canCallTools={canCallTools}
-        />
-      );
+      return <PantryView data={data} setData={setData} app={app} canCallTools={canCallTools} />;
     case "kitchen_equipment":
       return (
-        <KitchenEquipmentView
-          data={data}
-          setData={setData}
-          app={app}
-          canCallTools={canCallTools}
-        />
+        <KitchenEquipmentView data={data} setData={setData} app={app} canCallTools={canCallTools} />
       );
     case "get_weekly_deals":
       return (
@@ -303,6 +273,8 @@ function ShoppingAppInner({
 
 const rootElement = document.getElementById("root");
 
-if (!rootElement) {throw new Error("Shopping app root element is missing");}
+if (!rootElement) {
+  throw new Error("Shopping app root element is missing");
+}
 
 createRoot(rootElement).render(<ShoppingApp />);

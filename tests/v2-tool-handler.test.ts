@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import {
-  wrapV2ToolHandler,
-  wrapRawV2ToolHandler,
-  type RawToolHandler,
-} from "./v2-tool-handler.js";
+import { wrapV2ToolHandler, wrapRawV2ToolHandler, type RawToolHandler } from "./v2-tool-handler.js";
 
 describe("tool test input boundary", () => {
   const config = {
@@ -40,9 +36,7 @@ describe("tool test input boundary", () => {
 
     const call = wrapV2ToolHandler(handler, config);
     await expect(call({ code: "FORBIDDEN" })).rejects.toThrow("Forbidden code");
-    await expect(call({ code: "milk", quantity: 0 })).rejects.toThrow(
-      "Too small",
-    );
+    await expect(call({ code: "milk", quantity: 0 })).rejects.toThrow("Too small");
     expect(handler).not.toHaveBeenCalled();
   });
 

@@ -19,8 +19,7 @@ const DEFAULT_MODELS = [
   "liquid/lfm-2.5-2.6b:free",
 ];
 
-const models =
-  process.env.EVAL_MODELS?.split(",").filter(Boolean) ?? DEFAULT_MODELS;
+const models = process.env.EVAL_MODELS?.split(",").filter(Boolean) ?? DEFAULT_MODELS;
 
 const slug = (model) => model.replace(/[^a-z0-9]+/gi, "-");
 

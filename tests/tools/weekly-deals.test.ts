@@ -42,20 +42,15 @@ const weeklyDealsAuthState: AuthState = { authContext: undefined };
 // ---------------------------------------------------------------------------
 
 /** Extract the text content from the first text item in a tool response */
-function getTextContent(
-  response: ReturnType<typeof formatWeeklyDealsToolResponse>,
-): string {
+function getTextContent(response: ReturnType<typeof formatWeeklyDealsToolResponse>): string {
   const textItem = response.content.find(
-    (c): c is { type: "text"; text: string } =>
-      "type" in c && c.type === "text",
+    (c): c is { type: "text"; text: string } => "type" in c && c.type === "text",
   );
 
   return textItem?.text ?? "";
 }
 
-function makeMinimalResult(
-  overrides: Partial<QfcDealsApiResponse> = {},
-): QfcDealsApiResponse {
+function makeMinimalResult(overrides: Partial<QfcDealsApiResponse> = {}): QfcDealsApiResponse {
   return {
     sourceMode: "print_fallback",
     locationId: "70500847",
@@ -89,9 +84,7 @@ function makeCircular(eventEndDate: string, eventStartDate = "2025-01-01") {
   };
 }
 
-function makeCacheEntry(
-  overrides: Partial<WeeklyDealsCacheEntry> = {},
-): WeeklyDealsCacheEntry {
+function makeCacheEntry(overrides: Partial<WeeklyDealsCacheEntry> = {}): WeeklyDealsCacheEntry {
   const now = Date.now();
 
   return {
@@ -291,9 +284,7 @@ describe("addCacheWarning", () => {
 describe("formatWeeklyDealsToolResponse", () => {
   it("returns markdown deals when no dates and no warnings", async () => {
     const result = makeMinimalResult({
-      deals: [
-        { id: "1", title: "Bananas", price: "$0.59/lb", source: "print" },
-      ],
+      deals: [{ id: "1", title: "Bananas", price: "$0.59/lb", source: "print" }],
     });
 
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
@@ -305,10 +296,7 @@ describe("formatWeeklyDealsToolResponse", () => {
 
   it("includes validFrom and validTill from printCircular", async () => {
     const result = makeMinimalResult({
-      printCircular: makeCircular(
-        "2025-01-07T00:00:00Z",
-        "2025-01-01T00:00:00Z",
-      ),
+      printCircular: makeCircular("2025-01-07T00:00:00Z", "2025-01-01T00:00:00Z"),
       deals: [{ id: "1", title: "Apples", price: "$1.99/lb", source: "print" }],
     });
 
@@ -321,10 +309,7 @@ describe("formatWeeklyDealsToolResponse", () => {
 
   it("includes validFrom and validTill from shoppableCircular when no printCircular", async () => {
     const result = makeMinimalResult({
-      shoppableCircular: makeCircular(
-        "2025-01-08T00:00:00Z",
-        "2025-01-02T00:00:00Z",
-      ),
+      shoppableCircular: makeCircular("2025-01-08T00:00:00Z", "2025-01-02T00:00:00Z"),
       deals: [{ id: "1", title: "Milk", price: "$3.49", source: "search_api" }],
     });
 
@@ -372,13 +357,8 @@ describe("formatWeeklyDealsToolResponse", () => {
 
   it("includes warnings when present", async () => {
     const result = makeMinimalResult({
-      warnings: [
-        legacyWarning("Print-ad parsing failed"),
-        legacyWarning("Using fallback"),
-      ],
-      deals: [
-        { id: "1", title: "Chicken", price: "$4.99", source: "search_api" },
-      ],
+      warnings: [legacyWarning("Print-ad parsing failed"), legacyWarning("Using fallback")],
+      deals: [{ id: "1", title: "Chicken", price: "$4.99", source: "search_api" }],
     });
 
     const text = getTextContent(formatWeeklyDealsToolResponse(result, "miss"));
@@ -389,10 +369,7 @@ describe("formatWeeklyDealsToolResponse", () => {
 
   it("includes both date fields and warnings", async () => {
     const result = makeMinimalResult({
-      printCircular: makeCircular(
-        "2025-01-07T00:00:00Z",
-        "2025-01-01T00:00:00Z",
-      ),
+      printCircular: makeCircular("2025-01-07T00:00:00Z", "2025-01-01T00:00:00Z"),
       warnings: [legacyWarning("Some warning")],
       deals: [{ id: "1", title: "Beef", price: "$5.99", source: "print" }],
     });
@@ -430,15 +407,11 @@ describe("formatWeeklyDealsToolResponse", () => {
       deals: [{ id: "1", title: "Apples", price: "$1.99", source: "print" }],
     });
 
-    const freshText = getTextContent(
-      formatWeeklyDealsToolResponse(result, "fresh"),
-    );
+    const freshText = getTextContent(formatWeeklyDealsToolResponse(result, "fresh"));
 
     expect(freshText).not.toContain("Cache:");
 
-    const staleText = getTextContent(
-      formatWeeklyDealsToolResponse(result, "stale"),
-    );
+    const staleText = getTextContent(formatWeeklyDealsToolResponse(result, "stale"));
 
     expect(staleText).not.toContain("Cache:");
   });
@@ -447,10 +420,9 @@ describe("formatWeeklyDealsToolResponse", () => {
     const result = makeMinimalResult({ deals: [] });
     const response = formatWeeklyDealsToolResponse(result, "fresh");
     expect(response.structuredContent).toBeDefined();
-    expect(
-      parseToolPayload(appPayloadSchemas.get_weekly_deals, response).cache
-        ?.state,
-    ).toBe("fresh");
+    expect(parseToolPayload(appPayloadSchemas.get_weekly_deals, response).cache?.state).toBe(
+      "fresh",
+    );
   });
 
   it("includes the source store and degradation warnings in structuredContent", () => {
@@ -542,16 +514,9 @@ describe("formatWeeklyDealsToolResponse", () => {
     expect(text).toContain("Produce:");
     expect(text).toContain("Pantry, Snacks & Beverages:");
 
-    const structured = parseToolPayload(
-      appPayloadSchemas.get_weekly_deals,
-      response,
-    );
+    const structured = parseToolPayload(appPayloadSchemas.get_weekly_deals, response);
 
-    expect(structured.deals.map((d) => d.title)).toEqual([
-      "Flank Steaks",
-      "Zucchini",
-      "Doritos",
-    ]);
+    expect(structured.deals.map((d) => d.title)).toEqual(["Flank Steaks", "Zucchini", "Doritos"]);
     expect(structured.deals.map((d) => d.category)).toEqual([
       "Meat & Seafood",
       "Produce",
@@ -574,15 +539,9 @@ describe("formatWeeklyDealsToolResponse", () => {
 
     const response = formatWeeklyDealsToolResponse(result, "miss");
 
-    const structured = parseToolPayload(
-      appPayloadSchemas.get_weekly_deals,
-      response,
-    );
+    const structured = parseToolPayload(appPayloadSchemas.get_weekly_deals, response);
 
-    expect(structured.deals.map((d) => d.title)).toEqual([
-      "Chicken Breast",
-      "Ground Beef",
-    ]);
+    expect(structured.deals.map((d) => d.title)).toEqual(["Chicken Breast", "Ground Beef"]);
   });
 });
 
@@ -659,14 +618,9 @@ function makeWeeklyDealsContext(
   kv: KvLike | null = null,
   preferredLocation: PreferredLocation | null = DEFAULT_PREFERRED_LOCATION,
 ) {
-  const server = capturingServer(
-    capturedWeeklyDealsTools,
-    () => weeklyDealsAuthState.authContext,
-  );
+  const server = capturingServer(capturedWeeklyDealsTools, () => weeklyDealsAuthState.authContext);
 
-  const productClient = createProductClient(async () =>
-    Response.json({ data: [] }),
-  );
+  const productClient = createProductClient(async () => Response.json({ data: [] }));
 
   const preferredLocationStore: PreferredLocationStore = {
     get: async () => preferredLocation,
@@ -691,18 +645,16 @@ function makeWeeklyDealsContext(
 }
 
 function getWeeklyDealsHandler(): ToolHandler {
-  const tool = capturedWeeklyDealsTools.find(
-    (t) => t.name === "get_weekly_deals",
-  );
+  const tool = capturedWeeklyDealsTools.find((t) => t.name === "get_weekly_deals");
 
-  if (!tool) {throw new Error("get_weekly_deals not captured");}
+  if (!tool) {
+    throw new Error("get_weekly_deals not captured");
+  }
 
   return tool.handler;
 }
 
-function registerWeeklyDealsForTest(
-  context: ReturnType<typeof makeWeeklyDealsContext>,
-) {
+function registerWeeklyDealsForTest(context: ReturnType<typeof makeWeeklyDealsContext>) {
   registerWeeklyDealsTools(context.server, {
     loadWeeklyDeals: context.loadWeeklyDeals,
   });
@@ -741,9 +693,7 @@ describe("get_weekly_deals handler", () => {
 
   it("returns cached deals without calling the API when a fresh KV cache entry exists", async () => {
     const cachedData = makeMinimalDealsResponse({
-      deals: [
-        { id: "cached", title: "Cached Deal", price: "$1.00", source: "print" },
-      ],
+      deals: [{ id: "cached", title: "Cached Deal", price: "$1.00", source: "print" }],
     });
 
     const { kv, store } = makeKV();
@@ -774,9 +724,7 @@ describe("get_weekly_deals handler", () => {
   });
 
   it("keeps cached deals fresh through the circular and retains a 48-hour stale fallback", async () => {
-    const eventEnd = new Date(
-      Date.now() + 7 * 24 * 60 * 60 * 1000,
-    ).toISOString();
+    const eventEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
     const liveData = makeMinimalDealsResponse({
       printCircular: makeCircular(eventEnd),
@@ -796,20 +744,14 @@ describe("get_weekly_deals handler", () => {
 
     expect(entry?.freshUntil).toBe(expectedFreshUntil);
     expect(entry?.staleUntil).toBe(expectedStaleUntil);
-    expect(kv.put).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      {
-        expiration: Math.ceil(expectedStaleUntil / 1000),
-      },
-    );
+    expect(kv.put).toHaveBeenCalledWith(expect.any(String), expect.any(String), {
+      expiration: Math.ceil(expectedStaleUntil / 1000),
+    });
   });
 
   it("serves stale cache with a warning when live fetch fails and a stale entry exists", async () => {
     const staleData = makeMinimalDealsResponse({
-      deals: [
-        { id: "s1", title: "Stale Deal", price: "$2.00", source: "print" },
-      ],
+      deals: [{ id: "s1", title: "Stale Deal", price: "$2.00", source: "print" }],
     });
 
     const { kv, store } = makeKV();
@@ -829,9 +771,7 @@ describe("get_weekly_deals handler", () => {
 
   it("serves stale cache when a live refresh is partial and does not replace it", async () => {
     const staleData = makeMinimalDealsResponse({
-      deals: [
-        { id: "s1", title: "Stale Deal", price: "$2.00", source: "print" },
-      ],
+      deals: [{ id: "s1", title: "Stale Deal", price: "$2.00", source: "print" }],
     });
 
     const { kv, store } = makeKV();
@@ -985,9 +925,7 @@ describe("get_weekly_deals handler", () => {
     mockGetQfcWeeklyDeals.mockResolvedValue(liveData);
     const { kv, store } = makeKV();
 
-    registerWeeklyDealsForTest(
-      makeWeeklyDealsContext(kv, DEFAULT_PREFERRED_LOCATION),
-    );
+    registerWeeklyDealsForTest(makeWeeklyDealsContext(kv, DEFAULT_PREFERRED_LOCATION));
 
     await getWeeklyDealsHandler()({ limit: 50, pageLimit: 2 });
 
@@ -996,9 +934,7 @@ describe("get_weekly_deals handler", () => {
         locationId: DEFAULT_PREFERRED_LOCATION.locationId,
       }),
     );
-    expect([...store.keys()][0]).toContain(
-      `loc:${DEFAULT_PREFERRED_LOCATION.locationId}`,
-    );
+    expect([...store.keys()][0]).toContain(`loc:${DEFAULT_PREFERRED_LOCATION.locationId}`);
   });
 
   it("returns a prescriptive error when storeId is omitted and no preferred store is set", async () => {

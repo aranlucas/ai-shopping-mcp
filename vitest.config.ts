@@ -11,20 +11,13 @@ if (process.env.EVAL_AGENT === "1" && !process.env.OPENROUTER_API_KEY) {
   }
 }
 
-type TestOptions = Extract<
-  Parameters<typeof cloudflareTest>[0],
-  { miniflare?: object }
->;
+type TestOptions = Extract<Parameters<typeof cloudflareTest>[0], { miniflare?: object }>;
 
 type TestMiniflare = NonNullable<TestOptions["miniflare"]>;
 
 const miniflare: TestMiniflare = {
   compatibilityDate: "2025-03-10",
-  compatibilityFlags: [
-    "nodejs_compat",
-    "global_fetch_strictly_public",
-    "enable_ctx_exports",
-  ],
+  compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public", "enable_ctx_exports"],
   serviceBindings: { AUTH: { name: "auth-stub", entrypoint: "KrogerTokens" } },
   workers: [
     {
@@ -56,8 +49,8 @@ const miniflare: TestMiniflare = {
 
     // Agent eval over OpenRouter (`pnpm eval:agent`).
     ...Object.fromEntries(
-      ["EVAL_AGENT", "EVAL_MODELS", "EVAL_TASKS", "OPENROUTER_API_KEY"].flatMap(
-        (name) => (process.env[name] ? [[name, process.env[name]]] : []),
+      ["EVAL_AGENT", "EVAL_MODELS", "EVAL_TASKS", "OPENROUTER_API_KEY"].flatMap((name) =>
+        process.env[name] ? [[name, process.env[name]]] : [],
       ),
     ),
   },

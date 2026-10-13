@@ -1,8 +1,6 @@
 import { defineWranglerConfig } from "wrangler/experimental-config";
 
-const portlessUrl = process.env.PORTLESS_URL
-  ? new URL(process.env.PORTLESS_URL)
-  : undefined;
+const portlessUrl = process.env.PORTLESS_URL ? new URL(process.env.PORTLESS_URL) : undefined;
 
 export default defineWranglerConfig({
   build: {

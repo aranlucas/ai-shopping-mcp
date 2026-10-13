@@ -6,21 +6,11 @@ import {
   sendUserMessage,
 } from "../../shared/types.js";
 
-import {
-  type ChangeEvent,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
 import { estimateListTotal } from "../../../src/domain/list-total.js";
 import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
-import {
-  ActionButton,
-  CartActionControl,
-  SectionHeader,
-} from "../../shared/components.js";
+import { ActionButton, CartActionControl, SectionHeader } from "../../shared/components.js";
 import { useResettableState } from "../../shared/hooks.js";
 import { EmptyState } from "../../shared/status.js";
 import { editShoppingListItem, recordPurchase } from "../tool-calls.js";
@@ -54,11 +44,7 @@ const REMOVE_ICON = (
     strokeWidth={2.5}
     stroke="currentColor"
   >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M6 18 18 6M6 6l12 12"
-    />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
   </svg>
 );
 
@@ -66,29 +52,33 @@ function formatMoney(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
-type ItemEdit = Omit<
-  Parameters<typeof editShoppingListItem>[1],
-  "listId" | "itemId"
->;
+type ItemEdit = Omit<Parameters<typeof editShoppingListItem>[1], "listId" | "itemId">;
 
 function applyItemEdit(
   list: ShoppingListContent,
   itemId: string,
   edit: ItemEdit,
 ): ShoppingListContent {
-  if (edit.remove)
-    {return { ...list, items: list.items.filter((item) => item.id !== itemId) };}
+  if (edit.remove) {
+    return { ...list, items: list.items.filter((item) => item.id !== itemId) };
+  }
 
   return {
     ...list,
     items: list.items.map((item) => {
-      if (item.id !== itemId) {return item;}
+      if (item.id !== itemId) {
+        return item;
+      }
 
       const updated = { ...item };
 
-      if (edit.checked !== undefined) {updated.checked = edit.checked;}
+      if (edit.checked !== undefined) {
+        updated.checked = edit.checked;
+      }
 
-      if (edit.quantity !== undefined) {updated.quantity = Number(edit.quantity);}
+      if (edit.quantity !== undefined) {
+        updated.quantity = Number(edit.quantity);
+      }
 
       return updated;
     }),
@@ -112,7 +102,9 @@ function ShoppingItemRow({
 
   const apply = useCallback(
     async (edit: ItemEdit) => {
-      if (itemId === undefined) {return;}
+      if (itemId === undefined) {
+        return;
+      }
 
       setPending(true);
       setError(null);
@@ -137,8 +129,7 @@ function ShoppingItemRow({
   );
 
   const handleChecked = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) =>
-      run({ checked: event.target.checked }),
+    (event: ChangeEvent<HTMLInputElement>) => run({ checked: event.target.checked }),
     [run],
   );
 
@@ -185,8 +176,7 @@ function ShoppingItemRow({
           {item.price !== undefined && (
             <span className="text-xs text-gray-500 tabular-nums">
               {formatMoney(item.price)} each
-              {item.quantity > 1 &&
-                ` · ${formatMoney(item.price * item.quantity)}`}
+              {item.quantity > 1 && ` · ${formatMoney(item.price * item.quantity)}`}
             </span>
           )}
         </div>
@@ -261,49 +251,28 @@ export function ShoppingListView({
     (): "idle" | "loading" | "done" | "error" => "idle",
   );
 
-  const [matchError, setMatchError] = useResettableState(
-    listId,
-    (): string | null => null,
-  );
+  const [matchError, setMatchError] = useResettableState(listId, (): string | null => null);
 
   const [purchaseState, setPurchaseState] = useResettableState(
     listId,
     (): "idle" | "loading" | "done" | "error" => "idle",
   );
 
-  const [purchaseError, setPurchaseError] = useResettableState(
-    listId,
-    (): string | null => null,
-  );
+  const [purchaseError, setPurchaseError] = useResettableState(listId, (): string | null => null);
 
-  const readyItems = useMemo(
-    () => items.filter((item) => Boolean(item.upc)),
-    [items],
-  );
+  const readyItems = useMemo(() => items.filter((item) => Boolean(item.upc)), [items]);
 
-  const unmatchedItems = useMemo(
-    () => items.filter((item) => !item.upc),
-    [items],
-  );
+  const unmatchedItems = useMemo(() => items.filter((item) => !item.upc), [items]);
 
   // Checked items sink to the bottom so the list reads as what's left to buy.
   const sortedItems = useMemo(
-    () => [
-      ...items.filter((item) => !item.checked),
-      ...items.filter((item) => item.checked),
-    ],
+    () => [...items.filter((item) => !item.checked), ...items.filter((item) => item.checked)],
     [items],
   );
 
-  const checkedCount = useMemo(
-    () => items.filter((item) => item.checked).length,
-    [items],
-  );
+  const checkedCount = useMemo(() => items.filter((item) => item.checked).length, [items]);
 
-  const { total, pricedCount } = useMemo(
-    () => estimateListTotal(items),
-    [items],
-  );
+  const { total, pricedCount } = useMemo(() => estimateListTotal(items), [items]);
 
   // Show the edit immediately, then adopt the server's list; roll back if the
   // edit fails so the row never shows a change that wasn't saved.
@@ -323,9 +292,13 @@ export function ShoppingListView({
           ...edit,
         });
 
-        if (editNumber === latestEdit.current) {setData?.(updated);}
+        if (editNumber === latestEdit.current) {
+          setData?.(updated);
+        }
       } catch (error) {
-        if (editNumber === latestEdit.current) {setData?.(data);}
+        if (editNumber === latestEdit.current) {
+          setData?.(data);
+        }
 
         throw error;
       }
@@ -347,9 +320,7 @@ export function ShoppingListView({
     } catch (error) {
       setMatchState("error");
       setMatchError(
-        error instanceof Error
-          ? error.message
-          : "Could not ask the assistant. Try again.",
+        error instanceof Error ? error.message : "Could not ask the assistant. Try again.",
       );
     }
   }, [app, unmatchedItems, setMatchState, setMatchError]);
@@ -363,9 +334,7 @@ export function ShoppingListView({
       setPurchaseState("done");
     } catch (error) {
       setPurchaseState("error");
-      setPurchaseError(
-        error instanceof Error ? error.message : "Could not record purchase",
-      );
+      setPurchaseError(error instanceof Error ? error.message : "Could not record purchase");
     }
   }, [app, readyItems, setPurchaseState, setPurchaseError]);
 
@@ -385,8 +354,7 @@ export function ShoppingListView({
 
   const canEdit = canCallTools && setData !== undefined;
 
-  const cartDone =
-    cart.state.status === "added" || cart.state.status === "already_added";
+  const cartDone = cart.state.status === "added" || cart.state.status === "already_added";
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
@@ -401,10 +369,8 @@ export function ShoppingListView({
         <>
           <div className="mb-2 border-b border-border pb-5">
             <p className="mb-3 text-sm text-gray-600">
-              {readyItems.length} of {items.length} items ready for your Kroger
-              pickup cart.
-              {unmatchedItems.length > 0 &&
-                ` ${unmatchedItems.length} still need a Kroger match.`}
+              {readyItems.length} of {items.length} items ready for your Kroger pickup cart.
+              {unmatchedItems.length > 0 && ` ${unmatchedItems.length} still need a Kroger match.`}
               {checkedCount > 0 && ` ${checkedCount} checked off.`}
               {pricedCount > 0 &&
                 pricedCount < items.length &&
@@ -450,8 +416,8 @@ export function ShoppingListView({
             </div>
             {cart.state.status === "added" && (
               <output className="mt-3 block text-sm text-emerald-700">
-                Added to your pickup cart. Review your cart in Kroger to
-                complete your purchase, then mark it as purchased here.
+                Added to your pickup cart. Review your cart in Kroger to complete your purchase,
+                then mark it as purchased here.
               </output>
             )}
             {purchaseState === "done" && (

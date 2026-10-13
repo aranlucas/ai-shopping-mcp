@@ -35,9 +35,7 @@ function median(values: number[]): number {
   const sorted = [...values].toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
 
-  return sorted.length % 2 === 0
-    ? (sorted[mid - 1] + sorted[mid]) / 2
-    : sorted[mid];
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 /**
@@ -51,15 +49,14 @@ export function computeRestockSuggestions(
   orders: OrderRecord[],
   now: number = Date.now(),
 ): RestockSuggestion[] {
-  const purchasesByName = new Map<
-    string,
-    { displayName: string; timestamps: number[] }
-  >();
+  const purchasesByName = new Map<string, { displayName: string; timestamps: number[] }>();
 
   for (const order of orders) {
     const placedAt = new Date(order.placedAt).getTime();
 
-    if (Number.isNaN(placedAt)) {continue;}
+    if (Number.isNaN(placedAt)) {
+      continue;
+    }
 
     for (const item of order.items) {
       const key = item.productName.toLowerCase();
@@ -79,7 +76,9 @@ export function computeRestockSuggestions(
   const suggestions: RestockSuggestion[] = [];
 
   for (const { displayName, timestamps } of purchasesByName.values()) {
-    if (timestamps.length < 3) {continue;}
+    if (timestamps.length < 3) {
+      continue;
+    }
 
     const sorted = [...timestamps].toSorted((a, b) => a - b);
     const intervals: number[] = [];

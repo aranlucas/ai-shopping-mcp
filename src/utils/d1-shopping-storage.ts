@@ -42,7 +42,9 @@ function toPantryItems(rows: (typeof pantryItems.$inferSelect)[]) {
       addedAt: row.addedAt,
     };
 
-    if (row.expiresAt !== null) {item.expiresAt = row.expiresAt;}
+    if (row.expiresAt !== null) {
+      item.expiresAt = row.expiresAt;
+    }
 
     return item;
   });
@@ -55,7 +57,9 @@ function toEquipmentItems(rows: (typeof equipmentItems.$inferSelect)[]) {
       addedAt: row.addedAt,
     };
 
-    if (row.category !== null) {item.category = row.category;}
+    if (row.category !== null) {
+      item.category = row.category;
+    }
 
     return item;
   });
@@ -71,22 +75,17 @@ function listFromRow(row: typeof shoppingLists.$inferSelect): ShoppingList {
 }
 
 /** D1-backed shopping records for one authenticated Kroger shopper. */
-export function createD1ShoppingStore(
-  binding: D1Database,
-  userId: string,
-): ShoppingStore {
+export function createD1ShoppingStore(binding: D1Database, userId: string): ShoppingStore {
   const db = drizzle(binding);
 
-  const selectPantry = () =>
-    db.select().from(pantryItems).where(eq(pantryItems.userId, userId));
+  const selectPantry = () => db.select().from(pantryItems).where(eq(pantryItems.userId, userId));
 
   const getPantry = async () => toPantryItems(await selectPantry().all());
 
   const selectEquipment = () =>
     db.select().from(equipmentItems).where(eq(equipmentItems.userId, userId));
 
-  const getEquipment = async () =>
-    toEquipmentItems(await selectEquipment().all());
+  const getEquipment = async () => toEquipmentItems(await selectEquipment().all());
 
   /**
    * Applies writes and reads the result back in one D1 batch. D1 runs a batch
@@ -101,9 +100,7 @@ export function createD1ShoppingStore(
     const statements: BatchItem<"sqlite">[] = [...writes, read];
 
     // SAFETY: read is always appended, so this tuple has at least one statement.
-    const results = await db.batch(
-      statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]],
-    );
+    const results = await db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 
     // SAFETY: D1 returns batch results in statement order; the final statement is the typed read query above.
     return results.at(-1) as TRow[];
@@ -113,9 +110,7 @@ export function createD1ShoppingStore(
     db
       .select()
       .from(shoppingLists)
-      .where(
-        and(eq(shoppingLists.id, listId), eq(shoppingLists.userId, userId)),
-      )
+      .where(and(eq(shoppingLists.id, listId), eq(shoppingLists.userId, userId)))
       .get();
 
   const mutateList = async <T>(
@@ -131,9 +126,7 @@ export function createD1ShoppingStore(
       const row = await getListRow(listId);
 
       if (!row) {
-        throw new AppErrorException(
-          notFoundError(`No shopping list ${listId}.`),
-        );
+        throw new AppErrorException(notFoundError(`No shopping list ${listId}.`));
       }
 
       const changed = mutate(row.items);
@@ -155,7 +148,9 @@ export function createD1ShoppingStore(
         )
         .run();
 
-      if (updated.meta.changes === 1) {return changed.result;}
+      if (updated.meta.changes === 1) {
+        return changed.result;
+      }
     }
 
     throw new AppErrorException(
@@ -218,10 +213,7 @@ export function createD1ShoppingStore(
           .run();
       },
       delete: async () => {
-        await db
-          .delete(preferredStores)
-          .where(eq(preferredStores.userId, userId))
-          .run();
+        await db.delete(preferredStores).where(eq(preferredStores.userId, userId)).run();
       },
     },
     pantry: {
@@ -256,12 +248,7 @@ export function createD1ShoppingStore(
         const writes = (Array.isArray(names) ? names : [names]).map((name) =>
           db
             .delete(pantryItems)
-            .where(
-              and(
-                eq(pantryItems.userId, userId),
-                eq(pantryItems.nameKey, nameKey(name)),
-              ),
-            ),
+            .where(and(eq(pantryItems.userId, userId), eq(pantryItems.nameKey, nameKey(name)))),
         );
 
         return toPantryItems(await writeThenRead(writes, selectPantry()));
@@ -270,21 +257,13 @@ export function createD1ShoppingStore(
         await db
           .update(pantryItems)
           .set({ quantity })
-          .where(
-            and(
-              eq(pantryItems.userId, userId),
-              eq(pantryItems.nameKey, nameKey(productName)),
-            ),
-          )
+          .where(and(eq(pantryItems.userId, userId), eq(pantryItems.nameKey, nameKey(productName))))
           .run();
 
         return getPantry();
       },
       clear: async () => {
-        await db
-          .delete(pantryItems)
-          .where(eq(pantryItems.userId, userId))
-          .run();
+        await db.delete(pantryItems).where(eq(pantryItems.userId, userId)).run();
       },
     },
     equipment: {
@@ -318,20 +297,14 @@ export function createD1ShoppingStore(
           db
             .delete(equipmentItems)
             .where(
-              and(
-                eq(equipmentItems.userId, userId),
-                eq(equipmentItems.nameKey, nameKey(name)),
-              ),
+              and(eq(equipmentItems.userId, userId), eq(equipmentItems.nameKey, nameKey(name))),
             ),
         );
 
         return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
       clear: async () => {
-        await db
-          .delete(equipmentItems)
-          .where(eq(equipmentItems.userId, userId))
-          .run();
+        await db.delete(equipmentItems).where(eq(equipmentItems.userId, userId)).run();
       },
     },
     shoppingList: {
@@ -382,26 +355,22 @@ export function createD1ShoppingStore(
         mutateList(listId, (items) => {
           const index = items.findIndex((item) => item.id === itemId);
 
-          if (index < 0)
-            {throw new AppErrorException(
-              notFoundError(`No list item ${itemId}.`),
-            );}
+          if (index < 0) {
+            throw new AppErrorException(notFoundError(`No list item ${itemId}.`));
+          }
 
           const updated = { ...items[index], ...patch };
 
           return {
-            items: items.map((item, position) =>
-              position === index ? updated : item,
-            ),
+            items: items.map((item, position) => (position === index ? updated : item)),
             result: updated,
           };
         }),
       removeItem: (listId, itemId) =>
         mutateList(listId, (items) => {
-          if (!items.some((item) => item.id === itemId))
-            {throw new AppErrorException(
-              notFoundError(`No list item ${itemId}.`),
-            );}
+          if (!items.some((item) => item.id === itemId)) {
+            throw new AppErrorException(notFoundError(`No list item ${itemId}.`));
+          }
 
           return {
             items: items.filter((item) => item.id !== itemId),

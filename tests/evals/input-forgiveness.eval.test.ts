@@ -35,10 +35,7 @@ describe("input forgiveness", () => {
   });
 
   /** callTool never throws here — schema failures come back as isError results. */
-  async function call(
-    name: string,
-    args: ToolArguments,
-  ): Promise<ToolCallResult> {
+  async function call(name: string, args: ToolArguments): Promise<ToolCallResult> {
     try {
       return await client.callTool({
         name,
@@ -82,9 +79,7 @@ describe("input forgiveness", () => {
 
     it("rejects record_order items keyed by productId instead of upc", async () => {
       const result = await call("record_order", {
-        items: [
-          { productId: "0001111041700", productName: "Milk", quantity: 1 },
-        ],
+        items: [{ productId: "0001111041700", productName: "Milk", quantity: 1 }],
       });
 
       expect(result.isError, `${contentText(result)}`).toBeTruthy();

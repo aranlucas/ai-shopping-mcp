@@ -245,7 +245,9 @@ export function classifyDealCategory(title: string): DealCategory {
   const normalized = normalizeTitle(title);
 
   for (const { category, pattern } of CATEGORY_PATTERNS) {
-    if (pattern.test(normalized)) {return category;}
+    if (pattern.test(normalized)) {
+      return category;
+    }
   }
 
   return "Other";

@@ -45,9 +45,7 @@ function ListRow({
   canOpen: boolean;
   onOpen: (listId: string) => Promise<void>;
 }) {
-  const [state, setState] = useState<"idle" | "loading" | "done" | "error">(
-    "idle",
-  );
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleOpen = useCallback(async () => {
     setState("loading");
@@ -64,9 +62,7 @@ function ListRow({
   return (
     <li className="flex items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-gray-900">
-          {list.name}
-        </div>
+        <div className="truncate text-sm font-medium text-gray-900">{list.name}</div>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
           <span>
             {list.itemCount} {list.itemCount === 1 ? "item" : "items"}
@@ -125,12 +121,7 @@ export function ShoppingListsView({
       ) : (
         <ul className="m-0 list-none divide-y divide-border p-0">
           {lists.map((list) => (
-            <ListRow
-              key={list.id}
-              list={list}
-              canOpen={canCallTools}
-              onOpen={handleOpen}
-            />
+            <ListRow key={list.id} list={list} canOpen={canCallTools} onOpen={handleOpen} />
           ))}
         </ul>
       )}

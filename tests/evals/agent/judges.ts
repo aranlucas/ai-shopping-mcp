@@ -13,22 +13,19 @@ export const TaskChecksJudge = createJudge<AgentInput, AgentOutput>(
   ({ input, output, toolCalls }) => {
     const task = AGENT_TASKS.find((candidate) => candidate.id === input.taskId);
 
-    if (!task) {return { score: 0, metadata: { rationale: "unknown task" } };}
+    if (!task) {
+      return { score: 0, metadata: { rationale: "unknown task" } };
+    }
 
     const checks = task.checks(output, toolCalls);
     const failed = checks.filter((entry) => !entry.pass);
 
     return {
-      score: checks.length
-        ? (checks.length - failed.length) / checks.length
-        : 0,
+      score: checks.length ? (checks.length - failed.length) / checks.length : 0,
       metadata: {
         rationale: failed.length
           ? failed
-              .map(
-                (entry) =>
-                  `✗ ${entry.name}${entry.detail ? ` — ${entry.detail}` : ""}`,
-              )
+              .map((entry) => `✗ ${entry.name}${entry.detail ? ` — ${entry.detail}` : ""}`)
               .join("\n")
           : `all ${checks.length} checks passed`,
         split: task.split,

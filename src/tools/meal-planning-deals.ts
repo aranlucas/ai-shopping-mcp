@@ -40,14 +40,12 @@ export async function getMealPlanningDeals(
     parts.push(`Warning: ${warning}`);
   }
 
-  if (deals.length === 0)
-    {parts.push(
-      "No weekly offers found. Plan from pantry and regular-price ingredients.",
-    );}
+  if (deals.length === 0) {
+    parts.push("No weekly offers found. Plan from pantry and regular-price ingredients.");
+  }
 
   for (const deal of deals) {
-    const circular =
-      deal.source === "print" ? data.printCircular : data.shoppableCircular;
+    const circular = deal.source === "print" ? data.printCircular : data.shoppableCircular;
 
     const validFrom = deal.validFrom ?? circular?.eventStartDate;
     const validTill = deal.validTill ?? circular?.eventEndDate;
@@ -66,8 +64,9 @@ export async function getMealPlanningDeals(
     parts.push(`- ${fields.filter(Boolean).join(" | ")}`);
   }
 
-  if (data.deals.length > deals.length)
-    {parts.push("Use get_weekly_deals for more offers.");}
+  if (data.deals.length > deals.length) {
+    parts.push("Use get_weekly_deals for more offers.");
+  }
 
   return parts.join("\n");
 }

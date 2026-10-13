@@ -1,16 +1,6 @@
-import {
-  index,
-  integer,
-  primaryKey,
-  real,
-  sqliteTable,
-  text,
-} from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import type {
-  OrderRecord,
-  StoredShoppingListItem,
-} from "../domain/shopping.js";
+import type { OrderRecord, StoredShoppingListItem } from "../domain/shopping.js";
 
 export const preferredStores = sqliteTable("preferred_stores", {
   userId: text("user_id").primaryKey(),
@@ -52,16 +42,12 @@ export const shoppingLists = sqliteTable(
     id: text("id").primaryKey(),
     userId: text("user_id").notNull(),
     name: text("name").notNull(),
-    items: text("items_json", { mode: "json" })
-      .$type<StoredShoppingListItem[]>()
-      .notNull(),
+    items: text("items_json", { mode: "json" }).$type<StoredShoppingListItem[]>().notNull(),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     version: integer("version").notNull().default(1),
   },
-  (table) => [
-    index("shopping_lists_user_updated").on(table.userId, table.updatedAt),
-  ],
+  (table) => [index("shopping_lists_user_updated").on(table.userId, table.updatedAt)],
 );
 
 export const orderHistory = sqliteTable(
@@ -69,9 +55,7 @@ export const orderHistory = sqliteTable(
   {
     id: text("id").notNull(),
     userId: text("user_id").notNull(),
-    record: text("record_json", { mode: "json" })
-      .$type<OrderRecord>()
-      .notNull(),
+    record: text("record_json", { mode: "json" }).$type<OrderRecord>().notNull(),
     placedAt: text("placed_at").notNull(),
   },
   (table) => [

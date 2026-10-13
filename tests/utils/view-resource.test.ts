@@ -8,10 +8,7 @@ import {
 } from "@modelcontextprotocol/server";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  APP_VIEW_URI,
-  registerViewResource,
-} from "../../src/utils/view-resource.js";
+import { APP_VIEW_URI, registerViewResource } from "../../src/utils/view-resource.js";
 
 const EXPECTED_MIME_TYPE = "text/html;profile=mcp-app";
 
@@ -82,12 +79,7 @@ describe("registerViewResource", () => {
       const env = makeFakeEnv(null);
       const server = makeServer();
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        APP_VIEW_URI,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
 
       expect(resource.metadata?.mimeType).toBe(EXPECTED_MIME_TYPE);
     });
@@ -102,19 +94,13 @@ describe("registerViewResource", () => {
       const htmlContent = "<html><body>Shopping App</body></html>";
 
       const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) =>
-          new Response(htmlContent, { status: 200 }),
+        fetch: async (_req: Request) => new Response(htmlContent, { status: 200 }),
       };
 
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        APP_VIEW_URI,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
 
       const result = await readResource(resource);
       expect(result.contents[0]).toMatchObject({ text: htmlContent });
@@ -124,20 +110,14 @@ describe("registerViewResource", () => {
       const htmlContent = "<!DOCTYPE html><html></html>";
 
       const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) =>
-          new Response(htmlContent, { status: 200 }),
+        fetch: async (_req: Request) => new Response(htmlContent, { status: 200 }),
       };
 
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
       const resourceUri = "ui://shopping-app";
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        resourceUri,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, resourceUri, "mcp-app.html");
 
       const result = await readResource(resource, resourceUri);
 
@@ -166,12 +146,7 @@ describe("registerViewResource", () => {
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        APP_VIEW_URI,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
 
       await readResource(resource);
 
@@ -185,12 +160,7 @@ describe("registerViewResource", () => {
       const env = makeFakeEnv(null);
       const server = makeServer();
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        APP_VIEW_URI,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
 
       const result = await readResource(resource);
 
@@ -202,19 +172,13 @@ describe("registerViewResource", () => {
 
     it("returns ERROR_HTML fallback when ASSETS.fetch() returns a non-ok HTTP response", async () => {
       const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) =>
-          new Response("Not Found", { status: 404 }),
+        fetch: async (_req: Request) => new Response("Not Found", { status: 404 }),
       };
 
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        APP_VIEW_URI,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
 
       const result = await readResource(resource);
 
@@ -234,12 +198,7 @@ describe("registerViewResource", () => {
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        APP_VIEW_URI,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
 
       const result = await readResource(resource);
 
@@ -254,12 +213,7 @@ describe("registerViewResource", () => {
       const server = makeServer();
       const resourceUri = "ui://shopping-app";
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        resourceUri,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, resourceUri, "mcp-app.html");
 
       const result = await readResource(resource, resourceUri);
 
@@ -269,19 +223,13 @@ describe("registerViewResource", () => {
 
     it("returns ERROR_HTML fallback when ASSETS.fetch() returns a 500 server error", async () => {
       const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) =>
-          new Response("Internal Server Error", { status: 500 }),
+        fetch: async (_req: Request) => new Response("Internal Server Error", { status: 500 }),
       };
 
       const env = makeFakeEnv(fakeAssets);
       const server = makeServer();
 
-      const resource = registerViewResource(
-        server,
-        () => env,
-        APP_VIEW_URI,
-        "mcp-app.html",
-      );
+      const resource = registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
 
       const result = await readResource(resource);
 

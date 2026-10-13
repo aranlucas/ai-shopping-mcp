@@ -4,19 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/server";
 import { getMcpAuthContext } from "agents/mcp/server";
 import * as composition from "../src/composition.js";
-import {
-  Client,
-  StreamableHTTPClientTransport,
-} from "@modelcontextprotocol/client";
-import {
-  authIdentity,
-  validateAccessToken,
-} from "../src/services/better-auth.js";
-import {
-  fixtureJwks,
-  fixtureToken,
-  seedKrogerConnection,
-} from "./better-auth-fixture.js";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { authIdentity, validateAccessToken } from "../src/services/better-auth.js";
+import { fixtureJwks, fixtureToken, seedKrogerConnection } from "./better-auth-fixture.js";
 import { ensureShoppingSchema } from "./d1-schema.js";
 
 const appOrigin = new URL(env.MCP_RESOURCE_URL).origin;
@@ -83,13 +73,9 @@ describe("Better Auth resource server", () => {
   });
 
   it("publishes the external issuer and scopes and challenges unauthenticated requests", async () => {
-    const metadata = await SELF.fetch(
-      `${appOrigin}/.well-known/oauth-protected-resource`,
-    );
+    const metadata = await SELF.fetch(`${appOrigin}/.well-known/oauth-protected-resource`);
 
-    expect(metadata.headers.get("Access-Control-Allow-Methods")).toBe(
-      "GET, OPTIONS",
-    );
+    expect(metadata.headers.get("Access-Control-Allow-Methods")).toBe("GET, OPTIONS");
 
     expect(await metadata.json()).toMatchObject({
       resource: env.MCP_RESOURCE_URL,
@@ -101,20 +87,10 @@ describe("Better Auth resource server", () => {
     expect(response.headers.get("WWW-Authenticate")).toContain(
       `resource_metadata="${appOrigin}/.well-known/oauth-protected-resource/mcp"`,
     );
-    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
-      "WWW-Authenticate",
-    );
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain("WWW-Authenticate");
     expect(
-      await (
-        await SELF.fetch(
-          `${appOrigin}/.well-known/oauth-protected-resource/mcp`,
-        )
-      ).json(),
-    ).toEqual(
-      await (
-        await SELF.fetch(`${appOrigin}/.well-known/oauth-protected-resource`)
-      ).json(),
-    );
+      await (await SELF.fetch(`${appOrigin}/.well-known/oauth-protected-resource/mcp`)).json(),
+    ).toEqual(await (await SELF.fetch(`${appOrigin}/.well-known/oauth-protected-resource`)).json());
   });
 
   it("allows browser preflight without requiring a token", async () => {
@@ -130,15 +106,9 @@ describe("Better Auth resource server", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Access-Control-Allow-Methods")).toBe(
-      "POST, OPTIONS",
-    );
-    expect(response.headers.get("Access-Control-Allow-Headers")).toContain(
-      "Authorization",
-    );
-    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
-      "https://client.example",
-    );
+    expect(response.headers.get("Access-Control-Allow-Methods")).toBe("POST, OPTIONS");
+    expect(response.headers.get("Access-Control-Allow-Headers")).toContain("Authorization");
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://client.example");
   });
 
   it.each([
@@ -247,18 +217,12 @@ describe("Better Auth resource server", () => {
   });
 
   it("rejects opaque credentials and insufficient scopes", async () => {
-    expect(
-      (await SELF.fetch(mcpRequest("old-user:old-grant:old-secret"))).status,
-    ).toBe(401);
+    expect((await SELF.fetch(mcpRequest("old-user:old-grant:old-secret"))).status).toBe(401);
 
-    const response = await SELF.fetch(
-      mcpRequest(await fixtureToken("user", { scope: "openid" })),
-    );
+    const response = await SELF.fetch(mcpRequest(await fixtureToken("user", { scope: "openid" })));
 
     expect(response.status).toBe(403);
-    expect(response.headers.get("WWW-Authenticate")).toContain(
-      "insufficient_scope",
-    );
+    expect(response.headers.get("WWW-Authenticate")).toContain("insufficient_scope");
   });
 
   it("rejects a token with a modified signature", async () => {
@@ -302,11 +266,7 @@ describe("Better Auth resource server", () => {
   it("keeps the verified subject and OAuth client separate from Kroger credentials", async () => {
     const token = await fixtureToken("subject-a", { client_id: "client-a" });
 
-    const validated = await validateAccessToken(
-      env,
-      env.MCP_RESOURCE_URL,
-      token,
-    );
+    const validated = await validateAccessToken(env, env.MCP_RESOURCE_URL, token);
 
     expect(validated).toMatchObject({
       props: authIdentity(env.BETTER_AUTH_ISSUER, "subject-a"),
@@ -320,9 +280,7 @@ describe("Better Auth resource server", () => {
   it("challenges users to sign in again when Kroger is not linked", async () => {
     const response = await SELF.fetch(mcpRequest(await fixtureToken()));
     expect(response.status).toBe(401);
-    expect(response.headers.get("WWW-Authenticate")).toContain(
-      "resource_metadata",
-    );
+    expect(response.headers.get("WWW-Authenticate")).toContain("resource_metadata");
   });
 
   it("returns a service error without a re-login challenge when Auth RPC is unavailable", async () => {
@@ -342,9 +300,7 @@ describe("Better Auth resource server", () => {
     });
     const response = await SELF.fetch(mcpRequest(token));
     expect(response.status).toBe(401);
-    expect(response.headers.get("WWW-Authenticate")).toContain(
-      "resource_metadata",
-    );
+    expect(response.headers.get("WWW-Authenticate")).toContain("resource_metadata");
   });
 
   it("passes the verified OAuth client and shopping user into the MCP context", async () => {
@@ -370,14 +326,10 @@ describe("Better Auth resource server", () => {
       return server;
     });
 
-    const client = await connectClient(
-      await fixtureToken("subject-a", { client_id: "client-a" }),
-    );
+    const client = await connectClient(await fixtureToken("subject-a", { client_id: "client-a" }));
 
     try {
-      expect(
-        await client.callTool({ name: "probe", arguments: {} }),
-      ).toMatchObject({
+      expect(await client.callTool({ name: "probe", arguments: {} })).toMatchObject({
         content: [
           {
             type: "text",
@@ -402,8 +354,7 @@ describe("Better Auth resource server", () => {
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name)).toContain("get_shopping_profile");
     expect(
-      (await client.callTool({ name: "get_shopping_profile", arguments: {} }))
-        .isError,
+      (await client.callTool({ name: "get_shopping_profile", arguments: {} })).isError,
     ).toBeFalsy();
     await client.close();
     const other = await SELF.fetch(mcpRequest(await fixtureToken("subject-b")));

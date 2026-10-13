@@ -2,14 +2,7 @@
 import type { ShoppingAppClient, ToolCall } from "./shared/types.js";
 /** Local fixture preview. Excluded from the production HTML entry in vite.config.ts. */
 
-import {
-  type ChangeEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   type AppData,
@@ -163,8 +156,7 @@ const LIST: ShoppingListContent = {
       checked: false,
       productName: "A large bunch of fresh herbs for the weekend meal",
       quantity: 1,
-      notes:
-        "Parsley or cilantro. Avoid the small plastic packets if a fresh bunch is available.",
+      notes: "Parsley or cilantro. Avoid the small plastic packets if a fresh bunch is available.",
     },
   ],
 };
@@ -219,9 +211,7 @@ function updatePreviewList(
 ): ShoppingListContent {
   const removed = new Set(args.remove ?? []);
 
-  const changes = new Map(
-    (args.change ?? []).map((change) => [change.itemId, change]),
-  );
+  const changes = new Map((args.change ?? []).map((change) => [change.itemId, change]));
 
   return {
     ...list,
@@ -230,15 +220,15 @@ function updatePreviewList(
       .map((item) => {
         const change = item.id ? changes.get(item.id) : undefined;
 
-        if (!change) {return item;}
+        if (!change) {
+          return item;
+        }
 
         return Object.assign(
           {},
           item,
           change.checked === undefined ? {} : { checked: change.checked },
-          change.quantity === undefined
-            ? {}
-            : { quantity: Number(change.quantity) },
+          change.quantity === undefined ? {} : { quantity: Number(change.quantity) },
         );
       }),
   };
@@ -251,8 +241,7 @@ function Preview() {
   const [unknownCart, setUnknownCart] = useState(false);
 
   const handleUnknownCart = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) =>
-      setUnknownCart(event.target.checked),
+    (event: ChangeEvent<HTMLInputElement>) => setUnknownCart(event.target.checked),
     [],
   );
 
@@ -289,8 +278,8 @@ function Preview() {
         setLastAction(`Calling ${call.name}…`);
         await new Promise((resolve) => setTimeout(resolve, 600));
 
-        if (unknownCart && call.name === "add_shopping_list_to_cart")
-          {return {
+        if (unknownCart && call.name === "add_shopping_list_to_cart") {
+          return {
             content: [
               {
                 type: "text",
@@ -304,10 +293,11 @@ function Preview() {
                 recovery: "check_cart",
               },
             },
-          };}
+          };
+        }
 
-        if (fail)
-          {return {
+        if (fail) {
+          return {
             content: [
               {
                 type: "text",
@@ -315,26 +305,30 @@ function Preview() {
               },
             ],
             isError: true,
-          };}
+          };
+        }
 
         setLastAction(`Completed ${call.name}.`);
 
-        if (call.name === "search_products")
-          {return { content: [], ...appResult("search_products", PRODUCTS) };}
+        if (call.name === "search_products") {
+          return { content: [], ...appResult("search_products", PRODUCTS) };
+        }
 
-        if (call.name === "create_shopping_list")
-          {return {
+        if (call.name === "create_shopping_list") {
+          return {
             content: [],
             structuredContent: { listId: "preview-created-list" },
-          };}
+          };
+        }
 
-        if (call.name === "get_shopping_list")
-          {return call.arguments.listId
+        if (call.name === "get_shopping_list") {
+          return call.arguments.listId
             ? {
                 content: [],
                 ...appResult("create_shopping_list", listRef.current),
               }
-            : { content: [], ...appResult("shopping_lists", LISTS) };}
+            : { content: [], ...appResult("shopping_lists", LISTS) };
+        }
 
         if (call.name === "update_shopping_list") {
           listRef.current = updatePreviewList(listRef.current, call.arguments);
@@ -345,8 +339,8 @@ function Preview() {
           };
         }
 
-        if (call.name === "record_order")
-          {return {
+        if (call.name === "record_order") {
+          return {
             content: [],
             ...appResult("record_order", {
               orderId: "preview-order",
@@ -354,16 +348,18 @@ function Preview() {
               totalItems: 0,
               placedAt: new Date().toISOString(),
             }),
-          };}
+          };
+        }
 
-        if (call.name === "update_inventory")
-          {return {
+        if (call.name === "update_inventory") {
+          return {
             content: [],
             ...appResult("pantry", { items: [] }),
-          };}
+          };
+        }
 
-        if (call.name === "add_shopping_list_to_cart")
-          {return {
+        if (call.name === "add_shopping_list_to_cart") {
+          return {
             content: [],
             ...appResult("add_shopping_list_to_cart", {
               outcome: "added",
@@ -381,7 +377,8 @@ function Preview() {
               needsUpc: [],
               actionDetail: "Added 1 item(s) to cart",
             }),
-          };}
+          };
+        }
 
         return { content: [] };
       },
@@ -389,7 +386,9 @@ function Preview() {
         setLastAction("Asking assistant…");
         await new Promise((resolve) => setTimeout(resolve, 600));
 
-        if (fail) {return { isError: true };}
+        if (fail) {
+          return { isError: true };
+        }
 
         setLastAction("Message received by preview assistant.");
 
@@ -475,11 +474,7 @@ function Preview() {
             Fail actions
           </label>
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={unknownCart}
-              onChange={handleUnknownCart}
-            />
+            <input type="checkbox" checked={unknownCart} onChange={handleUnknownCart} />
             Unknown cart outcome
           </label>
         </div>
@@ -488,39 +483,17 @@ function Preview() {
         </output>
       </div>
       <main key={view}>
-        {view === "deals" && (
-          <WeeklyDealsView data={DEALS} app={app} canCallTools />
+        {view === "deals" && <WeeklyDealsView data={DEALS} app={app} canCallTools />}
+        {view === "stale" && <WeeklyDealsView data={staleDeals} app={app} canCallTools />}
+        {view === "empty" && <WeeklyDealsView data={emptyDeals} app={app} canCallTools />}
+        {view === "products" && <ProductSearchView data={PRODUCTS} app={app} canCallTools />}
+        {view === "failed" && <ProductSearchView data={failedProducts} app={app} canCallTools />}
+        {(view === "list" || view === "lists") && listData?.view === "create_shopping_list" && (
+          <ShoppingListView data={listData} setData={setListData} app={app} canCallTools />
         )}
-        {view === "stale" && (
-          <WeeklyDealsView data={staleDeals} app={app} canCallTools />
+        {(view === "list" || view === "lists") && listData?.view === "shopping_lists" && (
+          <ShoppingListsView data={listData} setData={setListData} app={app} canCallTools />
         )}
-        {view === "empty" && (
-          <WeeklyDealsView data={emptyDeals} app={app} canCallTools />
-        )}
-        {view === "products" && (
-          <ProductSearchView data={PRODUCTS} app={app} canCallTools />
-        )}
-        {view === "failed" && (
-          <ProductSearchView data={failedProducts} app={app} canCallTools />
-        )}
-        {(view === "list" || view === "lists") &&
-          listData?.view === "create_shopping_list" && (
-            <ShoppingListView
-              data={listData}
-              setData={setListData}
-              app={app}
-              canCallTools
-            />
-          )}
-        {(view === "list" || view === "lists") &&
-          listData?.view === "shopping_lists" && (
-            <ShoppingListsView
-              data={listData}
-              setData={setListData}
-              app={app}
-              canCallTools
-            />
-          )}
         {view === "cart" && <CartView data={CART} app={app} />}
         {view === "loading" && <ProductSearchSkeleton />}
         {view === "error" && (
@@ -534,7 +507,9 @@ function Preview() {
 if (import.meta.env.DEV) {
   const element = document.getElementById("root");
 
-  if (!element) {throw new Error("Preview root element is missing");}
+  if (!element) {
+    throw new Error("Preview root element is missing");
+  }
 
   const root = createRoot(element);
   root.render(<Preview />);

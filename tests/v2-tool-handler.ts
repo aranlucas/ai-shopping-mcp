@@ -1,7 +1,4 @@
-import {
-  authenticatedRequest,
-  type RequestCustomization,
-} from "./authenticated-request.js";
+import { authenticatedRequest, type RequestCustomization } from "./authenticated-request.js";
 import {
   specTypeSchemas,
   type CallToolRequestParams,
@@ -15,7 +12,9 @@ import type { z } from "zod";
 export function parseTestToolResult(value: unknown) {
   const parsed = specTypeSchemas.CallToolResult["~standard"].validate(value);
 
-  if (parsed.issues) {throw new TypeError("Invalid MCP tool response");}
+  if (parsed.issues) {
+    throw new TypeError("Invalid MCP tool response");
+  }
 
   const result = parsed.value;
 
@@ -40,10 +39,7 @@ export type RawToolHandler = (
   requestContext?: ServerContext,
 ) => ReturnType<ReturnType<McpServer["registerTool"]>["executor"]>;
 
-export type TestToolConfig = Omit<
-  Parameters<McpServer["registerTool"]>[1],
-  "inputSchema"
-> & {
+export type TestToolConfig = Omit<Parameters<McpServer["registerTool"]>[1], "inputSchema"> & {
   inputSchema: z.ZodObject;
 };
 

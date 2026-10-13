@@ -5,10 +5,7 @@ import * as z from "zod/v4";
 
 import type { PreferredLocation } from "../domain/shopping.js";
 import type { KrogerClients } from "../services/kroger/client.js";
-import type {
-  components as LocationComponents,
-  operations,
-} from "../services/kroger/location.js";
+import type { components as LocationComponents, operations } from "../services/kroger/location.js";
 import type { LocationData } from "../app-results.js";
 import type { PreferredLocationStore } from "../utils/shopping-store.js";
 
@@ -53,10 +50,7 @@ export type LocationToolDependencies = {
 
 export function registerLocationTools(
   server: McpServer,
-  {
-    locationClient,
-    preferredLocation: preferredLocationStore,
-  }: LocationToolDependencies,
+  { locationClient, preferredLocation: preferredLocationStore }: LocationToolDependencies,
 ): void {
   registerAppTool(
     server,
@@ -79,14 +73,10 @@ export function registerLocationTools(
             .trim()
             .length(5, { message: "Zip code must be exactly 5 digits" })
             .optional()
-            .describe(
-              "5-digit zip code to search near. Ask the user if you don't know it.",
-            ),
+            .describe("5-digit zip code to search near. Ask the user if you don't know it."),
           storeId: storeIdSchema
             .optional()
-            .describe(
-              "8-character storeId to look up one store's hours and departments",
-            ),
+            .describe("8-character storeId to look up one store's hours and departments"),
           limit: z.coerce.number().int().min(1).max(20).optional().default(5),
           chain: z
             .string()
@@ -103,23 +93,24 @@ export function registerLocationTools(
     async (input) => {
       const { storeId, zipCode, limit, chain } = input;
 
-      if (storeId) {return getStoreDetails(storeId);}
+      if (storeId) {
+        return getStoreDetails(storeId);
+      }
 
       if (!zipCode || !/^\d{5}$/.test(zipCode)) {
         return toMcpError(
-          validationError(
-            'zipCode must be 5 digits. Example: {"zipCode":"98105"}',
-          ),
+          validationError('zipCode must be 5 digits. Example: {"zipCode":"98105"}'),
         );
       }
 
-      const queryParams: operations["SearchLocations"]["parameters"]["query"] =
-        {
-          "filter.limit": limit,
-          "filter.zipCode.near": zipCode,
-        };
+      const queryParams: operations["SearchLocations"]["parameters"]["query"] = {
+        "filter.limit": limit,
+        "filter.zipCode.near": zipCode,
+      };
 
-      if (chain) {queryParams["filter.chain"] = chain;}
+      if (chain) {
+        queryParams["filter.chain"] = chain;
+      }
 
       const result = await fromApiResponse(
         () =>
@@ -129,14 +120,14 @@ export function registerLocationTools(
         "search locations",
       ).map((data) => data?.data || []);
 
-      if (result.isErr()) {return toMcpError(result.error);}
+      if (result.isErr()) {
+        return toMcpError(result.error);
+      }
 
       const stores = result.value;
 
       return {
-        content: [
-          { type: "text" as const, text: formatStoreListMarkdown(stores) },
-        ],
+        content: [{ type: "text" as const, text: formatStoreListMarkdown(stores) }],
         ...appResult("search_stores", {
           stores: stores.map(compactLocation),
         }),
@@ -155,15 +146,15 @@ export function registerLocationTools(
       const location = data?.data;
 
       if (!location) {
-        return err(
-          notFoundError(`No information found for location ID: ${storeId}`),
-        );
+        return err(notFoundError(`No information found for location ID: ${storeId}`));
       }
 
       return ok(location);
     });
 
-    if (result.isErr()) {return toMcpError(result.error);}
+    if (result.isErr()) {
+      return toMcpError(result.error);
+    }
 
     const location = result.value;
 
@@ -193,9 +184,7 @@ export function registerLocationTools(
         openWorldHint: true,
       },
       inputSchema: z.object({
-        storeId: storeIdSchema.describe(
-          "8-character storeId from search_stores",
-        ),
+        storeId: storeIdSchema.describe("8-character storeId from search_stores"),
       }),
     },
     async ({ storeId }) => {
@@ -209,9 +198,7 @@ export function registerLocationTools(
         const location = data?.data;
 
         if (!location) {
-          return err(
-            notFoundError(`No information found for location ID: ${storeId}`),
-          );
+          return err(notFoundError(`No information found for location ID: ${storeId}`));
         }
 
         const preferredLocation: PreferredLocation = {

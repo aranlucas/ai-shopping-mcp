@@ -13,7 +13,9 @@ it("runs through the real Agents auth context", async () => {
       server.registerTool("probe", {}, async () => {
         const context = getMcpAuthContext();
 
-        if (context?.props.id === "user-123") {observed = context.props.id;}
+        if (context?.props.id === "user-123") {
+          observed = context.props.id;
+        }
 
         return { content: [{ type: "text", text: "ok" }] };
       });
@@ -54,18 +56,16 @@ it("preserves an operation rejection", async () => {
 
 it("validates the real request context and preserves the numeric contract", async () => {
   await Promise.all(
-    [Date.now() + 1000, Number.NaN, Infinity, -Infinity].map(
-      async (tokenExpiresAt) => {
-        const props = {
-          id: "user-123",
-          accessToken: "synthetic",
-          tokenExpiresAt,
-        };
+    [Date.now() + 1000, Number.NaN, Infinity, -Infinity].map(async (tokenExpiresAt) => {
+      const props = {
+        id: "user-123",
+        accessToken: "synthetic",
+        tokenExpiresAt,
+      };
 
-        await expect(
-          authenticatedRequest(() => Promise.resolve(getProps()), { props }),
-        ).resolves.toEqual(props);
-      },
-    ),
+      await expect(
+        authenticatedRequest(() => Promise.resolve(getProps()), { props }),
+      ).resolves.toEqual(props);
+    }),
   );
 });

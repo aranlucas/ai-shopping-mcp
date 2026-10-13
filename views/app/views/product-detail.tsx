@@ -1,7 +1,4 @@
-import {
-  type ShoppingAppClient,
-  type ProductDetailContent,
-} from "../../shared/types.js";
+import { type ShoppingAppClient, type ProductDetailContent } from "../../shared/types.js";
 
 import { useCallback } from "react";
 
@@ -39,9 +36,7 @@ export function ProductDetailView({
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         {/* Header */}
         <div className="border-b border-border px-4 pt-4 pb-3">
-          <h1 className="text-sm leading-snug font-semibold text-gray-900">
-            {name}
-          </h1>
+          <h1 className="text-sm leading-snug font-semibold text-gray-900">{name}</h1>
           {brand && <p className="mt-0.5 text-xs text-gray-400">{brand}</p>}
           <div className="mt-2.5 flex flex-wrap items-center gap-3">
             <PriceDisplay product={product} />
@@ -110,9 +105,7 @@ export function ProductDetailView({
           )}
 
           <div>
-            <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
-              UPC
-            </p>
+            <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">UPC</p>
             <p className="font-mono text-xs text-gray-400">{upc}</p>
           </div>
         </div>

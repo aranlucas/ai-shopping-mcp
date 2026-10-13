@@ -98,59 +98,46 @@ function check(name: string, pass: boolean, detail?: string): Check {
 }
 
 const cartText = (cart: CartItem[]) =>
-  cart
-    .map((item) => `${item.upc}x${item.quantity} ${item.modality}`)
-    .join(", ") || "empty cart";
+  cart.map((item) => `${item.upc}x${item.quantity} ${item.modality}`).join(", ") || "empty cart";
 
-const cartHas = (cart: CartItem[], upcs: string[]) =>
-  cart.some((item) => upcs.includes(item.upc));
+const cartHas = (cart: CartItem[], upcs: string[]) => cart.some((item) => upcs.includes(item.upc));
 
 const cartQuantity = (cart: CartItem[], upc: string) =>
-  cart
-    .filter((item) => item.upc === upc)
-    .reduce((sum, item) => sum + item.quantity, 0);
+  cart.filter((item) => item.upc === upc).reduce((sum, item) => sum + item.quantity, 0);
 
 function findList(output: AgentOutput, name: string): ListItem[] | null {
-  return (
-    output.lists.find((list) => list.name.toLowerCase() === name.toLowerCase())
-      ?.items ?? null
-  );
+  return output.lists.find((list) => list.name.toLowerCase() === name.toLowerCase())?.items ?? null;
 }
 
 const listText = (items: ListItem[] | null) =>
   items
     ? items
-        .map(
-          (item) =>
-            `${item.productName}x${item.quantity}${item.checked ? " (checked)" : ""}`,
-        )
+        .map((item) => `${item.productName}x${item.quantity}${item.checked ? " (checked)" : ""}`)
         .join(", ") || "empty list"
     : "list not found";
 
 const listHas = (items: ListItem[] | null, upcs: string[], name: RegExp) =>
   (items ?? []).some(
-    (item) =>
-      (item.upc !== null && upcs.includes(item.upc)) ||
-      name.test(item.productName),
+    (item) => (item.upc !== null && upcs.includes(item.upc)) || name.test(item.productName),
   );
 
 const pantryText = (pantry: PantryItem[]) =>
-  pantry.map((item) => `${item.name}x${item.quantity}`).join(", ") ||
-  "empty pantry";
+  pantry.map((item) => `${item.name}x${item.quantity}`).join(", ") || "empty pantry";
 
 function recordedOrderItems(toolCalls: ToolCall[]) {
   return toolCalls
     .filter((call) => call.name === "record_order" && call.status === "ok")
     .flatMap((call) => {
-      if (!Array.isArray(call.arguments?.items)) {return [];}
+      if (!Array.isArray(call.arguments?.items)) {
+        return [];
+      }
 
       // A successful tool call has passed this same input contract, including coercions.
       return recordOrderInputSchema.parse(call.arguments).items;
     });
 }
 
-const seedStore = (seed: Seeder) =>
-  seed("set_preferred_store", { storeId: DEFAULT_STORE_ID });
+const seedStore = (seed: Seeder) => seed("set_preferred_store", { storeId: DEFAULT_STORE_ID });
 
 const seedWeeklyList = (seed: Seeder) =>
   seed("create_shopping_list", {
@@ -189,16 +176,8 @@ export const AGENT_TASKS: AgentTask[] = [
       "I need 2 gallons of milk. Compare Kroger's 2% and whole milk and put 2 of whichever is cheaper right now in my cart.",
     setup: seedStore,
     checks: ({ cart }) => [
-      check(
-        "2x Kroger 2% (on sale) in cart",
-        cartQuantity(cart, MILK_2PCT) === 2,
-        cartText(cart),
-      ),
-      check(
-        "whole milk not added",
-        !cartHas(cart, [MILK_WHOLE]),
-        cartText(cart),
-      ),
+      check("2x Kroger 2% (on sale) in cart", cartQuantity(cart, MILK_2PCT) === 2, cartText(cart)),
+      check("whole milk not added", !cartHas(cart, [MILK_WHOLE]), cartText(cart)),
     ],
   },
   {
@@ -213,11 +192,7 @@ export const AGENT_TASKS: AgentTask[] = [
         [MILK_2PCT, EGGS, BREAD].every((upc) => cartHas(cart, [upc])),
         cartText(cart),
       ),
-      check(
-        "butter left out ($12.76 would exceed $10)",
-        !cartHas(cart, [BUTTER]),
-        cartText(cart),
-      ),
+      check("butter left out ($12.76 would exceed $10)", !cartHas(cart, [BUTTER]), cartText(cart)),
       check("reports the $8.27 total", /8\.27/.test(answer), answer),
     ],
   },
@@ -242,26 +217,14 @@ export const AGENT_TASKS: AgentTask[] = [
 
       return [
         check("list created", list !== null),
-        check(
-          "bread on list",
-          listHas(list, upcsForTerm("bread"), /bread/i),
-          listText(list),
-        ),
-        check(
-          "milk on list",
-          listHas(list, upcsForTerm("milk"), /milk/i),
-          listText(list),
-        ),
+        check("bread on list", listHas(list, upcsForTerm("bread"), /bread/i), listText(list)),
+        check("milk on list", listHas(list, upcsForTerm("milk"), /milk/i), listText(list)),
         check(
           "eggs and butter left off (already in pantry)",
           !listHas(list, [EGGS, BUTTER], /egg|butter/i),
           listText(list),
         ),
-        check(
-          "cart untouched",
-          output.cart.length === 0,
-          cartText(output.cart),
-        ),
+        check("cart untouched", output.cart.length === 0, cartText(output.cart)),
       ];
     },
   },
@@ -283,15 +246,10 @@ export const AGENT_TASKS: AgentTask[] = [
           weekly.length === 1,
           weekly.map((entry) => entry.name).join(", "),
         ),
-        check(
-          "eggs added",
-          listHas(list, upcsForTerm("eggs"), /egg/i),
-          listText(list),
-        ),
+        check("eggs added", listHas(list, upcsForTerm("eggs"), /egg/i), listText(list)),
         check(
           "original items kept",
-          listHas(list, [MILK_2PCT], /milk/i) &&
-            listHas(list, [CHEESE], /cheddar/i),
+          listHas(list, [MILK_2PCT], /milk/i) && listHas(list, [CHEESE], /cheddar/i),
           listText(list),
         ),
       ];
@@ -313,11 +271,7 @@ export const AGENT_TASKS: AgentTask[] = [
 
       return [
         check("milk quantity is 2", milk?.quantity === 2, listText(list)),
-        check(
-          "cheese removed",
-          !listHas(list, [CHEESE], /cheddar|cheese/i),
-          listText(list),
-        ),
+        check("cheese removed", !listHas(list, [CHEESE], /cheddar|cheese/i), listText(list)),
         check("bread checked off", bread?.checked === true, listText(list)),
       ];
     },
@@ -336,17 +290,14 @@ export const AGENT_TASKS: AgentTask[] = [
           "order has 2x milk",
           ordered.some(
             (item) =>
-              (item.upc === MILK_2PCT ||
-                /milk/i.test(item.productName ?? "")) &&
+              (item.upc === MILK_2PCT || /milk/i.test(item.productName ?? "")) &&
               item.quantity === 2,
           ),
           JSON.stringify(ordered),
         ),
         check(
           "order has eggs",
-          ordered.some(
-            (item) => item.upc === EGGS || /egg/i.test(item.productName ?? ""),
-          ),
+          ordered.some((item) => item.upc === EGGS || /egg/i.test(item.productName ?? "")),
           JSON.stringify(ordered),
         ),
         check(
@@ -373,16 +324,8 @@ export const AGENT_TASKS: AgentTask[] = [
 
       return [
         check("list created", list !== null),
-        check(
-          "sale milk on list",
-          listHas(list, [MILK_2PCT], /2%|reduced fat/i),
-          listText(list),
-        ),
-        check(
-          "sale bread on list",
-          listHas(list, [DKB_BREAD], /dave|killer/i),
-          listText(list),
-        ),
+        check("sale milk on list", listHas(list, [MILK_2PCT], /2%|reduced fat/i), listText(list)),
+        check("sale bread on list", listHas(list, [DKB_BREAD], /dave|killer/i), listText(list)),
       ];
     },
   },
@@ -392,23 +335,14 @@ export const AGENT_TASKS: AgentTask[] = [
     prompt: "Add bread and zzzfrobnut sauce to my cart.",
     setup: seedStore,
     checks: ({ cart, answer }) => [
-      check(
-        "bread in cart",
-        cartHas(cart, upcsForTerm("bread")),
-        cartText(cart),
-      ),
-      check(
-        "tells the user zzzfrobnut wasn't found",
-        reportsMissingItem(answer),
-        answer,
-      ),
+      check("bread in cart", cartHas(cart, upcsForTerm("bread")), cartText(cart)),
+      check("tells the user zzzfrobnut wasn't found", reportsMissingItem(answer), answer),
     ],
   },
   {
     id: "use-first",
     split: "train",
-    prompt:
-      "Which things in my pantry should I use up first? Just tell me, don't change anything.",
+    prompt: "Which things in my pantry should I use up first? Just tell me, don't change anything.",
     setup: async (seed) => {
       await seed("update_inventory", {
         pantry: {
@@ -423,8 +357,7 @@ export const AGENT_TASKS: AgentTask[] = [
     checks: ({ answer }, toolCalls) => [
       check(
         "leads with spinach",
-        /spinach/i.test(answer) &&
-          answer.search(/spinach/i) < answer.search(/yogurt|rice|$/i),
+        /spinach/i.test(answer) && answer.search(/spinach/i) < answer.search(/yogurt|rice|$/i),
         answer,
       ),
       check(
@@ -464,11 +397,7 @@ export const AGENT_TASKS: AgentTask[] = [
     prompt: "What time does my store close on Tuesdays?",
     setup: seedStore,
     checks: ({ answer }) => [
-      check(
-        "answers 11 PM",
-        /\b11(:00)?\s*(p\.?m\.?)|\b23:00\b/i.test(answer),
-        answer,
-      ),
+      check("answers 11 PM", /\b11(:00)?\s*(p\.?m\.?)|\b23:00\b/i.test(answer), answer),
     ],
   },
   {
@@ -476,9 +405,7 @@ export const AGENT_TASKS: AgentTask[] = [
     split: "test",
     prompt: "I'm standing in my QFC right now. Which aisle has the butter?",
     setup: seedStore,
-    checks: ({ answer }) => [
-      check("answers aisle D3", /\bD3\b/.test(answer), answer),
-    ],
+    checks: ({ answer }) => [check("answers aisle D3", /\bD3\b/.test(answer), answer)],
   },
   {
     id: "pantry-used-up",
@@ -500,11 +427,7 @@ export const AGENT_TASKS: AgentTask[] = [
         pantry.some((item) => /egg/i.test(item.name) && item.quantity === 6),
         pantryText(pantry),
       ),
-      check(
-        "milk removed",
-        !pantry.some((item) => /milk/i.test(item.name)),
-        pantryText(pantry),
-      ),
+      check("milk removed", !pantry.some((item) => /milk/i.test(item.name)), pantryText(pantry)),
       check(
         "butter untouched",
         pantry.some((item) => /butter/i.test(item.name)),

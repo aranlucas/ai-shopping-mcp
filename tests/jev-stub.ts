@@ -15,10 +15,7 @@ export function stubJevAi(preferredName?: string): SelectorAi {
               z.object({
                 criteria: z.record(
                   z.string(),
-                  z.union([
-                    z.string(),
-                    z.object({ name: z.string().optional() }),
-                  ]),
+                  z.union([z.string(), z.object({ name: z.string().optional() })]),
                 ),
               }),
             )
@@ -34,9 +31,7 @@ export function stubJevAi(preferredName?: string): SelectorAi {
                   Object.keys(criteria).find((key) => {
                     const candidate = criteria[key];
 
-                    const named = z
-                      .object({ name: z.string().optional() })
-                      .safeParse(candidate);
+                    const named = z.object({ name: z.string().optional() }).safeParse(candidate);
 
                     return named.success && named.data.name === preferredName;
                   }) ?? "candidate_0";
@@ -48,10 +43,7 @@ export function stubJevAi(preferredName?: string): SelectorAi {
                     choice,
                     confidence: 1,
                     probabilities: Object.fromEntries(
-                      Object.keys(criteria).map((key) => [
-                        key,
-                        key === choice ? 1 : 0,
-                      ]),
+                      Object.keys(criteria).map((key) => [key, key === choice ? 1 : 0]),
                     ),
                   },
                 ];

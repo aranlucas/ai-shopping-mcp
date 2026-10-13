@@ -1,9 +1,6 @@
 import type { WeeklyDealWarning } from "./schema.js";
 
-function detail(
-  warning: WeeklyDealWarning,
-  key: string,
-): string | number | boolean | undefined {
+function detail(warning: WeeklyDealWarning, key: string): string | number | boolean | undefined {
   return warning.details?.[key];
 }
 
@@ -45,16 +42,12 @@ export function formatWeeklyDealWarning(warning: WeeklyDealWarning): string {
   }
 }
 
-export function formatWeeklyDealWarnings(
-  warnings: WeeklyDealWarning[],
-): string[] {
+export function formatWeeklyDealWarnings(warnings: WeeklyDealWarning[]): string[] {
   return warnings.map(formatWeeklyDealWarning);
 }
 
 /** User-facing warning copy used by the structured app payload. */
-export function formatWeeklyDealAppWarning(
-  warning: WeeklyDealWarning,
-): string | undefined {
+export function formatWeeklyDealAppWarning(warning: WeeklyDealWarning): string | undefined {
   switch (warning.code) {
     case "cache_served":
       return undefined;
@@ -73,9 +66,7 @@ export function formatWeeklyDealAppWarning(
   }
 }
 
-export function formatWeeklyDealAppWarnings(
-  warnings: WeeklyDealWarning[],
-): string[] {
+export function formatWeeklyDealAppWarnings(warnings: WeeklyDealWarning[]): string[] {
   return warnings.flatMap((warning) => {
     const formatted = formatWeeklyDealAppWarning(warning);
 

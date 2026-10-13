@@ -26,11 +26,7 @@ const REMOVE_ICON = (
     strokeWidth={2.5}
     stroke="currentColor"
   >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M6 18 18 6M6 6l12 12"
-    />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
   </svg>
 );
 
@@ -51,37 +47,36 @@ const EMPTY_PANTRY_ICON = (
   </svg>
 );
 
-function ExpiryBadge({
-  expiresAt,
-  now,
-}: {
-  expiresAt: string | undefined;
-  now: number;
-}) {
+function ExpiryBadge({ expiresAt, now }: { expiresAt: string | undefined; now: number }) {
   const expiry = classifyExpiry(expiresAt, now);
 
-  if (expiry.status === "none" || expiry.status === "invalid") {return null;}
+  if (expiry.status === "none" || expiry.status === "invalid") {
+    return null;
+  }
 
-  if (expiry.status === "expired")
-    {return (
+  if (expiry.status === "expired") {
+    return (
       <Badge variant="outline" tone="danger">
         Expired
       </Badge>
-    );}
+    );
+  }
 
-  if (expiry.status === "today")
-    {return (
+  if (expiry.status === "today") {
+    return (
       <Badge variant="outline" tone="danger">
         Today
       </Badge>
-    );}
+    );
+  }
 
-  if (expiry.status === "soon")
-    {return (
+  if (expiry.status === "soon") {
+    return (
       <Badge variant="outline" tone="warning">
         {expiry.daysUntil}d left
       </Badge>
-    );}
+    );
+  }
 
   return (
     <span className="text-xs text-gray-400">
@@ -107,13 +102,9 @@ function PantryItemRow({
   onUse: (name: string) => Promise<void>;
   now: number;
 }) {
-  const [removeState, setRemoveState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
-  const [consumeState, setConsumeState] = useState<
-    "idle" | "loading" | "done" | "error"
-  >("idle");
+  const [consumeState, setConsumeState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleUse = useCallback(async () => {
     setConsumeState("loading");
@@ -168,13 +159,9 @@ function PantryItemRow({
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-gray-900">
-          {item.productName}
-        </div>
+        <div className="truncate text-sm font-medium text-gray-900">{item.productName}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-xs text-gray-400">
-            ×{item.quantity}
-          </span>
+          <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
           <ExpiryBadge expiresAt={item.expiresAt} now={now} />
         </div>
       </div>
@@ -233,10 +220,7 @@ export function PantryView({
     [items, now],
   );
 
-  const nonExpiring = useMemo(
-    () => items.filter((i) => !expiring.includes(i)),
-    [items, expiring],
-  );
+  const nonExpiring = useMemo(() => items.filter((i) => !expiring.includes(i)), [items, expiring]);
 
   const handleRemove = useCallback(
     async (name: string) => {
@@ -245,11 +229,15 @@ export function PantryView({
         arguments: { pantry: { remove: [{ name }] } },
       });
 
-      if (result?.isError) {throw new Error("Failed to remove item");}
+      if (result?.isError) {
+        throw new Error("Failed to remove item");
+      }
 
       const updated = parseToolResult(result);
 
-      if (updated) {setData(updated);}
+      if (updated) {
+        setData(updated);
+      }
     },
     [app, setData],
   );
@@ -261,18 +249,21 @@ export function PantryView({
         arguments: { pantry: { remove: [{ name, quantity: 1 }] } },
       });
 
-      if (result?.isError) {throw new Error("Failed to update item");}
+      if (result?.isError) {
+        throw new Error("Failed to update item");
+      }
 
       const updated = parseToolResult(result);
 
-      if (updated) {setData(updated);}
+      if (updated) {
+        setData(updated);
+      }
     },
     [app, setData],
   );
 
   const handleSuggestRecipes = useCallback(() => {
-    const focus =
-      expiring.length > 0 ? " Prioritize what's expiring soon." : "";
+    const focus = expiring.length > 0 ? " Prioritize what's expiring soon." : "";
 
     sendUserMessage(
       app,
@@ -281,20 +272,14 @@ export function PantryView({
   }, [app, expiring.length]);
 
   const headerBadge = useMemo(
-    () => (
-      <span className="font-mono text-xs text-gray-400">
-        {items.length} items
-      </span>
-    ),
+    () => <span className="font-mono text-xs text-gray-400">{items.length} items</span>,
     [items.length],
   );
 
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">
-          Pantry
-        </h1>
+        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Pantry</h1>
         <EmptyState
           icon={EMPTY_PANTRY_ICON}
           message="Your pantry is empty"
@@ -306,11 +291,7 @@ export function PantryView({
 
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-      <SectionHeader
-        title="Pantry"
-        badge={headerBadge}
-        subtitle={actionDetail}
-      />
+      <SectionHeader title="Pantry" badge={headerBadge} subtitle={actionDetail} />
 
       {items.length >= 3 && (
         <div className="mb-3 flex justify-end">

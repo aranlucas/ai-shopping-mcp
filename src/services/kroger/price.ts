@@ -1,8 +1,5 @@
 /** Kroger uses promo=0 to mean no promotion, not a free product. */
-export function normalizeKrogerPrice(price?: {
-  regular?: number;
-  promo?: number;
-}) {
+export function normalizeKrogerPrice(price?: { regular?: number; promo?: number }) {
   const regular = price?.regular;
   const promo = price?.promo;
   const hasPromo = promo != null && promo > 0 && promo !== regular;
@@ -19,7 +16,9 @@ export function formatKrogerPrice(price?: {
 }): string | undefined {
   const normalized = normalizeKrogerPrice(price);
 
-  if (normalized.price === undefined) {return undefined;}
+  if (normalized.price === undefined) {
+    return undefined;
+  }
 
   return normalized.regularPrice === undefined
     ? `$${normalized.price}`

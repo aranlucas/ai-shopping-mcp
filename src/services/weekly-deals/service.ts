@@ -4,21 +4,12 @@ import type { AppError } from "../../errors.js";
 import type { QfcDealsApiResponse, WeeklyDealsCacheEntry } from "./schema.js";
 import type { WeeklyDealsCache } from "./cache.js";
 
-import {
-  AppErrorException,
-  networkError,
-  notFoundError,
-} from "../../errors.js";
-import {
-  addWeeklyDealsWarning as addWarning,
-  buildWeeklyDealsCacheKey,
-} from "./cache.js";
+import { AppErrorException, networkError, notFoundError } from "../../errors.js";
+import { addWeeklyDealsWarning as addWarning, buildWeeklyDealsCacheKey } from "./cache.js";
 import { weeklyDealWarning } from "./schema.js";
 
 export type WeeklyDealsServiceDependencies = {
-  resolveLocationId: (
-    storeId: string | undefined,
-  ) => ResultAsync<string, AppError>;
+  resolveLocationId: (storeId: string | undefined) => ResultAsync<string, AppError>;
   weeklyDealsCache: WeeklyDealsCache;
   fetchLive: (params: {
     locationId: string;
@@ -75,10 +66,7 @@ export async function loadWeeklyDeals(
   if (cacheResult.isOk()) {
     if (cacheResult.value.kind === "fresh") {
       return ok({
-        data: addWarning(
-          cacheResult.value.entry.data,
-          weeklyDealWarning("cache_served"),
-        ),
+        data: addWarning(cacheResult.value.entry.data, weeklyDealWarning("cache_served")),
         cacheState: "fresh",
       });
     }
@@ -90,11 +78,15 @@ export async function loadWeeklyDeals(
 
   const liveResult = await ResultAsync.fromPromise(
     (async () => {
-      const options: Parameters<
-        WeeklyDealsServiceDependencies["fetchLive"]
-      >[0] = { locationId, limit, pageLimit };
+      const options: Parameters<WeeklyDealsServiceDependencies["fetchLive"]>[0] = {
+        locationId,
+        limit,
+        pageLimit,
+      };
 
-      if (signal) {options.signal = signal;}
+      if (signal) {
+        options.signal = signal;
+      }
 
       const liveData = await deps.fetchLive(options);
 
@@ -146,10 +138,7 @@ export async function loadWeeklyDeals(
         }),
       );
     } else if (!cacheReadError) {
-      const cacheWriteResult = await deps.weeklyDealsCache.write(
-        cacheKey,
-        liveData,
-      );
+      const cacheWriteResult = await deps.weeklyDealsCache.write(cacheKey, liveData);
 
       if (cacheWriteResult.isErr()) {
         liveData = addWarning(
@@ -191,9 +180,13 @@ export async function getCachedWeeklyDealsForFlags(
   const key = buildWeeklyDealsCacheKey(params);
   const result = await weeklyDealsCache.read(key);
 
-  if (result.isErr()) {return null;}
+  if (result.isErr()) {
+    return null;
+  }
 
-  if (result.value.kind === "miss") {return null;}
+  if (result.value.kind === "miss") {
+    return null;
+  }
 
   return result.value.entry.data;
 }

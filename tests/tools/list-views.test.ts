@@ -15,10 +15,7 @@ function parseAppResult(result: TestToolResult) {
 }
 
 import { registerInventoryTools } from "../../src/tools/inventory.js";
-import {
-  matchListsByName,
-  registerShoppingListTools,
-} from "../../src/tools/shopping-list.js";
+import { matchListsByName, registerShoppingListTools } from "../../src/tools/shopping-list.js";
 import { estimateListTotal } from "../../src/domain/list-total.js";
 import { formatListSize } from "../../src/utils/format-response.js";
 import {
@@ -36,10 +33,7 @@ function setup() {
   return fixture;
 }
 
-async function createList(
-  name: string,
-  items: CreateShoppingListArgs["items"],
-) {
+async function createList(name: string, items: CreateShoppingListArgs["items"]) {
   const result = await getCapturedHandler("create_shopping_list")({
     name,
     items,
@@ -47,7 +41,9 @@ async function createList(
 
   const data = parseAppResult(result);
 
-  if (data?.view !== "create_shopping_list") {throw new Error("no list view");}
+  if (data?.view !== "create_shopping_list") {
+    throw new Error("no list view");
+  }
 
   return data;
 }
@@ -61,9 +57,7 @@ describe("list totals", () => {
 
     expect(estimateListTotal(items)).toEqual({ total: 6.98, pricedCount: 1 });
     expect(formatListSize(items)).toBe("2 item(s), ~$6.98 est., 1 priced");
-    expect(formatListSize([{ productName: "Herbs", quantity: 1 }])).toBe(
-      "1 item(s)",
-    );
+    expect(formatListSize([{ productName: "Herbs", quantity: 1 }])).toBe("1 item(s)");
   });
 });
 
@@ -75,15 +69,11 @@ describe("list name matching", () => {
   ];
 
   it("prefers an exact case-insensitive name over partial matches", () => {
-    expect(matchListsByName(lists, "Tuesday").map((list) => list.id)).toEqual([
-      "b",
-    ]);
+    expect(matchListsByName(lists, "Tuesday").map((list) => list.id)).toEqual(["b"]);
   });
 
   it("falls back to names that contain the query", () => {
-    expect(matchListsByName(lists, "brunch").map((list) => list.id)).toEqual([
-      "c",
-    ]);
+    expect(matchListsByName(lists, "brunch").map((list) => list.id)).toEqual(["c"]);
   });
 });
 
@@ -97,9 +87,7 @@ describe("app-backed shopping list tools", () => {
 
     const result = await getCapturedHandler("create_shopping_list")({
       name: "Dinner",
-      items: [
-        { upc: "0001111041700", productName: "Milk", quantity: 2, price: 3.5 },
-      ],
+      items: [{ upc: "0001111041700", productName: "Milk", quantity: 2, price: 3.5 }],
     });
 
     expect(result.text).toContain("1 item(s), ~$7.00 est.");
@@ -124,9 +112,7 @@ describe("app-backed shopping list tools", () => {
   it("opens a list by name", async () => {
     setup();
 
-    const created = await createList("Tuesday dinner", [
-      { productName: "Rice" },
-    ]);
+    const created = await createList("Tuesday dinner", [{ productName: "Rice" }]);
 
     const result = await getCapturedHandler("get_shopping_list")({
       name: "tuesday DINNER",
@@ -176,18 +162,14 @@ describe("app-backed shopping list tools", () => {
     const data = parseAppResult(result);
     expect(data).toMatchObject({ view: "create_shopping_list" });
     expect(
-      data?.view === "create_shopping_list" &&
-        data.items.map((item) => item.productName),
+      data?.view === "create_shopping_list" && data.items.map((item) => item.productName),
     ).toEqual(["Rice", "Beans"]);
   });
 
   it("returns the updated list after checking off and removing items", async () => {
     setup();
 
-    const created = await createList("Dinner", [
-      { productName: "Rice" },
-      { productName: "Beans" },
-    ]);
+    const created = await createList("Dinner", [{ productName: "Rice" }, { productName: "Beans" }]);
 
     const [rice, beans] = created.items;
 

@@ -10,15 +10,9 @@ export function useCartAction(
   request: CartRequest,
   resetAfterMs?: number,
 ) {
-  const [action] = useResettableState(JSON.stringify(request), () =>
-    createCartAction(request),
-  );
+  const [action] = useResettableState(JSON.stringify(request), () => createCartAction(request));
 
-  const state = useSyncExternalStore(
-    action.subscribe,
-    action.getSnapshot,
-    action.getSnapshot,
-  );
+  const state = useSyncExternalStore(action.subscribe, action.getSnapshot, action.getSnapshot);
 
   const submit = useCallback(() => action.submit(app), [action, app]);
 
@@ -26,8 +20,9 @@ export function useCartAction(
     if (
       (state.status !== "added" && state.status !== "already_added") ||
       resetAfterMs === undefined
-    )
-      {return;}
+    ) {
+      return;
+    }
 
     const timer = setTimeout(action.reset, resetAfterMs);
 

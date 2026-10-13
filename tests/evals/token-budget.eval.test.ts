@@ -30,7 +30,9 @@ import {
 const logEnabled = () => Boolean(env.EVAL_LOG);
 
 function log(...parts: unknown[]) {
-  if (logEnabled()) {console.log("[eval]", ...parts);}
+  if (logEnabled()) {
+    console.log("[eval]", ...parts);
+  }
 }
 
 describe("token budget: tool surface", () => {
@@ -96,10 +98,7 @@ describe("token budget: tool responses", () => {
     await reset();
   });
 
-  async function call(
-    name: string,
-    args: ToolArguments,
-  ): Promise<ToolCallResult> {
+  async function call(name: string, args: ToolArguments): Promise<ToolCallResult> {
     return await client.callTool({ name, arguments: args });
   }
 
@@ -112,10 +111,7 @@ describe("token budget: tool responses", () => {
     expect(result.isError).toBeFalsy();
 
     // Baseline before compact projection: content=291t, structuredContent=4658t.
-    const { textTokens, structuredTokens } = report(
-      "search_products x5",
-      result,
-    );
+    const { textTokens, structuredTokens } = report("search_products x5", result);
 
     expect(textTokens).toBeLessThan(600);
 

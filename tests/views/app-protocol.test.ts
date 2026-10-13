@@ -1,27 +1,18 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 import { AppBridge } from "@modelcontextprotocol/ext-apps/app-bridge";
-import {
-  Client,
-  InMemoryTransport,
-  ProtocolError,
-} from "@modelcontextprotocol/client";
+import { Client, InMemoryTransport, ProtocolError } from "@modelcontextprotocol/client";
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod/v4";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  callTool,
-  parseToolResult,
-  type ToolCall,
-} from "../../views/shared/types.js";
+import { callTool, parseToolResult, type ToolCall } from "../../views/shared/types.js";
 
 describe("MCP Apps v2 protocol bridge", () => {
   it("handshakes, routes tool results, and preserves ProtocolError rejections", async () => {
     const [viewTransport, hostTransport] = InMemoryTransport.createLinkedPair();
 
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
     const server = new McpServer({
       name: "shopping-server-test",
@@ -65,14 +56,8 @@ describe("MCP Apps v2 protocol bridge", () => {
     };
 
     try {
-      await Promise.all([
-        server.connect(serverTransport),
-        client.connect(clientTransport),
-      ]);
-      await Promise.all([
-        app.connect(viewTransport),
-        bridge.connect(hostTransport),
-      ]);
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+      await Promise.all([app.connect(viewTransport), bridge.connect(hostTransport)]);
 
       expect(app.getHostVersion()).toEqual({
         name: "shopping-host-test",
@@ -127,16 +112,9 @@ describe("MCP Apps v2 protocol bridge", () => {
         code: -32602,
         message: expect.stringContaining("set_preferred_store"),
       });
-      await expect(rejectedCall).rejects.toSatisfy(
-        (cause) => cause instanceof ProtocolError,
-      );
+      await expect(rejectedCall).rejects.toSatisfy((cause) => cause instanceof ProtocolError);
     } finally {
-      await Promise.all([
-        app.close(),
-        bridge.close(),
-        client.close(),
-        server.close(),
-      ]);
+      await Promise.all([app.close(), bridge.close(), client.close(), server.close()]);
     }
   });
 });

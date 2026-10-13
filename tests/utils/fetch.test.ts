@@ -12,9 +12,7 @@ describe("selective read retry", () => {
 
     vi.stubGlobal("fetch", fetcher);
 
-    const response = await fetchWithReadRetry(
-      new Request("https://gateway.example/pantry"),
-    );
+    const response = await fetchWithReadRetry(new Request("https://gateway.example/pantry"));
 
     expect(response.status).toBe(200);
     expect(fetcher).toHaveBeenCalledTimes(2);
@@ -23,17 +21,11 @@ describe("selective read retry", () => {
   it.each(["POST", "PUT", "PATCH", "DELETE"])(
     "never repeats %s on upstream failure",
     async (method) => {
-      const fetcher = vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(new Response(null, { status: 503 }));
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 503 }));
 
       vi.stubGlobal("fetch", fetcher);
       expect(
-        (
-          await fetchWithReadRetry(
-            new Request("https://gateway.example/cart", { method }),
-          )
-        ).status,
+        (await fetchWithReadRetry(new Request("https://gateway.example/cart", { method }))).status,
       ).toBe(503);
       expect(fetcher).toHaveBeenCalledTimes(1);
     },
@@ -42,9 +34,7 @@ describe("selective read retry", () => {
   it("does not override Retry-After", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response(null, { status: 503, headers: { "retry-after": "60" } }),
-      );
+      .mockResolvedValue(new Response(null, { status: 503, headers: { "retry-after": "60" } }));
 
     vi.stubGlobal("fetch", fetcher);
     await fetchWithReadRetry(new Request("https://gateway.example/pantry"));

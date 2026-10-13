@@ -42,29 +42,28 @@ const promptResultSchema = z.object({
 function makeServer(): McpServer {
   const server = new McpServer({ name: "prompt-test", version: "1.0.0" });
   const register = server.registerPrompt.bind(server);
-  vi.spyOn(server, "registerPrompt").mockImplementation(
-    (name, config, callback) => {
-      const registered = register(name, config, callback);
-      const argsSchema = config.argsSchema;
+  vi.spyOn(server, "registerPrompt").mockImplementation((name, config, callback) => {
+    const registered = register(name, config, callback);
+    const argsSchema = config.argsSchema;
 
-      if (argsSchema !== undefined && !(argsSchema instanceof z.ZodObject))
-        {throw new Error("Expected registered Zod prompt arguments");}
+    if (argsSchema !== undefined && !(argsSchema instanceof z.ZodObject)) {
+      throw new Error("Expected registered Zod prompt arguments");
+    }
 
-      capturedPrompts.push({
-        name,
-        config: { ...config, argsSchema },
-        handler: async (args) => {
-          const result = await authenticatedRequest((context) =>
-            Promise.resolve(callback(args, context)),
-          );
+    capturedPrompts.push({
+      name,
+      config: { ...config, argsSchema },
+      handler: async (args) => {
+        const result = await authenticatedRequest((context) =>
+          Promise.resolve(callback(args, context)),
+        );
 
-          return promptResultSchema.parse(result);
-        },
-      });
+        return promptResultSchema.parse(result);
+      },
+    });
 
-      return registered;
-    },
-  );
+    return registered;
+  });
 
   return server;
 }
@@ -72,15 +71,14 @@ function makeServer(): McpServer {
 function getPrompt(name: string): CapturedPrompt {
   const prompt = capturedPrompts.find((p) => p.name === name);
 
-  if (!prompt) {throw new Error(`Missing prompt ${name}`);}
+  if (!prompt) {
+    throw new Error(`Missing prompt ${name}`);
+  }
 
   return prompt;
 }
 
-async function callPrompt(
-  name: string,
-  args: PromptArgs = {},
-): Promise<PromptResult> {
+async function callPrompt(name: string, args: PromptArgs = {}): Promise<PromptResult> {
   return await getPrompt(name).handler(args);
 }
 
@@ -201,8 +199,7 @@ describe("registerPrompts", () => {
       const prompt = getPrompt("shop_recipe_ingredients");
 
       // The Zod schema carries the default; the MCP framework applies it before invoking the handler.
-      const applied =
-        prompt.config.argsSchema?.shape.recipe_type.parse(undefined);
+      const applied = prompt.config.argsSchema?.shape.recipe_type.parse(undefined);
 
       expect(applied).toBe("classic apple pie");
     });

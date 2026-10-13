@@ -16,9 +16,7 @@ import { findDealForItem } from "../utils/deal-match.js";
 type PantryReader = Pick<PantryStore, "getAll">;
 
 /** Best-effort pantry fetch: any storage error yields an empty list, never a throw. */
-export async function getPantryForFlags(
-  pantry: PantryReader,
-): Promise<PantryItem[]> {
+export async function getPantryForFlags(pantry: PantryReader): Promise<PantryItem[]> {
   try {
     return await pantry.getAll();
   } catch {
@@ -55,13 +53,12 @@ export async function getDealsForFlags(
  * requested item name and a pantry item's product name, e.g. "milk" matches
  * "Whole Milk".
  */
-export function pantryFlagLabel(
-  requestedName: string,
-  pantry: PantryItem[],
-): string | undefined {
+export function pantryFlagLabel(requestedName: string, pantry: PantryItem[]): string | undefined {
   const lower = requestedName.toLowerCase().trim();
 
-  if (!lower) {return undefined;}
+  if (!lower) {
+    return undefined;
+  }
 
   const inPantry = pantry.some((item) => {
     const itemLower = item.productName.toLowerCase();
@@ -73,13 +70,12 @@ export function pantryFlagLabel(
 }
 
 /** Fuzzy-matches the requested name against deal titles; undefined when nothing matches. */
-export function dealFlagLabel(
-  requestedName: string,
-  deals: Deal[],
-): string | undefined {
+export function dealFlagLabel(requestedName: string, deals: Deal[]): string | undefined {
   const deal = findDealForItem(requestedName, deals);
 
-  if (!deal) {return undefined;}
+  if (!deal) {
+    return undefined;
+  }
 
   return deal.price ? `on sale: ${deal.price}` : "on sale";
 }
@@ -92,11 +88,15 @@ export function itemFlagLabels(
   const labels: string[] = [];
   const pantryLabel = pantryFlagLabel(requestedName, pantry);
 
-  if (pantryLabel) {labels.push(pantryLabel);}
+  if (pantryLabel) {
+    labels.push(pantryLabel);
+  }
 
   const dealLabel = dealFlagLabel(requestedName, deals);
 
-  if (dealLabel) {labels.push(dealLabel);}
+  if (dealLabel) {
+    labels.push(dealLabel);
+  }
 
   return labels;
 }

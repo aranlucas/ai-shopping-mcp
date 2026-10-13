@@ -1,8 +1,4 @@
-import {
-  cartClient,
-  productClient,
-  locationClient,
-} from "../kroger-clients.js";
+import { cartClient, productClient, locationClient } from "../kroger-clients.js";
 
 import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
 import { capturingServer } from "../capturing-server.js";
@@ -28,10 +24,7 @@ import type {
   ShoppingListStore,
   ShoppingStore,
 } from "../../src/utils/shopping-store.js";
-import type {
-  CartStore,
-  CartSnapshotItem,
-} from "../../src/utils/user-storage.js";
+import type { CartStore, CartSnapshotItem } from "../../src/utils/user-storage.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -40,10 +33,7 @@ import type {
   ShoppingListItem,
   StoredShoppingListItem,
 } from "../../src/domain/shopping.js";
-import {
-  type TestToolHandler as ToolHandler,
-  type TestToolConfig,
-} from "../v2-tool-handler.js";
+import { type TestToolHandler as ToolHandler, type TestToolConfig } from "../v2-tool-handler.js";
 
 type ShoppingListRecord = {
   id: string;
@@ -105,7 +95,9 @@ export function makeStorage(
   const requireList = (id: string) => {
     const list = createdLists.find((candidate) => candidate.id === id);
 
-    if (!list) {throw new Error(`Missing list ${id}`);}
+    if (!list) {
+      throw new Error(`Missing list ${id}`);
+    }
 
     return list;
   };
@@ -119,11 +111,11 @@ export function makeStorage(
       },
       remove: async (names: string | string[]) => {
         for (const productName of Array.isArray(names) ? names : [names]) {
-          const index = pantryItems.findIndex(
-            (item) => item.productName === productName,
-          );
+          const index = pantryItems.findIndex((item) => item.productName === productName);
 
-          if (index >= 0) {pantryItems.splice(index, 1);}
+          if (index >= 0) {
+            pantryItems.splice(index, 1);
+          }
         }
 
         return pantryItems;
@@ -133,11 +125,11 @@ export function makeStorage(
       },
       getAll: async () => pantryItems,
       updateQuantity: async (name, quantity) => {
-        const item = pantryItems.find(
-          (candidate) => candidate.productName === name,
-        );
+        const item = pantryItems.find((candidate) => candidate.productName === name);
 
-        if (item) {item.quantity = quantity;}
+        if (item) {
+          item.quantity = quantity;
+        }
 
         return pantryItems;
       },
@@ -150,11 +142,11 @@ export function makeStorage(
       },
       remove: async (names: string | string[]) => {
         for (const equipmentName of Array.isArray(names) ? names : [names]) {
-          const index = equipmentItems.findIndex(
-            (item) => item.equipmentName === equipmentName,
-          );
+          const index = equipmentItems.findIndex((item) => item.equipmentName === equipmentName);
 
-          if (index >= 0) {equipmentItems.splice(index, 1);}
+          if (index >= 0) {
+            equipmentItems.splice(index, 1);
+          }
         }
 
         return equipmentItems;
@@ -174,13 +166,7 @@ export function makeStorage(
       getRecent: async (limit = 10) => orders.slice(0, limit),
     },
     shoppingList: {
-      create: async ({
-        name,
-        items,
-      }: {
-        name: string;
-        items: ShoppingListItem[];
-      }) => {
+      create: async ({ name, items }: { name: string; items: ShoppingListItem[] }) => {
         const record: ShoppingListRecord = {
           id: `list_${crypto.randomUUID()}`,
           name,
@@ -196,8 +182,7 @@ export function makeStorage(
 
         return record;
       },
-      get: async (id: string) =>
-        createdLists.find((list) => list.id === id) ?? null,
+      get: async (id: string) => createdLists.find((list) => list.id === id) ?? null,
       list: async () =>
         createdLists.map((list) => ({
           id: list.id,
@@ -217,11 +202,11 @@ export function makeStorage(
         return stored;
       },
       updateItem: async (listId, itemId, patch) => {
-        const item = requireList(listId).items.find(
-          (candidate) => candidate.id === itemId,
-        );
+        const item = requireList(listId).items.find((candidate) => candidate.id === itemId);
 
-        if (!item) {throw new Error(`Missing item ${itemId}`);}
+        if (!item) {
+          throw new Error(`Missing item ${itemId}`);
+        }
 
         Object.assign(item, patch);
 
@@ -274,20 +259,13 @@ export function makeStorage(
  */
 export function makeProductService(
   nameByUpc: Record<string, string> = {},
-): Pick<
-  ProductService,
-  "getProduct" | "enrichProductNames" | "resolveProducts"
-> {
+): Pick<ProductService, "getProduct" | "enrichProductNames" | "resolveProducts"> {
   return {
     getProduct: () => {
-      throw new Error(
-        "ProductService.getProduct stub not configured for this test",
-      );
+      throw new Error("ProductService.getProduct stub not configured for this test");
     },
-    enrichProductNames: async (upcs: string[]) =>
-      ok(upcs.map((upc) => nameByUpc[upc] ?? null)),
-    resolveProducts: async () =>
-      ok({ results: [], exactUpcs: new Set<string>() }),
+    enrichProductNames: async (upcs: string[]) => ok(upcs.map((upc) => nameByUpc[upc] ?? null)),
+    resolveProducts: async () => ok({ results: [], exactUpcs: new Set<string>() }),
   };
 }
 
@@ -296,10 +274,7 @@ export type ToolTestContext = {
   cartClient: KrogerClients["cartClient"];
   productClient: KrogerClients["productClient"];
   locationClient: KrogerClients["locationClient"];
-  productService: Pick<
-    ProductService,
-    "getProduct" | "enrichProductNames" | "resolveProducts"
-  >;
+  productService: Pick<ProductService, "getProduct" | "enrichProductNames" | "resolveProducts">;
   storage: ShoppingStore & CartStore;
   carts: CartStore;
   preferredLocation: PreferredLocationStore;
@@ -315,14 +290,8 @@ export type ToolTestContext = {
 };
 
 /** Shared fixture for integration-style tool tests; each registrar picks its own inputs. */
-export function makeContext(
-  storage = makeStorage(),
-  productService = makeProductService(),
-) {
-  const server = capturingServer(
-    testState.capturedTools,
-    () => testState.authContext,
-  );
+export function makeContext(storage = makeStorage(), productService = makeProductService()) {
+  const server = capturingServer(testState.capturedTools, () => testState.authContext);
 
   const context: ToolTestContext = {
     server,
@@ -356,9 +325,7 @@ export function makeContext(
       return createWeeklyDealsCache(context.cache);
     },
     fetchDeals: getQfcWeeklyDeals,
-    loadWeeklyDeals(
-      params: WeeklyDealsLoadParams,
-    ): ReturnType<WeeklyDealsLoader> {
+    loadWeeklyDeals(params: WeeklyDealsLoadParams): ReturnType<WeeklyDealsLoader> {
       return createWeeklyDealsLoader({
         fetchDeals: context.fetchDeals,
         preferredLocation: context.preferredLocation,
@@ -377,29 +344,27 @@ export function makeCartContext(
   productService = makeProductService(),
 ) {
   const context = makeContext(storage, productService);
-  context.cartClient = cartClient(
-    async () => new Response(null, { status: cartStatus }),
-  );
+  context.cartClient = cartClient(async () => new Response(null, { status: cartStatus }));
 
   return context;
 }
 
 export function getCapturedHandler(name: string): ToolHandler {
-  const tool = testState.capturedTools.find(
-    (captured) => captured.name === name,
-  );
+  const tool = testState.capturedTools.find((captured) => captured.name === name);
 
-  if (!tool) {throw new Error(`Tool ${name} was not captured`);}
+  if (!tool) {
+    throw new Error(`Tool ${name} was not captured`);
+  }
 
   return tool.handler;
 }
 
 export function getCapturedTool(name: string): CapturedTool {
-  const tool = testState.capturedTools.find(
-    (captured) => captured.name === name,
-  );
+  const tool = testState.capturedTools.find((captured) => captured.name === name);
 
-  if (!tool) {throw new Error(`Tool ${name} was not captured`);}
+  if (!tool) {
+    throw new Error(`Tool ${name} was not captured`);
+  }
 
   return tool;
 }

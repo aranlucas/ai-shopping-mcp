@@ -3,11 +3,7 @@ import { ResultAsync, okAsync } from "neverthrow";
 import type { AppError } from "../../errors.js";
 import type { KvLike } from "../../utils/kv.js";
 import { safeJsonParseWithSchema } from "../../utils/json.js";
-import type {
-  QfcDealsApiResponse,
-  WeeklyDealWarning,
-  WeeklyDealsCacheEntry,
-} from "./schema.js";
+import type { QfcDealsApiResponse, WeeklyDealWarning, WeeklyDealsCacheEntry } from "./schema.js";
 
 import { storageError } from "../../errors.js";
 import { weeklyDealCacheEntrySchema } from "./schema.js";
@@ -53,10 +49,10 @@ export function buildWeeklyDealsCacheKey(params: {
 }
 
 /** Parse and normalize a complete cached record. */
-export function parseWeeklyDealsCacheEntry(
-  raw: string | null,
-): WeeklyDealsCacheEntry | null {
-  if (!raw) {return null;}
+export function parseWeeklyDealsCacheEntry(raw: string | null): WeeklyDealsCacheEntry | null {
+  if (!raw) {
+    return null;
+  }
 
   return safeJsonParseWithSchema(raw, weeklyDealCacheEntrySchema).match(
     (entry) => entry,
@@ -78,21 +74,25 @@ export function readWeeklyDealsCache(
   )().map((raw) => {
     const entry = parseWeeklyDealsCacheEntry(raw);
 
-    if (!entry) {return { kind: "miss" as const };}
+    if (!entry) {
+      return { kind: "miss" as const };
+    }
 
     const now = Date.now();
 
-    if (now <= entry.freshUntil) {return { kind: "fresh" as const, entry };}
+    if (now <= entry.freshUntil) {
+      return { kind: "fresh" as const, entry };
+    }
 
-    if (now <= entry.staleUntil) {return { kind: "stale" as const, entry };}
+    if (now <= entry.staleUntil) {
+      return { kind: "stale" as const, entry };
+    }
 
     return { kind: "miss" as const };
   });
 }
 
-export function getLatestCircularEndTime(
-  result: QfcDealsApiResponse,
-): number | null {
+export function getLatestCircularEndTime(result: QfcDealsApiResponse): number | null {
   const candidates = [
     result.shoppableCircular?.eventEndDate,
     result.printCircular?.eventEndDate,
@@ -123,10 +123,7 @@ export function writeWeeklyDealsCache(
     data,
   };
 
-  const expiration = Math.max(
-    Math.ceil(staleUntil / 1000),
-    Math.ceil(now / 1000) + 60,
-  );
+  const expiration = Math.max(Math.ceil(staleUntil / 1000), Math.ceil(now / 1000) + 60);
 
   return ResultAsync.fromThrowable(
     () => kv.put(key, JSON.stringify(entry), { expiration }),
