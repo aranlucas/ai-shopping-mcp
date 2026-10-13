@@ -70,10 +70,10 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@aranlucas/oxlint-plugin-anti-slop": "0.1.0",
     "@babel/core": "^8.0.7",
     "@cloudflare/vitest-plugin": "^1.4.0",
     "@openrouter/ai-sdk-provider": "^3.1.0",
-    "@oxlint/plugins": "1.87.0",
     "@shadcn/lint": "^0.2.0",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",

@@ -1,20 +1,16 @@
 # Anti-slop integration
 
-The upstream source is vendored from dmmulroy/anti-slop at
-`c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b`; see
-`tools/oxlint/anti-slop/UPSTREAM.md` and its licenses. All upstream `src/`
-files, including generic/Effect rule tests, are retained unchanged. There is
-no official npm package dependency. Oxlint and `@oxlint/plugins` are pinned
-together to 1.86.0; the existing pnpm 12.6.0 package manager is retained.
+The rules come from
+[`@aranlucas/oxlint-plugin-anti-slop`](https://github.com/aranlucas/oxlint-plugin-anti-slop),
+a packaged fork of dmmulroy/anti-slop. Its `UPSTREAM.md` records the pinned
+upstream commit and licenses.
 
 All 18 generic rules and native `oxc/no-accumulating-spread` run in the existing
 CI lint job, alongside the existing type-aware lint, formatting, typecheck,
-view build, and test jobs. Effect rules are not enabled because this project
-has no direct Effect dependency. The vendored implementation is excluded
-from application lint/type discovery; its RuleTester suites are checked
-separately. Application Vitest discovery remains under `tests/`, with a Node
-project for real cross-realm function checks and the existing Worker project
-for application tests.
+view build, and test jobs. The package ships no Effect rules; this project has
+no direct Effect dependency. Application Vitest discovery remains under
+`tests/`, with a Node project for real cross-realm function checks and the
+existing Worker project for application tests.
 
 ## Generated files
 
@@ -73,9 +69,7 @@ still returned unchanged. This is documented and regression tested.
 Verified locally: production view and Worker builds, application/view
 typechecks, full lint including existing type-aware lint, formatting, frozen
 pnpm 12.6.0 install, and 865 passing offline application tests (60 opt-in
-evaluation cases skipped). All 23 vendored generic and
-Effect RuleTester suites pass separately; the upstream CLI harness is not
-counted as passed. Hosted CI must pass on the exact PR head before merging.
+evaluation cases skipped). Hosted CI must pass on the exact PR head before merging.
 
 Live agent/provider evaluations stay opt-in and are not run against real data
 or APIs. Rendered browser verification was unavailable because the supported
