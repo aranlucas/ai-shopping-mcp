@@ -37,7 +37,9 @@
     "eval:selector:live": "node scripts/eval-selector-live.mjs",
     "eval:agent-selector:live": "node scripts/eval-agent-selector-live.mjs",
     "build:worker": "pnpm build:views && cf build",
-    "eval:agent:report": "vitest-evals serve eval-results"
+    "eval:agent:report": "vitest-evals serve eval-results",
+    "format": "oxfmt --write",
+    "format:check": "oxfmt --check"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -70,6 +72,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@aranlucas/oxforge": "^0.1.1",
     "@aranlucas/oxlint-plugin-anti-slop": "0.1.0",
     "@babel/core": "^8.0.7",
     "@cloudflare/vitest-plugin": "^1.4.0",
@@ -85,10 +88,10 @@
     "cf": "1.0.0-beta.13",
     "concurrently": "^10.0.6",
     "drizzle-kit": "0.31.11",
-    "oxfmt": "^0.72.0",
-    "oxlint": "1.87.0",
+    "oxfmt": "^0.73.0",
+    "oxlint": "1.88.0",
     "oxlint-tailwindcss": "1.14.0",
-    "oxlint-tsgolint": "^7.0.2003",
+    "oxlint-tsgolint": "^7.0.2004",
     "portless": "0.15.7",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",

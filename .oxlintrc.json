@@ -1,13 +1,15 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "extends": ["./.oxlintrc.tailwind.json"],
+  "extends": [
+    "./node_modules/@aranlucas/oxforge/configs/recommended.json",
+    "./node_modules/@aranlucas/oxforge/configs/react.json",
+    "./node_modules/@aranlucas/oxforge/configs/vitest.json",
+    "./node_modules/@aranlucas/oxforge/configs/tailwind.json",
+    "./node_modules/@aranlucas/oxforge/configs/type-aware.json"
+  ],
   "jsPlugins": [
     "oxlint-tailwindcss",
-    "@shadcn/lint",
-    {
-      "name": "anti-slop",
-      "specifier": "@aranlucas/oxlint-plugin-anti-slop"
-    }
+    "@shadcn/lint"
   ],
   "plugins": [
     "eslint",
@@ -31,85 +33,10 @@
     "restriction": "off",
     "nursery": "off"
   },
-  "rules": {
-    "unicorn/filename-case": ["error", { "case": "kebabCase" }],
-
-    // Strict equality, but allow `== null` for null/undefined checks.
-    "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
-    "eslint/no-shadow": "error",
-    "eslint/preserve-caught-error": "error",
-    "eslint/no-await-in-loop": "error",
-
-    // TypeScript strictness (valuable, low noise in this repo).
-    "typescript/consistent-type-imports": "error",
-    "typescript/no-non-null-assertion": "error",
-    "typescript/no-explicit-any": "error",
-
-    // Imports.
-    "import/no-duplicates": "error",
-    "import/no-named-as-default": "error",
-    // The package index also bundles the MCP client, the v1 SDK, and capnweb,
-    // which more than doubles the Worker upload.
-    "eslint/no-restricted-imports": [
-      "error",
-      {
-        "paths": [
-          {
-            "name": "agents/mcp",
-            "message": "Import from agents/mcp/server; the index bundles the MCP client and v1 SDK."
-          },
-          {
-            "name": "agents",
-            "message": "Import from agents/mcp/server; the index bundles the MCP client and v1 SDK."
-          }
-        ]
-      }
-    ],
-
-    // React 19 with jsx: react-jsx — no React import needed.
-    // (Rule is obsolete with the new JSX transform; disabling is the fix.)
-    "react/react-in-jsx-scope": "off",
-    "unicorn/prefer-add-event-listener": "error",
-    // Allow SDK / library-mandated underscore names; everything else still errors.
-    "eslint/no-underscore-dangle": [
-      "error",
-      { "allow": ["_meta", "_unsafeUnwrap", "_unsafeUnwrapErr"] }
-    ],
-    "unicorn/no-array-sort": "error",
-
-    // Perf: inline closures / JSX props re-create handlers per render.
-    "react-perf/jsx-no-new-function-as-prop": "error",
-    "react-perf/jsx-no-jsx-as-prop": "error",
-    "react-perf/jsx-no-new-object-as-prop": "error",
-
-    // Accessibility and promises are high-signal for this UI + Worker codebase.
-    "jsx-a11y/alt-text": "error",
-    "jsx-a11y/aria-props": "error",
-    "jsx-a11y/aria-role": "error",
-    "jsx-a11y/aria-unsupported-elements": "error",
-    "jsx-a11y/no-redundant-roles": "error",
-    "promise/param-names": "error",
-    "promise/no-nesting": "error",
-    "oxc/no-accumulating-spread": "error",
-    "anti-slop/no-array-filter-map": "error",
-    "anti-slop/no-reduce-accumulator-copy": "error",
-    "anti-slop/no-chained-type-assertions": "error",
-    "anti-slop/no-conditional-empty-object-spread": "error",
-    "anti-slop/no-known-value-widening": "error",
-    "anti-slop/no-module-mocking": "error",
-    "anti-slop/no-object-parameters": "error",
-    "anti-slop/no-reflect-apply": "error",
-    "anti-slop/no-reflect-get": "error",
-    "anti-slop/no-runtime-typeof": "error",
-    "anti-slop/no-unsafe-dictionary-type": "error",
-    "anti-slop/no-shape-in-symbol-names": "error",
-    "anti-slop/no-unknown-parameters": "error",
-    "anti-slop/no-unknown-returns": "error",
-    "anti-slop/no-unknown-type-aliases": "error",
-    "anti-slop/no-widen-then-assert": "error",
-    "anti-slop/require-readable-spacing": "error",
-    "anti-slop/require-safety-comment-for-type-assertion": "error"
+  "env": {
+    "builtin": true
   },
+  "globals": {},
   "settings": {
     "shadcn": {
       "componentImports": [
@@ -149,17 +76,146 @@
       "typecheck": false
     }
   },
-  "env": {
-    "builtin": true
+  "rules": {
+    "unicorn/filename-case": [
+      "error",
+      {
+        "case": "kebabCase"
+      }
+    ],
+    "eslint/eqeqeq": [
+      "error",
+      "always",
+      {
+        "null": "ignore"
+      }
+    ],
+    "eslint/no-shadow": "error",
+    "eslint/preserve-caught-error": "error",
+    "eslint/no-await-in-loop": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-explicit-any": "error",
+    "import/no-duplicates": "error",
+    "import/no-named-as-default": "error",
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "agents/mcp",
+            "message": "Import from agents/mcp/server; the index bundles the MCP client and v1 SDK."
+          },
+          {
+            "name": "agents",
+            "message": "Import from agents/mcp/server; the index bundles the MCP client and v1 SDK."
+          }
+        ]
+      }
+    ],
+    "react/react-in-jsx-scope": "off",
+    "unicorn/prefer-add-event-listener": "error",
+    "eslint/no-underscore-dangle": [
+      "error",
+      {
+        "allow": [
+          "_meta",
+          "_unsafeUnwrap",
+          "_unsafeUnwrapErr"
+        ]
+      }
+    ],
+    "unicorn/no-array-sort": "error",
+    "react-perf/jsx-no-new-function-as-prop": "error",
+    "react-perf/jsx-no-jsx-as-prop": "error",
+    "react-perf/jsx-no-new-object-as-prop": "error",
+    "jsx-a11y/alt-text": "error",
+    "jsx-a11y/aria-props": "error",
+    "jsx-a11y/aria-role": "error",
+    "jsx-a11y/aria-unsupported-elements": "error",
+    "jsx-a11y/no-redundant-roles": "error",
+    "promise/param-names": "error",
+    "promise/no-nesting": "error",
+    "oxc/no-accumulating-spread": "error"
   },
-  "globals": {},
+  "overrides": [
+    {
+      "files": [
+        "tests/strict-fake.ts"
+      ],
+      "rules": {
+        "anti-slop/no-runtime-typeof": [
+          "error",
+          {
+            "allowInTypeGuards": true
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "views/**/*.tsx"
+      ],
+      "rules": {
+        "shadcn/no-restyle": [
+          "error",
+          {
+            "allow": [
+              "layout"
+            ],
+            "contracts": [
+              {
+                "pattern": "^(Card|CardHeader|CardContent|CardFooter|Empty)$",
+                "allow": [
+                  "layout",
+                  "spacing"
+                ]
+              },
+              {
+                "pattern": "^CarouselItem$",
+                "allow": [
+                  "layout",
+                  "ps"
+                ]
+              },
+              {
+                "pattern": "^Skeleton$",
+                "allow": [
+                  "layout",
+                  "rounded"
+                ]
+              }
+            ]
+          }
+        ],
+        "shadcn/require-static-classes": "error",
+        "shadcn/no-inline-styles": "error"
+      }
+    },
+    {
+      "files": [
+        "scripts/**/*.mjs",
+        "scripts/**/*.js"
+      ],
+      "rules": {
+        "eslint/no-await-in-loop": "warn"
+      }
+    },
+    {
+      "files": [
+        "tests/**/*.test.ts",
+        "tests/**/*.ts"
+      ],
+      "rules": {
+        "typescript/no-explicit-any": "error"
+      }
+    }
+  ],
   "ignorePatterns": [
-    // Generated by the pinned generate:apis scripts from kroger/*.json.
     "src/services/kroger/cart.d.ts",
     "src/services/kroger/location.d.ts",
     "src/services/kroger/product.d.ts",
     "src/services/kroger/identity.d.ts",
-
     "views/shared/ui/**",
     "dist/**",
     "coverage/**",
@@ -174,49 +230,5 @@
     ".pi/**",
     ".roo/**",
     ".windsurf/**"
-  ],
-  "overrides": [
-    {
-      "files": ["tests/strict-fake.ts"],
-      "rules": {
-        "anti-slop/no-runtime-typeof": ["error", { "allowInTypeGuards": true }]
-      }
-    },
-    {
-      "files": ["views/**/*.tsx"],
-      "rules": {
-        "shadcn/no-restyle": [
-          "error",
-          {
-            "allow": ["layout"],
-            "contracts": [
-              // Containers let callers arrange their contents and spacing.
-              {
-                "pattern": "^(Card|CardHeader|CardContent|CardFooter|Empty)$",
-                "allow": ["layout", "spacing"]
-              },
-              // Item padding pairs with the content's negative gutter margin.
-              { "pattern": "^CarouselItem$", "allow": ["layout", "ps"] },
-              // Placeholders match the outline of the content they represent.
-              { "pattern": "^Skeleton$", "allow": ["layout", "rounded"] }
-            ]
-          }
-        ],
-        "shadcn/require-static-classes": "error",
-        "shadcn/no-inline-styles": "error"
-      }
-    },
-    {
-      "files": ["scripts/**/*.mjs", "scripts/**/*.js"],
-      "rules": {
-        "eslint/no-await-in-loop": "warn"
-      }
-    },
-    {
-      "files": ["tests/**/*.test.ts", "tests/**/*.ts"],
-      "rules": {
-        "typescript/no-explicit-any": "error"
-      }
-    }
   ]
 }
