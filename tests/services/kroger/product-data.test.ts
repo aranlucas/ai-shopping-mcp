@@ -4,12 +4,17 @@ import type { components as ProductComponents } from "../../../src/services/krog
 
 import { toProductData, toProductPageUrl } from "../../../src/services/kroger/product-data.js";
 
+interface StockAvailabilityCase {
+  stockLevel: Inventory["stockLevel"];
+  available: boolean;
+}
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 type Inventory = ProductComponents["schemas"]["products.productItemInventoryModel"];
 
 describe("toProductData", () => {
-  it.each<{ stockLevel: Inventory["stockLevel"]; available: boolean }>([
+  it.each<StockAvailabilityCase>([
     { stockLevel: "HIGH", available: true },
     { stockLevel: "LOW", available: true },
     { stockLevel: "TEMPORARILY_OUT_OF_STOCK", available: false },

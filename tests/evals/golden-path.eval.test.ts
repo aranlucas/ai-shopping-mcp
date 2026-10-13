@@ -25,6 +25,11 @@ import {
   upcsForTerm,
 } from "./harness.js";
 
+interface ShoppingItemRequest {
+  name: string;
+  quantity?: number;
+}
+
 describe("golden path (scripted agent, text-only)", () => {
   let stub: KrogerFetchStub;
   let client: Client;
@@ -54,7 +59,7 @@ describe("golden path (scripted agent, text-only)", () => {
     return result;
   }
 
-  async function chooseAndCreate(items: Array<{ name: string; quantity?: number }>) {
+  async function chooseAndCreate(items: Array<ShoppingItemRequest>) {
     const shop = await call("shop_for_items", { items });
     const text = contentText(shop);
     expect(text).toContain("create_shopping_list");

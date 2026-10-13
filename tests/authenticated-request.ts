@@ -2,6 +2,14 @@ import { createMcpHandler, type McpAuthContext } from "agents/mcp/server";
 import { McpServer, type ServerContext } from "@modelcontextprotocol/server";
 import { vi } from "vitest";
 
+interface RequestOutcome<T> {
+  value: T;
+}
+
+interface RequestFailure {
+  cause: unknown;
+}
+
 export type RequestCustomization = {
   _meta?: ServerContext["mcpReq"]["_meta"];
   notify?: ServerContext["mcpReq"]["notify"];
@@ -15,8 +23,8 @@ export async function authenticatedRequest<T>(
   authContext?: McpAuthContext,
   customization?: RequestCustomization,
 ): Promise<T> {
-  let outcome: { value: T } | undefined;
-  let failure: { cause: unknown } | undefined;
+  let outcome: RequestOutcome<T> | undefined;
+  let failure: RequestFailure | undefined;
   const options = authContext ? { authContext } : undefined;
 
   const handler = createMcpHandler(() => {

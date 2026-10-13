@@ -7,6 +7,11 @@
  */
 import type { NormalizedWeeklyDeal } from "../services/qfc-weekly-deals.js";
 
+interface DealMatch {
+  deal: Deal;
+  ratio: number;
+}
+
 export type Deal = NormalizedWeeklyDeal;
 
 /** A deal matches when at least this fraction of the item's tokens appear in its title. */
@@ -39,7 +44,7 @@ export function findDealForItem(itemName: string, deals: Deal[]): Deal | undefin
     return undefined;
   }
 
-  let best: { deal: Deal; ratio: number } | undefined;
+  let best: DealMatch | undefined;
 
   for (const deal of deals) {
     const dealTokens = new Set(normalizeTokens(deal.title));

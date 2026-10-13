@@ -11,7 +11,11 @@ const RECORDED_BADGE = (
   </Badge>
 );
 
-export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
+export interface OrderHistoryViewProps {
+  data: OrderHistoryContent;
+}
+
+export function OrderHistoryView({ data }: OrderHistoryViewProps) {
   const { orderId, items, totalItems, estimatedTotal, placedAt, locationId, notes } = data;
 
   const placedDate = new Date(placedAt).toLocaleString(undefined, {

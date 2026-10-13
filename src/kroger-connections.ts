@@ -3,6 +3,14 @@ import { z } from "zod/v4";
 import type { AppEnv } from "./env.js";
 import type { KrogerTokenInfo } from "./services/kroger/client.js";
 
+interface TokenResolutionSuccess {
+  state: KrogerTokenState;
+}
+
+interface TokenResolutionFailure {
+  error: unknown;
+}
+
 const tokenSchema = z.object({
   accessToken: z.string().min(1),
   expiresAt: z.number().finite().positive(),
@@ -18,7 +26,7 @@ export class KrogerConnections extends DurableObject<AppEnv> {
     z.string().min(1).max(256).parse(userId);
 
     const outcome = await this.ctx.blockConcurrencyWhile(
-      async (): Promise<{ state: KrogerTokenState } | { error: unknown }> => {
+      async (): Promise<TokenResolutionSuccess | TokenResolutionFailure> => {
         try {
           const result = await this.env.AUTH.accessToken(userId);
 

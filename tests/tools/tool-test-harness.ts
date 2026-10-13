@@ -35,6 +35,11 @@ import type {
 } from "../../src/domain/shopping.js";
 import { type TestToolHandler as ToolHandler, type TestToolConfig } from "../v2-tool-handler.js";
 
+interface CreateShoppingListInput {
+  name: string;
+  items: ShoppingListItem[];
+}
+
 type ShoppingListRecord = {
   id: string;
   name: string;
@@ -166,7 +171,7 @@ export function makeStorage(
       getRecent: async (limit = 10) => orders.slice(0, limit),
     },
     shoppingList: {
-      create: async ({ name, items }: { name: string; items: ShoppingListItem[] }) => {
+      create: async ({ name, items }: CreateShoppingListInput) => {
         const record: ShoppingListRecord = {
           id: `list_${crypto.randomUUID()}`,
           name,

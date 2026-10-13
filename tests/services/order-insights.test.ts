@@ -4,16 +4,17 @@ import type { OrderRecord } from "../../src/domain/shopping.js";
 
 import { computeRestockSuggestions } from "../../src/services/order-insights.js";
 
+interface OrderItemFixture {
+  productName: string;
+  quantity?: number;
+}
+
 describe("order history insights", () => {
   describe("computeRestockSuggestions", () => {
     const DAY = 24 * 60 * 60 * 1000;
     const now = Date.parse("2026-07-02T00:00:00Z");
 
-    function makeOrder(
-      id: string,
-      daysAgo: number,
-      items: Array<{ productName: string; quantity?: number }>,
-    ): OrderRecord {
+    function makeOrder(id: string, daysAgo: number, items: Array<OrderItemFixture>): OrderRecord {
       return {
         orderId: id,
         items: items.map((item) => ({

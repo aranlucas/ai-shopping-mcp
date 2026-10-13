@@ -4,7 +4,6 @@
  */
 
 /** Narrowed cause type for error context — captures Error instances, strings, or structured data */
-// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Error context intentionally retains opaque upstream objects and their identity; it is never trusted as domain data.
 export type ErrorCause = Error | string | Record<string, unknown> | undefined;
 
 /** API call to Kroger or external service failed */
@@ -91,15 +90,12 @@ function toErrorCause(cause: unknown): ErrorCause {
     return cause;
   }
 
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Opaque error retention distinguishes primitives without interpreting or cloning third-party objects.
   if (typeof cause === "string") {
     return cause;
   }
 
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Preserve arbitrary non-null error objects, including arrays, without inspecting their contents.
   if (typeof cause === "object") {
     // SAFETY: the non-null object above is retained opaquely; the dictionary contract permits only unknown property values.
-    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve the exported opaque ErrorCause contract, including object identity.
     return cause as Record<string, unknown>;
   }
 

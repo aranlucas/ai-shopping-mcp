@@ -205,9 +205,11 @@ const CART: CartViewContent = {
 };
 
 /** Applies a simulated list update so the preview behaves like the server. */
+type UpdateShoppingListArgs = Extract<ToolCall, { name: "update_shopping_list" }>["arguments"];
+
 function updatePreviewList(
   list: ShoppingListContent,
-  args: Extract<ToolCall, { name: "update_shopping_list" }>["arguments"],
+  args: UpdateShoppingListArgs,
 ): ShoppingListContent {
   const removed = new Set(args.remove ?? []);
 
@@ -515,3 +517,5 @@ if (import.meta.env.DEV) {
   root.render(<Preview />);
   import.meta.hot?.dispose(() => root.unmount());
 }
+
+export { Preview };

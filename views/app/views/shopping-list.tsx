@@ -85,15 +85,13 @@ function applyItemEdit(
   };
 }
 
-function ShoppingItemRow({
-  item,
-  canEdit,
-  onEdit,
-}: {
+interface ShoppingItemRowProps {
   item: ShoppingListItemData;
   canEdit: boolean;
   onEdit: (itemId: string, edit: ItemEdit) => Promise<void>;
-}) {
+}
+
+function ShoppingItemRow({ item, canEdit, onEdit }: ShoppingItemRowProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const itemId = item.id;
@@ -230,17 +228,14 @@ function ShoppingItemRow({
   );
 }
 
-export function ShoppingListView({
-  data,
-  setData,
-  app,
-  canCallTools,
-}: {
+interface ShoppingListViewProps {
   data: ShoppingListContent;
   setData?: (data: AppData | null) => void;
   app: ShoppingAppClient | null;
   canCallTools: boolean;
-}) {
+}
+
+export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingListViewProps) {
   const { name, items, listId } = data;
   const cart = useCartAction(app, { kind: "list", listId, modality: "PICKUP" });
 

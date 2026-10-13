@@ -17,12 +17,14 @@ const milk = {
   items: [{ fulfillment: { curbside: true } }],
 };
 
-async function selectProductMatch(params: {
+interface SelectProductMatchParams {
   ai: SelectorAi;
   query: string;
   products: Parameters<typeof selectProductMatches>[0]["items"][number]["products"];
   forPickup: boolean;
-}) {
+}
+
+async function selectProductMatch(params: SelectProductMatchParams) {
   const [selection] = await selectProductMatches({
     ai: params.ai,
     items: [

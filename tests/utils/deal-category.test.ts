@@ -16,8 +16,10 @@ describe("DEAL_CATEGORIES", () => {
   });
 });
 
+type CategoryCase = [string, string];
+
 describe("classifyDealCategory", () => {
-  const cases: Array<[string, string]> = [
+  const cases: CategoryCase[] = [
     // Meat & Seafood
     ["Fresh Coastal Range Organic Boneless Chicken Full Line Sale", "Meat & Seafood"],
     ["Oscar Mayer Beef Franks", "Meat & Seafood"],

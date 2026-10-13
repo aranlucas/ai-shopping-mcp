@@ -25,6 +25,10 @@ import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
 import { textResult } from "./types.js";
 
+interface CartQuantity {
+  quantity: number;
+}
+
 type CartItem = components["schemas"]["cart.cartItemModel"];
 
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -44,7 +48,7 @@ export type CartToolDependencies = {
 
 export type LineItem = { upc: string; quantity: number; productName?: string };
 
-function cartQuantitySummary(items: ReadonlyArray<{ quantity: number }>): string {
+function cartQuantitySummary(items: ReadonlyArray<CartQuantity>): string {
   const packages = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return `${items.length} line item(s), ${packages} package(s)`;
@@ -103,7 +107,7 @@ function toCartSnapshotItems(
   }));
 }
 
-function cartResultPayload(payload: {
+interface CartResultPayload {
   listId?: string;
   name: string;
   items: CartSnapshotItem[];
@@ -111,7 +115,9 @@ function cartResultPayload(payload: {
   outcome: CartOutcome;
   requestedCount: number;
   actionDetail: string;
-}) {
+}
+
+function cartResultPayload(payload: CartResultPayload) {
   return appResult("add_shopping_list_to_cart", {
     ...payload,
     addedCount: payload.items.length,
@@ -127,15 +133,17 @@ function cartResultPayload(payload: {
  * write failure does not fail the tool call. List-backed writes also persist
  * their retry receipt here so every caller gets the same duplicate protection.
  */
+interface AddLineItemsOptions {
+  receiptListId?: string;
+  operationId?: string;
+}
+
 export async function addLineItemsToCart(
   carts: CartStore,
   cartClient: KrogerClients["cartClient"],
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
-  options: {
-    receiptListId?: string;
-    operationId?: string;
-  } = {},
+  options: AddLineItemsOptions = {},
 ): Promise<Result<CartAddStatus, AppError>> {
   const cartItems: CartItem[] = lineItems.map((item) => ({
     upc: item.upc,
@@ -272,11 +280,13 @@ export async function addLineItemsToCart(
   return ok("added");
 }
 
+type InlineCartItem = { upc: string; quantity: number };
+
 async function handleInlineItemsCart(
   preferredLocation: PreferredLocationStore,
   carts: CartStore,
   cartClient: KrogerClients["cartClient"],
-  items: Array<{ upc: string; quantity: number }>,
+  items: InlineCartItem[],
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
   operationId?: string,

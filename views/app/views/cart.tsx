@@ -22,7 +22,12 @@ const EMPTY_CART_ICON = (
   </svg>
 );
 
-export function CartView({ data, app }: { data: CartViewContent; app: ShoppingAppClient | null }) {
+export interface CartViewProps {
+  data: CartViewContent;
+  app: ShoppingAppClient | null;
+}
+
+export function CartView({ data, app }: CartViewProps) {
   const { source, note } = data;
 
   // The assistant mirror records each add separately; show one line per

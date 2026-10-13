@@ -23,6 +23,17 @@ import {
   invalidResponseError,
 } from "../errors.js";
 
+interface ApiResponse<T> {
+  data?: T;
+  error?: unknown;
+  response: Response;
+}
+
+interface ResolvedLocation {
+  locationId: string;
+  locationName?: string;
+}
+
 export { safeJsonParse, safeJsonParseWithSchema } from "./json.js";
 
 // --- MCP Response Bridge ---
@@ -68,9 +79,7 @@ export function toMcpError(error: AppError): McpToolResult {
  * for endpoints that return no body.
  */
 export function fromApiResponse<T>(
-  promise:
-    | Promise<{ data?: T; error?: unknown; response: Response }>
-    | (() => Promise<{ data?: T; error?: unknown; response: Response }>),
+  promise: Promise<ApiResponse<T>> | (() => Promise<ApiResponse<T>>),
   context: string,
 ): ResultAsync<T, AppError> {
   const mapFailure = (cause: unknown): AppError => {
@@ -93,7 +102,6 @@ export function fromApiResponse<T>(
   };
 
   const result =
-    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- This typed Promise-or-thunk overload dispatch must recognize cross-realm functions without changing the public API.
     typeof promise === "function"
       ? ResultAsync.fromThrowable(promise, mapFailure)()
       : ResultAsync.fromPromise(promise, mapFailure);
@@ -139,7 +147,6 @@ const authenticatedPropsSchema = z.object({
 });
 
 /** Parse provider-owned request data without trusting its declared extension types. */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The provider auth-context boundary is untrusted until authenticatedPropsSchema validates it below.
 export function parseAuthenticatedProps(value: unknown): Props {
   const parsed = authenticatedPropsSchema.safeParse(value);
 
@@ -163,9 +170,9 @@ export function getProps(): Props {
 export function safeResolveLocationId(
   preferredLocation: PreferredLocationStore,
   locationId?: string,
-): ResultAsync<{ locationId: string; locationName?: string }, AppError> {
+): ResultAsync<ResolvedLocation, AppError> {
   if (locationId) {
-    return okAsync<{ locationId: string; locationName?: string }, AppError>({
+    return okAsync<ResolvedLocation, AppError>({
       locationId,
     });
   }

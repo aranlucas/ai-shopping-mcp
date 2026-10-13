@@ -14,6 +14,22 @@ import { useCallback, useMemo, useState } from "react";
 import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
+interface LocationCardProps {
+  location: LocationData;
+  canCallTools: boolean;
+  app: ShoppingAppClient | null;
+  onSetPreferred: (id: string) => Promise<void>;
+  onViewDetails: (id: string) => Promise<void>;
+}
+
+interface LocationResultsViewProps {
+  data: StoreResultsContent;
+  setData: (data: AppData | null) => void;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+  hostContext?: McpUiHostContext;
+}
+
 const EMPTY_LOCATIONS_ICON = (
   <svg
     aria-hidden="true"
@@ -60,13 +76,7 @@ function LocationCard({
   app,
   onSetPreferred,
   onViewDetails,
-}: {
-  location: LocationData;
-  canCallTools: boolean;
-  app: ShoppingAppClient | null;
-  onSetPreferred: (id: string) => Promise<void>;
-  onViewDetails: (id: string) => Promise<void>;
-}) {
+}: LocationCardProps) {
   const id = location.locationId || "";
 
   const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -246,13 +256,7 @@ export function LocationResultsView({
   app,
   canCallTools,
   hostContext,
-}: {
-  data: StoreResultsContent;
-  setData: (data: AppData | null) => void;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-  hostContext?: McpUiHostContext;
-}) {
+}: LocationResultsViewProps) {
   const { stores } = data;
 
   const handleSetPreferred = useCallback(

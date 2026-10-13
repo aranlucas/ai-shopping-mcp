@@ -29,6 +29,27 @@ import {
 } from "../../src/tools/cart.js";
 import { AppErrorException, authError } from "../../src/errors.js";
 
+interface LiveCart {
+  id: string;
+  items: LiveCartItem[];
+}
+
+interface CartPutConfig {
+  status: number;
+  throws?: boolean;
+}
+
+interface CartGetConfig {
+  status: number;
+  cart?: typeof LIVE_CART;
+}
+
+interface CartToolContext {
+  carts: CartStore;
+  cartClient: KrogerClients["cartClient"];
+  storage: ShoppingStore & CartStore;
+}
+
 type AuthContext = {
   props: {
     id: string;
@@ -118,13 +139,19 @@ type PutOptions = { body: unknown; headers: Record<string, string> };
 
 type PutCall = { path: string; options: PutOptions };
 
+interface MirrorItem extends CartSnapshotItem {
+  addedAt: string;
+}
+
+type SnapshotSetCall = [listId: string, items: CartSnapshotItem[]];
+
 function makeStorage(
   storedList: ShoppingList | null = null,
   storedLocation: PreferredLocation | null = null,
-  snapshotSetCalls: unknown[][] = [],
+  snapshotSetCalls: SnapshotSetCall[] = [],
   existingSnapshot: CartSnapshotItem[] | null = null,
   mirrorAppendCalls: unknown[][] = [],
-  mirrorItems: Array<CartSnapshotItem & { addedAt: string }> = [],
+  mirrorItems: MirrorItem[] = [],
   storedCartId: string | null = null,
   cartIdSetCalls: string[][] = [],
 ): ShoppingStore & CartStore {
@@ -143,7 +170,7 @@ function makeStorage(
     operations: cartOperationStore(),
     cartSnapshot: strictFake<CartStore["cartSnapshot"]>({
       get: async () => existingSnapshot,
-      set: async (_id: string, items: unknown[]) => {
+      set: async (_id: string, items: CartSnapshotItem[]) => {
         snapshotSetCalls.push([_id, items]);
       },
       clear: async () => {},
@@ -168,28 +195,35 @@ function makeStorage(
 
 type GetCall = { path: string; options: unknown };
 
-const LIVE_CART = {
+interface LiveCartItem {
+  upc: string;
+  description: string;
+  quantity: number;
+  modality: "PICKUP" | "DELIVERY";
+}
+
+const LIVE_CART: LiveCart = {
   id: "2b9b3963-5cac-42f8-9d28-7bebdec0b9e4",
   items: [
     {
       upc: "0001111040110",
       description: "QFC Vitamin D Whole Milk Gallon",
       quantity: 1,
-      modality: "PICKUP" as const,
+      modality: "PICKUP",
     },
   ],
 };
 
 function makeContext(
   storage?: ShoppingStore & CartStore,
-  putConfig: { status: number; throws?: boolean } = { status: 204 },
-  getConfig: { status: number; cart?: typeof LIVE_CART } = {
+  putConfig: CartPutConfig = { status: 204 },
+  getConfig: CartGetConfig = {
     status: 200,
     cart: LIVE_CART,
   },
 ) {
   const putCalls: PutCall[] = [];
-  const snapshotSetCalls: unknown[][] = [];
+  const snapshotSetCalls: SnapshotSetCall[] = [];
   const getCalls: GetCall[] = [];
 
   const actualStorage = storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
@@ -244,14 +278,7 @@ function makeContext(
   return { context, putCalls, snapshotSetCalls, getCalls };
 }
 
-function registerCartTools(
-  server: McpServer,
-  context: {
-    carts: CartStore;
-    cartClient: KrogerClients["cartClient"];
-    storage: ShoppingStore & CartStore;
-  },
-) {
+function registerCartTools(server: McpServer, context: CartToolContext) {
   registerCartToolsImpl(server, {
     carts: context.carts,
     cartClient: context.cartClient,

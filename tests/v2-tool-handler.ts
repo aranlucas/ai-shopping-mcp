@@ -8,7 +8,6 @@ import {
 import type { z } from "zod";
 
 /** Use the SDK's own wire validator and keep the convenience fields used by tests. */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Test handlers are a raw SDK boundary; the native CallToolResult schema validates their output before it reaches consumers.
 export function parseTestToolResult(value: unknown) {
   const parsed = specTypeSchemas.CallToolResult["~standard"].validate(value);
 

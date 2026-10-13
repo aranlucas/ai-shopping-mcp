@@ -81,7 +81,6 @@ function ShoppingApp() {
         });
       };
 
-      // oxlint-disable-next-line unicorn/prefer-add-event-listener -- MCP Apps SDK uses `onerror` property assignment, not DOM EventTarget
       createdApp.onerror = console.error;
       createdApp.onhostcontextchanged = (params) => {
         setHostContext((prev) => ({ ...prev, ...params }));
@@ -276,5 +275,7 @@ const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error("Shopping app root element is missing");
 }
+
+export { ShoppingApp };
 
 createRoot(rootElement).render(<ShoppingApp />);

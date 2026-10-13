@@ -6,6 +6,8 @@ import type { components as ProductComponents } from "../../../src/services/krog
 
 import { ProductService } from "../../../src/services/kroger/product-service.js";
 
+type SearchProgress = [completed: number, total: number];
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 function stubProductClient(get: ProductRequest): KrogerClients["productClient"] {
@@ -176,7 +178,7 @@ describe("ProductService catalog budget", () => {
     });
 
     const service = new ProductService(stubProductClient(get));
-    const progress: Array<[number, number]> = [];
+    const progress: Array<SearchProgress> = [];
 
     const resolved = await service.resolveProducts(
       [" bread ", "1111041700", "failure", "0001111041700", "bread"],

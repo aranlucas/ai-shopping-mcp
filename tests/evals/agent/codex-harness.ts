@@ -15,6 +15,11 @@ import {
 } from "./harness.js";
 import type { AgentOutput } from "./tasks.js";
 
+interface CodexAgentHarnessOptions {
+  driver: Fetcher;
+  session: () => AgentSession;
+}
+
 type InitialObservation = {
   system: string;
   prompt: string;
@@ -40,7 +45,7 @@ const actionSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-export function codexAgentHarness(options: { driver: Fetcher; session: () => AgentSession }) {
+export function codexAgentHarness(options: CodexAgentHarnessOptions) {
   return createHarness<AgentInput, AgentOutput>({
     name: "codex/session",
     run: async ({ input, signal }) => {

@@ -17,6 +17,26 @@ import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import { classifyExpiry } from "../../../src/services/expiry.js";
 
+interface ExpiryBadgeProps {
+  expiresAt: string | undefined;
+  now: number;
+}
+
+interface PantryItemRowProps {
+  item: PantryItemData;
+  canCallTools: boolean;
+  onRemove: (name: string) => Promise<void>;
+  onUse: (name: string) => Promise<void>;
+  now: number;
+}
+
+interface PantryViewProps {
+  data: PantryListContent;
+  setData: (data: AppData | null) => void;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+}
+
 const REMOVE_ICON = (
   <svg
     aria-hidden="true"
@@ -47,7 +67,7 @@ const EMPTY_PANTRY_ICON = (
   </svg>
 );
 
-function ExpiryBadge({ expiresAt, now }: { expiresAt: string | undefined; now: number }) {
+function ExpiryBadge({ expiresAt, now }: ExpiryBadgeProps) {
   const expiry = classifyExpiry(expiresAt, now);
 
   if (expiry.status === "none" || expiry.status === "invalid") {
@@ -89,19 +109,7 @@ function ExpiryBadge({ expiresAt, now }: { expiresAt: string | undefined; now: n
   );
 }
 
-function PantryItemRow({
-  item,
-  canCallTools,
-  onRemove,
-  onUse,
-  now,
-}: {
-  item: PantryItemData;
-  canCallTools: boolean;
-  onRemove: (name: string) => Promise<void>;
-  onUse: (name: string) => Promise<void>;
-  now: number;
-}) {
+function PantryItemRow({ item, canCallTools, onRemove, onUse, now }: PantryItemRowProps) {
   const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const [consumeState, setConsumeState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -196,17 +204,7 @@ function PantryItemRow({
   );
 }
 
-export function PantryView({
-  data,
-  setData,
-  app,
-  canCallTools,
-}: {
-  data: PantryListContent;
-  setData: (data: AppData | null) => void;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-}) {
+export function PantryView({ data, setData, app, canCallTools }: PantryViewProps) {
   const { items, actionDetail } = data;
   const [now] = useState(() => Date.now());
 

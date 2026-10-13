@@ -14,7 +14,16 @@ import {
   normalizeProductTerm,
   mapCatalogRequests,
 } from "./catalog-workload.js";
-import { searchProductsForTerms, type ProductSearchResult } from "./search.js";
+import {
+  searchProductsForTerms,
+  type ProductSearchResult,
+  type ProductSearchOptions,
+} from "./search.js";
+
+interface ProductResolution {
+  results: ProductSearchResult[];
+  exactUpcs: Set<string>;
+}
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 
@@ -53,9 +62,9 @@ export class ProductService {
   /** Reject excess work before any provider calls; deduplicate after normalizing. */
   async resolveProducts(
     terms: string[],
-    params: { locationId?: string; limitPerTerm: number },
+    params: ProductSearchOptions,
     onComplete?: (completed: number, total: number) => Promise<void> | void,
-  ): Promise<Result<{ results: ProductSearchResult[]; exactUpcs: Set<string> }, AppError>> {
+  ): Promise<Result<ProductResolution, AppError>> {
     if (terms.length > MAX_CATALOG_REQUESTS) {
       return err(
         validationError(

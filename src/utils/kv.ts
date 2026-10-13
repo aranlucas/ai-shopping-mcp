@@ -1,5 +1,9 @@
 import { z } from "zod/v4";
 
+interface UserDataKvEnv {
+  USER_DATA_KV?: unknown;
+}
+
 /** Minimal KV surface shared by every KV-backed cache in this codebase. */
 export type KvLike = Pick<KVNamespace, "get" | "put">;
 
@@ -15,6 +19,6 @@ export function isKvLike(value: unknown): value is KvLike {
 }
 
 /** Resolves the shared user-data KV binding, or null when absent/malformed. */
-export function getUserDataKv(env: { USER_DATA_KV?: unknown }): KvLike | null {
+export function getUserDataKv(env: UserDataKvEnv): KvLike | null {
   return isKvLike(env?.USER_DATA_KV) ? env.USER_DATA_KV : null;
 }

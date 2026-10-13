@@ -12,6 +12,11 @@ import { fromApiResponse } from "../../utils/result.js";
 
 import { MAX_TEXT_TERMS, mapCatalogRequests } from "./catalog-workload.js";
 
+export interface ProductSearchOptions {
+  locationId?: string;
+  limitPerTerm: number;
+}
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 export type ProductSearchRequest = {
@@ -49,7 +54,7 @@ function toKrogerTerm(term: string): string {
 export async function searchProductsForTerms(
   productClient: KrogerClients["productClient"],
   requests: ProductSearchRequest[],
-  params: { locationId?: string; limitPerTerm: number },
+  params: ProductSearchOptions,
   onSearchComplete?: (completed: number, total: number) => Promise<void> | void,
 ): Promise<ProductSearchResult[]> {
   if (requests.length > MAX_TEXT_TERMS) {

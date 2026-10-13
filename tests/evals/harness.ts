@@ -15,6 +15,10 @@ import { vi } from "vitest";
 import { ensureShoppingSchema } from "../d1-schema.js";
 import { fixtureJwks, fixtureToken, seedKrogerConnection } from "../better-auth-fixture.js";
 
+interface CapturedCartPut {
+  items: CapturedCartItem[];
+}
+
 const MCP_URL = env.MCP_RESOURCE_URL;
 
 // ---------------------------------------------------------------------------
@@ -343,7 +347,7 @@ export type KrogerFetchStub = {
  * Replaces global fetch with a deterministic Kroger API fixture router.
  */
 export function installKrogerFetchStub(): KrogerFetchStub {
-  const cartPuts: Array<{ items: CapturedCartItem[] }> = [];
+  const cartPuts: Array<CapturedCartPut> = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -494,7 +498,6 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Token estimation deliberately delegates arbitrary values to JSON.stringify, without treating them as validated application data.
 export function estimateJsonTokens(value: unknown): number {
   return estimateTokens(JSON.stringify(value) ?? "");
 }

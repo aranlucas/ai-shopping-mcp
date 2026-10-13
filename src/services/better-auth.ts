@@ -2,6 +2,11 @@ import { verifyBearerToken } from "better-auth/oauth2";
 import type { JWTPayload } from "jose";
 import { z } from "zod/v4";
 
+interface McpSettingsEnv {
+  MCP_RESOURCE_URL: string;
+  MCP_ALLOWED_ORIGINS?: string;
+}
+
 export type AuthIdentity = { id: string; issuer: string; subject: string };
 
 type AuthBindings = {
@@ -34,7 +39,7 @@ export function authSettings(env: AuthBindings) {
 }
 
 /** The resource identifier is the protected endpoint, not its host origin. */
-export function mcpSettings(env: { MCP_RESOURCE_URL: string; MCP_ALLOWED_ORIGINS?: string }) {
+export function mcpSettings(env: McpSettingsEnv) {
   const resource = httpsUrl
     .refine((value) => new URL(value).pathname === "/mcp")
     .parse(env.MCP_RESOURCE_URL);

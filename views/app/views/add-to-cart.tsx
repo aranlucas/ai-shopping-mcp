@@ -23,7 +23,11 @@ const EMPTY_CART_ICON = (
   </svg>
 );
 
-export function AddToCartView({ data }: { data: AddShoppingListToCartContent }) {
+export interface AddToCartViewProps {
+  data: AddShoppingListToCartContent;
+}
+
+export function AddToCartView({ data }: AddToCartViewProps) {
   const { listId, name, items, needsUpc, actionDetail, outcome, addedCount, requestedCount } = data;
 
   const title = `Cart · ${name}`;

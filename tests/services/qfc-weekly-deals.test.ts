@@ -7,6 +7,15 @@ import type { ProductSearchFn } from "../../src/services/qfc-weekly-deals.js";
 import { AppErrorException, authError } from "../../src/errors.js";
 import { getQfcWeeklyDeals } from "../../src/services/qfc-weekly-deals.js";
 
+interface ProductOptions {
+  productId?: string;
+  description?: string;
+  regular?: number;
+  promo?: number;
+  categories?: string[];
+  size?: string;
+}
+
 type KrogerProduct = ProductComponents["schemas"]["products.productModel"];
 
 // ---------------------------------------------------------------------------
@@ -27,14 +36,7 @@ function urlOf(input: string | Request | URL): string {
 }
 
 /** Build a minimal Kroger product with optional pricing. */
-function makeProduct(opts: {
-  productId?: string;
-  description?: string;
-  regular?: number;
-  promo?: number;
-  categories?: string[];
-  size?: string;
-}): KrogerProduct {
+function makeProduct(opts: ProductOptions): KrogerProduct {
   return {
     productId: opts.productId ?? "0001111041700",
     description: opts.description ?? "Test Product",

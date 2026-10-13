@@ -2,6 +2,10 @@ import * as z from "zod/v4";
 
 import type { selectProductMatches } from "./fixtures/jev-product-selector.js";
 
+interface AgentSelectorEnv {
+  AI: Ai;
+}
+
 type Input = Omit<Parameters<typeof selectProductMatches>[0], "ai"> & {
   model: string;
 };
@@ -19,8 +23,8 @@ const SELECTION_POLICY =
   "For equally suitable candidates prefer the first listed. Call select_products once with one choice per item.";
 
 /** Evaluation only: a generative model sees the shortlist and selects via a tool call. */
-export default {
-  async fetch(request: Request, env: { AI: Ai }): Promise<Response> {
+const agentSelectorWorker = {
+  async fetch(request: Request, env: AgentSelectorEnv): Promise<Response> {
     const started = Date.now();
     let raw: unknown;
 
@@ -196,3 +200,5 @@ export default {
     }
   },
 };
+
+export default agentSelectorWorker;

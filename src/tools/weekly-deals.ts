@@ -113,10 +113,15 @@ function formatDealsPage(offset: number, shown: number, total: number) {
 /** Fetch size behind every weekly-deals read, so all readers share one cache key. */
 export const WEEKLY_DEALS_FETCH = { limit: 50, pageLimit: 2 } as const;
 
+interface WeeklyDealsPage {
+  limit: number;
+  offset: number;
+}
+
 export function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,
   cacheState: "miss" | "fresh" | "stale",
-  page: { limit: number; offset: number } = {
+  page: WeeklyDealsPage = {
     limit: WEEKLY_DEALS_FETCH.limit,
     offset: 0,
   },

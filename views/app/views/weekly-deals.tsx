@@ -46,19 +46,15 @@ const EMPTY_DEALS_ICON = (
   </svg>
 );
 
-function DealCard({
-  deal,
-  canCallTools,
-  canMessage,
-  onSearch,
-  onPlanMeal,
-}: {
+interface DealCardProps {
   deal: DealData;
   canCallTools: boolean;
   canMessage: boolean;
   onSearch: (title: string) => Promise<void>;
   onPlanMeal: (title: string) => Promise<void>;
-}) {
+}
+
+function DealCard({ deal, canCallTools, canMessage, onSearch, onPlanMeal }: DealCardProps) {
   const [searchState, setSearchState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const [planState, setPlanState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -145,17 +141,14 @@ function DealCard({
   );
 }
 
-export function WeeklyDealsView({
-  data,
-  app,
-  canCallTools,
-  hostContext,
-}: {
+interface WeeklyDealsViewProps {
   data: WeeklyDealsContent;
   app: ShoppingAppClient | null;
   canCallTools: boolean;
   hostContext?: McpUiHostContext;
-}) {
+}
+
+export function WeeklyDealsView({ data, app, canCallTools, hostContext }: WeeklyDealsViewProps) {
   const { deals, validFrom, validTill } = data;
   const [category, setCategory] = useResettableState(data, () => "");
 

@@ -7,6 +7,8 @@ import {
   type ProductSearchRequest,
 } from "../../../src/services/kroger/search.js";
 
+type SearchProgress = [completed: number, total: number];
+
 type SearchResponse = {
   data?: unknown;
   error?: unknown;
@@ -74,7 +76,7 @@ describe("searchProductsForTerms", () => {
       response: new Response(null, { status: 200 }),
     }));
 
-    const progress: Array<[number, number]> = [];
+    const progress: Array<SearchProgress> = [];
 
     await searchProductsForTerms(
       productClient(get),

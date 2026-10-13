@@ -42,10 +42,13 @@ const weeklyDealsAuthState: AuthState = { authContext: undefined };
 // ---------------------------------------------------------------------------
 
 /** Extract the text content from the first text item in a tool response */
+interface TextContent {
+  type: "text";
+  text: string;
+}
+
 function getTextContent(response: ReturnType<typeof formatWeeklyDealsToolResponse>): string {
-  const textItem = response.content.find(
-    (c): c is { type: "text"; text: string } => "type" in c && c.type === "text",
-  );
+  const textItem = response.content.find((c): c is TextContent => "type" in c && c.type === "text");
 
   return textItem?.text ?? "";
 }

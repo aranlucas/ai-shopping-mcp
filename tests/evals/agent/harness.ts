@@ -14,6 +14,14 @@ import { type Tool, type ToolSet, generateText, jsonSchema, stepCountIs, tool } 
 import { type KrogerFetchStub, type ToolCallResult, contentText } from "../harness.js";
 import { type AgentOutput, type AgentTask, AGENT_TASKS } from "./tasks.js";
 
+type ToolEntry = [string, Tool];
+
+interface ShoppingAgentHarnessOptions {
+  model: string;
+  apiKey: string;
+  session: () => AgentSession;
+}
+
 export type AgentInput = { taskId: string; prompt: string };
 
 /** Per-test MCP connection; the eval file swaps it in `beforeEach`. */
@@ -54,7 +62,7 @@ export async function callTool(
 async function mcpToolSet(client: Client): Promise<ToolSet> {
   const { tools } = await client.listTools();
 
-  const entries = tools.map((mcpTool): [string, Tool] => {
+  const entries = tools.map((mcpTool): ToolEntry => {
     const { $schema: _dialect, ...schema } = mcpTool.inputSchema;
 
     // SAFETY: this harness lists this Worker's Zod-generated tool schemas. MCP's
@@ -162,11 +170,7 @@ function splitFeedback(text: string): FeedbackParts {
   };
 }
 
-export function shoppingAgentHarness(options: {
-  model: string;
-  apiKey: string;
-  session: () => AgentSession;
-}) {
+export function shoppingAgentHarness(options: ShoppingAgentHarnessOptions) {
   const openrouter = createOpenRouter({
     apiKey: options.apiKey,
     fetch: realFetch,

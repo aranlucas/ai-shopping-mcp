@@ -13,6 +13,12 @@ import { registerShopTools, shopForItemsInputSchema } from "../../src/tools/shop
 
 type Product = components["schemas"]["products.productModel"];
 
+interface ProductClientGetOptions {
+  params: { query?: Record<string, string | number> };
+}
+
+type ProductClientGetResult = Promise<{ data: { data: Product[] }; response: Response }>;
+
 const product = (index: number, overrides: Partial<Product> = {}): Product => ({
   upc: String(index).padStart(13, "0"),
   description: `Milk ${index}`,
@@ -37,15 +43,12 @@ async function setup(products: Product[] = [product(1)]) {
     setAt: new Date().toISOString(),
   });
 
-  const get = vi.fn<
-    (
-      path: string,
-      options: { params: { query?: Record<string, string | number> } },
-    ) => Promise<{ data: { data: Product[] }; response: Response }>
-  >(async (_path: string, _options: { params: { query?: Record<string, string | number> } }) => ({
-    data: { data: products },
-    response: new Response(null, { status: 200 }),
-  }));
+  const get = vi.fn(
+    async (_path: string, _options: ProductClientGetOptions): ProductClientGetResult => ({
+      data: { data: products },
+      response: new Response(null, { status: 200 }),
+    }),
+  );
 
   context.productClient = productClientWith(get);
   registerShopTools(context.server, context);

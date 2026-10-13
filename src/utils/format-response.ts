@@ -22,6 +22,17 @@ import type {
   ShoppingListItem,
 } from "../domain/shopping.js";
 
+interface ProductLineOptions {
+  includeLocation?: boolean;
+}
+
+interface ProductSearchMarkdownOptions {
+  includeLocation?: boolean;
+  exactUpcs?: ReadonlySet<string>;
+  includeMatchingFacts?: boolean;
+  includeNextStep?: boolean;
+}
+
 type Product = ProductComponents["schemas"]["products.productModel"];
 
 type Location = LocationComponents["schemas"]["locations.location"];
@@ -204,10 +215,7 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 // ---------------------------------------------------------------------------
 
 /** A compact Kroger product line with a copyable UPC. */
-export function formatProductLine(
-  product: ProductData,
-  options: { includeLocation?: boolean } = {},
-): string {
+export function formatProductLine(product: ProductData, options: ProductLineOptions = {}): string {
   const parts: string[] = [`upc=${product.upc}`, product.name];
 
   if (product.brand) {
@@ -281,12 +289,7 @@ export function formatProductDetails(product: ProductData): string {
  */
 export function formatProductSearchMarkdown(
   results: ProductSearchResult[],
-  options: {
-    includeLocation?: boolean;
-    exactUpcs?: ReadonlySet<string>;
-    includeMatchingFacts?: boolean;
-    includeNextStep?: boolean;
-  } = {},
+  options: ProductSearchMarkdownOptions = {},
 ): string {
   const lines: string[] = [];
 
