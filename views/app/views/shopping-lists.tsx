@@ -11,6 +11,19 @@ import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 import { openShoppingList } from "../tool-calls.js";
 
+type ShoppingListSummaryProps = {
+  list: ShoppingListSummaryData;
+  canOpen: boolean;
+  onOpen: (listId: string) => Promise<void>;
+};
+
+type ShoppingListsViewProps = {
+  data: ShoppingListsContent;
+  setData: (data: AppData | null) => void;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+};
+
 const EMPTY_LISTS_ICON = (
   <svg
     aria-hidden="true"
@@ -36,15 +49,7 @@ function formatUpdated(value: string): string {
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function ListRow({
-  list,
-  canOpen,
-  onOpen,
-}: {
-  list: ShoppingListSummaryData;
-  canOpen: boolean;
-  onOpen: (listId: string) => Promise<void>;
-}) {
+function ListRow({ list, canOpen, onOpen }: ShoppingListSummaryProps) {
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleOpen = useCallback(async () => {
@@ -84,17 +89,7 @@ function ListRow({
   );
 }
 
-export function ShoppingListsView({
-  data,
-  setData,
-  app,
-  canCallTools,
-}: {
-  data: ShoppingListsContent;
-  setData: (data: AppData | null) => void;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-}) {
+export function ShoppingListsView({ data, setData, app, canCallTools }: ShoppingListsViewProps) {
   const { lists } = data;
 
   const handleOpen = useCallback(

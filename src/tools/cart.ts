@@ -25,6 +25,25 @@ import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
 import { textResult } from "./types.js";
 
+type CartQuantity = { quantity: number };
+
+type CartResultPayload = {
+  listId?: string;
+  name: string;
+  items: CartSnapshotItem[];
+  needsUpc: Array<{ productName: string; quantity: number }>;
+  outcome: CartOutcome;
+  requestedCount: number;
+  actionDetail: string;
+};
+
+type SubmitCartOptions = {
+  receiptListId?: string;
+  operationId?: string;
+};
+
+type CartLineItem = { upc: string; quantity: number };
+
 type CartItem = components["schemas"]["cart.cartItemModel"];
 
 type CartItemRequest = components["schemas"]["cart.cartItemRequestModel"];
@@ -44,7 +63,7 @@ export type CartToolDependencies = {
 
 export type LineItem = { upc: string; quantity: number; productName?: string };
 
-function cartQuantitySummary(items: ReadonlyArray<{ quantity: number }>): string {
+function cartQuantitySummary(items: ReadonlyArray<CartQuantity>): string {
   const packages = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return `${items.length} line item(s), ${packages} package(s)`;
@@ -103,15 +122,7 @@ function toCartSnapshotItems(
   }));
 }
 
-function cartResultPayload(payload: {
-  listId?: string;
-  name: string;
-  items: CartSnapshotItem[];
-  needsUpc: Array<{ productName: string; quantity: number }>;
-  outcome: CartOutcome;
-  requestedCount: number;
-  actionDetail: string;
-}) {
+function cartResultPayload(payload: CartResultPayload) {
   return appResult("add_shopping_list_to_cart", {
     ...payload,
     addedCount: payload.items.length,
@@ -132,10 +143,7 @@ export async function addLineItemsToCart(
   cartClient: KrogerClients["cartClient"],
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
-  options: {
-    receiptListId?: string;
-    operationId?: string;
-  } = {},
+  options: SubmitCartOptions = {},
 ): Promise<Result<CartAddStatus, AppError>> {
   const cartItems: CartItem[] = lineItems.map((item) => ({
     upc: item.upc,
@@ -276,7 +284,7 @@ async function handleInlineItemsCart(
   preferredLocation: PreferredLocationStore,
   carts: CartStore,
   cartClient: KrogerClients["cartClient"],
-  items: Array<{ upc: string; quantity: number }>,
+  items: Array<CartLineItem>,
   storeId: string | undefined,
   modality: "PICKUP" | "DELIVERY",
   operationId?: string,

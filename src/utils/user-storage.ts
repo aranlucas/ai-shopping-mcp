@@ -150,7 +150,7 @@ export class CartPersistence implements CartStore {
     readonly operations: CartOperationStore,
   ) {
     this.getIdentity =
-      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Preserve the typed value-or-provider overload, including callable providers from another realm.
+      // Preserve the typed value-or-provider overload, including callable providers from another realm.
       typeof identity === "function" ? identity : () => identity;
   }
 

@@ -5,6 +5,13 @@ import {
 } from "../../scripts/fixtures/jev-product-selector.js";
 import { stubJevAi, type JevRun } from "../jev-stub.js";
 
+type ProductMatchParams = {
+  ai: SelectorAi;
+  query: string;
+  products: Parameters<typeof selectProductMatches>[0]["items"][number]["products"];
+  forPickup: boolean;
+};
+
 const candy = {
   upc: "1",
   description: "Candy",
@@ -17,12 +24,7 @@ const milk = {
   items: [{ fulfillment: { curbside: true } }],
 };
 
-async function selectProductMatch(params: {
-  ai: SelectorAi;
-  query: string;
-  products: Parameters<typeof selectProductMatches>[0]["items"][number]["products"];
-  forPickup: boolean;
-}) {
+async function selectProductMatch(params: ProductMatchParams) {
   const [selection] = await selectProductMatches({
     ai: params.ai,
     items: [

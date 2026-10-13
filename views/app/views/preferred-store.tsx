@@ -1,6 +1,8 @@
 import type { PreferredStoreContent } from "../../shared/types.js";
 
-export function PreferredStoreView({ data }: { data: PreferredStoreContent }) {
+type PreferredStoreViewProps = { data: PreferredStoreContent };
+
+export function PreferredStoreView({ data }: PreferredStoreViewProps) {
   const { store } = data;
 
   return (

@@ -29,6 +29,18 @@ import {
 } from "../../src/tools/cart.js";
 import { AppErrorException, authError } from "../../src/errors.js";
 
+type MirrorTimestamp = { addedAt: string };
+
+type CartPutConfig = { status: number; throws?: boolean };
+
+type CartGetConfig = { status: number; cart?: typeof LIVE_CART };
+
+type CartToolContext = {
+  carts: CartStore;
+  cartClient: KrogerClients["cartClient"];
+  storage: ShoppingStore & CartStore;
+};
+
 type AuthContext = {
   props: {
     id: string;
@@ -124,7 +136,7 @@ function makeStorage(
   snapshotSetCalls: unknown[][] = [],
   existingSnapshot: CartSnapshotItem[] | null = null,
   mirrorAppendCalls: unknown[][] = [],
-  mirrorItems: Array<CartSnapshotItem & { addedAt: string }> = [],
+  mirrorItems: Array<CartSnapshotItem & MirrorTimestamp> = [],
   storedCartId: string | null = null,
   cartIdSetCalls: string[][] = [],
 ): ShoppingStore & CartStore {
@@ -182,8 +194,8 @@ const LIVE_CART = {
 
 function makeContext(
   storage?: ShoppingStore & CartStore,
-  putConfig: { status: number; throws?: boolean } = { status: 204 },
-  getConfig: { status: number; cart?: typeof LIVE_CART } = {
+  putConfig: CartPutConfig = { status: 204 },
+  getConfig: CartGetConfig = {
     status: 200,
     cart: LIVE_CART,
   },
@@ -244,14 +256,7 @@ function makeContext(
   return { context, putCalls, snapshotSetCalls, getCalls };
 }
 
-function registerCartTools(
-  server: McpServer,
-  context: {
-    carts: CartStore;
-    cartClient: KrogerClients["cartClient"];
-    storage: ShoppingStore & CartStore;
-  },
-) {
+function registerCartTools(server: McpServer, context: CartToolContext) {
   registerCartToolsImpl(server, {
     carts: context.carts,
     cartClient: context.cartClient,

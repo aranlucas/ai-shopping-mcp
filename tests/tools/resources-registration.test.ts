@@ -28,6 +28,10 @@ import type {
 import { ProductService } from "../../src/services/kroger/product-service.js";
 import { registerResources } from "../../src/tools/resources.js";
 
+type TextResourceResult = { contents: Array<{ text: string }> };
+
+type ProductClientOverrides = { product?: unknown; error?: boolean };
+
 type AuthContext = {
   props: { id: string; accessToken: string; tokenExpiresAt: number };
 };
@@ -70,7 +74,7 @@ function unauthenticate() {
   testState.authContext = undefined;
 }
 
-function decodeResource(result: { contents: Array<{ text: string }> }) {
+function decodeResource(result: TextResourceResult) {
   return z.record(z.string(), z.json()).parse(decode(result.contents[0]?.text ?? ""));
 }
 
@@ -230,7 +234,7 @@ function getCompleteFn(name: string, field: string): CompleteFn {
     authenticatedRequest(() => Promise.resolve(complete(value)), testState.authContext);
 }
 
-function makeProductClient(overrides: { product?: unknown; error?: boolean } = {}) {
+function makeProductClient(overrides: ProductClientOverrides = {}) {
   return createProductClient(async () => {
     if (overrides.error) {
       return new Response(null, { status: 500, statusText: "Server Error" });

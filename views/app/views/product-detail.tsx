@@ -12,15 +12,13 @@ import {
 } from "../../shared/components.js";
 import { saveProductToList } from "../tool-calls.js";
 
-export function ProductDetailView({
-  data,
-  app,
-  canCallTools,
-}: {
+type ProductDetailViewProps = {
   data: ProductDetailContent;
   app: ShoppingAppClient | null;
   canCallTools: boolean;
-}) {
+};
+
+export function ProductDetailView({ data, app, canCallTools }: ProductDetailViewProps) {
   const { product } = data;
   const name = product.name;
   const brand = product.brand;

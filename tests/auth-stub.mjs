@@ -58,8 +58,10 @@ export class KrogerTokens extends WorkerEntrypoint {
   }
 }
 
-export default {
+const authStubWorker = {
   fetch() {
     return new Response(null, { status: 404 });
   },
 };
+
+export default authStubWorker;

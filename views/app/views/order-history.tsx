@@ -5,13 +5,15 @@ import type { OrderHistoryContent } from "../../shared/types.js";
 
 import { SectionHeader } from "../../shared/components.js";
 
+type OrderHistoryViewProps = { data: OrderHistoryContent };
+
 const RECORDED_BADGE = (
   <Badge variant="secondary" tone="success">
     Recorded
   </Badge>
 );
 
-export function OrderHistoryView({ data }: { data: OrderHistoryContent }) {
+export function OrderHistoryView({ data }: OrderHistoryViewProps) {
   const { orderId, items, totalItems, estimatedTotal, placedAt, locationId, notes } = data;
 
   const placedDate = new Date(placedAt).toLocaleString(undefined, {

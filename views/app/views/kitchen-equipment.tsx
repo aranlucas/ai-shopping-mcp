@@ -14,6 +14,19 @@ import { Badge } from "../../shared/ui/badge";
 import { ActionButton, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
+type EquipmentItemProps = {
+  item: KitchenEquipmentItemData;
+  canCallTools: boolean;
+  onRemove: (name: string) => Promise<void>;
+};
+
+type KitchenEquipmentViewProps = {
+  data: KitchenEquipmentContent;
+  setData: (data: AppData | null) => void;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+};
+
 const REMOVE_ICON = (
   <svg
     aria-hidden="true"
@@ -44,15 +57,7 @@ const EMPTY_EQUIPMENT_ICON = (
   </svg>
 );
 
-function KitchenEquipmentRow({
-  item,
-  canCallTools,
-  onRemove,
-}: {
-  item: KitchenEquipmentItemData;
-  canCallTools: boolean;
-  onRemove: (name: string) => Promise<void>;
-}) {
+function KitchenEquipmentRow({ item, canCallTools, onRemove }: EquipmentItemProps) {
   const [removeState, setRemoveState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleRemove = useCallback(async () => {
@@ -119,12 +124,7 @@ export function KitchenEquipmentView({
   setData,
   app,
   canCallTools,
-}: {
-  data: KitchenEquipmentContent;
-  setData: (data: AppData | null) => void;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-}) {
+}: KitchenEquipmentViewProps) {
   const { items, actionDetail } = data;
 
   const handleRemove = useCallback(

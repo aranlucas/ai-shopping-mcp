@@ -1,3 +1,6 @@
+type CategoryPattern = { category: KeywordCategory; pattern: RegExp };
+
+type CategoryKeywordsEntry = [KeywordCategory, string[]];
 /**
  * Deterministic keyword classifier that groups weekly-deal titles into meal-
  * planning categories. Neither deal source carries reliable category data:
@@ -218,9 +221,9 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
-const CATEGORY_PATTERNS: Array<{ category: KeywordCategory; pattern: RegExp }> =
+const CATEGORY_PATTERNS: Array<CategoryPattern> =
   // SAFETY: CATEGORY_KEYWORDS is a module-owned literal with exactly the finite KeywordCategory keys and string-array values.
-  (Object.entries(CATEGORY_KEYWORDS) as Array<[KeywordCategory, string[]]>).map(
+  (Object.entries(CATEGORY_KEYWORDS) as Array<CategoryKeywordsEntry>).map(
     ([category, keywords]) => ({
       category,
       pattern: new RegExp(`\\b(?:${keywords.map(escapeRegExp).join("|")})\\b`),

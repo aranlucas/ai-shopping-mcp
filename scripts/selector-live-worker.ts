@@ -1,5 +1,7 @@
 import { selectProductMatches, type SelectorAi } from "./fixtures/jev-product-selector.js";
 
+type SelectorEnv = { AI: SelectorAi };
+
 type DiagnosticCall = { elapsedMs: number; status: number; response: unknown };
 
 type DiagnosticError = {
@@ -9,8 +11,8 @@ type DiagnosticError = {
 };
 
 /** Ephemeral local test worker: only the AI binding connects to Cloudflare. */
-export default {
-  async fetch(request: Request, env: { AI: SelectorAi }): Promise<Response> {
+const selectorWorker = {
+  async fetch(request: Request, env: SelectorEnv): Promise<Response> {
     const diagnostic = new URL(request.url).searchParams.has("diagnostics");
 
     const calls: DiagnosticCall[] = [];
@@ -57,3 +59,5 @@ export default {
     }
   },
 };
+
+export default selectorWorker;

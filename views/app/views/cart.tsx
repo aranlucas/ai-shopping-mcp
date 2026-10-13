@@ -5,6 +5,8 @@ import { Badge } from "../../shared/ui/badge";
 import { CartCheckLink, SectionHeader } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
 
+type CartViewProps = { data: CartViewContent; app: ShoppingAppClient | null };
+
 const EMPTY_CART_ICON = (
   <svg
     aria-hidden="true"
@@ -22,7 +24,7 @@ const EMPTY_CART_ICON = (
   </svg>
 );
 
-export function CartView({ data, app }: { data: CartViewContent; app: ShoppingAppClient | null }) {
+export function CartView({ data, app }: CartViewProps) {
   const { source, note } = data;
 
   // The assistant mirror records each add separately; show one line per

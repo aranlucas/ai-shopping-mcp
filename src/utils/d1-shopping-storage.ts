@@ -22,6 +22,13 @@ import {
 } from "../db/schema.js";
 import { AppErrorException, notFoundError, storageError } from "../errors.js";
 
+type NonEmptyBatch = [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]];
+
+type ListMutation<T> = {
+  items: StoredShoppingListItem[];
+  result: T;
+};
+
 function nameKey(name: string): string {
   return name.trim().toLowerCase();
 }
@@ -100,7 +107,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
     const statements: BatchItem<"sqlite">[] = [...writes, read];
 
     // SAFETY: read is always appended, so this tuple has at least one statement.
-    const results = await db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+    const results = await db.batch(statements as NonEmptyBatch);
 
     // SAFETY: D1 returns batch results in statement order; the final statement is the typed read query above.
     return results.at(-1) as TRow[];
@@ -115,10 +122,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
 
   const mutateList = async <T>(
     listId: string,
-    mutate: (items: StoredShoppingListItem[]) => {
-      items: StoredShoppingListItem[];
-      result: T;
-    },
+    mutate: (items: StoredShoppingListItem[]) => ListMutation<T>,
   ): Promise<T> => {
     for (let attempt = 0; attempt < 5; attempt++) {
       // Each retry must read the version written by the preceding attempt.

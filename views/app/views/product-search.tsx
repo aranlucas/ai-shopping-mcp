@@ -25,6 +25,20 @@ import {
 import { EmptyState } from "../../shared/status.js";
 import { saveProductToList } from "../tool-calls.js";
 
+type ProductResultsProps = {
+  app: ShoppingAppClient | null;
+  products: ProductData[];
+  onAddToList: SaveProductToList;
+  canCallTools: boolean;
+};
+
+type ProductSearchViewProps = {
+  data: ProductSearchResultsContent;
+  app: ShoppingAppClient | null;
+  canCallTools: boolean;
+  hostContext?: McpUiHostContext;
+};
+
 const CAROUSEL_OPTS = { align: "start" } as const;
 
 const EMPTY_SEARCH_ICON = (
@@ -44,17 +58,7 @@ const EMPTY_SEARCH_ICON = (
   </svg>
 );
 
-function ProductCarousel({
-  app,
-  products,
-  onAddToList,
-  canCallTools,
-}: {
-  app: ShoppingAppClient | null;
-  products: ProductData[];
-  onAddToList: SaveProductToList;
-  canCallTools: boolean;
-}) {
+function ProductCarousel({ app, products, onAddToList, canCallTools }: ProductResultsProps) {
   return (
     <Carousel opts={CAROUSEL_OPTS} aria-label="Products">
       <CarouselContent className="-ms-2">
@@ -85,12 +89,7 @@ export function ProductSearchView({
   app,
   canCallTools,
   hostContext,
-}: {
-  data: ProductSearchResultsContent;
-  app: ShoppingAppClient | null;
-  canCallTools: boolean;
-  hostContext?: McpUiHostContext;
-}) {
+}: ProductSearchViewProps) {
   const { results, totalProducts } = data;
 
   const handleAddToList = useCallback<SaveProductToList>(
