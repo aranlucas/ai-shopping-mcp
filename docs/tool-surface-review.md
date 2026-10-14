@@ -9,7 +9,7 @@ A tool-by-tool review of the 18 MCP tools against Anthropic's
 [Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents),
 followed by a proposed consolidated structure. Evidence comes from the
 `tools/list` payload the server actually sends, the agent eval
-(`pnpm eval:agent`, see `tests/evals/README.md`), and the models' own
+(`pnpm eval:agent`, see `test/evals/README.md`), and the models' own
 `TOOL FEEDBACK` in eval transcripts.
 
 <!-- EVAL-RESULTS -->

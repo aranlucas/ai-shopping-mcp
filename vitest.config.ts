@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { URL, fileURLToPath } from "node:url";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
@@ -23,7 +24,7 @@ const miniflare: TestMiniflare = {
     {
       name: "auth-stub",
       modules: true,
-      script: readFileSync("tests/auth-stub.mjs", "utf8"),
+      script: readFileSync("test/auth-stub.mjs", "utf8"),
       compatibilityDate: "2025-03-10",
     },
   ],
@@ -72,6 +73,13 @@ if (process.env.EVAL_LOG && miniflare.bindings) {
   miniflare.bindings.EVAL_LOG = process.env.EVAL_LOG;
 }
 
+const resolve = {
+  alias: {
+    "@": fileURLToPath(new URL("./src", import.meta.url)),
+    "@test": fileURLToPath(new URL("./test", import.meta.url)),
+  },
+};
+
 export default defineConfig({
   test: {
     root: ".",
@@ -83,6 +91,7 @@ export default defineConfig({
     },
     projects: [
       {
+        resolve,
         plugins: [
           cloudflareTest({
             main: "./src/server.ts",
@@ -92,15 +101,18 @@ export default defineConfig({
         test: {
           name: "worker",
           testTimeout: 30_000,
-          include: ["tests/**/*.test.ts"],
-          exclude: ["tests/node/**"],
+          include: ["test/**/*.test.ts"],
+          exclude: ["test/node/**"],
         },
       },
       {
+        resolve,
         test: {
           name: "node",
           environment: "node",
-          include: ["tests/node/**/*.test.ts", "scripts/**/*.test.mjs"],
+          include: ["test/node/**/*.test.ts", "test/scripts/**/*.test.mjs"],
+          // This opt-in command requires live Cloudflare AI access.
+          exclude: ["test/scripts/selector-live.test.mjs"],
         },
       },
     ],

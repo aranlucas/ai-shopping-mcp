@@ -62,7 +62,7 @@ Use `pnpm eval:agent:codex` to expose the real fixture-backed MCP to the
 current Codex session. The driver creates a fresh run directory and preserves
 the transcript, standard vitest-evals report, run metadata, and relevant source
 snapshots. It uses the same task setup and end-state judge as the OpenRouter
-harness. The [eval README](../tests/evals/README.md#using-the-current-codex-session-as-the-llm)
+harness. The [eval README](../test/evals/README.md#using-the-current-codex-session-as-the-llm)
 documents the turn protocol and `EVAL_TASKS` filtering.
 
 Retain a training baseline before editing. Choose changes from its tool

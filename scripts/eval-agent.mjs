@@ -45,7 +45,7 @@ function runModel(model) {
         "exec",
         "vitest",
         "run",
-        "tests/evals/agent.eval.test.ts",
+        "test/evals/agent.eval.test.ts",
         "--reporter=vitest-evals/reporter",
         "--reporter=json",
         `--outputFile.json=eval-results/agent-${slug(model)}.json`,

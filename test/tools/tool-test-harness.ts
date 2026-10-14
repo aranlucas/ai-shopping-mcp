@@ -1,0 +1,369 @@
+import { cartClient, productClient, locationClient } from "@test/kroger-clients.js";
+
+import { getQfcWeeklyDeals } from "@/services/qfc-weekly-deals.js";
+import { capturingServer } from "@test/capturing-server.js";
+import { ok } from "neverthrow";
+import { cartOperationStore } from "@test/cart-operation-store.js";
+
+import type { ProductService } from "@/services/kroger/product-service.js";
+import type { McpServer } from "@modelcontextprotocol/server";
+import type { KrogerClients } from "@/services/kroger/client.js";
+import type { WeeklyDealsLoadParams, WeeklyDealsLoader } from "@/services/weekly-deals/service.js";
+import type { WeeklyDealsCache } from "@/services/weekly-deals/cache.js";
+import { createWeeklyDealsCache } from "@/services/weekly-deals/cache.js";
+import { createWeeklyDealsLoader } from "@/services/weekly-deals/runtime.js";
+import type { KvLike } from "@/utils/kv.js";
+import type {
+  EquipmentStore,
+  OrderHistoryStore,
+  PantryStore,
+  PreferredLocationStore,
+  ShoppingListStore,
+  ShoppingStore,
+} from "@/utils/shopping-store.js";
+import type { CartStore, CartSnapshotItem } from "@/utils/user-storage.js";
+import type {
+  EquipmentItem,
+  OrderRecord,
+  PantryItem,
+  PreferredLocation,
+  ShoppingListItem,
+  StoredShoppingListItem,
+} from "@/domain/shopping.js";
+import { type TestToolHandler as ToolHandler, type TestToolConfig } from "@test/v2-tool-handler.js";
+
+type CreateShoppingListInput = { name: string; items: ShoppingListItem[] };
+
+type ShoppingListRecord = {
+  id: string;
+  name: string;
+  items: StoredShoppingListItem[];
+  createdAt: string;
+};
+
+type AuthContext = {
+  props: {
+    id: string;
+    accessToken: string;
+    tokenExpiresAt: number;
+  };
+};
+
+export type CapturedTool = {
+  name: string;
+  config: TestToolConfig;
+  handler: ToolHandler;
+};
+
+type TestState = {
+  authContext: AuthContext | undefined;
+  capturedTools: CapturedTool[];
+};
+
+const testState: TestState = { authContext: undefined, capturedTools: [] };
+
+function authenticate(userId = "user-123") {
+  testState.authContext = {
+    props: {
+      id: userId,
+      accessToken: "test-token",
+      tokenExpiresAt: Date.now() + 60_000,
+    },
+  };
+}
+
+export function unauthenticate() {
+  testState.authContext = undefined;
+}
+
+export function resetToolTestHarness() {
+  testState.capturedTools.length = 0;
+  authenticate();
+}
+
+export function makeStorage(
+  overrides: Partial<ShoppingStore & CartStore> = {},
+): ShoppingStore & CartStore {
+  const pantryItems: PantryItem[] = [];
+  const equipmentItems: EquipmentItem[] = [];
+  const orders: OrderRecord[] = [];
+  const preferredLocations: PreferredLocation[] = [];
+  const createdLists: ShoppingListRecord[] = [];
+  const snapshots = new Map<string, CartSnapshotItem[]>();
+
+  const requireList = (id: string) => {
+    const list = createdLists.find((candidate) => candidate.id === id);
+
+    if (!list) {
+      throw new Error(`Missing list ${id}`);
+    }
+
+    return list;
+  };
+
+  const storage: ShoppingStore & CartStore = {
+    pantry: {
+      add: async (items: PantryItem | PantryItem[]) => {
+        pantryItems.push(...(Array.isArray(items) ? items : [items]));
+
+        return pantryItems;
+      },
+      remove: async (names: string | string[]) => {
+        for (const productName of Array.isArray(names) ? names : [names]) {
+          const index = pantryItems.findIndex((item) => item.productName === productName);
+
+          if (index >= 0) {
+            pantryItems.splice(index, 1);
+          }
+        }
+
+        return pantryItems;
+      },
+      clear: async () => {
+        pantryItems.length = 0;
+      },
+      getAll: async () => pantryItems,
+      updateQuantity: async (name, quantity) => {
+        const item = pantryItems.find((candidate) => candidate.productName === name);
+
+        if (item) {
+          item.quantity = quantity;
+        }
+
+        return pantryItems;
+      },
+    },
+    equipment: {
+      add: async (items: EquipmentItem | EquipmentItem[]) => {
+        equipmentItems.push(...(Array.isArray(items) ? items : [items]));
+
+        return equipmentItems;
+      },
+      remove: async (names: string | string[]) => {
+        for (const equipmentName of Array.isArray(names) ? names : [names]) {
+          const index = equipmentItems.findIndex((item) => item.equipmentName === equipmentName);
+
+          if (index >= 0) {
+            equipmentItems.splice(index, 1);
+          }
+        }
+
+        return equipmentItems;
+      },
+      clear: async () => {
+        equipmentItems.length = 0;
+      },
+      getAll: async () => equipmentItems,
+    },
+    orderHistory: {
+      add: async (order: OrderRecord) => {
+        orders.push(order);
+
+        return order;
+      },
+      getAll: async () => orders,
+      getRecent: async (limit = 10) => orders.slice(0, limit),
+    },
+    shoppingList: {
+      create: async ({ name, items }: CreateShoppingListInput) => {
+        const record: ShoppingListRecord = {
+          id: `list_${crypto.randomUUID()}`,
+          name,
+          items: items.map((item) => ({
+            ...item,
+            id: crypto.randomUUID(),
+            checked: false,
+          })),
+          createdAt: new Date().toISOString(),
+        };
+
+        createdLists.push(record);
+
+        return record;
+      },
+      get: async (id: string) => createdLists.find((list) => list.id === id) ?? null,
+      list: async () =>
+        createdLists.map((list) => ({
+          id: list.id,
+          name: list.name,
+          itemCount: list.items.length,
+          updatedAt: list.createdAt,
+        })),
+      addItems: async (id, items) => {
+        const stored = items.map((item) => ({
+          ...item,
+          id: crypto.randomUUID(),
+          checked: false,
+        }));
+
+        requireList(id).items.push(...stored);
+
+        return stored;
+      },
+      updateItem: async (listId, itemId, patch) => {
+        const item = requireList(listId).items.find((candidate) => candidate.id === itemId);
+
+        if (!item) {
+          throw new Error(`Missing item ${itemId}`);
+        }
+
+        Object.assign(item, patch);
+
+        return item;
+      },
+      removeItem: async (listId, itemId) => {
+        const list = requireList(listId);
+        list.items = list.items.filter((item) => item.id !== itemId);
+      },
+    },
+    operations: cartOperationStore(),
+    cartSnapshot: {
+      get: async (id: string) => snapshots.get(id) ?? null,
+      set: async (id: string, items: CartSnapshotItem[]) => {
+        snapshots.set(id, items);
+      },
+      clear: async (id: string) => {
+        snapshots.delete(id);
+      },
+    },
+    cartMirror: {
+      getAll: async () => [],
+      append: async (items: CartSnapshotItem[], addedAt: string) =>
+        items.map((item) => ({ ...item, addedAt })),
+      clear: async () => {},
+    },
+    cartId: {
+      get: async () => null,
+      set: async () => {},
+    },
+    preferredLocation: {
+      set: async (location: PreferredLocation) => {
+        preferredLocations.push(location);
+      },
+      get: async () => preferredLocations.at(-1) ?? null,
+      delete: async () => {
+        preferredLocations.length = 0;
+      },
+    },
+  };
+
+  return { ...storage, ...overrides };
+}
+
+/**
+ * Builds a `ProductService` stub for tests that don't need a real
+ * `productClient`. `enrichProductNames` resolves from `nameByUpc`, falling
+ * back to `null` (the same fallback-to-upc behavior production code gets)
+ * for any upc not in the map.
+ */
+export function makeProductService(
+  nameByUpc: Record<string, string> = {},
+): Pick<ProductService, "getProduct" | "enrichProductNames" | "resolveProducts"> {
+  return {
+    getProduct: () => {
+      throw new Error("ProductService.getProduct stub not configured for this test");
+    },
+    enrichProductNames: async (upcs: string[]) => ok(upcs.map((upc) => nameByUpc[upc] ?? null)),
+    resolveProducts: async () => ok({ results: [], exactUpcs: new Set<string>() }),
+  };
+}
+
+export type ToolTestContext = {
+  server: McpServer;
+  cartClient: KrogerClients["cartClient"];
+  productClient: KrogerClients["productClient"];
+  locationClient: KrogerClients["locationClient"];
+  productService: Pick<ProductService, "getProduct" | "enrichProductNames" | "resolveProducts">;
+  storage: ShoppingStore & CartStore;
+  carts: CartStore;
+  preferredLocation: PreferredLocationStore;
+  pantry: PantryStore;
+  equipment: EquipmentStore;
+  orderHistory: OrderHistoryStore;
+  shoppingList: ShoppingListStore;
+  /** Optional raw binding retained for cache fixture setup. */
+  cache: KvLike | null;
+  weeklyDealsCache: WeeklyDealsCache;
+  fetchDeals: typeof getQfcWeeklyDeals;
+  loadWeeklyDeals(params: WeeklyDealsLoadParams): ReturnType<WeeklyDealsLoader>;
+};
+
+/** Shared fixture for integration-style tool tests; each registrar picks its own inputs. */
+export function makeContext(storage = makeStorage(), productService = makeProductService()) {
+  const server = capturingServer(testState.capturedTools, () => testState.authContext);
+
+  const context: ToolTestContext = {
+    server,
+    cartClient: cartClient(async () => new Response(null, { status: 204 })),
+    productClient: productClient(async () => Response.json({ data: [] })),
+    locationClient: locationClient(async () => {
+      throw new Error("Unexpected location request");
+    }),
+    productService,
+    storage,
+    get carts() {
+      return context.storage;
+    },
+    get preferredLocation() {
+      return context.storage.preferredLocation;
+    },
+    get pantry() {
+      return context.storage.pantry;
+    },
+    get equipment() {
+      return context.storage.equipment;
+    },
+    get orderHistory() {
+      return context.storage.orderHistory;
+    },
+    get shoppingList() {
+      return context.storage.shoppingList;
+    },
+    cache: null,
+    get weeklyDealsCache() {
+      return createWeeklyDealsCache(context.cache);
+    },
+    fetchDeals: getQfcWeeklyDeals,
+    loadWeeklyDeals(params: WeeklyDealsLoadParams): ReturnType<WeeklyDealsLoader> {
+      return createWeeklyDealsLoader({
+        fetchDeals: context.fetchDeals,
+        preferredLocation: context.preferredLocation,
+        productClient: context.productClient,
+        weeklyDealsCache: context.weeklyDealsCache,
+      })(params);
+    },
+  };
+
+  return context;
+}
+
+export function makeCartContext(
+  storage: ShoppingStore & CartStore,
+  cartStatus = 204,
+  productService = makeProductService(),
+) {
+  const context = makeContext(storage, productService);
+  context.cartClient = cartClient(async () => new Response(null, { status: cartStatus }));
+
+  return context;
+}
+
+export function getCapturedHandler(name: string): ToolHandler {
+  const tool = testState.capturedTools.find((captured) => captured.name === name);
+
+  if (!tool) {
+    throw new Error(`Tool ${name} was not captured`);
+  }
+
+  return tool.handler;
+}
+
+export function getCapturedTool(name: string): CapturedTool {
+  const tool = testState.capturedTools.find((captured) => captured.name === name);
+
+  if (!tool) {
+    throw new Error(`Tool ${name} was not captured`);
+  }
+
+  return tool;
+}
