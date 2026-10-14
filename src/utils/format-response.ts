@@ -40,10 +40,8 @@ type Location = LocationComponents["schemas"]["locations.location"];
  * Format: Name x qty | Exp: date
  */
 export function formatPantryItemCompact(item: PantryItem): string {
-  const parts: string[] = [];
-
   // Name and quantity
-  parts.push(`${item.productName} x${item.quantity}`);
+  const parts: string[] = [`${item.productName} x${item.quantity}`];
 
   // Expiry with urgency indicator
   if (item.expiresAt) {
@@ -120,10 +118,8 @@ export function formatOrderHistoryCompact(orders: OrderRecord[]): string {
  * Format: Name | Category
  */
 export function formatEquipmentItemCompact(item: EquipmentItem): string {
-  const parts: string[] = [];
-
   // Name
-  parts.push(item.equipmentName);
+  const parts: string[] = [item.equipmentName];
 
   // Category
   if (item.category) {
@@ -170,9 +166,7 @@ export function formatListSize(items: readonly ShoppingListItem[]): string {
 }
 
 export function formatShoppingListItemCompact(item: ShoppingListItem): string {
-  const parts: string[] = [];
-
-  parts.push(`${item.productName} x${item.quantity}`);
+  const parts: string[] = [`${item.productName} x${item.quantity}`];
 
   if (item.upc) {
     parts.push(`upc=${item.upc}`);

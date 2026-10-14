@@ -32,6 +32,7 @@ export const selectedActualSchema = z.looseObject({
 });
 
 const actualSchema = z.union([selectedActualSchema, z.literal("unresolved"), z.literal("error")]);
+
 const expectedSchema = z.union([z.array(selectedActualSchema), z.literal("unresolved")]);
 
 export const selectorBodySchema = z.looseObject({
@@ -127,12 +128,14 @@ const usageResponseSchema = z.looseObject({
 /** @param {unknown} response */
 export function responseUsage(response) {
   const parsed = usageResponseSchema.safeParse(response);
+
   return parsed.success ? parsed.data.usage : undefined;
 }
 
 /** @param {unknown} response */
 export function responseAnswers(response) {
   const parsed = answerResponseSchema.safeParse(response);
+
   return parsed.success ? parsed.data.answers : undefined;
 }
 

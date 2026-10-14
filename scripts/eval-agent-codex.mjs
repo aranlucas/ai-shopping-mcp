@@ -69,8 +69,9 @@ async function readJson(request) {
 
   for await (const chunk of request) {
     if (!Buffer.isBuffer(chunk)) {
-      throw new Error("Expected a binary request body");
+      throw new TypeError("Expected a binary request body");
     }
+
     chunks.push(chunk);
   }
 
@@ -154,9 +155,11 @@ server.listen(0, "127.0.0.1");
 await once(server, "listening");
 
 const address = server.address();
+
 if (!address || typeof address === "string") {
   throw new Error("Codex eval driver did not bind a TCP port");
 }
+
 const port = address.port;
 
 const driver = { url: `http://127.0.0.1:${port}`, directory };
@@ -181,6 +184,7 @@ const child = spawn(
 
 /** @type {NodeJS.Signals[]} */
 const signals = ["SIGINT", "SIGTERM"];
+
 for (const signal of signals) {
   process.on(signal, () => child.kill(signal));
 }

@@ -218,7 +218,7 @@ const CATEGORY_KEYWORDS: Record<KeywordCategory, string[]> = {
 };
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 const CATEGORY_PATTERNS: Array<CategoryPattern> =
@@ -234,7 +234,7 @@ const CATEGORY_PATTERNS: Array<CategoryPattern> =
 function normalizeTitle(title: string): string {
   return title
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll(/[\u0300-\u036F]/g, "")
     .toLowerCase();
 }
 

@@ -206,8 +206,8 @@ Found while building and running the agent eval. See
 - **M4. Stale generated types pass silently.** CI regenerates
   `worker-configuration.d.ts` before typechecking; fail instead when the
   committed copy differs (`git diff --exit-code` after `cf-typegen`).
-- **M5. Leftover config.** `.oxlintrc.tailwind.json` allowlists class names from
-  another project (`oral-boards-shell`, `cn-input-otp`, `toaster`).
+- **M5. Resolved: leftover config.** Removed the unused `.oxlintrc.tailwind.json`;
+  the active shared Oxforge Tailwind preset validates the views without the unrelated allowlist.
 - **M6. `compatibility_date` is `2025-03-10`.** Update it deliberately, together
   with the copy hard-coded in `vitest.config.ts`.
 

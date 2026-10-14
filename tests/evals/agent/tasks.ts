@@ -193,7 +193,7 @@ export const AGENT_TASKS: AgentTask[] = [
         cartText(cart),
       ),
       check("butter left out ($12.76 would exceed $10)", !cartHas(cart, [BUTTER]), cartText(cart)),
-      check("reports the $8.27 total", /8\.27/.test(answer), answer),
+      check("reports the $8.27 total", answer.includes("8.27"), answer),
     ],
   },
   {

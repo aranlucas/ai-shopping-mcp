@@ -14,13 +14,15 @@ export function strictFake<T extends object>(members: Partial<T>, options: FakeO
   const methods = new WeakMap<Method, Method>();
 
   const proxy = new Proxy(members, {
-    get(target, key) {
+    // A Proxy can be probed with any runtime property key, so its boundary result is unknown.
+    get(target, key): unknown {
       let descriptor: PropertyDescriptor | undefined;
 
       let owner: object | null = target;
+
       while (owner !== null && !descriptor) {
         descriptor = Object.getOwnPropertyDescriptor(owner, key);
-        // Object.getPrototypeOf returns an object or null; retain the exact prototype.
+        // SAFETY: Object.getPrototypeOf returns an object or null; retain the exact prototype.
         owner = Object.getPrototypeOf(owner) as object | null;
       }
 

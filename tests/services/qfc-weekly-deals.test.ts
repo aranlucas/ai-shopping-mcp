@@ -426,9 +426,11 @@ describe("getQfcWeeklyDeals", () => {
       async (count) => {
         fetchMock.mockImplementation((input: string | Request | URL) => {
           const url = urlOf(input);
+
           if (url.includes("digitalads/v1/circulars")) {
             return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
           }
+
           if (url.includes("/api/dacs/evt-print-1?")) {
             return Promise.resolve(
               mockOkResponse({
@@ -437,9 +439,11 @@ describe("getQfcWeeklyDeals", () => {
               }),
             );
           }
+
           if (url.includes("/pages/page-1")) {
             return Promise.resolve(mockOkResponse(MOCK_PAGE_RESPONSE));
           }
+
           if (url.includes("/pages/page-2")) {
             return Promise.resolve(
               mockOkResponse({
@@ -450,6 +454,7 @@ describe("getQfcWeeklyDeals", () => {
               }),
             );
           }
+
           return Promise.reject(new Error(`Unmocked URL: ${url}`));
         });
         const result = await getQfcWeeklyDeals({ locationId: "", pageLimit: count, limit: count });

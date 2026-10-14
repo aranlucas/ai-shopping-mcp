@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import { Preview } from "./preview-app.js";
 
 if (import.meta.env.DEV) {
-  const element = document.getElementById("root");
+  const element = document.querySelector("#root");
 
   if (!element) {
     throw new Error("Preview root element is missing");

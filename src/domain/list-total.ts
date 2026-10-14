@@ -1,4 +1,5 @@
 type PricedQuantity = { quantity: number; price?: number };
+
 /** Sum of known unit prices times quantity; unpriced items are skipped. */
 export function estimateListTotal(items: ReadonlyArray<PricedQuantity>) {
   let total = 0;

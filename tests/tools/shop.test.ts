@@ -212,6 +212,7 @@ describe("shop_for_items product options", () => {
         term: "bread",
         failed: true,
         products: [],
+        // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
         error: expect.any(String) as unknown,
       }),
     ]);

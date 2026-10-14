@@ -480,6 +480,7 @@ describe("search_products", () => {
       "/v1/products",
       expect.objectContaining({
         params: {
+          // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
           query: expect.objectContaining({ "filter.locationId": "99887766" }) as unknown,
         },
       }),

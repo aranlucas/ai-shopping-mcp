@@ -173,11 +173,13 @@ describe("Jev product selection", () => {
           "Content-Type": "application/json",
           "cf-aig-max-attempts": "1",
         },
+        // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
         query: expect.objectContaining({
           model: "typesafe/jev-1.13",
           state: { items: { item_0: { requestedItem: "milk" } } },
         }) as unknown,
       },
+      // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
       { signal: expect.any(AbortSignal) as unknown },
     );
   });

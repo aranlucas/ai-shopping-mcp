@@ -52,9 +52,11 @@ describe("error constructors", () => {
       expect(apiError("failed", false).detail).toBe("false");
       expect(apiError("failed", 42n).detail).toBe("42");
       expect(apiError("failed", Symbol("cause")).detail).toBe("Symbol(cause)");
+
       const callable = Object.assign(() => {}, {
         [Symbol.toPrimitive]: () => "custom callable cause",
       });
+
       expect(apiError("failed", callable).detail).toBe("custom callable cause");
     });
 

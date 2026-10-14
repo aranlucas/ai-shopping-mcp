@@ -277,7 +277,9 @@ export function Preview() {
     () => ({
       callServerTool: async (call: ToolCall) => {
         setLastAction(`Calling ${call.name}…`);
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 600);
+        });
 
         if (unknownCart && call.name === "add_shopping_list_to_cart") {
           return {
@@ -385,7 +387,9 @@ export function Preview() {
       },
       sendMessage: async () => {
         setLastAction("Asking assistant…");
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 600);
+        });
 
         if (fail) {
           return { isError: true };
@@ -396,7 +400,7 @@ export function Preview() {
         return {};
       },
       updateModelContext: async () => ({}),
-      getHostCapabilities: () => undefined,
+      getHostCapabilities: () => {},
       openLink: async () => {
         throw new Error("Preview host does not support external links");
       },

@@ -13,10 +13,13 @@ function parseSeed(body) {
   ) {
     throw new Error("Invalid auth seed");
   }
+
   const token = body.token;
+
   if (token === null) {
     return { userId: body.userId, token: null };
   }
+
   if (
     typeof token !== "object" ||
     !("accessToken" in token) ||
@@ -26,6 +29,7 @@ function parseSeed(body) {
   ) {
     throw new Error("Invalid auth token seed");
   }
+
   return {
     userId: body.userId,
     token: { accessToken: token.accessToken, expiresAt: token.expiresAt },

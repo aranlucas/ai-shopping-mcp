@@ -20,7 +20,7 @@ const testState: TestState = { capturedTools: [] };
 
 function makeDependencies() {
   const context = makeContext();
-  context.server = capturingServer(testState.capturedTools, () => undefined);
+  context.server = capturingServer(testState.capturedTools, () => {});
 
   return context;
 }
@@ -135,9 +135,13 @@ describe("MCP agent contract", () => {
       );
       expect(tool.config.inputSchema, `${tool.name} inputSchema`).toBeDefined();
       expect(tool.config.annotations, `${tool.name} annotations`).toMatchObject({
+        // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
         readOnlyHint: expect.any(Boolean) as unknown,
+        // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
         destructiveHint: expect.any(Boolean) as unknown,
+        // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
         idempotentHint: expect.any(Boolean) as unknown,
+        // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
         openWorldHint: expect.any(Boolean) as unknown,
       });
     }

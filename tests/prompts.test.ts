@@ -79,7 +79,7 @@ function getPrompt(name: string): CapturedPrompt {
 }
 
 async function callPrompt(name: string, args: PromptArgs = {}): Promise<PromptResult> {
-  return await getPrompt(name).handler(args);
+  return getPrompt(name).handler(args);
 }
 
 function getText(result: PromptResult): string {

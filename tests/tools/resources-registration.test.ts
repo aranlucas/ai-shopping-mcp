@@ -214,7 +214,7 @@ function getResource(name: string): CapturedResource {
 }
 
 async function callResource(name: string, uri = "shopping://x") {
-  return await getResource(name).handler(new URL(uri));
+  return getResource(name).handler(new URL(uri));
 }
 
 function getCompleteFn(name: string, field: string): CompleteFn {
