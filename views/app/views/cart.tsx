@@ -63,7 +63,7 @@ export function CartView({ data, app }: CartViewProps) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6">
       <SectionHeader title="Kroger cart" badge={headerBadge} subtitle={subtitle} />
-      {note && <p className="mb-3 text-sm text-gray-600">{note}</p>}
+      {note && <p className="mbe-3 text-sm text-gray-600">{note}</p>}
       {items.length === 0 ? (
         <EmptyState
           icon={EMPTY_CART_ICON}
@@ -79,7 +79,7 @@ export function CartView({ data, app }: CartViewProps) {
                   {item.productName ?? item.upc}
                 </div>
                 {item.modality && (
-                  <div className="mt-0.5 text-xs text-gray-500">
+                  <div className="mbs-0.5 text-xs text-gray-500">
                     {item.modality === "DELIVERY" ? "Delivery" : "Pickup"}
                   </div>
                 )}
@@ -91,7 +91,7 @@ export function CartView({ data, app }: CartViewProps) {
           ))}
         </ul>
       )}
-      <div className="mt-4">
+      <div className="mbs-4">
         <CartCheckLink app={app} label="Open Kroger cart to check out" />
       </div>
     </div>

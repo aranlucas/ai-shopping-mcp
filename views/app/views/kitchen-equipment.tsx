@@ -95,7 +95,7 @@ function KitchenEquipmentRow({ item, canCallTools, onRemove }: EquipmentItemProp
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-gray-900">{item.equipmentName}</div>
         {item.category && (
-          <div className="mt-0.5">
+          <div className="mbs-0.5">
             <Badge variant="secondary" tone="muted">
               {item.category}
             </Badge>
@@ -155,7 +155,7 @@ export function KitchenEquipmentView({
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">
+        <h1 className="mbe-1 text-sm font-semibold tracking-tight text-gray-900">
           Kitchen Equipment
         </h1>
         <EmptyState

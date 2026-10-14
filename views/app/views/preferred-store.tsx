@@ -8,7 +8,7 @@ export function PreferredStoreView({ data }: PreferredStoreViewProps) {
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2.5 border-be border-border px-4 py-3">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-600">
             <svg
               aria-hidden="true"

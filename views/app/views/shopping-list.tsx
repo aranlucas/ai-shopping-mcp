@@ -163,7 +163,7 @@ function ShoppingItemRow({ item, canEdit, onEdit }: ShoppingListItemProps) {
         checked={checked}
         disabled={!editable}
         onChange={handleChecked}
-        className="mt-1 size-4 shrink-0 accent-primary"
+        className="mbs-1 size-4 shrink-0 accent-primary"
       />
       <div className="min-w-0 flex-1">
         <label
@@ -172,7 +172,7 @@ function ShoppingItemRow({ item, canEdit, onEdit }: ShoppingListItemProps) {
         >
           {name}
         </label>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
+        <div className="mbs-1 flex flex-wrap items-center gap-2">
           {!item.upc && (
             <Badge variant="outline" tone="warning">
               Needs Kroger match
@@ -186,12 +186,12 @@ function ShoppingItemRow({ item, canEdit, onEdit }: ShoppingListItemProps) {
           )}
         </div>
         {item.notes && (
-          <p className="mt-1.5 text-sm leading-relaxed wrap-break-word text-gray-500">
+          <p className="mbs-1.5 text-sm leading-relaxed wrap-break-word text-gray-500">
             {item.notes}
           </p>
         )}
         {error && (
-          <p role="alert" className="mt-1.5 text-sm text-red-600">
+          <p role="alert" className="mbs-1.5 text-sm text-red-600">
             {error}
           </p>
         )}
@@ -362,8 +362,8 @@ export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingL
         />
       ) : (
         <>
-          <div className="mb-2 border-b border-border pb-5">
-            <p className="mb-3 text-sm text-gray-600">
+          <div className="mbe-2 border-be border-border pbe-5">
+            <p className="mbe-3 text-sm text-gray-600">
               {readyItems.length} of {items.length} items ready for your Kroger pickup cart.
               {unmatchedItems.length > 0 && ` ${unmatchedItems.length} still need a Kroger match.`}
               {checkedCount > 0 && ` ${checkedCount} checked off.`}
@@ -410,28 +410,28 @@ export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingL
               )}
             </div>
             {cart.state.status === "added" && (
-              <output className="mt-3 block text-sm text-emerald-700">
+              <output className="mbs-3 block text-sm text-emerald-700">
                 Added to your pickup cart. Review your cart in Kroger to complete your purchase,
                 then mark it as purchased here.
               </output>
             )}
             {purchaseState === "done" && (
-              <output className="mt-3 block text-sm text-emerald-700">
+              <output className="mbs-3 block text-sm text-emerald-700">
                 Recorded in your order history.
               </output>
             )}
             {purchaseError && (
-              <p role="alert" className="mt-3 text-sm text-red-600">
+              <p role="alert" className="mbs-3 text-sm text-red-600">
                 {purchaseError}
               </p>
             )}
             {matchError && (
-              <p role="alert" className="mt-3 text-sm text-red-600">
+              <p role="alert" className="mbs-3 text-sm text-red-600">
                 {matchError}
               </p>
             )}
             {!canCallTools && (
-              <p className="mt-3 text-sm text-gray-500">
+              <p className="mbs-3 text-sm text-gray-500">
                 Ask your assistant to add these items to your cart.
               </p>
             )}

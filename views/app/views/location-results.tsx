@@ -118,7 +118,7 @@ function LocationCard({
   return (
     <div className="rounded-lg border border-border bg-card p-3 transition-all duration-150 hover:border-primary/20 hover:shadow-sm">
       {/* Header */}
-      <div className="mb-2 flex items-start gap-2">
+      <div className="mbe-2 flex items-start gap-2">
         <div className="flex size-7 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-500">
           <svg
             aria-hidden="true"
@@ -140,7 +140,7 @@ function LocationCard({
             {location.name?.length ? location.name : "Unknown Store"}
           </div>
           {location.chain && (
-            <div className="mt-0.5">
+            <div className="mbs-0.5">
               <Badge variant="secondary" tone="muted">
                 {location.chain}
               </Badge>
@@ -151,10 +151,10 @@ function LocationCard({
 
       {/* Address */}
       {location.address && (
-        <div className="mb-1 flex items-start gap-1 text-xs text-gray-500">
+        <div className="mbe-1 flex items-start gap-1 text-xs text-gray-500">
           <svg
             aria-hidden="true"
-            className="mt-0.5 size-3 shrink-0 text-gray-400"
+            className="mbs-0.5 size-3 shrink-0 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={2}
@@ -202,7 +202,7 @@ function LocationCard({
         </div>
       )}
       {location.phone && (
-        <div className="mb-1.5 flex items-center gap-1 text-xs text-gray-500">
+        <div className="mbe-1.5 flex items-center gap-1 text-xs text-gray-500">
           <svg
             aria-hidden="true"
             className="size-3 shrink-0 text-gray-400"
@@ -220,10 +220,10 @@ function LocationCard({
           {location.phone}
         </div>
       )}
-      <div className="mb-2.5 font-mono text-xs text-gray-300">{id}</div>
+      <div className="mbe-2.5 font-mono text-xs text-gray-300">{id}</div>
 
       {/* Actions */}
-      <div className="flex gap-1.5 border-t border-border pt-2.5">
+      <div className="flex gap-1.5 border-bs border-border pbs-2.5">
         <ActionButton
           state={prefState}
           onClick={handleSetPreferred}
@@ -306,7 +306,9 @@ export function LocationResultsView({
   if (stores.length === 0) {
     return (
       <div className="mx-auto max-w-4xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Store Locations</h1>
+        <h1 className="mbe-1 text-sm font-semibold tracking-tight text-gray-900">
+          Store Locations
+        </h1>
         <EmptyState
           icon={EMPTY_LOCATIONS_ICON}
           message="No locations found"

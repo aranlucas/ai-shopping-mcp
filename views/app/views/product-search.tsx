@@ -74,7 +74,7 @@ function ProductCarousel({ app, products, onAddToList, canCallTools }: ProductRe
         ))}
       </CarouselContent>
       {products.length > 1 && (
-        <div className="mt-3 flex items-center justify-end gap-2">
+        <div className="mbs-3 flex items-center justify-end gap-2">
           <span className="me-auto text-xs text-gray-500">Swipe or use the arrows to compare</span>
           <CarouselPrevious size="icon-lg" className="static translate-y-0" />
           <CarouselNext size="icon-lg" className="static translate-y-0" />
@@ -137,7 +137,7 @@ export function ProductSearchView({
             <div
               key={result.requestId ?? result.term}
               role="alert"
-              className="mb-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
+              className="mbe-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
             >
               <svg
                 aria-hidden="true"
@@ -162,8 +162,8 @@ export function ProductSearchView({
 
         if (result.products.length === 0) {
           return (
-            <div key={result.requestId ?? result.term} className="mb-5">
-              <div className="mb-1.5 flex items-center gap-2">
+            <div key={result.requestId ?? result.term} className="mbe-5">
+              <div className="mbe-1.5 flex items-center gap-2">
                 <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                   {result.term}
                 </span>
@@ -175,8 +175,8 @@ export function ProductSearchView({
         }
 
         return (
-          <section key={result.requestId ?? result.term} className="mb-7 last:mb-0">
-            <div className="mb-3 flex flex-wrap items-baseline gap-2">
+          <section key={result.requestId ?? result.term} className="mbe-7 last:mbe-0">
+            <div className="mbe-3 flex flex-wrap items-baseline gap-2">
               <h2 className="text-sm font-semibold text-gray-900">{result.term}</h2>
               <span className="text-xs text-gray-500">{result.products.length} items</span>
             </div>

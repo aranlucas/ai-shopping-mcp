@@ -110,7 +110,7 @@ const PLUS_ICON = (
 
 export function SectionHeader({ title, badge, subtitle, trailing }: SectionHeaderProps) {
   return (
-    <div className="mb-5">
+    <div className="mbe-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-lg font-semibold tracking-tight wrap-break-word text-gray-900">
@@ -120,7 +120,7 @@ export function SectionHeader({ title, badge, subtitle, trailing }: SectionHeade
         </div>
         {trailing}
       </div>
-      {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
+      {subtitle && <p className="mbs-1 text-sm text-gray-500">{subtitle}</p>}
     </div>
   );
 }
@@ -187,7 +187,7 @@ export function FulfillmentTags({ product }: ProductDisplayProps) {
   }
 
   return (
-    <div className="mt-1.5 flex flex-wrap gap-1">
+    <div className="mbs-1.5 flex flex-wrap gap-1">
       {tags.map((t) => (
         <Badge key={t.label} variant="outline" tone={t.tone}>
           {t.label}
@@ -365,7 +365,7 @@ export function CartActionControl({ app, state, onSubmit, ...labels }: CartButto
   if (state.status === "needs_match") {
     return (
       <div>
-        <p role="alert" className="mt-2 text-sm text-amber-700">
+        <p role="alert" className="mbs-2 text-sm text-amber-700">
           {state.message}
         </p>
       </div>
@@ -375,7 +375,7 @@ export function CartActionControl({ app, state, onSubmit, ...labels }: CartButto
   if (state.status === "check_list") {
     return (
       <div>
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mbs-2 text-sm text-red-600">
           {state.message}
         </p>
       </div>
@@ -401,7 +401,7 @@ export function CartActionControl({ app, state, onSubmit, ...labels }: CartButto
       {"message" in state && (
         <p
           role="alert"
-          className={`mt-2 text-sm ${
+          className={`mbs-2 text-sm ${
             state.status === "already_added" ? "text-emerald-700" : "text-red-600"
           }`}
         >
@@ -657,20 +657,20 @@ export function ProductCard({ app, product, canCallTools, onAddToList }: Product
       : undefined;
 
   return (
-    <Card size="sm" className="h-full gap-3 pt-0">
+    <Card size="sm" className="h-full gap-3 pbs-0">
       <ProductImage product={product} />
-      <CardContent className="flex flex-1 flex-col pt-2">
+      <CardContent className="flex flex-1 flex-col pbs-2">
         <div className="flex-1">
           <h3 className="text-sm leading-snug font-semibold text-gray-900">{name}</h3>
           {(Boolean(brand) || Boolean(size)) && (
-            <div className="mt-0.5 text-xs text-gray-400">
+            <div className="mbs-0.5 text-xs text-gray-400">
               {brand}
               {brand && size && " · "}
               {size}
             </div>
           )}
           {aisle && (
-            <div className="mt-0.5 flex items-center gap-0.5 text-xs text-gray-400">
+            <div className="mbs-0.5 flex items-center gap-0.5 text-xs text-gray-400">
               <svg
                 aria-hidden="true"
                 className="size-2.5 shrink-0"
@@ -694,14 +694,14 @@ export function ProductCard({ app, product, canCallTools, onAddToList }: Product
             </div>
           )}
         </div>
-        <div className="mt-1.5">
+        <div className="mbs-1.5">
           <PriceDisplay product={product} />
         </div>
         <div className="min-h-7">
           <FulfillmentTags product={product} />
         </div>
       </CardContent>
-      <CardFooter className="pt-2">
+      <CardFooter className="pbs-2">
         <ProductActions
           app={app}
           upc={upc}

@@ -99,9 +99,9 @@ function DealCard({ deal, canCallTools, canMessage, onSearch, onPlanMeal }: Deal
       <CardContent className="flex-1">
         <h3 className="text-base leading-snug font-semibold text-gray-900">{deal.title}</h3>
         {deal.details && (
-          <p className="mt-1.5 text-sm leading-relaxed text-gray-500">{deal.details}</p>
+          <p className="mbs-1.5 text-sm leading-relaxed text-gray-500">{deal.details}</p>
         )}
-        <div className="mt-4 flex flex-wrap items-baseline gap-2">
+        <div className="mbs-4 flex flex-wrap items-baseline gap-2">
           <span className="text-xl leading-snug font-semibold text-emerald-600 tabular-nums">
             {deal.price?.length ? deal.price : "See ad"}
           </span>
@@ -294,7 +294,7 @@ export function WeeklyDealsView({ data, app, canCallTools, hostContext }: Weekly
         <div
           role="note"
           aria-label="Deal availability"
-          className="mb-5 rounded-lg bg-amber-50 p-3 text-sm leading-relaxed text-amber-700"
+          className="mbe-5 rounded-lg bg-amber-50 p-3 text-sm leading-relaxed text-amber-700"
         >
           {warnings.map((warning) => (
             <p key={warning}>{warning}</p>
@@ -310,7 +310,7 @@ export function WeeklyDealsView({ data, app, canCallTools, hostContext }: Weekly
       ) : (
         <>
           {groups.length > 1 && (
-            <div className="mb-5 flex flex-wrap items-center gap-3">
+            <div className="mbe-5 flex flex-wrap items-center gap-3">
               <label htmlFor="deal-category" className="text-sm font-medium text-gray-700">
                 Category
               </label>
@@ -330,8 +330,8 @@ export function WeeklyDealsView({ data, app, canCallTools, hostContext }: Weekly
             </div>
           )}
           {visibleGroups.map((group) => (
-            <section key={group.category} className="mb-7 last:mb-0">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">
+            <section key={group.category} className="mbe-7 last:mbe-0">
+              <h2 className="mbe-3 text-sm font-semibold text-gray-700">
                 {group.category}{" "}
                 <span className="ms-1 font-normal text-gray-500">· {group.deals.length}</span>
               </h2>

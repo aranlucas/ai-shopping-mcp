@@ -73,7 +73,7 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         {/* Header */}
-        <div className="border-b border-border px-4 pt-4 pb-3">
+        <div className="border-be border-border px-4 pbs-4 pbe-3">
           <div className="flex items-start gap-2.5">
             <div className="flex size-8 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-500">
               <svg
@@ -96,7 +96,7 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
                 {location.name?.length ? location.name : "Unknown Store"}
               </h1>
               {location.chain && (
-                <div className="mt-0.5">
+                <div className="mbs-0.5">
                   <Badge variant="secondary" tone="muted">
                     {location.chain}
                   </Badge>
@@ -110,13 +110,13 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
         <div className="flex flex-col gap-3 px-4 py-3">
           {location.address && (
             <div>
-              <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              <p className="mbe-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Address
               </p>
               <div className="flex items-start gap-1.5 text-xs text-gray-700">
                 <svg
                   aria-hidden="true"
-                  className="mt-0.5 size-3.5 shrink-0 text-gray-400"
+                  className="mbs-0.5 size-3.5 shrink-0 text-gray-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={2}
@@ -144,7 +144,7 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
 
           {location.phone && (
             <div>
-              <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              <p className="mbe-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Phone
               </p>
               <div className="flex items-center gap-1.5 text-xs text-gray-700">
@@ -169,7 +169,7 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
 
           {location.departments && location.departments.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              <p className="mbe-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Departments · {location.departments.length}
               </p>
               <div className="flex flex-wrap gap-1">
@@ -185,7 +185,7 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
           )}
 
           <div>
-            <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+            <p className="mbe-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
               Location ID
             </p>
             <p className="font-mono text-xs text-gray-400">{id}</p>
@@ -193,7 +193,7 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
         </div>
 
         {/* Action */}
-        <div className="flex gap-1.5 px-4 pt-1 pb-4">
+        <div className="flex gap-1.5 px-4 pbs-1 pbe-4">
           <ActionButton
             state={prefState}
             onClick={handleSetPreferred}

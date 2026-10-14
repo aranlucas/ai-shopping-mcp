@@ -59,7 +59,7 @@ export function AddToCartView({ data }: AddToCartViewProps) {
 
       {items.length > 0 && (
         <>
-          <div className="mb-3 flex flex-wrap gap-1.5">
+          <div className="mbe-3 flex flex-wrap gap-1.5">
             <Badge variant="secondary" tone="success">
               {addedCount} {outcome === "already_added" ? "already added" : "added"}
             </Badge>
@@ -71,7 +71,7 @@ export function AddToCartView({ data }: AddToCartViewProps) {
           </div>
 
           {requestedCount > addedCount && (
-            <p className="mb-3 text-sm text-amber-700">
+            <p className="mbe-3 text-sm text-amber-700">
               {requestedCount - addedCount} item(s) still need a Kroger match.
             </p>
           )}
@@ -95,7 +95,7 @@ export function AddToCartView({ data }: AddToCartViewProps) {
                   <div className="truncate text-sm leading-snug font-medium text-gray-900">
                     {item.productName ?? item.upc}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-1.5">
+                  <div className="mbs-0.5 flex items-center gap-1.5">
                     <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
                     <span className="font-mono text-xs text-gray-400">{item.modality}</span>
                   </div>
@@ -107,8 +107,8 @@ export function AddToCartView({ data }: AddToCartViewProps) {
       )}
 
       {needsUpc.length > 0 && (
-        <div className="mt-4">
-          <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+        <div className="mbs-4">
+          <p className="mbe-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
             Need a UPC · {needsUpc.length}
           </p>
           <div className="divide-y divide-border">
