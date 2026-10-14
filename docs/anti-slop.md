@@ -9,7 +9,7 @@ All 18 generic rules and native `oxc/no-accumulating-spread` run in the existing
 CI lint job, alongside the existing type-aware lint, formatting, typecheck,
 view build, and test jobs. The package ships no Effect rules; this project has
 no direct Effect dependency. Application Vitest discovery remains under
-`tests/`, with a Node project for real cross-realm function checks and the
+`test/`, with a Node project for real cross-realm function checks and the
 existing Worker project for application tests.
 
 ## Generated files
@@ -41,8 +41,8 @@ untrusted values in aliases or replacing them with `any`:
   before consumption, preserving misspelled zip-key compatibility.
 - `src/services/kroger/weekly-deals.d.ts`: undocumented upstream metadata stays
   opaque and is not consumed as a normalized application contract.
-- `tests/v2-tool-handler.ts`: raw SDK output is checked by the native SDK schema.
-- `tests/evals/harness.ts`: token estimation delegates arbitrary values to
+- `test/v2-tool-handler.ts`: raw SDK output is checked by the native SDK schema.
+- `test/evals/harness.ts`: token estimation delegates arbitrary values to
   JSON.stringify without claiming application validation.
 
 Documented assertions preserve actual owner contracts: generated SDK success
@@ -51,7 +51,7 @@ correlation, finite category keys, D1 ordered batch results, native MCP JSON
 schema interoperability, SDK overloaded registration spy types, caller-owned
 KV JSON decoding, and checked strict capability adapters. The latter throws
 on missing capabilities rather than inventing results; its `typeof` override
-is limited to genuine type guards in `tests/strict-fake.ts`.
+is limited to genuine type guards in `test/strict-fake.ts`.
 
 Module-level mocks were replaced with actual MCP/Agents auth contexts, real
 McpServer registration/input validation, real openapi-fetch clients with local

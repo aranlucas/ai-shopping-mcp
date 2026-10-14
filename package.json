@@ -11,11 +11,11 @@
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "typecheck": "pnpm cf-typegen && tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
-    "eval:mcp": "vitest run tests/evals",
+    "eval:mcp": "vitest run test/evals",
     "eval:agent": "node scripts/eval-agent.mjs",
     "eval:agent:codex": "node scripts/eval-agent-codex.mjs",
     "eval:agent:summary": "node scripts/eval-agent-summary.mjs",
-    "test:selector:live": "node scripts/test-selector-live.mjs",
+    "test:selector:live": "node test/scripts/selector-live.test.mjs",
     "deploy": "pnpm build:worker && cf deploy --prebuilt",
     "deploy:preview": "pnpm build:views && cf previews deploy",
     "dev": "NODE_ENV=development concurrently \"pnpm watch\" \"pnpm start\"",
@@ -40,7 +40,7 @@
     "eval:agent:report": "vitest-evals serve eval-results",
     "format": "oxfmt --config oxfmt.config.ts --write",
     "format:check": "oxfmt --config oxfmt.config.ts --check",
-    "test:scripts": "vitest run --project node scripts"
+    "test:scripts": "vitest run --project node test/scripts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

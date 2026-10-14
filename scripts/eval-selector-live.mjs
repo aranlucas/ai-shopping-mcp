@@ -16,7 +16,7 @@ import {
   holdoutCases,
   expandedCandidates,
   shuffled,
-} from "./fixtures/jev-grocery-cases.mjs";
+} from "../test/scripts/fixtures/jev-grocery-cases.mjs";
 
 /** @param {{correct: boolean}[]} rows */
 const summarize = (rows) => ({
@@ -40,7 +40,7 @@ const outputPath =
   process.argv.slice(2).find((arg) => !arg.startsWith("--")) ?? "jev-evaluation-latest.json";
 
 const selectorSource = await readFile(
-  new URL("./fixtures/jev-product-selector.ts", import.meta.url),
+  new URL("../test/scripts/fixtures/jev-product-selector.ts", import.meta.url),
   "utf8",
 );
 

@@ -124,7 +124,7 @@
   },
   "overrides": [
     {
-      "files": ["tests/strict-fake.ts"],
+      "files": ["test/strict-fake.ts"],
       "rules": {
         "anti-slop/no-runtime-typeof": [
           "error",
@@ -163,7 +163,7 @@
       }
     },
     {
-      "files": ["tests/**/*.test.ts", "tests/**/*.ts"],
+      "files": ["test/**/*.test.ts", "test/**/*.ts"],
       "rules": {
         "typescript/no-explicit-any": "error"
       }
@@ -174,7 +174,7 @@
         "src/utils/result.ts",
         "src/utils/user-storage.ts",
         "scripts/eval-agent-codex.mjs",
-        "tests/auth-stub.mjs"
+        "test/auth-stub.mjs"
       ],
       "rules": {
         "anti-slop/no-runtime-typeof": "off"
@@ -184,8 +184,8 @@
       "files": [
         "src/utils/result.ts",
         "src/utils/toon.ts",
-        "tests/v2-tool-handler.ts",
-        "tests/evals/harness.ts"
+        "test/v2-tool-handler.ts",
+        "test/evals/harness.ts"
       ],
       "rules": {
         "anti-slop/no-unknown-parameters": "off"
@@ -210,7 +210,13 @@
       }
     },
     {
-      "files": ["scripts/**/*.mjs", "scripts/**/*.ts", "tests/evals/token-budget.eval.test.ts"],
+      "files": [
+        "scripts/**/*.mjs",
+        "scripts/**/*.ts",
+        "test/scripts/**/*.mjs",
+        "test/scripts/**/*.ts",
+        "test/evals/token-budget.eval.test.ts"
+      ],
       "rules": {
         "eslint/no-console": [
           "error",
@@ -222,7 +228,7 @@
     },
     {
       "files": [
-        "tests/**",
+        "test/**",
         "src/cart-operations.ts",
         "src/prompts.ts",
         "src/server.ts",
@@ -241,7 +247,7 @@
       }
     },
     {
-      "files": ["tests/utils/result.test.ts", "tests/utils/request-timeout.test.ts"],
+      "files": ["test/utils/result.test.ts", "test/utils/request-timeout.test.ts"],
       "rules": {
         "eslint/prefer-promise-reject-errors": "off",
         "typescript/prefer-promise-reject-errors": "off"
@@ -250,23 +256,23 @@
     {
       "files": [
         "views/shared/types.ts",
-        "tests/evals/agent/harness.ts",
+        "test/evals/agent/harness.ts",
         "views/app/tool-calls.ts",
         "views/app/views/weekly-deals.tsx",
-        "tests/evals/agent/codex-harness.ts"
+        "test/evals/agent/codex-harness.ts"
       ],
       "rules": {
         "unicorn/prefer-type-error": "off"
       }
     },
     {
-      "files": ["tests/evals/harness.ts"],
+      "files": ["test/evals/harness.ts"],
       "rules": {
         "unicorn/prefer-code-point": "off"
       }
     },
     {
-      "files": ["src/tools/weekly-deals.ts", "tests/tools/cart.test.ts"],
+      "files": ["src/tools/weekly-deals.ts", "test/tools/cart.test.ts"],
       "rules": {
         "unicorn/no-object-as-default-parameter": "off"
       }

@@ -1,6 +1,6 @@
 name: Agent Eval
 
-# Runs tests/evals/agent.eval.test.ts: free OpenRouter models drive the real
+# Runs test/evals/agent.eval.test.ts: free OpenRouter models drive the real
 # MCP server (Kroger fixtures) through realistic shopping tasks. Results are
 # reported in the job summary and as an artifact; task failures don't fail
 # the workflow, since they are signal about the tool surface, not a broken build.
@@ -23,8 +23,8 @@ on:
       - src/prompts.ts
       - src/server.ts
       - src/utils/format-response.ts
-      - tests/evals/agent/**
-      - tests/evals/agent.eval.test.ts
+      - test/evals/agent/**
+      - test/evals/agent.eval.test.ts
 
 permissions:
   contents: read

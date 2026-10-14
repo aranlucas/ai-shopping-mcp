@@ -1,0 +1,1074 @@
+import type { JsonInput } from "@test/json-input.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { components as ProductComponents } from "@/services/kroger/product.js";
+import type { ProductSearchFn } from "@/services/qfc-weekly-deals.js";
+
+import { AppErrorException, authError } from "@/errors.js";
+import { getQfcWeeklyDeals } from "@/services/qfc-weekly-deals.js";
+
+type ProductOptions = {
+  productId?: string;
+  description?: string;
+  regular?: number;
+  promo?: number;
+  categories?: string[];
+  size?: string;
+};
+
+type KrogerProduct = ProductComponents["schemas"]["products.productModel"];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function mockOkResponse(data: JsonInput): Response {
+  return new Response(JSON.stringify(data), { status: 200 });
+}
+
+function mockErrorResponse(status: number, data: JsonInput = {}): Response {
+  return new Response(JSON.stringify(data), { status });
+}
+
+/** Extract a URL string from any fetch input type. */
+function urlOf(input: string | Request | URL): string {
+  return input instanceof Request ? input.url : String(input);
+}
+
+/** Build a minimal Kroger product with optional pricing. */
+function makeProduct(opts: ProductOptions): KrogerProduct {
+  return {
+    productId: opts.productId ?? "0001111041700",
+    description: opts.description ?? "Test Product",
+    brand: "Kroger",
+    categories: opts.categories ?? ["Produce"],
+    items: [
+      {
+        itemId: opts.productId ?? "0001111041700",
+        size: opts.size ?? "1 lb",
+        price: {
+          regular: opts.regular,
+          promo: opts.promo,
+        },
+      },
+    ],
+    images: [
+      {
+        default: true,
+        perspective: "front",
+        sizes: [{ size: "medium", url: "https://example.com/img/product.jpg" }],
+      },
+    ],
+  };
+}
+
+/** Build a DACS mapConfig JSON string. */
+type MapContent = {
+  id: number;
+  headline: string;
+  bodyCopy: string | null;
+  imageURL: string | null;
+  offerVersionProductGroupId?: number;
+};
+
+function makeMapConfig(
+  id: number,
+  headline: string,
+  bodyCopy?: string | null,
+  imageURL?: string | null,
+  offerVersionProductGroupId?: number,
+) {
+  const content: MapContent = {
+    id,
+    headline,
+    bodyCopy: bodyCopy ?? null,
+    imageURL: imageURL ?? null,
+  };
+
+  if (offerVersionProductGroupId !== undefined) {
+    content.offerVersionProductGroupId = offerVersionProductGroupId;
+  }
+
+  return JSON.stringify({ content });
+}
+
+const now = Date.now();
+
+const MOCK_PRINT_CIRCULAR = {
+  id: "circ-print-1",
+  eventId: "evt-print-1",
+  eventName: "QFC Weekly Ad",
+  eventStartDate: new Date(now - 3 * 86_400_000).toISOString(),
+  eventEndDate: new Date(now + 4 * 86_400_000).toISOString(),
+  divisionCode: "705",
+  divisionName: "QFC",
+  week: "2026-02-19",
+  previewCircular: false,
+  timezone: "America/Los_Angeles",
+  circularType: "print",
+  tags: ["CLASSIC_VIEW"],
+  description: "Weekly print ad",
+  locationId: "70500847",
+};
+
+const MOCK_CIRCULARS_RESPONSE = { data: [MOCK_PRINT_CIRCULAR] };
+
+const MOCK_LISTING_RESPONSE = {
+  pages: [{ eventPageId: "page-1", page: "1" }],
+  adId: "ad-1",
+  adTitle: "QFC Weekly Ad",
+};
+
+const MOCK_PAGE_RESPONSE = {
+  eventPageId: "page-1",
+  contents: [
+    {
+      contentType: "Offer",
+      mapConfig: makeMapConfig(101, "Fresh Strawberries", "1 lb"),
+    },
+    {
+      contentType: "Offer",
+      mapConfig: makeMapConfig(102, "Boneless Chicken Breast", "per lb"),
+    },
+    // Non-offer content should be ignored
+    { contentType: "Banner", mapConfig: makeMapConfig(103, "Store Header") },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Test setup
+// ---------------------------------------------------------------------------
+
+let fetchMock: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
+
+beforeEach(() => {
+  fetchMock = vi.spyOn(global, "fetch");
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/** Configure fetchMock for the happy print-ad path. */
+function setupPrintAdFetch(circularsResponse: JsonInput = MOCK_CIRCULARS_RESPONSE) {
+  fetchMock.mockImplementation((input: string | Request | URL) => {
+    const url = urlOf(input);
+
+    if (url.includes("digitalads/v1/circulars")) {
+      return Promise.resolve(mockOkResponse(circularsResponse));
+    }
+
+    if (url.includes(`/api/dacs/evt-print-1?`)) {
+      return Promise.resolve(mockOkResponse(MOCK_LISTING_RESPONSE));
+    }
+
+    if (url.includes(`/api/dacs/evt-print-1/pages/page-1`)) {
+      return Promise.resolve(mockOkResponse(MOCK_PAGE_RESPONSE));
+    }
+
+    return Promise.reject(new Error(`Unmocked URL: ${url}`));
+  });
+}
+
+function setupFailedPrintAdFetchForSearchFallback() {
+  fetchMock.mockImplementation((input: string | Request | URL) => {
+    const url = urlOf(input);
+
+    if (url.includes("digitalads/v1/circulars")) {
+      return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+    }
+
+    if (url.includes("przone.net")) {
+      return Promise.resolve(mockErrorResponse(503, { error: "Service Unavailable" }));
+    }
+
+    return Promise.reject(new Error(`Unmocked URL: ${url}`));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe("getQfcWeeklyDeals", () => {
+  describe("print-ad primary path", () => {
+    it("returns sourceMode print_fallback and two normalized deals", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+
+      expect(result.sourceMode).toBe("print_fallback");
+      expect(result.locationId).toBe("70500847");
+      expect(result.divisionCode).toBe("705");
+      expect(result.deals).toHaveLength(2);
+    });
+
+    it("retrieves print deals and date context when circulars omit locationId", async () => {
+      const { locationId, ...circular } = MOCK_PRINT_CIRCULAR;
+      setupPrintAdFetch({ data: [circular] });
+
+      const result = await getQfcWeeklyDeals({ locationId });
+
+      expect(result.sourceMode).toBe("print_fallback");
+      expect(result.locationId).toBe(locationId);
+      expect(result.printCircular?.eventId).toBe(circular.eventId);
+      expect(result.warnings).toEqual([]);
+      expect(result.deals).toHaveLength(2);
+
+      for (const deal of result.deals) {
+        expect(deal.validFrom).toBe(circular.eventStartDate);
+        expect(deal.validTill).toBe(circular.eventEndDate);
+      }
+    });
+
+    it("normalizes deal titles and source from print-ad offers", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+
+      const [strawberry, chicken] = result.deals;
+      expect(strawberry.title).toBe("Fresh Strawberries");
+      expect(strawberry.source).toBe("print");
+      expect(strawberry.price).toBe("See print ad");
+      expect(strawberry.details).toBe("1 lb");
+
+      expect(chicken.title).toBe("Boneless Chicken Breast");
+      expect(chicken.source).toBe("print");
+      expect(chicken.price).toBe("See print ad");
+    });
+
+    it("sets validFrom and validTill from circular dates", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+
+      for (const deal of result.deals) {
+        expect(deal.validFrom).toBe(MOCK_PRINT_CIRCULAR.eventStartDate);
+        expect(deal.validTill).toBe(MOCK_PRINT_CIRCULAR.eventEndDate);
+      }
+    });
+
+    it("attaches printCircular to response", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+
+      expect(result.printCircular?.eventId).toBe("evt-print-1");
+    });
+
+    it("skips non-Offer content types in print pages", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+
+      // MOCK_PAGE_RESPONSE has 2 Offers + 1 Banner — only 2 should appear
+      expect(result.deals.every((d) => d.title !== "Store Header")).toBe(true);
+    });
+
+    it("enriches print offers with structured DACS promotion details", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+
+        if (url.includes("/api/dacs/evt-print-1?")) {
+          return Promise.resolve(mockOkResponse(MOCK_LISTING_RESPONSE));
+        }
+
+        if (url.includes("/api/dacs/evt-print-1/pages/page-1")) {
+          return Promise.resolve(
+            mockOkResponse({
+              contents: [
+                {
+                  contentType: "Offer",
+                  mapConfig: makeMapConfig(
+                    101,
+                    "Fresh Strawberries",
+                    "1 lb",
+                    "https://example.com/page.jpg",
+                    9001,
+                  ),
+                },
+              ],
+            }),
+          );
+        }
+
+        if (url.includes("/api/dacs/evt-print-1/offers/9001")) {
+          return Promise.resolve(
+            mockOkResponse({
+              headline: "Fresh Strawberries",
+              bodyCopy: "1 lb",
+              pricingText: "$2.99 LB With Card",
+              startDate: "2026-02-19",
+              endDate: "2026-02-25",
+              disclaimer: "While supplies last",
+              imageURL: "https://example.com/offer.jpg",
+              isShoppable: true,
+            }),
+          );
+        }
+
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+      const strawberry = result.deals[0];
+
+      expect(strawberry.price).toBe("$2.99 LB With Card");
+      expect(strawberry.details).toBe("1 lb • While supplies last");
+      expect(strawberry.validFrom).toBe("2026-02-19");
+      expect(strawberry.validTill).toBe("2026-02-25");
+      expect(strawberry.imageUrl).toBe("https://example.com/offer.jpg");
+      expect(strawberry.rawType).toBe("shoppable");
+    });
+
+    it("keeps the page-level deal when DACS offer enrichment fails", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+
+        if (url.includes("/api/dacs/evt-print-1?")) {
+          return Promise.resolve(mockOkResponse(MOCK_LISTING_RESPONSE));
+        }
+
+        if (url.includes("/api/dacs/evt-print-1/pages/page-1")) {
+          return Promise.resolve(
+            mockOkResponse({
+              contents: [
+                {
+                  contentType: "Offer",
+                  mapConfig: makeMapConfig(101, "Fresh Strawberries", "1 lb", null, 9002),
+                },
+              ],
+            }),
+          );
+        }
+
+        if (url.includes("/api/dacs/evt-print-1/offers/9002")) {
+          return Promise.resolve(mockErrorResponse(503, { error: "Unavailable" }));
+        }
+
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+      const strawberry = result.deals[0];
+
+      expect(strawberry.price).toBe("See print ad");
+      expect(strawberry.details).toBe("1 lb");
+      expect(strawberry.source).toBe("print");
+    });
+
+    it("respects the limit parameter", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        limit: 1,
+      });
+
+      expect(result.deals).toHaveLength(1);
+    });
+
+    it("deduplicates offers with the same id across pages", async () => {
+      // Return the same offer on both pages
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+
+        if (url.includes("/api/dacs/evt-print-1?")) {
+          return Promise.resolve(
+            mockOkResponse({
+              pages: [
+                { eventPageId: "page-1", page: "1" },
+                { eventPageId: "page-2", page: "2" },
+              ],
+            }),
+          );
+        }
+
+        // Both pages return the same offer id
+        if (url.includes("/api/dacs/evt-print-1/pages/")) {
+          return Promise.resolve(
+            mockOkResponse({
+              contents: [
+                {
+                  contentType: "Offer",
+                  mapConfig: makeMapConfig(101, "Fresh Strawberries", "1 lb"),
+                },
+              ],
+            }),
+          );
+        }
+
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        pageLimit: 2,
+      });
+
+      expect(result.deals.filter((d) => d.id === "101")).toHaveLength(1);
+    });
+
+    it.each([0, Number.NaN])(
+      "keeps empty location and %s count options on their defaults",
+      async (count) => {
+        fetchMock.mockImplementation((input: string | Request | URL) => {
+          const url = urlOf(input);
+
+          if (url.includes("digitalads/v1/circulars")) {
+            return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+          }
+
+          if (url.includes("/api/dacs/evt-print-1?")) {
+            return Promise.resolve(
+              mockOkResponse({
+                ...MOCK_LISTING_RESPONSE,
+                pages: [...MOCK_LISTING_RESPONSE.pages, { eventPageId: "page-2", page: "2" }],
+              }),
+            );
+          }
+
+          if (url.includes("/pages/page-1")) {
+            return Promise.resolve(mockOkResponse(MOCK_PAGE_RESPONSE));
+          }
+
+          if (url.includes("/pages/page-2")) {
+            return Promise.resolve(
+              mockOkResponse({
+                eventPageId: "page-2",
+                contents: [
+                  { contentType: "Offer", mapConfig: makeMapConfig(104, "Oranges", "1 lb") },
+                ],
+              }),
+            );
+          }
+
+          return Promise.reject(new Error(`Unmocked URL: ${url}`));
+        });
+        const result = await getQfcWeeklyDeals({ locationId: "", pageLimit: count, limit: count });
+        expect(result.locationId).toBe("70500847");
+        expect(result.deals).toHaveLength(3);
+        expect(result.deals.map((deal) => deal.title)).toContain("Oranges");
+      },
+    );
+
+    it("uses default location when none provided", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals();
+
+      expect(result.locationId).toBe("70500847");
+    });
+  });
+
+  describe("search API augmentation of print deals", () => {
+    it("uses the regular price when Kroger reports promo zero", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts: vi
+          .fn<ProductSearchFn>()
+          .mockResolvedValue([makeProduct({ regular: 4, promo: 0 })]),
+      });
+
+      expect(result.deals[0].price).toBe("$4.00");
+      expect(result.deals[0].savings).toBeUndefined();
+    });
+    it("augments a deal with promo price and savings when product has promo", async () => {
+      setupPrintAdFetch();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          if (term === "Fresh Strawberries") {
+            return [
+              makeProduct({
+                description: "Fresh Strawberries",
+                regular: 3.99,
+                promo: 1.99,
+              }),
+            ];
+          }
+
+          return [];
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      const strawberry = result.deals.find((d) => d.title === "Fresh Strawberries");
+
+      expect(strawberry?.price).toBe("$1.99");
+      expect(strawberry?.savings).toContain("Save");
+      expect(strawberry?.savings).toContain("$2.00");
+      expect(strawberry?.savings).toContain("$3.99");
+    });
+
+    it("augments a deal with regular price when product has no promo", async () => {
+      setupPrintAdFetch();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          if (term === "Boneless Chicken Breast") {
+            return [
+              makeProduct({
+                description: "Boneless Chicken Breast",
+                regular: 5.99,
+              }),
+            ];
+          }
+
+          return [];
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      const chicken = result.deals.find((d) => d.title === "Boneless Chicken Breast");
+
+      expect(chicken?.price).toBe("$5.99");
+      expect(chicken?.savings).toBeUndefined();
+    });
+
+    it("leaves price as 'See print ad' when no product match found", async () => {
+      setupPrintAdFetch();
+
+      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([]);
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      for (const deal of result.deals) {
+        expect(deal.price).toBe("See print ad");
+      }
+    });
+
+    it("counts augmentedCount correctly in meta", async () => {
+      setupPrintAdFetch();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          // Only augment Fresh Strawberries
+          if (term === "Fresh Strawberries") {
+            return [makeProduct({ regular: 3.99, promo: 1.99 })];
+          }
+
+          return [];
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.meta?.augmentedCount).toBe(1);
+    });
+
+    it("reports augmentedCount of 0 when no deals are matched", async () => {
+      setupPrintAdFetch();
+
+      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([]);
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.meta?.augmentedCount).toBe(0);
+    });
+
+    it("skips augmentation and leaves meta.augmentedCount undefined when searchProducts not provided", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+
+      expect(result.meta?.augmentedCount).toBeUndefined();
+
+      for (const deal of result.deals) {
+        expect(deal.price).toBe("See print ad");
+      }
+    });
+
+    it("prefers a promo-priced product over a regular-only product", async () => {
+      setupPrintAdFetch();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          if (term === "Fresh Strawberries") {
+            return [
+              // First result: regular price only
+              makeProduct({
+                productId: "0000000000001",
+                regular: 5.0,
+              }),
+              // Second result: has promo price
+              makeProduct({
+                productId: "0000000000002",
+                regular: 3.99,
+                promo: 1.99,
+              }),
+            ];
+          }
+
+          return [];
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      const strawberry = result.deals.find((d) => d.title === "Fresh Strawberries");
+
+      // Should use the promo-priced product, not the first one
+      expect(strawberry?.price).toBe("$1.99");
+      expect(strawberry?.savings).toBeDefined();
+    });
+
+    it("handles search error for an individual deal gracefully", async () => {
+      setupPrintAdFetch();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockRejectedValue(new Error("Network error"));
+
+      // Should not throw — deals returned unchanged with "See print ad"
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.deals).toHaveLength(2);
+
+      for (const deal of result.deals) {
+        expect(deal.price).toBe("See print ad");
+      }
+    });
+
+    it("calls searchProducts with the deal title and correct locationId", async () => {
+      setupPrintAdFetch();
+      const searchProducts = vi.fn<ProductSearchFn>().mockResolvedValue([]);
+
+      await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      const calledTerms = searchProducts.mock.calls.map((c) => c[0]);
+      expect(calledTerms).toContain("Fresh Strawberries");
+      expect(calledTerms).toContain("Boneless Chicken Breast");
+
+      for (const call of searchProducts.mock.calls) {
+        expect(call[1]).toBe("70500847");
+        expect(call[2]).toBe(5); // augmentation uses limit 5
+      }
+    });
+  });
+
+  describe("search API fallback when print-ad fails", () => {
+    it("falls back to search API when print-ad listing returns error", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          if (term === "chicken") {
+            return [
+              makeProduct({
+                productId: "0001111000001",
+                description: "Rotisserie Chicken",
+                regular: 7.99,
+                promo: 4.99,
+              }),
+            ];
+          }
+
+          return [];
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.sourceMode).toBe("search_api");
+      expect(result.deals.length).toBeGreaterThan(0);
+      expect(result.deals[0].title).toBe("Rotisserie Chicken");
+      expect(result.deals[0].source).toBe("search_api");
+    });
+
+    it("includes print-ad failure warning in response", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([
+        makeProduct({
+          productId: "0001111000001",
+          regular: 5.99,
+          promo: 3.99,
+        }),
+      ]);
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.warnings.some((warning) => warning.code === "print_ad_failed")).toBe(true);
+    });
+
+    it("excludes zero-promo products from fallback sale discovery", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts: vi
+          .fn<ProductSearchFn>()
+          .mockResolvedValue([
+            makeProduct({ productId: "not-on-sale", regular: 4, promo: 0 }),
+            makeProduct({ productId: "on-sale", regular: 4, promo: 3 }),
+          ]),
+      });
+
+      expect(result.deals).toHaveLength(1);
+      expect(result.deals[0].price).toBe("$3.00");
+    });
+
+    it("filters out search API products without promo pricing", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          if (term === "milk") {
+            return [
+              makeProduct({
+                productId: "0001111000001",
+                regular: 4.99,
+                promo: 2.99,
+              }),
+              makeProduct({ productId: "0001111000002", regular: 3.99 }), // no promo
+            ];
+          }
+
+          return [];
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.deals.every((d) => d.price !== "See print ad")).toBe(true);
+      // Only the promo-priced product should appear
+      expect(result.deals.some((d) => d.savings?.includes("Save"))).toBe(true);
+    });
+
+    it("deduplicates search API results by productId", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      // Return the same productId from two different category searches
+      const duplicateProduct = makeProduct({
+        productId: "DUPLICATE-001",
+        regular: 5.99,
+        promo: 3.99,
+      });
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockResolvedValue([duplicateProduct]);
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      const ids = result.deals.map((d) => d.id);
+      const unique = new Set(ids);
+      expect(ids.length).toBe(unique.size);
+    });
+
+    it("correctly prices search API deals with promo savings", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          if (term === "beef") {
+            return [
+              makeProduct({
+                productId: "0001111000003",
+                description: "Ground Beef",
+                regular: 8.99,
+                promo: 5.99,
+              }),
+            ];
+          }
+
+          return [];
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      const beef = result.deals.find((d) => d.title === "Ground Beef");
+      expect(beef?.price).toBe("$5.99");
+      expect(beef?.savings).toContain("Save");
+      expect(beef?.savings).toContain("$3.00");
+    });
+  });
+
+  describe("error handling", () => {
+    it("throws when print-ad fails and no searchProducts provided", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+
+        return Promise.resolve(mockErrorResponse(503));
+      });
+
+      await expect(getQfcWeeklyDeals({ locationId: "70500847" })).rejects.toThrow(
+        /Failed to fetch deals/,
+      );
+    });
+
+    it("preserves an all-failed search refresh as an error", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+
+        return Promise.resolve(mockErrorResponse(503));
+      });
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockRejectedValue(new AppErrorException(authError("Kroger authentication expired.")));
+
+      await expect(
+        getQfcWeeklyDeals({
+          locationId: "70500847",
+          searchProducts,
+        }),
+      ).rejects.toMatchObject({ appError: { type: "AUTH_ERROR" } });
+    });
+
+    it("does not treat rejected searches with an undefined reason as empty success", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+
+        return Promise.resolve(mockErrorResponse(503));
+      });
+
+      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockRejectedValue(undefined);
+
+      await expect(getQfcWeeklyDeals({ locationId: "70500847", searchProducts })).rejects.toThrow(
+        /Failed to fetch deals/,
+      );
+    });
+
+    it("keeps a legitimate empty search success distinct from failed searches", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([]);
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.sourceMode).toBe("search_api");
+      expect(result.deals).toHaveLength(0);
+      expect(result.warnings.some((warning) => warning.code === "print_ad_failed")).toBe(true);
+      expect(result.meta?.degraded).toBeUndefined();
+    });
+
+    it("returns partial search results with a degraded marker", async () => {
+      setupFailedPrintAdFetchForSearchFallback();
+
+      const searchProducts: ProductSearchFn = vi
+        .fn<ProductSearchFn>()
+        .mockImplementation(async (term: string) => {
+          if (term === "chicken") {
+            return [
+              makeProduct({
+                productId: "0001111000001",
+                description: "Rotisserie Chicken",
+                regular: 7.99,
+                promo: 4.99,
+              }),
+            ];
+          }
+
+          throw new Error(`Search failed for ${term}`);
+        });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.deals).toHaveLength(1);
+      expect(result.deals[0]?.title).toBe("Rotisserie Chicken");
+      expect(result.meta).toMatchObject({ degraded: true, failedTermCount: 9 });
+      expect(result.warnings.some((warning) => warning.code === "search_partial")).toBe(true);
+    });
+
+    it("throws when no print circular is found and no searchProducts provided", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          // Return circulars without a print type
+          return Promise.resolve(
+            mockOkResponse({
+              data: [
+                {
+                  ...MOCK_PRINT_CIRCULAR,
+                  circularType: "weeklyAd",
+                  tags: ["SHOPPABLE"],
+                },
+              ],
+            }),
+          );
+        }
+
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      await expect(getQfcWeeklyDeals({ locationId: "70500847" })).rejects.toThrow(
+        /Failed to fetch deals/,
+      );
+    });
+
+    it("adds warning but continues when circular fetch fails", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockErrorResponse(500));
+        }
+
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      // With no circular, we have no printCircular → falls to searchProducts
+      const searchProducts: ProductSearchFn = vi.fn<ProductSearchFn>().mockResolvedValue([
+        makeProduct({
+          productId: "0001111000001",
+          regular: 3.99,
+          promo: 1.99,
+        }),
+      ]);
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts,
+      });
+
+      expect(result.warnings.some((warning) => warning.code === "circular_fetch_failed")).toBe(
+        true,
+      );
+      expect(result.sourceMode).toBe("search_api");
+    });
+
+    it("rejects malformed circular metadata before selecting a print source", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(
+            mockOkResponse({ data: [{ eventId: "missing-required-fields" }] }),
+          );
+        }
+
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        searchProducts: vi.fn<ProductSearchFn>().mockResolvedValue([
+          makeProduct({
+            productId: "malformed-circular-fallback",
+            regular: 4,
+            promo: 3,
+          }),
+        ]),
+      });
+
+      expect(result.sourceMode).toBe("search_api");
+      expect(result.warnings.some((warning) => warning.code === "circular_fetch_failed")).toBe(
+        true,
+      );
+    });
+  });
+
+  describe("division code inference", () => {
+    it("infers division code from first 3 chars of locationId", async () => {
+      setupPrintAdFetch();
+
+      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
+
+      expect(result.divisionCode).toBe("705");
+    });
+
+    it("uses explicit divisionCode when provided", async () => {
+      fetchMock.mockImplementation((input: string | Request | URL) => {
+        const url = urlOf(input);
+
+        if (url.includes("digitalads/v1/circulars")) {
+          return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+        }
+
+        if (url.includes("przone.net")) {
+          return Promise.resolve(mockOkResponse(MOCK_LISTING_RESPONSE));
+        }
+
+        if (url.includes("/pages/")) {
+          return Promise.resolve(mockOkResponse(MOCK_PAGE_RESPONSE));
+        }
+
+        return Promise.reject(new Error(`Unmocked URL: ${url}`));
+      });
+
+      const result = await getQfcWeeklyDeals({
+        locationId: "70500847",
+        divisionCode: "999",
+      });
+
+      expect(result.divisionCode).toBe("999");
+    });
+  });
+});

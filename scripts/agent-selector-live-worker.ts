@@ -1,6 +1,6 @@
 import * as z from "zod/v4";
 
-import type { selectProductMatches } from "./fixtures/jev-product-selector.js";
+import type { selectProductMatches } from "../test/scripts/fixtures/jev-product-selector.js";
 
 type AgentSelectorEnv = { AI: Ai };
 

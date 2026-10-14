@@ -4,7 +4,7 @@ Implementation decision after these runs: JEV has been removed from the producti
 API. `shop_for_items` now returns up to five eligible options per item for the
 calling agent to choose, and performs no list/cart writes. The findings below are
 retained as the record of the comparison. The old selector lives in
-`scripts/fixtures/jev-product-selector.ts` solely for evaluation reproduction.
+`test/scripts/fixtures/jev-product-selector.ts` solely for evaluation reproduction.
 
 JEV improves these difficult synthetic shortlists over blindly taking the first eligible product. Its main benefit when retrieval already ranks a match first is abstention, rather than choosing a better product. This evaluation does not establish its marginal benefit on normal Kroger searches or against a calling assistant choosing exact UPCs. Keep it provisionally; measure real retrieval before removing it or declaring it essential.
 
@@ -64,7 +64,7 @@ pnpm eval:selector:live docs/jev-evaluation-comparison-expanded.json --all
 
 Requires Wrangler/Cloudflare access and the existing OpenRouter BYOK gateway. These commands incur inference usage. Run serially for isolated latency comparisons.
 
-Raw reports: [compact](jev-evaluation-comparison-compact.json), [ideal-retrieval control](jev-evaluation-comparison-ranked.json), [expanded](jev-evaluation-comparison-expanded.json). Fixtures: [fixed grocery cases](../scripts/fixtures/jev-grocery-cases.mjs). Runner: [live evaluation](../scripts/eval-selector-live.mjs).
+Raw reports: [compact](jev-evaluation-comparison-compact.json), [ideal-retrieval control](jev-evaluation-comparison-ranked.json), [expanded](jev-evaluation-comparison-expanded.json). Fixtures: [fixed grocery cases](../test/scripts/fixtures/jev-grocery-cases.mjs). Runner: [live evaluation](../scripts/eval-selector-live.mjs).
 
 ## Agent shortlist comparison — 2026-09-30
 

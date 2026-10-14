@@ -1,4 +1,7 @@
-import { selectProductMatches, type SelectorAi } from "./fixtures/jev-product-selector.js";
+import {
+  selectProductMatches,
+  type SelectorAi,
+} from "../test/scripts/fixtures/jev-product-selector.js";
 
 type SelectorEnv = { AI: SelectorAi };
 

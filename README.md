@@ -372,7 +372,7 @@ tests, UTF-16 fixture hashing, and SDK default-argument contracts. The existing 
 `console.log`/`console.info` report output. These are local exceptions, not zero overrides.
 
 The archived JEV selection check uses Cloudflare credentials and incurs usage.
-It exercises the evaluation-only selector in `scripts/fixtures/jev-product-selector.ts`
+It exercises the evaluation-only selector in `test/scripts/fixtures/jev-product-selector.ts`
 with synthetic products, without shopping-list or cart writes:
 
 ```bash
