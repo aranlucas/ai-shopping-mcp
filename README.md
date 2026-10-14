@@ -356,7 +356,15 @@ barrel. Components own their appearance: use Badge `tone` values (`success`,
 their colors. Explicit contracts allow container spacing, carousel item gutters,
 and skeleton rounding. Shared UI implementations retain their existing lint
 exclusion. The existing Tailwind plugin continues to check utility validity,
-arbitrary values, and hardcoded colors via `.oxlintrc.tailwind.json`.
+arbitrary values, and hardcoded colors through the shared Oxforge Tailwind preset
+in `.oxlintrc.json`.
+
+The configuration keeps five narrow rule disables for contracts the generic rules cannot
+represent: opaque error/upstream metadata, syntax-only JSON parsing, raw schema/serializer
+boundaries, cross-realm overload and error classification, and the MCP SDK's `onerror`
+callback property. The existing sequential-I/O inline exceptions remain intentional.
+`console.warn`/`console.error` retain operational diagnostics; evaluation scripts also retain
+`console.log`/`console.info` report output. These are local exceptions, not zero overrides.
 
 The archived JEV selection check uses Cloudflare credentials and incurs usage.
 It exercises the evaluation-only selector in `scripts/fixtures/jev-product-selector.ts`

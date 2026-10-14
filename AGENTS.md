@@ -4,4 +4,4 @@ The views use `@shadcn/lint` in `.oxlintrc.json`. Use component variants and
 badge tones for appearance; keep `className` for layout. The config documents
 the spacing, carousel gutter, and skeleton rounding contracts. Shared UI
 implementations in `views/shared/ui/` own their styles and retain their existing
-lint exclusion. Tailwind utility checks remain in `.oxlintrc.tailwind.json`.
+lint exclusion. Tailwind utility checks come from the shared Oxforge Tailwind preset in `.oxlintrc.json`.

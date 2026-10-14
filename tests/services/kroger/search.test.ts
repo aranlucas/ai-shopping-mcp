@@ -63,6 +63,7 @@ describe("searchProductsForTerms", () => {
         requestId: "item_1",
         term: "unobtainium",
         status: "failed",
+        // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
         error: expect.objectContaining({ type: "API_ERROR" }) as unknown,
       },
     ]);
@@ -120,6 +121,7 @@ describe("searchProductsForTerms", () => {
 
     expect(results[0]).toMatchObject({
       status: "failed",
+      // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
       error: expect.objectContaining({ type: "VALIDATION_ERROR" }) as unknown,
     });
     expect(results[1]).toMatchObject({ status: "success" });

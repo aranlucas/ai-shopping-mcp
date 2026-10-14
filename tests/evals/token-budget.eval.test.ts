@@ -99,7 +99,7 @@ describe("token budget: tool responses", () => {
   });
 
   async function call(name: string, args: ToolArguments): Promise<ToolCallResult> {
-    return await client.callTool({ name, arguments: args });
+    return client.callTool({ name, arguments: args });
   }
 
   it("search_products (5 terms) stays within content budget", async () => {

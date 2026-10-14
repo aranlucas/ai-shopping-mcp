@@ -300,7 +300,7 @@ describe("storage-backed tools", () => {
     ctx.cartClient.use({
       onRequest: ({ request }) => {
         if (request.method !== "PUT") {
-          return undefined;
+          return;
         }
 
         putCalls.push(request);

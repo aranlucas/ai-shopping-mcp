@@ -7,7 +7,10 @@
     "./node_modules/@aranlucas/oxforge/configs/tailwind.json",
     "./node_modules/@aranlucas/oxforge/configs/type-aware.json"
   ],
-  "jsPlugins": ["oxlint-tailwindcss", "@shadcn/lint"],
+  "jsPlugins": [
+    "oxlint-tailwindcss",
+    "@shadcn/lint"
+  ],
   "plugins": [
     "eslint",
     "typescript",
@@ -21,15 +24,6 @@
     "node",
     "vitest"
   ],
-  "categories": {
-    "correctness": "error",
-    "suspicious": "error",
-    "perf": "error",
-    "pedantic": "off",
-    "style": "off",
-    "restriction": "off",
-    "nursery": "off"
-  },
   "env": {
     "builtin": true
   },
@@ -91,17 +85,17 @@
     "eslint/preserve-caught-error": "error",
     "eslint/no-await-in-loop": "error",
     "typescript/consistent-type-imports": "error",
-    "typescript/no-non-null-assertion": "off",
     "typescript/no-explicit-any": "error",
     "import/no-duplicates": "error",
     "import/no-named-as-default": "error",
-    "eslint/no-restricted-imports": "off",
-    "react/react-in-jsx-scope": "off",
-    "unicorn/prefer-add-event-listener": "off",
     "eslint/no-underscore-dangle": [
       "error",
       {
-        "allow": ["_meta", "_unsafeUnwrap", "_unsafeUnwrapErr"]
+        "allow": [
+          "_meta",
+          "_unsafeUnwrap",
+          "_unsafeUnwrapErr"
+        ]
       }
     ],
     "unicorn/no-array-sort": "error",
@@ -116,51 +110,33 @@
     "promise/param-names": "error",
     "promise/no-nesting": "error",
     "oxc/no-accumulating-spread": "error",
-    "eslint/curly": "off",
-    "eslint/no-console": "off",
-    "eslint/no-magic-numbers": "off",
-    "eslint/id-length": "off",
-    "eslint/max-lines": "off",
-    "eslint/max-lines-per-function": "off",
-    "eslint/max-statements": "off",
-    "eslint/func-style": "off",
-    "eslint/no-inline-comments": "off",
-    "eslint/no-negated-condition": "off",
-    "eslint/new-cap": "off",
-    "unicorn/no-useless-undefined": "off",
-    "unicorn/prefer-code-point": "off",
-    "unicorn/no-this-assignment": "off",
-    "unicorn/consistent-function-scoping": "off",
-    "react/button-has-type": "off",
-    "eslint/radix": "off",
-    "anti-slop/no-array-filter-map": "off",
-    "anti-slop/no-chained-type-assertions": "off",
-    "anti-slop/no-conditional-empty-object-spread": "off",
-    "anti-slop/no-known-value-widening": "off",
-    "anti-slop/no-module-mocking": "off",
-    "anti-slop/no-object-parameters": "off",
-    "anti-slop/no-reduce-accumulator-copy": "off",
-    "anti-slop/no-reflect-apply": "off",
-    "anti-slop/no-reflect-get": "off",
-    "anti-slop/no-runtime-typeof": "off",
-    "anti-slop/no-shape-in-symbol-names": "off",
-    "anti-slop/no-unknown-parameters": "off",
-    "anti-slop/no-unknown-returns": "off",
-    "anti-slop/no-unknown-type-aliases": "off",
-    "anti-slop/no-unsafe-dictionary-type": "off",
-    "anti-slop/no-widen-then-assert": "off",
-    "anti-slop/require-readable-spacing": "off",
-    "anti-slop/require-safety-comment-for-type-assertion": "off",
     "vitest/valid-expect": [
       "error",
       {
         "maxArgs": 2
       }
+    ],
+    "eslint/no-console": [
+      "error",
+      {
+        "allow": [
+          "warn",
+          "error"
+        ]
+      }
+    ],
+    "unicorn/no-useless-undefined": [
+      "error",
+      {
+        "checkArguments": false
+      }
     ]
   },
   "overrides": [
     {
-      "files": ["tests/strict-fake.ts"],
+      "files": [
+        "tests/strict-fake.ts"
+      ],
       "rules": {
         "anti-slop/no-runtime-typeof": [
           "error",
@@ -171,24 +147,37 @@
       }
     },
     {
-      "files": ["views/**/*.tsx"],
+      "files": [
+        "views/**/*.tsx"
+      ],
       "rules": {
         "shadcn/no-restyle": [
           "error",
           {
-            "allow": ["layout"],
+            "allow": [
+              "layout"
+            ],
             "contracts": [
               {
                 "pattern": "^(Card|CardHeader|CardContent|CardFooter|Empty)$",
-                "allow": ["layout", "spacing"]
+                "allow": [
+                  "layout",
+                  "spacing"
+                ]
               },
               {
                 "pattern": "^CarouselItem$",
-                "allow": ["layout", "ps"]
+                "allow": [
+                  "layout",
+                  "ps"
+                ]
               },
               {
                 "pattern": "^Skeleton$",
-                "allow": ["layout", "rounded"]
+                "allow": [
+                  "layout",
+                  "rounded"
+                ]
               }
             ]
           }
@@ -198,15 +187,161 @@
       }
     },
     {
-      "files": ["scripts/**/*.mjs", "scripts/**/*.js"],
+      "files": [
+        "tests/**/*.test.ts",
+        "tests/**/*.ts"
+      ],
       "rules": {
-        "eslint/no-await-in-loop": "warn"
+        "typescript/no-explicit-any": "error"
       }
     },
     {
-      "files": ["tests/**/*.test.ts", "tests/**/*.ts"],
+      "files": [
+        "src/errors.ts",
+        "src/utils/result.ts",
+        "src/utils/user-storage.ts",
+        "scripts/eval-agent-codex.mjs",
+        "tests/auth-stub.mjs"
+      ],
       "rules": {
-        "typescript/no-explicit-any": "error"
+        "anti-slop/no-runtime-typeof": "off"
+      }
+    },
+    {
+      "files": [
+        "src/utils/result.ts",
+        "src/utils/toon.ts",
+        "tests/v2-tool-handler.ts",
+        "tests/evals/harness.ts"
+      ],
+      "rules": {
+        "anti-slop/no-unknown-parameters": "off"
+      }
+    },
+    {
+      "files": [
+        "src/utils/json.ts"
+      ],
+      "rules": {
+        "anti-slop/no-unknown-returns": "off"
+      }
+    },
+    {
+      "files": [
+        "src/errors.ts",
+        "src/services/kroger/weekly-deals.d.ts"
+      ],
+      "rules": {
+        "anti-slop/no-unsafe-dictionary-type": "off"
+      }
+    },
+    {
+      "files": [
+        "views/shopping-app.tsx"
+      ],
+      "rules": {
+        "unicorn/prefer-add-event-listener": "off"
+      }
+    },
+    {
+      "files": [
+        "scripts/**/*.mjs",
+        "scripts/**/*.ts",
+        "tests/evals/token-budget.eval.test.ts"
+      ],
+      "rules": {
+        "eslint/no-console": [
+          "error",
+          {
+            "allow": [
+              "log",
+              "warn",
+              "error",
+              "info"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "tests/**",
+        "src/cart-operations.ts",
+        "src/prompts.ts",
+        "src/server.ts",
+        "src/services/kroger/client.ts",
+        "src/services/kroger/product-service.ts",
+        "src/services/weekly-deals/runtime.ts",
+        "src/tools/cart.ts",
+        "src/utils/d1-shopping-storage.ts",
+        "src/utils/user-storage.ts",
+        "views/preview-app.tsx",
+        "views/shopping-app.tsx"
+      ],
+      "rules": {
+        "eslint/require-await": "off",
+        "typescript/require-await": "off"
+      }
+    },
+    {
+      "files": [
+        "tests/utils/result.test.ts",
+        "tests/utils/request-timeout.test.ts"
+      ],
+      "rules": {
+        "eslint/prefer-promise-reject-errors": "off",
+        "typescript/prefer-promise-reject-errors": "off"
+      }
+    },
+    {
+      "files": [
+        "views/shared/types.ts",
+        "tests/evals/agent/harness.ts",
+        "views/app/tool-calls.ts",
+        "views/app/views/weekly-deals.tsx",
+        "tests/evals/agent/codex-harness.ts"
+      ],
+      "rules": {
+        "unicorn/prefer-type-error": "off"
+      }
+    },
+    {
+      "files": [
+        "tests/evals/harness.ts"
+      ],
+      "rules": {
+        "unicorn/prefer-code-point": "off"
+      }
+    },
+    {
+      "files": [
+        "src/tools/weekly-deals.ts",
+        "tests/tools/cart.test.ts"
+      ],
+      "rules": {
+        "unicorn/no-object-as-default-parameter": "off"
+      }
+    },
+    {
+      "files": [
+        "scripts/eval-agent-selector-live.mjs"
+      ],
+      "rules": {
+        "eslint/max-depth": [
+          "error",
+          5
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/utils/user-storage.ts"
+      ],
+      "rules": {
+        "eslint/max-classes-per-file": [
+          "error",
+          2
+        ]
       }
     }
   ],

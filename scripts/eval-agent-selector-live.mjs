@@ -197,6 +197,7 @@ try {
           0,
         ),
       };
+
       Object.assign(report, { summary, completedAt: new Date().toISOString() });
       console.log(JSON.stringify(summary, null, 2));
     } finally {

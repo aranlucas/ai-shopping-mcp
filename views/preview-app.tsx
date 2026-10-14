@@ -396,7 +396,7 @@ export function Preview() {
         return {};
       },
       updateModelContext: async () => ({}),
-      getHostCapabilities: () => undefined,
+      getHostCapabilities: () => {},
       openLink: async () => {
         throw new Error("Preview host does not support external links");
       },

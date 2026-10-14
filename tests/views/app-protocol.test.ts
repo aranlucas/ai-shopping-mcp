@@ -110,6 +110,7 @@ describe("MCP Apps v2 protocol bridge", () => {
 
       await expect(rejectedCall).rejects.toMatchObject({
         code: -32602,
+        // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
         message: expect.stringContaining("set_preferred_store") as unknown,
       });
       await expect(rejectedCall).rejects.toSatisfy((cause) => cause instanceof ProtocolError);

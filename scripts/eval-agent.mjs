@@ -22,7 +22,7 @@ const DEFAULT_MODELS = [
 const models = process.env.EVAL_MODELS?.split(",").filter(Boolean) ?? DEFAULT_MODELS;
 
 /** @param {string} model */
-const slug = (model) => model.replace(/[^a-z0-9]+/gi, "-");
+const slug = (model) => model.replaceAll(/[^a-z0-9]+/gi, "-");
 
 const concurrency = Math.max(1, Number(process.env.EVAL_CONCURRENCY ?? 2));
 

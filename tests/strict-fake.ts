@@ -18,15 +18,16 @@ export function strictFake<T extends object>(members: Partial<T>, options: FakeO
       let descriptor: PropertyDescriptor | undefined;
 
       let owner: object | null = target;
+
       while (owner !== null && !descriptor) {
         descriptor = Object.getOwnPropertyDescriptor(owner, key);
-        // Object.getPrototypeOf returns an object or null; retain the exact prototype.
+        // SAFETY: Object.getPrototypeOf returns an object or null; retain the exact prototype.
         owner = Object.getPrototypeOf(owner) as object | null;
       }
 
       // Promise resolution probes every returned object for a then method; an ordinary non-thenable must report its absence.
       if (!descriptor && key === "then" && options.nonThenable) {
-        return undefined;
+        return;
       }
 
       if (!descriptor) {

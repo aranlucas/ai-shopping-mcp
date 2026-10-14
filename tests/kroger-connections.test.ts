@@ -23,6 +23,7 @@ describe("Auth-owned Kroger credentials", () => {
         status: "connected",
         token: {
           accessToken: "kroger-access-token",
+          // SAFETY: Vitest consumes this asymmetric matcher; unknown avoids leaking its any return into the expected payload.
           tokenExpiresAt: expect.any(Number) as unknown,
         },
       });

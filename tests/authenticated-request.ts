@@ -51,7 +51,7 @@ export async function authenticatedRequest<T>(
         const pending = operation(context);
         // Observe this exact returned promise before Workerd crosses the request scope.
         // The original rejection remains the test result; it is never swallowed.
-        const observed = pending.catch(() => undefined);
+        const observed = pending.catch(() => {});
 
         try {
           outcome = { value: await pending };

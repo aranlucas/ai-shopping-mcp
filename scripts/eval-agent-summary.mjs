@@ -63,7 +63,7 @@ const avg = (rows, key) => {
 };
 
 /** @param {string} text */
-const oneLine = (text) => text.replace(/\s+/g, " ").trim();
+const oneLine = (text) => text.replaceAll(/\s+/g, " ").trim();
 
 const lines = [
   "## Agent eval",

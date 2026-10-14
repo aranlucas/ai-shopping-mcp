@@ -293,7 +293,7 @@ function normalizeProductAsDeal(product: DealProduct): NormalizedWeeklyDeal {
 
   const department = product.categories?.[0];
   const title = product.description?.length ? product.description : "Unknown Product";
-  const normalizedDescription = product.description?.trim().toLowerCase().replace(/\s+/g, "-");
+  const normalizedDescription = product.description?.trim().toLowerCase().replaceAll(/\s+/g, "-");
 
   const defaultImage = product.images?.find((img) => img.default) ?? product.images?.[0];
 
@@ -498,7 +498,7 @@ function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null 
 }
 
 function normalizeDacsText(value: string | null | undefined): string | undefined {
-  const normalized = value?.replace(/\s+/g, " ").trim();
+  const normalized = value?.replaceAll(/\s+/g, " ").trim();
 
   return normalized?.length ? normalized : undefined;
 }
@@ -549,6 +549,7 @@ async function normalizePrintDeals(params: NormalizePrintDealsParams): Promise<P
   });
 
   const pages = listing.pages ?? [];
+
   const pageLimit = Math.max(
     1,
     Math.min(
@@ -558,6 +559,7 @@ async function normalizePrintDeals(params: NormalizePrintDealsParams): Promise<P
       10,
     ),
   );
+
   const limit = Math.max(
     1,
     Math.min(

@@ -46,6 +46,7 @@ const selectorSource = await readFile(
 
 /** @type {import("./eval-schemas.mjs").SelectorBatch[]} */
 const batches = [];
+
 /** @type {import("./eval-schemas.mjs").SelectorRow[]} */
 const resultRows = [];
 
@@ -288,6 +289,7 @@ try {
       .flatMap((batch) => batch.calls ?? [])
       .reduce((sum, call) => sum + (responseUsage(call.response)?.input_tokens ?? 0), 0),
   };
+
   Object.assign(report, { summary, completedAt: new Date().toISOString() });
   console.log(JSON.stringify(summary, null, 2));
 } finally {

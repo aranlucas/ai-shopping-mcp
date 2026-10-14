@@ -63,7 +63,7 @@ export function registerOrderTools(
         storeId ??
         (await safeStorage(() => preferredLocation.get(), "fetch preferred store").match(
           (store) => store?.locationId,
-          () => undefined,
+          () => {},
         ));
 
       const orderId = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;

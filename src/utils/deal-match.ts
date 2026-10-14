@@ -22,7 +22,7 @@ const OVERLAP_THRESHOLD = 0.6;
 function normalizeTokens(text: string): string[] {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replaceAll(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter(Boolean)
     .map((word) => (word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word));
