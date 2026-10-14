@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { MockInstance } from "vitest";
 import type { ToolArguments } from "../v2-tool-handler.js";
 import { memoryKv } from "../memory-kv.js";
@@ -236,7 +237,11 @@ describe("shopping profile with weekly deals", () => {
     );
     expect(result.text).not.toContain("Offer 11");
     expect(result.text).toContain("get_weekly_deals for more offers");
-    expect(JSON.parse(cache.get(CACHE_KEY) ?? "{}").data.deals).toHaveLength(12);
+    expect(
+      z
+        .object({ data: z.object({ deals: z.array(z.unknown()) }) })
+        .parse(JSON.parse(cache.get(CACHE_KEY) ?? "{}")).data.deals,
+    ).toHaveLength(12);
   });
 
   it("normalizes string booleans without treating false as an opt-in", async () => {

@@ -187,7 +187,7 @@ describe("app-backed shopping list tools", () => {
       remove: [beans.id],
     });
 
-    expect(removed.text).toContain(`Removed itemId=${beans.id}`);
+    expect(removed.text).toContain(`Removed itemId=${String(beans.id)}`);
     expect(parseAppResult(removed)).toMatchObject({
       items: [{ productName: "Rice" }],
     });

@@ -66,7 +66,7 @@ export function needsListCheck(cause: unknown): boolean {
 export function cartResultContent(result: CallToolResult): AddShoppingListToCartContent {
   const data = parseToolResult(result);
 
-  if (!data || data.view !== "add_shopping_list_to_cart") {
+  if (data?.view !== "add_shopping_list_to_cart") {
     throw new CartActionError(
       "The cart response was malformed. Check your Kroger cart before retrying.",
       "MALFORMED_CART_RESULT",
@@ -124,12 +124,12 @@ export function toolResultErrorMessage(
   result: CallToolResult | undefined,
   fallback: string,
 ): string {
-  return (
-    result?.content
-      ?.map((content) => ("text" in content ? content.text : ""))
-      .filter(Boolean)
-      .join(" ") || fallback
-  );
+  const message = result?.content
+    ?.map((content) => ("text" in content ? content.text : ""))
+    .filter(Boolean)
+    .join(" ");
+
+  return message?.length ? message : fallback;
 }
 
 export async function createProductList(

@@ -1,6 +1,11 @@
 // Synthetic, hand-labeled challenge set. Labels are fixed before live inference.
 let nextId = 4000000000000;
 
+/**
+ * @param {string} name
+ * @param {{size?: string, brand?: string, ingredients?: string, allergens?: string,
+ * declarations?: string[], stock?: string, pickup?: boolean}} [options]
+ */
 function product(
   name,
   { size = "", brand, ingredients, allergens, declarations, stock, pickup = true } = {},
@@ -24,6 +29,14 @@ function product(
 
 const p = product;
 
+/**
+ * @param {string} id
+ * @param {string} category
+ * @param {string} query
+ * @param {ReturnType<typeof product>[]} candidates
+ * @param {number[]} acceptableIndexes
+ * @param {string} [note]
+ */
 function test(id, category, query, candidates, acceptableIndexes, note = "") {
   return {
     id,
@@ -405,6 +418,7 @@ const fillerNames = [
   "Lemon Candy",
 ];
 
+/** @param {ReturnType<typeof test>} testCase */
 export function expandedCandidates(testCase) {
   return [
     ...testCase.candidates,
@@ -412,6 +426,12 @@ export function expandedCandidates(testCase) {
   ];
 }
 
+/**
+ * @template T
+ * @param {T[]} values
+ * @param {number} seed
+ * @returns {T[]}
+ */
 export function shuffled(values, seed) {
   const result = [...values];
   let state = seed;

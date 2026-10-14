@@ -111,7 +111,7 @@ export async function searchProductsForTerms(
     // Preserve Result type — map Ok to success shape, log and convert Err
     return apiResult
       .map((data) => {
-        const products = (data?.data || []).filter((product) => Boolean(product.upc?.trim()));
+        const products = (data?.data ?? []).filter((product) => Boolean(product.upc?.trim()));
 
         return Object.assign(
           {

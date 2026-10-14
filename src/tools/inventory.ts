@@ -376,7 +376,7 @@ export function registerInventoryTools(
       for (const item of pantryView) {
         const note =
           item.expiry === "expired"
-            ? ` (expired ${item.expiresAt})`
+            ? ` (expired ${String(item.expiresAt)})`
             : item.expiry === "today"
               ? " (expires today)"
               : item.expiresAt

@@ -20,11 +20,11 @@ export function formatWeeklyDealWarning(warning: WeeklyDealWarning): string {
     case "print_ad_failed":
       return `Print-ad parsing failed; falling back to search API. (${detailText(warning, "error")})`;
     case "print_ad_partial":
-      return `Print-ad data is partial; ${detail(warning, "failedPages") ?? "?"} of ${detail(warning, "totalPages") ?? "?"} page(s) could not be read.`;
+      return `Print-ad data is partial; ${String(detail(warning, "failedPages") ?? "?")} of ${String(detail(warning, "totalPages") ?? "?")} page(s) could not be read.`;
     case "search_augmentation_failed":
       return `Search API pricing augmentation failed: ${detailText(warning, "error")}`;
     case "search_partial":
-      return `Weekly deal search was partial: ${detail(warning, "failedTerms") ?? "?"} of ${detail(warning, "totalTerms") ?? "?"} category searches failed.`;
+      return `Weekly deal search was partial: ${String(detail(warning, "failedTerms") ?? "?")} of ${String(detail(warning, "totalTerms") ?? "?")} category searches failed.`;
     case "search_failed":
       return `Search API deal fetch also failed. (${detailText(warning, "error")})`;
     case "cache_served":
@@ -39,6 +39,10 @@ export function formatWeeklyDealWarning(warning: WeeklyDealWarning): string {
       return `Cache write failed; live deals are still current for this response. (${detailText(warning, "error")})`;
     case "live_refresh_failed":
       return `Live refresh failed; served stale KV cache. (${detailText(warning, "error")})`;
+    default: {
+      const unexpected: never = warning.code;
+      throw new Error(`Unknown weekly-deal warning: ${String(unexpected)}`);
+    }
   }
 }
 
@@ -61,8 +65,18 @@ export function formatWeeklyDealAppWarning(warning: WeeklyDealWarning): string |
       return detail(warning, "action") === "served_stale_cache"
         ? "Live refresh was partial; served previously saved deals instead."
         : "Live refresh was partial; results were not cached.";
-    default:
+    case "circular_fetch_failed":
+    case "legacy":
+    case "print_ad_failed":
+    case "print_ad_partial":
+    case "search_augmentation_failed":
+    case "search_failed":
+    case "search_partial":
       return formatWeeklyDealWarning(warning);
+    default: {
+      const unexpected: never = warning.code;
+      throw new Error(`Unknown weekly-deal warning: ${String(unexpected)}`);
+    }
   }
 }
 

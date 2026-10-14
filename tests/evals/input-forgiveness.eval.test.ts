@@ -57,7 +57,7 @@ describe("input forgiveness", () => {
   describe("normalized (must succeed)", () => {
     it("accepts an unpadded UPC and pads it to 13 digits", async () => {
       const result = await call("search_products", { terms: ["1111041700"] });
-      expect(result.isError, `${contentText(result)}`).toBeFalsy();
+      expect(result.isError, contentText(result)).toBeFalsy();
       expect(contentText(result)).toContain("0001111041700");
     });
 
@@ -66,7 +66,7 @@ describe("input forgiveness", () => {
         terms: [" 0001111041700 "],
       });
 
-      expect(result.isError, `${contentText(result)}`).toBeFalsy();
+      expect(result.isError, contentText(result)).toBeFalsy();
     });
 
     it("accepts record_order items keyed by upc", async () => {
@@ -74,7 +74,7 @@ describe("input forgiveness", () => {
         items: [{ upc: "0001111041700", productName: "Milk", quantity: 1 }],
       });
 
-      expect(result.isError, `${contentText(result)}`).toBeFalsy();
+      expect(result.isError, contentText(result)).toBeFalsy();
     });
 
     it("rejects record_order items keyed by productId instead of upc", async () => {
@@ -82,7 +82,7 @@ describe("input forgiveness", () => {
         items: [{ productId: "0001111041700", productName: "Milk", quantity: 1 }],
       });
 
-      expect(result.isError, `${contentText(result)}`).toBeTruthy();
+      expect(result.isError, contentText(result)).toBeTruthy();
     });
 
     it("accepts a storeId with surrounding whitespace", async () => {
@@ -90,7 +90,7 @@ describe("input forgiveness", () => {
         storeId: " 70500847 ",
       });
 
-      expect(result.isError, `${contentText(result)}`).toBeFalsy();
+      expect(result.isError, contentText(result)).toBeFalsy();
     });
 
     it("accepts lowercase modality and quantities as strings, padding inline UPCs", async () => {
@@ -101,7 +101,7 @@ describe("input forgiveness", () => {
         modality: "pickup",
       });
 
-      expect(result.isError, `${contentText(result)}`).toBeFalsy();
+      expect(result.isError, contentText(result)).toBeFalsy();
 
       const items = stub.allCartItems();
       expect(items).toHaveLength(1);
@@ -116,7 +116,7 @@ describe("input forgiveness", () => {
         limitPerTerm: "3",
       });
 
-      expect(result.isError, `${contentText(result)}`).toBeFalsy();
+      expect(result.isError, contentText(result)).toBeFalsy();
     });
   });
 
@@ -127,7 +127,7 @@ describe("input forgiveness", () => {
         reasoning: "the user asked for milk",
       });
 
-      expect(result.isError, `${contentText(result)}`).toBeTruthy();
+      expect(result.isError, contentText(result)).toBeTruthy();
     });
 
     it("rejects productId instead of terms", async () => {

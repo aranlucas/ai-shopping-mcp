@@ -1,15 +1,15 @@
-import { z } from "zod/v4";
-
-const selectedActualSchema = z.object({
-  upc: z.string().optional(),
-  name: z.string().optional(),
-});
+import {
+  selectedActualSchema,
+  pairedReportSchema,
+  agentSelectorBodySchema,
+  responseUsage,
+} from "./eval-schemas.mjs";
 
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { URL, fileURLToPath } from "node:url";
 import { unstable_dev } from "wrangler";
 
 const model = process.env.EVAL_SELECTOR_MODEL ?? "openai/gpt-5.4-mini";
@@ -53,20 +53,27 @@ try {
   );
 
   for (const sourcePath of sources) {
+    /** @type {unknown} */
     // oxlint-disable-next-line eslint/no-await-in-loop -- process each source serially
-    const source = JSON.parse(await readFile(sourcePath, "utf8"));
+    const sourceJson = JSON.parse(await readFile(sourcePath, "utf8"));
+    const source = pairedReportSchema.parse(sourceJson);
+
+    /** @type {import("./eval-schemas.mjs").AgentSelectorBatch[]} */
+    const batches = [];
+    /** @type {import("./eval-schemas.mjs").AgentSelectorRow[]} */
+    const resultRows = [];
 
     const report = {
       startedAt: new Date().toISOString(),
       model,
       sourcePath,
-      sourceSha256: createHash("sha256").update(JSON.stringify(source)).digest("hex"),
+      sourceSha256: createHash("sha256").update(JSON.stringify(sourceJson)).digest("hex"),
       workerSource,
       workerSha256: createHash("sha256").update(workerSource).digest("hex"),
       method:
         "Single forced select_products tool call per batch; same ordered catalog evidence and conservative policy as JEV. Selector comparison, not an end-to-end MCP tool loop. 60-second agent deadline versus 5-second JEV deadline; no retries.",
-      batches: [],
-      results: [],
+      batches,
+      results: resultRows,
     };
 
     const outputPath = sourcePath.replace(/\.json$/, "-agent.json");
@@ -88,11 +95,13 @@ try {
           body: JSON.stringify({ model, items, forPickup: true }),
         });
 
-        // oxlint-disable-next-line eslint/no-await-in-loop -- score completed batch before continuing
-        const body = await response.json().catch((error) => ({
-          error: `Evaluation transport returned a non-JSON response (HTTP ${response.status}): ${error instanceof Error ? error.message : String(error)}`,
-          elapsedMs: null,
-        }));
+        const body = agentSelectorBodySchema.parse(
+          // oxlint-disable-next-line eslint/no-await-in-loop -- score completed batch before continuing
+          await response.json().catch((error) => ({
+            error: `Evaluation transport returned a non-JSON response (HTTP ${response.status}): ${error instanceof Error ? error.message : String(error)}`,
+            elapsedMs: null,
+          })),
+        );
 
         report.batches.push({
           order: originalBatch.order,
@@ -111,11 +120,13 @@ try {
                 }
               : (selection?.status ?? "error");
 
+          const selectedActual = selectedActualSchema.safeParse(actual);
+
           const correct =
             row.expected === "unresolved"
               ? actual === "unresolved"
-              : selectedActualSchema.safeParse(actual).success &&
-                row.expected.some((product) => product.upc === actual.upc);
+              : selectedActual.success &&
+                row.expected.some((product) => product.upc === selectedActual.data.upc);
 
           report.results.push({
             id: row.id,
@@ -134,7 +145,7 @@ try {
         }
 
         console.log(
-          `${sourcePath} ${originalBatch.order} batch ${batchIndex + 1}: ${report.results.slice(-rows.length).filter((row) => row.correct).length}/${rows.length}, ${body.elapsedMs}ms${body.error ? `, ${body.error}` : ""}`,
+          `${sourcePath} ${originalBatch.order} batch ${batchIndex + 1}: ${report.results.slice(-rows.length).filter((row) => row.correct).length}/${rows.length}, ${String(body.elapsedMs)}ms${body.error ? `, ${body.error}` : ""}`,
         );
       }
 
@@ -146,10 +157,10 @@ try {
 
       const durations = report.batches
         .map((batch) => batch.elapsedMs)
-        .filter((duration) => z.number().safeParse(duration).success)
+        .filter((duration) => duration !== null)
         .toSorted((a, b) => a - b);
 
-      report.summary = {
+      const summary = {
         correct: rows.filter((row) => row.correct).length,
         total: rows.length,
         jevCorrect: rows.filter((row) => row.jevCorrect).length,
@@ -174,20 +185,20 @@ try {
           max: durations.at(-1),
         },
         reportedCostUsd: report.batches.reduce(
-          (sum, batch) => sum + (batch.raw?.usage?.cost ?? 0),
+          (sum, batch) => sum + (responseUsage(batch.raw)?.cost ?? 0),
           0,
         ),
         inputTokens: report.batches.reduce(
-          (sum, batch) => sum + (batch.raw?.usage?.prompt_tokens ?? 0),
+          (sum, batch) => sum + (responseUsage(batch.raw)?.prompt_tokens ?? 0),
           0,
         ),
         outputTokens: report.batches.reduce(
-          (sum, batch) => sum + (batch.raw?.usage?.completion_tokens ?? 0),
+          (sum, batch) => sum + (responseUsage(batch.raw)?.completion_tokens ?? 0),
           0,
         ),
       };
-      report.completedAt = new Date().toISOString();
-      console.log(JSON.stringify(report.summary, null, 2));
+      Object.assign(report, { summary, completedAt: new Date().toISOString() });
+      console.log(JSON.stringify(summary, null, 2));
     } finally {
       // oxlint-disable-next-line eslint/no-await-in-loop -- preserve even an interrupted report
       await writeFile(outputPath, JSON.stringify(report, null, 2) + "\n");

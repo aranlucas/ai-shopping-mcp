@@ -17,12 +17,11 @@ export function strictFake<T extends object>(members: Partial<T>, options: FakeO
     get(target, key) {
       let descriptor: PropertyDescriptor | undefined;
 
-      for (
-        let owner = target;
-        owner !== null && !descriptor;
-        owner = Object.getPrototypeOf(owner)
-      ) {
+      let owner: object | null = target;
+      while (owner !== null && !descriptor) {
         descriptor = Object.getOwnPropertyDescriptor(owner, key);
+        // Object.getPrototypeOf returns an object or null; retain the exact prototype.
+        owner = Object.getPrototypeOf(owner) as object | null;
       }
 
       // Promise resolution probes every returned object for a then method; an ordinary non-thenable must report its absence.
@@ -34,7 +33,7 @@ export function strictFake<T extends object>(members: Partial<T>, options: FakeO
         throw new Error(`Unimplemented fake member: ${String(key)}`);
       }
 
-      const value = descriptor.get ? descriptor.get.call(target) : descriptor.value;
+      const value: unknown = descriptor.get ? descriptor.get.call(target) : descriptor.value;
 
       if (value === undefined) {
         throw new Error(`Unimplemented fake member: ${String(key)}`);

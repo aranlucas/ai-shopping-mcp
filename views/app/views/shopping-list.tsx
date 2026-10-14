@@ -90,7 +90,7 @@ function applyItemEdit(
       }
 
       if (edit.quantity !== undefined) {
-        updated.quantity = Number(edit.quantity);
+        updated.quantity = edit.quantity;
       }
 
       return updated;

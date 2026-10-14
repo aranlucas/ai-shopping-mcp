@@ -113,7 +113,7 @@ export class CartOperations extends DurableObject<Env> implements CartOperationS
     return this.ctx.storage.transaction(async (txn) => {
       const operation = await txn.get<CartOperation>(key);
 
-      if (!operation || operation.status !== "pending" || operation.attempt !== attempt) {
+      if (operation?.status !== "pending" || operation.attempt !== attempt) {
         if (!operation) {
           return { status: "conflict" };
         }

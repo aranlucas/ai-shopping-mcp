@@ -103,7 +103,7 @@ function DealCard({ deal, canCallTools, canMessage, onSearch, onPlanMeal }: Deal
         )}
         <div className="mt-4 flex flex-wrap items-baseline gap-2">
           <span className="text-xl leading-snug font-semibold text-emerald-600 tabular-nums">
-            {deal.price || "See ad"}
+            {deal.price?.length ? deal.price : "See ad"}
           </span>
           {deal.savings && (
             <Badge variant="outline" tone="success">

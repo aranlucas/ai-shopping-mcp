@@ -147,6 +147,14 @@ class MemoryKv {
   }
 }
 
-export function memoryKv(store = new Map<string, string>()): KVNamespace {
-  return new MemoryKv(store);
+export function memoryKv(store = new Map<string, string>()) {
+  const kv = new MemoryKv(store);
+
+  return {
+    get: kv.get.bind(kv),
+    put: kv.put.bind(kv),
+    getWithMetadata: kv.getWithMetadata.bind(kv),
+    delete: kv.delete.bind(kv),
+    list: kv.list.bind(kv),
+  } satisfies KVNamespace;
 }

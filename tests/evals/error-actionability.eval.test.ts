@@ -120,6 +120,6 @@ describe("error actionability", () => {
     expect(saved.isError).toBeFalsy();
 
     const retried = await call("shop_for_items", { items: [{ name: "milk" }] });
-    expect(retried.isError, `${contentText(retried)}`).toBeFalsy();
+    expect(retried.isError, contentText(retried)).toBeFalsy();
   });
 });

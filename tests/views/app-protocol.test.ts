@@ -110,7 +110,7 @@ describe("MCP Apps v2 protocol bridge", () => {
 
       await expect(rejectedCall).rejects.toMatchObject({
         code: -32602,
-        message: expect.stringContaining("set_preferred_store"),
+        message: expect.stringContaining("set_preferred_store") as unknown,
       });
       await expect(rejectedCall).rejects.toSatisfy((cause) => cause instanceof ProtocolError);
     } finally {

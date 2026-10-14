@@ -70,7 +70,7 @@ export function registerOrderTools(
       const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
       const estimatedTotal = items.reduce(
-        (sum, item) => sum + (item.price || 0) * item.quantity,
+        (sum, item) => sum + (item.price ?? 0) * item.quantity,
         0,
       );
 

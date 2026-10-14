@@ -48,6 +48,16 @@ describe("error constructors", () => {
       expect(e.detail).toBeUndefined();
     });
 
+    it("preserves primitive and callable stringification", () => {
+      expect(apiError("failed", false).detail).toBe("false");
+      expect(apiError("failed", 42n).detail).toBe("42");
+      expect(apiError("failed", Symbol("cause")).detail).toBe("Symbol(cause)");
+      const callable = Object.assign(() => {}, {
+        [Symbol.toPrimitive]: () => "custom callable cause",
+      });
+      expect(apiError("failed", callable).detail).toBe("custom callable cause");
+    });
+
     it("stringifies a numeric detail via primitive fallback", () => {
       const e = apiError("api failed", 42);
       expect(e.detail).toBe("42");

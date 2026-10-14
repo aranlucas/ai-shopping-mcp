@@ -2,6 +2,8 @@
 // GET /pending shows the prompt/tool result. POST /action submits one action:
 // {id, action: {type:"tool", name, arguments}} or {id, action: {type:"finish", answer, feedback}}.
 // Each run keeps its transcript and standard vitest-evals report in a new directory.
+import { z } from "zod/v4";
+import { codexTurnSchema, codexActionSchema } from "./eval-schemas.mjs";
 import { execFileSync, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { appendFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -24,18 +26,21 @@ const sourceFiles = [
   "tests/evals/agent/tasks.ts",
   "tests/evals/agent/judges.ts",
   "scripts/eval-agent-codex.mjs",
+  "scripts/eval-schemas.mjs",
 ];
 
 const sources = Object.fromEntries(
   await Promise.all(
-    sourceFiles.map(async (file) => {
-      const source = await readFile(file);
-      const destination = `${directory}/sources/${file}.txt`;
-      await mkdir(resolve(destination, ".."), { recursive: true });
-      await writeFile(destination, source);
+    sourceFiles.map(
+      /** @returns {Promise<[string, string]>} */ async (file) => {
+        const source = await readFile(file);
+        const destination = `${directory}/sources/${file}.txt`;
+        await mkdir(resolve(destination, ".."), { recursive: true });
+        await writeFile(destination, source);
 
-      return [file, createHash("sha256").update(source).digest("hex")];
-    }),
+        return [file, createHash("sha256").update(source).digest("hex")];
+      },
+    ),
   ),
 );
 
@@ -52,23 +57,40 @@ const run = {
 
 await writeFile(`${directory}/run.json`, `${JSON.stringify(run, null, 2)}\n`);
 
+/** @type {{turn: import("zod/v4").infer<typeof codexTurnSchema> & {id: string}, response: import("node:http").ServerResponse} | undefined} */
 let pending;
 
+/** @param {import("node:http").IncomingMessage} request
+ * @returns {Promise<unknown>}
+ */
 async function readJson(request) {
+  /** @type {Buffer[]} */
   const chunks = [];
 
   for await (const chunk of request) {
+    if (!Buffer.isBuffer(chunk)) {
+      throw new Error("Expected a binary request body");
+    }
     chunks.push(chunk);
   }
 
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
+/**
+ * @param {import("node:http").ServerResponse} response
+ * @param {number} status
+ * @param {unknown} body
+ */
 function json(response, status, body) {
   response.writeHead(status, { "Content-Type": "application/json" });
   response.end(JSON.stringify(body));
 }
 
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @param {import("node:http").ServerResponse} response
+ */
 async function handle(request, response) {
   if (request.method === "GET" && request.url === "/pending") {
     json(response, 200, pending?.turn ?? null);
@@ -77,7 +99,7 @@ async function handle(request, response) {
       return json(response, 409, { error: "A turn is already pending" });
     }
 
-    const turn = { ...(await readJson(request)), id: randomUUID() };
+    const turn = { ...codexTurnSchema.parse(await readJson(request)), id: randomUUID() };
     await appendFile(`${directory}/transcript.jsonl`, `${JSON.stringify({ turn })}\n`);
     pending = { turn, response };
     response.on("close", () => {
@@ -86,7 +108,7 @@ async function handle(request, response) {
       }
     });
   } else if (request.method === "POST" && request.url === "/action") {
-    const { id, action } = await readJson(request);
+    const { id, action } = codexActionSchema.parse(await readJson(request));
 
     if (!pending || pending.turn.id !== id) {
       return json(response, 409, { error: "No pending turn with that id" });
@@ -131,7 +153,11 @@ server.listen(0, "127.0.0.1");
 
 await once(server, "listening");
 
-const port = server.address().port;
+const address = server.address();
+if (!address || typeof address === "string") {
+  throw new Error("Codex eval driver did not bind a TCP port");
+}
+const port = address.port;
 
 const driver = { url: `http://127.0.0.1:${port}`, directory };
 
@@ -153,11 +179,15 @@ const child = spawn(
   { env: { ...process.env, EVAL_CODEX_PORT: String(port) }, stdio: "inherit" },
 );
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
+/** @type {NodeJS.Signals[]} */
+const signals = ["SIGINT", "SIGTERM"];
+for (const signal of signals) {
   process.on(signal, () => child.kill(signal));
 }
 
-const [code, exitSignal] = await once(child, "exit");
+const [code, exitSignal] = z
+  .tuple([z.number().nullable(), z.string().nullable()])
+  .parse(await once(child, "exit"));
 
 server.closeAllConnections();
 

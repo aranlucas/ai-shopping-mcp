@@ -491,7 +491,7 @@ function formatLiveCart(cart: LiveCart, cartId: string): string {
 
   const lines = items.map(
     (item) =>
-      `- ${item.description ?? item.upc} x${item.quantity ?? 1} | upc=${item.upc} | ${item.modality}`,
+      `- ${String(item.description ?? item.upc)} x${item.quantity ?? 1} | upc=${String(item.upc)} | ${item.modality}`,
   );
 
   return [

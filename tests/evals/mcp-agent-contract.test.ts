@@ -135,10 +135,10 @@ describe("MCP agent contract", () => {
       );
       expect(tool.config.inputSchema, `${tool.name} inputSchema`).toBeDefined();
       expect(tool.config.annotations, `${tool.name} annotations`).toMatchObject({
-        readOnlyHint: expect.any(Boolean),
-        destructiveHint: expect.any(Boolean),
-        idempotentHint: expect.any(Boolean),
-        openWorldHint: expect.any(Boolean),
+        readOnlyHint: expect.any(Boolean) as unknown,
+        destructiveHint: expect.any(Boolean) as unknown,
+        idempotentHint: expect.any(Boolean) as unknown,
+        openWorldHint: expect.any(Boolean) as unknown,
       });
     }
 
@@ -151,7 +151,7 @@ describe("MCP agent contract", () => {
       "view_cart",
       "shop_for_items",
     ]) {
-      expect(toolByName(tools, name).config.annotations?.readOnlyHint, `${name}`).toBe(true);
+      expect(toolByName(tools, name).config.annotations?.readOnlyHint, name).toBe(true);
     }
 
     for (const name of ["update_inventory", "update_shopping_list"]) {

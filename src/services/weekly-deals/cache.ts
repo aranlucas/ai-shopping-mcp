@@ -38,7 +38,7 @@ export interface WeeklyDealsCache {
 }
 
 export function buildWeeklyDealsCacheKey(params: WeeklyDealsCacheParams): string {
-  const locationId = params.locationId || "default";
+  const locationId = params.locationId?.length ? params.locationId : "default";
 
   return [
     "qfc",

@@ -421,6 +421,44 @@ describe("getQfcWeeklyDeals", () => {
       expect(result.deals.filter((d) => d.id === "101")).toHaveLength(1);
     });
 
+    it.each([0, Number.NaN])(
+      "keeps empty location and %s count options on their defaults",
+      async (count) => {
+        fetchMock.mockImplementation((input: string | Request | URL) => {
+          const url = urlOf(input);
+          if (url.includes("digitalads/v1/circulars")) {
+            return Promise.resolve(mockOkResponse(MOCK_CIRCULARS_RESPONSE));
+          }
+          if (url.includes("/api/dacs/evt-print-1?")) {
+            return Promise.resolve(
+              mockOkResponse({
+                ...MOCK_LISTING_RESPONSE,
+                pages: [...MOCK_LISTING_RESPONSE.pages, { eventPageId: "page-2", page: "2" }],
+              }),
+            );
+          }
+          if (url.includes("/pages/page-1")) {
+            return Promise.resolve(mockOkResponse(MOCK_PAGE_RESPONSE));
+          }
+          if (url.includes("/pages/page-2")) {
+            return Promise.resolve(
+              mockOkResponse({
+                eventPageId: "page-2",
+                contents: [
+                  { contentType: "Offer", mapConfig: makeMapConfig(104, "Oranges", "1 lb") },
+                ],
+              }),
+            );
+          }
+          return Promise.reject(new Error(`Unmocked URL: ${url}`));
+        });
+        const result = await getQfcWeeklyDeals({ locationId: "", pageLimit: count, limit: count });
+        expect(result.locationId).toBe("70500847");
+        expect(result.deals).toHaveLength(3);
+        expect(result.deals.map((deal) => deal.title)).toContain("Oranges");
+      },
+    );
+
     it("uses default location when none provided", async () => {
       setupPrintAdFetch();
 

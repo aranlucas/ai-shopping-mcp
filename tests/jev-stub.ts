@@ -4,7 +4,13 @@ import type { SelectorAi } from "../scripts/fixtures/jev-product-selector.js";
 export type JevRun = ReturnType<SelectorAi["gateway"]>["run"];
 
 /** Deterministic inference fixture; production selection/validation still runs. */
-export function stubJevAi(preferredName?: string): SelectorAi {
+type StubSelectorAi = {
+  gateway(id: string): {
+    run: (this: void, ...args: Parameters<JevRun>) => ReturnType<JevRun>;
+  };
+};
+
+export function stubJevAi(preferredName?: string): StubSelectorAi {
   return {
     gateway() {
       return {
