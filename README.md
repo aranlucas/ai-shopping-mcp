@@ -42,7 +42,7 @@ flowchart LR
 
 ## Run locally
 
-Requires Node.js 24.18.1 or newer and pnpm 12.8. `cf dev` runs the Worker locally; copy `.dev.vars.example` to the ignored `.dev.vars` file and configure Better Auth and Kroger credentials before testing sign-in or shopping requests.
+Requires Node.js 24.18.1 or newer and the pnpm version pinned in `packageManager`. `cf dev` runs the Worker locally; copy `.dev.vars.example` to the ignored `.dev.vars` file and configure Better Auth and Kroger credentials before testing sign-in or shopping requests.
 
 ```sh
 pnpm install
@@ -342,6 +342,10 @@ pnpm eval:mcp
 pnpm cf-typegen  # writes .cloudflare/types; typecheck and lint run it first
 ```
 
+`pnpm test` runs all worker, Node-environment, and evaluation-script tests with Vitest.
+`pnpm test:scripts` selects only the script tests in the Node-environment project. The
+scripts still execute on Node.js; there is no separate Node built-in test runner.
+
 `pnpm lint` runs both the standard rules and a focused type-aware pass via `oxlint-tsgolint`.
 Floating Promises (including `void` expressions and `ResultAsync` thenables) and misused async
 callbacks fail lint and build. The focused configuration avoids enabling unrelated type-aware
@@ -359,10 +363,11 @@ exclusion. The existing Tailwind plugin continues to check utility validity,
 arbitrary values, and hardcoded colors through the shared Oxforge Tailwind preset
 in `.oxlintrc.json`.
 
-The configuration keeps five narrow rule disables for contracts the generic rules cannot
-represent: opaque error/upstream metadata, syntax-only JSON parsing, raw schema/serializer
-boundaries, cross-realm overload and error classification, and the MCP SDK's `onerror`
-callback property. The existing sequential-I/O inline exceptions remain intentional.
+The configuration keeps scoped exceptions for contracts the generic rules cannot represent:
+opaque error/upstream metadata, syntax-only JSON parsing, raw schema/serializer boundaries,
+cross-realm overload and error classification, the MCP SDK's `onerror` callback property,
+async adapters whose failures must remain rejected Promises, deliberately invalid rejection
+tests, UTF-16 fixture hashing, and SDK default-argument contracts. The existing sequential-I/O inline exceptions remain intentional.
 `console.warn`/`console.error` retain operational diagnostics; evaluation scripts also retain
 `console.log`/`console.info` report output. These are local exceptions, not zero overrides.
 

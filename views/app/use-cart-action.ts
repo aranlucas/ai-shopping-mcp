@@ -16,12 +16,12 @@ export function useCartAction(
 
   const submit = useCallback(() => action.submit(app), [action, app]);
 
-  useEffect(() => {
+  useEffect((): (() => void) | undefined => {
     if (
       (state.status !== "added" && state.status !== "already_added") ||
       resetAfterMs === undefined
     ) {
-      return;
+      return undefined;
     }
 
     const timer = setTimeout(action.reset, resetAfterMs);

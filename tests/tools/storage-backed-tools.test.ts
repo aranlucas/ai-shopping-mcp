@@ -298,9 +298,9 @@ describe("storage-backed tools", () => {
 
     const putCalls: Request[] = [];
     ctx.cartClient.use({
-      onRequest: ({ request }) => {
+      onRequest: ({ request }): Response | undefined => {
         if (request.method !== "PUT") {
-          return;
+          return undefined;
         }
 
         putCalls.push(request);

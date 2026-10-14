@@ -7,10 +7,7 @@
     "./node_modules/@aranlucas/oxforge/configs/tailwind.json",
     "./node_modules/@aranlucas/oxforge/configs/type-aware.json"
   ],
-  "jsPlugins": [
-    "oxlint-tailwindcss",
-    "@shadcn/lint"
-  ],
+  "jsPlugins": ["oxlint-tailwindcss", "@shadcn/lint"],
   "plugins": [
     "eslint",
     "typescript",
@@ -91,11 +88,7 @@
     "eslint/no-underscore-dangle": [
       "error",
       {
-        "allow": [
-          "_meta",
-          "_unsafeUnwrap",
-          "_unsafeUnwrapErr"
-        ]
+        "allow": ["_meta", "_unsafeUnwrap", "_unsafeUnwrapErr"]
       }
     ],
     "unicorn/no-array-sort": "error",
@@ -119,10 +112,7 @@
     "eslint/no-console": [
       "error",
       {
-        "allow": [
-          "warn",
-          "error"
-        ]
+        "allow": ["warn", "error"]
       }
     ],
     "unicorn/no-useless-undefined": [
@@ -134,50 +124,36 @@
   },
   "overrides": [
     {
-      "files": [
-        "tests/strict-fake.ts"
-      ],
+      "files": ["tests/strict-fake.ts"],
       "rules": {
         "anti-slop/no-runtime-typeof": [
           "error",
           {
             "allowInTypeGuards": true
           }
-        ]
+        ],
+        "anti-slop/no-unknown-returns": "off"
       }
     },
     {
-      "files": [
-        "views/**/*.tsx"
-      ],
+      "files": ["views/**/*.tsx"],
       "rules": {
         "shadcn/no-restyle": [
           "error",
           {
-            "allow": [
-              "layout"
-            ],
+            "allow": ["layout"],
             "contracts": [
               {
                 "pattern": "^(Card|CardHeader|CardContent|CardFooter|Empty)$",
-                "allow": [
-                  "layout",
-                  "spacing"
-                ]
+                "allow": ["layout", "spacing"]
               },
               {
                 "pattern": "^CarouselItem$",
-                "allow": [
-                  "layout",
-                  "ps"
-                ]
+                "allow": ["layout", "ps"]
               },
               {
                 "pattern": "^Skeleton$",
-                "allow": [
-                  "layout",
-                  "rounded"
-                ]
+                "allow": ["layout", "rounded"]
               }
             ]
           }
@@ -187,10 +163,7 @@
       }
     },
     {
-      "files": [
-        "tests/**/*.test.ts",
-        "tests/**/*.ts"
-      ],
+      "files": ["tests/**/*.test.ts", "tests/**/*.ts"],
       "rules": {
         "typescript/no-explicit-any": "error"
       }
@@ -219,46 +192,30 @@
       }
     },
     {
-      "files": [
-        "src/utils/json.ts"
-      ],
+      "files": ["src/utils/json.ts"],
       "rules": {
         "anti-slop/no-unknown-returns": "off"
       }
     },
     {
-      "files": [
-        "src/errors.ts",
-        "src/services/kroger/weekly-deals.d.ts"
-      ],
+      "files": ["src/errors.ts", "src/services/kroger/weekly-deals.d.ts"],
       "rules": {
         "anti-slop/no-unsafe-dictionary-type": "off"
       }
     },
     {
-      "files": [
-        "views/shopping-app.tsx"
-      ],
+      "files": ["views/shopping-app.tsx"],
       "rules": {
         "unicorn/prefer-add-event-listener": "off"
       }
     },
     {
-      "files": [
-        "scripts/**/*.mjs",
-        "scripts/**/*.ts",
-        "tests/evals/token-budget.eval.test.ts"
-      ],
+      "files": ["scripts/**/*.mjs", "scripts/**/*.ts", "tests/evals/token-budget.eval.test.ts"],
       "rules": {
         "eslint/no-console": [
           "error",
           {
-            "allow": [
-              "log",
-              "warn",
-              "error",
-              "info"
-            ]
+            "allow": ["log", "warn", "error", "info"]
           }
         ]
       }
@@ -284,10 +241,7 @@
       }
     },
     {
-      "files": [
-        "tests/utils/result.test.ts",
-        "tests/utils/request-timeout.test.ts"
-      ],
+      "files": ["tests/utils/result.test.ts", "tests/utils/request-timeout.test.ts"],
       "rules": {
         "eslint/prefer-promise-reject-errors": "off",
         "typescript/prefer-promise-reject-errors": "off"
@@ -306,42 +260,27 @@
       }
     },
     {
-      "files": [
-        "tests/evals/harness.ts"
-      ],
+      "files": ["tests/evals/harness.ts"],
       "rules": {
         "unicorn/prefer-code-point": "off"
       }
     },
     {
-      "files": [
-        "src/tools/weekly-deals.ts",
-        "tests/tools/cart.test.ts"
-      ],
+      "files": ["src/tools/weekly-deals.ts", "tests/tools/cart.test.ts"],
       "rules": {
         "unicorn/no-object-as-default-parameter": "off"
       }
     },
     {
-      "files": [
-        "scripts/eval-agent-selector-live.mjs"
-      ],
+      "files": ["scripts/eval-agent-selector-live.mjs"],
       "rules": {
-        "eslint/max-depth": [
-          "error",
-          5
-        ]
+        "eslint/max-depth": ["error", 5]
       }
     },
     {
-      "files": [
-        "src/utils/user-storage.ts"
-      ],
+      "files": ["src/utils/user-storage.ts"],
       "rules": {
-        "eslint/max-classes-per-file": [
-          "error",
-          2
-        ]
+        "eslint/max-classes-per-file": ["error", 2]
       }
     }
   ],

@@ -8,7 +8,7 @@
     "build:views": "vite build",
     "dev:views": "portless run --name views.ai-shopping-mcp vite",
     "watch": "NODE_ENV=development vite build --watch",
-    "test": "vitest run && pnpm test:scripts",
+    "test": "vitest run",
     "coverage": "vitest run --coverage",
     "typecheck": "pnpm cf-typegen && tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "eval:mcp": "vitest run tests/evals",
@@ -40,7 +40,7 @@
     "eval:agent:report": "vitest-evals serve eval-results",
     "format": "oxfmt --config oxfmt.config.ts --write",
     "format:check": "oxfmt --config oxfmt.config.ts --check",
-    "test:scripts": "node --test scripts/*.test.mjs"
+    "test:scripts": "vitest run --project node scripts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

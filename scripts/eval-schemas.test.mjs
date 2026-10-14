@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "vitest";
 import {
   agentReportSchema,
   agentSelectorBodySchema,
@@ -21,7 +21,7 @@ import {
   shuffled,
 } from "./fixtures/jev-grocery-cases.mjs";
 
-await test("selector diagnostics keep catalog evidence and arbitrary provider failures", () => {
+test("selector diagnostics keep catalog evidence and arbitrary provider failures", () => {
   const product = { upc: "123", description: "Milk", price: { regular: 4.5 } };
 
   const body = {
@@ -41,7 +41,7 @@ await test("selector diagnostics keep catalog evidence and arbitrary provider fa
   );
 });
 
-await test("usage, probabilities and transport failures remain typed and optional", () => {
+test("usage, probabilities and transport failures remain typed and optional", () => {
   const response = {
     usage: { cost: 0.001, input_tokens: 12, completion_tokens: 3 },
     answers: {
@@ -59,7 +59,7 @@ await test("usage, probabilities and transport failures remain typed and optiona
   });
 });
 
-await test("paired reports accept scoring inputs and reject malformed labels", () => {
+test("paired reports accept scoring inputs and reject malformed labels", () => {
   const report = {
     batches: [{ order: "original", ids: ["milk"], elapsedMs: 10 }],
     results: [
@@ -88,7 +88,7 @@ await test("paired reports accept scoring inputs and reject malformed labels", (
   );
 });
 
-await test("Codex validates both observations and the harness action contract", () => {
+test("Codex validates both observations and the harness action contract", () => {
   const initial = {
     taskId: "milk",
     split: "train",
@@ -125,7 +125,7 @@ await test("Codex validates both observations and the harness action contract", 
   );
 });
 
-await test("fixtures retain deterministic ordering, labels and 20-candidate expansion", () => {
+test("fixtures retain deterministic ordering, labels and 20-candidate expansion", () => {
   for (const fixture of [...cases, ...holdoutCases]) {
     assert.ok(
       fixture.acceptableUpcs.every((upc) =>
@@ -143,7 +143,7 @@ await test("fixtures retain deterministic ordering, labels and 20-candidate expa
   }
 });
 
-await test("summary handles passes, missing usage, failed runs and pre-eval errors", () => {
+test("summary handles passes, missing usage, failed runs and pre-eval errors", () => {
   const report = {
     testResults: [
       {

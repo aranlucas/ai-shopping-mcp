@@ -14,7 +14,8 @@ export function strictFake<T extends object>(members: Partial<T>, options: FakeO
   const methods = new WeakMap<Method, Method>();
 
   const proxy = new Proxy(members, {
-    get(target, key) {
+    // A Proxy can be probed with any runtime property key, so its boundary result is unknown.
+    get(target, key): unknown {
       let descriptor: PropertyDescriptor | undefined;
 
       let owner: object | null = target;
@@ -27,7 +28,7 @@ export function strictFake<T extends object>(members: Partial<T>, options: FakeO
 
       // Promise resolution probes every returned object for a then method; an ordinary non-thenable must report its absence.
       if (!descriptor && key === "then" && options.nonThenable) {
-        return;
+        return undefined;
       }
 
       if (!descriptor) {

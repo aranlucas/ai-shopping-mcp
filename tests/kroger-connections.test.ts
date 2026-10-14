@@ -32,7 +32,7 @@ describe("Auth-owned Kroger credentials", () => {
 
     expect(await (await env.AUTH.fetch("https://auth-stub/stats")).json()).toEqual({
       maxActive: 1,
-      calls: Array(8).fill("shopper"),
+      calls: Array.from({ length: 8 }, () => "shopper"),
     });
   });
 

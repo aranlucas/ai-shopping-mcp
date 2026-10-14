@@ -152,8 +152,9 @@ export function registerResources(
           );
 
           const upcs = new Set<string>();
-          ordersResult.map((orders) => {
-            for (const order of orders) {
+
+          if (ordersResult.isOk()) {
+            for (const order of ordersResult.value) {
               for (const item of order.items) {
                 const upc = item.upc;
 
@@ -162,7 +163,7 @@ export function registerResources(
                 }
               }
             }
-          });
+          }
 
           const matches = [...upcs].filter((upc) => !prefix || upc.startsWith(prefix));
 

@@ -33,7 +33,7 @@ const REAUTH_MSG = "Please sign in to your MCP client again to reconnect Kroger.
  */
 export function createKrogerAuthMiddleware(getTokenInfo: () => KrogerTokenInfo | null): Middleware {
   return {
-    async onRequest({ request }) {
+    async onRequest({ request }): Promise<Request> {
       const tokenInfo = getTokenInfo();
 
       if (!tokenInfo) {
@@ -94,9 +94,9 @@ export function createKrogerCacheMiddleware(
   waitUntil?: WaitUntil,
 ): Middleware {
   return {
-    async onRequest({ request }) {
+    async onRequest({ request }): Promise<Response | undefined> {
       if (!kv || request.method !== "GET") {
-        return;
+        return undefined;
       }
 
       const key = krogerCacheKeyFor(request.url);
@@ -106,7 +106,7 @@ export function createKrogerCacheMiddleware(
       const raw = cacheResult.isOk() ? cacheResult.value : null;
 
       if (!raw) {
-        return;
+        return undefined;
       }
 
       const parseResult = safeJsonParseWithSchema(raw, krogerCacheEntrySchema);
@@ -114,7 +114,7 @@ export function createKrogerCacheMiddleware(
       const entry: KrogerCacheEntry | null = parseResult.isOk() ? parseResult.value : null;
 
       if (!entry) {
-        return;
+        return undefined;
       }
 
       return new Response(entry.body, {
