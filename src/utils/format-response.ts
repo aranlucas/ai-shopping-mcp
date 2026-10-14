@@ -56,7 +56,7 @@ export function formatPantryItemCompact(item: PantryItem): string {
     } else if (expiry.status === "soon") {
       parts.push(`⚠️${expiry.daysUntil}d`);
     } else if (expiry.status === "ok") {
-      parts.push(`${new Date(item.expiresAt).toLocaleDateString()}`);
+      parts.push(new Date(item.expiresAt).toLocaleDateString());
     }
   }
 
@@ -82,7 +82,8 @@ export function formatOrderRecordCompact(order: OrderRecord): string {
   const parts: string[] = [];
 
   // Order ID (shortened)
-  const shortId = order.orderId.split("-").pop() || order.orderId;
+  const lastIdPart = order.orderId.split("-").pop();
+  const shortId = lastIdPart?.length ? lastIdPart : order.orderId;
   parts.push(`#${shortId}`);
 
   // Date
@@ -484,7 +485,7 @@ function formatExactProductLines(product: Product, upc: string): string[] {
 export function formatStoreLineMarkdown(location: Location): string {
   const parts: string[] = [
     `storeId=${location.locationId ?? "unknown"}`,
-    location.name || "Unknown store",
+    location.name?.length ? location.name : "Unknown store",
   ];
 
   if (location.address) {

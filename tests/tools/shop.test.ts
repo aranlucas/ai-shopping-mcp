@@ -212,7 +212,7 @@ describe("shop_for_items product options", () => {
         term: "bread",
         failed: true,
         products: [],
-        error: expect.any(String),
+        error: expect.any(String) as unknown,
       }),
     ]);
     expect(result.text).toContain("No Kroger results");

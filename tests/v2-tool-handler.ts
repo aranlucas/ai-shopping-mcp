@@ -40,7 +40,7 @@ export type RawToolHandler = (
 ) => ReturnType<ReturnType<McpServer["registerTool"]>["executor"]>;
 
 export type TestToolConfig = Omit<Parameters<McpServer["registerTool"]>[1], "inputSchema"> & {
-  inputSchema: z.ZodObject;
+  inputSchema: z.ZodObject<Record<string, z.ZodType>>;
 };
 
 /**

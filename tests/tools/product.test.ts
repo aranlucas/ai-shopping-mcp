@@ -480,7 +480,7 @@ describe("search_products", () => {
       "/v1/products",
       expect.objectContaining({
         params: {
-          query: expect.objectContaining({ "filter.locationId": "99887766" }),
+          query: expect.objectContaining({ "filter.locationId": "99887766" }) as unknown,
         },
       }),
     );

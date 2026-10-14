@@ -153,6 +153,7 @@ function getPartialLoadingMessage(viewKey: string | null, args: PartialToolInput
       return "Updating inventory…";
     case "get_weekly_deals":
       return "Fetching weekly deals…";
+    case null:
     default:
       return "Loading…";
   }
@@ -193,6 +194,7 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
         case "update_inventory":
         case "record_order":
           return <ListSkeleton />;
+        case null:
         default: {
           const message = getPartialLoadingMessage(toolName, partialArgs);
 

@@ -8,7 +8,10 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "types": ["./.cloudflare/types/index.d.ts", "@cloudflare/vitest-plugin/types"]
+    "types": ["./.cloudflare/types/index.d.ts", "@cloudflare/vitest-plugin/types"],
+    "allowJs": true,
+    "noEmit": true,
+    "checkJs": true
   },
-  "exclude": ["views"]
+  "exclude": ["views", "dist", "coverage", ".cloudflare"]
 }

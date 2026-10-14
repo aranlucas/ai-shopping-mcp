@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { agentReportSchema } from "./eval-schemas.mjs";
 // Summarizes the vitest-evals JSON reports from `pnpm eval:agent` (one per
 // model) as Markdown, e.g. for the GitHub Actions step summary.
 //
@@ -10,7 +10,9 @@ const directory = process.argv[2] ?? "eval-results";
 const files = (await readdir(directory)).filter((file) => /^agent.*\.json$/.test(file));
 
 const reports = await Promise.all(
-  files.map(async (file) => JSON.parse(await readFile(`${directory}/${file}`, "utf8"))),
+  files.map(async (file) =>
+    agentReportSchema.parse(JSON.parse(await readFile(`${directory}/${file}`, "utf8"))),
+  ),
 );
 
 const testResults = reports.flatMap((report) => report.testResults);
@@ -19,8 +21,8 @@ const runs = testResults
   .flatMap((file) => file.assertionResults)
   .filter((test) => test.meta?.eval)
   .map((test) => {
-    const score = test.meta.eval.scores[0] ?? {};
-    const usage = test.meta.harness?.run?.usage ?? {};
+    const score = test.meta?.eval?.scores[0] ?? {};
+    const usage = test.meta?.harness?.run?.usage ?? {};
 
     return {
       model: test.ancestorTitles.at(-1),
@@ -44,17 +46,23 @@ const models = [...new Set(runs.map((run) => run.model))];
 
 const tasks = [...new Set(runs.map((run) => run.task))];
 
+/** @param {typeof runs} rows */
 const rate = (rows) =>
   rows.length ? `${rows.filter((row) => row.pass).length}/${rows.length}` : "-";
 
+/**
+ * @param {typeof runs} rows
+ * @param {"tokens" | "toolCalls"} key
+ */
 const avg = (rows, key) => {
-  const measured = rows.filter((row) => z.number().safeParse(row[key]).success);
+  const measured = rows.map((row) => row[key]).filter((value) => value !== null);
 
   return measured.length
-    ? (measured.reduce((sum, row) => sum + row[key], 0) / measured.length).toFixed(1)
+    ? (measured.reduce((sum, value) => sum + value, 0) / measured.length).toFixed(1)
     : "-";
 };
 
+/** @param {string} text */
 const oneLine = (text) => text.replace(/\s+/g, " ").trim();
 
 const lines = [
@@ -66,7 +74,7 @@ const lines = [
     const rows = runs.filter((run) => run.model === model);
     const tokens = avg(rows, "tokens");
 
-    return `| ${model} | ${rate(rows.filter((r) => r.split === "train"))} | ${rate(rows.filter((r) => r.split === "test"))} | ${avg(rows, "toolCalls")} | ${rows.reduce((sum, r) => sum + r.toolErrors, 0)} | ${tokens === "-" ? "-" : Math.round(Number(tokens))} |`;
+    return `| ${String(model)} | ${rate(rows.filter((r) => r.split === "train"))} | ${rate(rows.filter((r) => r.split === "test"))} | ${avg(rows, "toolCalls")} | ${rows.reduce((sum, r) => sum + r.toolErrors, 0)} | ${tokens === "-" ? "-" : Math.round(Number(tokens))} |`;
   }),
   "",
   `| Task | ${models.join(" | ")} |`,
@@ -90,12 +98,12 @@ if (failures.length || errored.length) {
   lines.push("", "### Failures", "");
 
   for (const run of failures) {
-    lines.push(`- **${run.model} / ${run.task}**: ${oneLine(run.rationale)}`);
+    lines.push(`- **${String(run.model)} / ${run.task}**: ${oneLine(run.rationale)}`);
   }
 
   for (const test of errored) {
     lines.push(
-      `- **${test.ancestorTitles.at(-1)} / ${test.title}** errored: ${oneLine(test.failureMessages.join(" ")).slice(0, 300)}`,
+      `- **${String(test.ancestorTitles.at(-1))} / ${test.title}** errored: ${oneLine(test.failureMessages.join(" ")).slice(0, 300)}`,
     );
   }
 }
@@ -106,7 +114,7 @@ if (feedback.length) {
   lines.push("", "### Model tool feedback", "");
 
   for (const run of feedback) {
-    lines.push(`- ${run.model} / ${run.task}: ${oneLine(run.feedback)}`);
+    lines.push(`- ${String(run.model)} / ${run.task}: ${oneLine(run.feedback)}`);
   }
 }
 

@@ -138,7 +138,7 @@ interface ParsedDacsOffer {
 type DealProduct = ProductSearchProduct;
 
 function getDefaultLocationId(locationId?: string): string {
-  return locationId || DEFAULT_QFC_LOCATION_ID;
+  return locationId?.length ? locationId : DEFAULT_QFC_LOCATION_ID;
 }
 
 function inferDivisionCode(locationId: string, explicit?: string): string {
@@ -241,11 +241,11 @@ function selectCurrentCirculars(circulars: Circular[]) {
   });
 
   const shoppable =
-    active.find((c) => c.circularType === "weeklyAd" && c.tags.includes("SHOPPABLE")) ||
+    active.find((c) => c.circularType === "weeklyAd" && c.tags.includes("SHOPPABLE")) ??
     circulars.find((c) => c.circularType === "weeklyAd" && !c.previewCircular);
 
   const print =
-    active.find((c) => c.circularType === "print" && c.tags.includes("CLASSIC_VIEW")) ||
+    active.find((c) => c.circularType === "print" && c.tags.includes("CLASSIC_VIEW")) ??
     circulars.find((c) => c.circularType === "print" && !c.previewCircular);
 
   return { shoppable, print };
@@ -292,21 +292,24 @@ function normalizeProductAsDeal(product: DealProduct): NormalizedWeeklyDeal {
   const { price, savings } = productDealPrice(product);
 
   const department = product.categories?.[0];
-  const title = product.description || "Unknown Product";
+  const title = product.description?.length ? product.description : "Unknown Product";
+  const normalizedDescription = product.description?.trim().toLowerCase().replace(/\s+/g, "-");
 
-  const defaultImage = product.images?.find((img) => img.default) || product.images?.[0];
+  const defaultImage = product.images?.find((img) => img.default) ?? product.images?.[0];
 
-  const imageUrl =
-    defaultImage?.sizes?.find((s) => s.size === "medium")?.url || defaultImage?.sizes?.[0]?.url;
+  const mediumImageUrl = defaultImage?.sizes?.find((s) => s.size === "medium")?.url;
+  const imageUrl = mediumImageUrl?.length ? mediumImageUrl : defaultImage?.sizes?.[0]?.url;
 
   return {
-    id:
-      product.productId ||
-      product.upc ||
-      product.description?.trim().toLowerCase().replace(/\s+/g, "-") ||
-      "unknown-product",
+    id: product.productId?.length
+      ? product.productId
+      : product.upc?.length
+        ? product.upc
+        : normalizedDescription?.length
+          ? normalizedDescription
+          : "unknown-product",
     title,
-    details: item?.size || undefined,
+    details: item?.size?.length ? item.size : undefined,
     price,
     savings,
     department,
@@ -316,7 +319,15 @@ function normalizeProductAsDeal(product: DealProduct): NormalizedWeeklyDeal {
 }
 
 async function fetchDealsBySearchApi(params: SearchDealsParams): Promise<SearchDealsResult> {
-  const limit = Math.max(1, Math.min(params.limit || 50, 200));
+  const limit = Math.max(
+    1,
+    Math.min(
+      params.limit !== undefined && params.limit !== 0 && !Number.isNaN(params.limit)
+        ? params.limit
+        : 50,
+      200,
+    ),
+  );
 
   const searchPromises = DEAL_SEARCH_TERMS.map((term) =>
     Promise.resolve()
@@ -366,7 +377,7 @@ async function fetchDealsBySearchApi(params: SearchDealsParams): Promise<SearchD
   const seen = new Set<string>();
 
   const unique = onSale.filter((product) => {
-    const id = product.productId || product.upc;
+    const id = product.productId?.length ? product.productId : product.upc;
 
     if (!id || seen.has(id)) {
       return false;
@@ -489,7 +500,7 @@ function parseDacsOfferFromMapConfig(mapConfig: string): ParsedDacsOffer | null 
 function normalizeDacsText(value: string | null | undefined): string | undefined {
   const normalized = value?.replace(/\s+/g, " ").trim();
 
-  return normalized || undefined;
+  return normalized?.length ? normalized : undefined;
 }
 
 function applyDacsOfferDetails(
@@ -506,10 +517,10 @@ function applyDacsOfferDetails(
   return {
     ...deal,
     details: details.length > 0 ? details.join(" • ") : deal.details,
-    price: pricingText || deal.price,
-    validFrom: offer.startDate || deal.validFrom,
-    validTill: offer.endDate || deal.validTill,
-    imageUrl: offer.imageURL || deal.imageUrl,
+    price: pricingText?.length ? pricingText : deal.price,
+    validFrom: offer.startDate?.length ? offer.startDate : deal.validFrom,
+    validTill: offer.endDate?.length ? offer.endDate : deal.validTill,
+    imageUrl: offer.imageURL?.length ? offer.imageURL : deal.imageUrl,
     rawType: offer.isShoppable ? "shoppable" : deal.rawType,
   };
 }
@@ -537,9 +548,25 @@ async function normalizePrintDeals(params: NormalizePrintDealsParams): Promise<P
     signal: params.signal,
   });
 
-  const pages = listing.pages || [];
-  const pageLimit = Math.max(1, Math.min(params.pageLimit || 2, 10));
-  const limit = Math.max(1, Math.min(params.limit || 50, 200));
+  const pages = listing.pages ?? [];
+  const pageLimit = Math.max(
+    1,
+    Math.min(
+      params.pageLimit !== undefined && params.pageLimit !== 0 && !Number.isNaN(params.pageLimit)
+        ? params.pageLimit
+        : 2,
+      10,
+    ),
+  );
+  const limit = Math.max(
+    1,
+    Math.min(
+      params.limit !== undefined && params.limit !== 0 && !Number.isNaN(params.limit)
+        ? params.limit
+        : 50,
+      200,
+    ),
+  );
 
   const selectedPages = pages.slice(0, pageLimit);
 
@@ -657,7 +684,7 @@ async function augmentPrintDealsWithSearchApi(
 
     // Prefer a product that has a promo price, otherwise take any priced product
     const match =
-      products.find((p) => normalizeKrogerPrice(p.items?.[0]?.price).regularPrice !== undefined) ||
+      products.find((p) => normalizeKrogerPrice(p.items?.[0]?.price).regularPrice !== undefined) ??
       products.find((p) => normalizeKrogerPrice(p.items?.[0]?.price).price !== undefined);
 
     if (!match) {

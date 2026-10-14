@@ -68,7 +68,8 @@ export function toProductData(
   fallbackUpc?: string,
 ): ProductData {
   const item = product.items?.[0];
-  const upc = product.upc?.trim() || fallbackUpc?.trim();
+  const productUpc = product.upc?.trim();
+  const upc = productUpc?.length ? productUpc : fallbackUpc?.trim();
 
   if (!upc) {
     throw new Error("Kroger product response is missing a UPC");

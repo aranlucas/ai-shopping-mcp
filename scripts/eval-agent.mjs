@@ -21,6 +21,7 @@ const DEFAULT_MODELS = [
 
 const models = process.env.EVAL_MODELS?.split(",").filter(Boolean) ?? DEFAULT_MODELS;
 
+/** @param {string} model */
 const slug = (model) => model.replace(/[^a-z0-9]+/gi, "-");
 
 const concurrency = Math.max(1, Number(process.env.EVAL_CONCURRENCY ?? 2));
@@ -33,6 +34,9 @@ await Promise.all(
     .map((file) => rm(`eval-results/${file}`)),
 );
 
+/** @param {string} model
+ * @returns {Promise<number>}
+ */
 function runModel(model) {
   return new Promise((resolve) => {
     const child = spawn(
@@ -52,6 +56,7 @@ function runModel(model) {
       },
     );
 
+    /** @param {unknown} chunk */
     const prefix = (chunk) =>
       String(chunk)
         .split("\n")
@@ -68,6 +73,7 @@ function runModel(model) {
 // A small worker pool: each worker takes the next model when it finishes one.
 const queue = [...models];
 
+/** @type {number[]} */
 const codes = [];
 
 await Promise.all(

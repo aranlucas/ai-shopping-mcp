@@ -23,7 +23,7 @@ type CapturedPrompt = {
   config: {
     title?: string;
     description?: string;
-    argsSchema?: ZodObject;
+    argsSchema?: ZodObject<Record<string, z.ZodType>>;
   };
   handler: PromptHandler;
 };

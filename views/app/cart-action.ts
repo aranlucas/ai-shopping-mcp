@@ -91,7 +91,7 @@ export function createCartAction(input: CartRequest) {
 
   return {
     getSnapshot: () => state,
-    subscribe(listener: () => void) {
+    subscribe(this: void, listener: () => void) {
       listeners.add(listener);
 
       return () => {
@@ -110,7 +110,7 @@ export function createCartAction(input: CartRequest) {
 
       return pending;
     },
-    reset() {
+    reset(this: void) {
       // Only confirmed success can start a new intentional add.
       if (state.status === "added" || state.status === "already_added") {
         transition({ status: "idle", request: initialRequest });

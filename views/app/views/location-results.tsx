@@ -77,7 +77,7 @@ function LocationCard({
   onSetPreferred,
   onViewDetails,
 }: LocationCardProps) {
-  const id = location.locationId || "";
+  const id = location.locationId ?? "";
 
   const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
@@ -137,7 +137,7 @@ function LocationCard({
         </div>
         <div className="min-w-0">
           <div className="text-sm leading-snug font-medium text-gray-900">
-            {location.name || "Unknown Store"}
+            {location.name?.length ? location.name : "Unknown Store"}
           </div>
           {location.chain && (
             <div className="mt-0.5">

@@ -350,7 +350,7 @@ export function installKrogerFetchStub(): KrogerFetchStub {
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = input instanceof Request ? input : null;
-      const url = new URL(request ? request.url : input.toString());
+      const url = new URL(input instanceof Request ? input.url : input);
 
       if (url.href === env.BETTER_AUTH_JWKS_URL) {
         return Response.json(await fixtureJwks());
@@ -400,7 +400,9 @@ export function installKrogerFetchStub(): KrogerFetchStub {
         const method = (request ? request.method : init?.method) ?? "GET";
 
         if (method.toUpperCase() === "PUT") {
-          const bodyText = request ? await request.text() : String(init?.body ?? "{}");
+          const bodyText = request
+            ? await request.text()
+            : await new Response(init?.body ?? "{}").text();
 
           cartPuts.push(
             z

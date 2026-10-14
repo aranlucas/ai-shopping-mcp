@@ -150,7 +150,13 @@
     "anti-slop/no-unsafe-dictionary-type": "off",
     "anti-slop/no-widen-then-assert": "off",
     "anti-slop/require-readable-spacing": "off",
-    "anti-slop/require-safety-comment-for-type-assertion": "off"
+    "anti-slop/require-safety-comment-for-type-assertion": "off",
+    "vitest/valid-expect": [
+      "error",
+      {
+        "maxArgs": 2
+      }
+    ]
   },
   "overrides": [
     {
@@ -222,6 +228,27 @@
     ".opencode/**",
     ".pi/**",
     ".roo/**",
-    ".windsurf/**"
-  ]
+    ".windsurf/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/.next/**",
+    "**/.expo/**",
+    "**/.vercel/**",
+    "**/.agent/**",
+    "**/.agents/**",
+    "**/.claude/**",
+    "**/.codex/**",
+    "**/.continue/**",
+    "**/.cursor/**",
+    "**/.gemini/**",
+    "**/.opencode/**",
+    "**/.pi/**",
+    "**/.roo/**",
+    "**/.windsurf/**"
+  ],
+  "options": {
+    "typeAware": true
+  }
 }

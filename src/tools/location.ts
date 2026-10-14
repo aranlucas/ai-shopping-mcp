@@ -118,7 +118,7 @@ export function registerLocationTools(
             params: { query: queryParams },
           }),
         "search locations",
-      ).map((data) => data?.data || []);
+      ).map((data) => data?.data ?? []);
 
       if (result.isErr()) {
         return toMcpError(result.error);
@@ -202,11 +202,11 @@ export function registerLocationTools(
         }
 
         const preferredLocation: PreferredLocation = {
-          locationId: location.locationId || "",
-          locationName: location.name || "",
+          locationId: location.locationId ?? "",
+          locationName: location.name ?? "",
           address:
-            `${location.address?.addressLine1 || ""}, ${location.address?.city || ""}, ${location.address?.state || ""} ${location.address?.zipCode || ""}`.trim(),
-          chain: location.chain || "",
+            `${location.address?.addressLine1 ?? ""}, ${location.address?.city ?? ""}, ${location.address?.state ?? ""} ${location.address?.zipCode ?? ""}`.trim(),
+          chain: location.chain ?? "",
           setAt: new Date().toISOString(),
         };
 

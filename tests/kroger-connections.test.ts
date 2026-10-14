@@ -23,7 +23,7 @@ describe("Auth-owned Kroger credentials", () => {
         status: "connected",
         token: {
           accessToken: "kroger-access-token",
-          tokenExpiresAt: expect.any(Number),
+          tokenExpiresAt: expect.any(Number) as unknown,
         },
       });
       expect(JSON.stringify(result)).not.toContain("refreshToken");

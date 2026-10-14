@@ -176,9 +176,9 @@ describe("Jev product selection", () => {
         query: expect.objectContaining({
           model: "typesafe/jev-1.13",
           state: { items: { item_0: { requestedItem: "milk" } } },
-        }),
+        }) as unknown,
       },
-      { signal: expect.any(AbortSignal) },
+      { signal: expect.any(AbortSignal) as unknown },
     );
   });
 

@@ -63,7 +63,7 @@ describe("searchProductsForTerms", () => {
         requestId: "item_1",
         term: "unobtainium",
         status: "failed",
-        error: expect.objectContaining({ type: "API_ERROR" }),
+        error: expect.objectContaining({ type: "API_ERROR" }) as unknown,
       },
     ]);
     expect(results[0]).not.toHaveProperty("count");
@@ -120,7 +120,7 @@ describe("searchProductsForTerms", () => {
 
     expect(results[0]).toMatchObject({
       status: "failed",
-      error: expect.objectContaining({ type: "VALIDATION_ERROR" }),
+      error: expect.objectContaining({ type: "VALIDATION_ERROR" }) as unknown,
     });
     expect(results[1]).toMatchObject({ status: "success" });
     expect(get).toHaveBeenCalledTimes(1);

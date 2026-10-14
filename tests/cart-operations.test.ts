@@ -13,7 +13,7 @@ describe("cart operation journal", () => {
     const owner = claims.find((claim) => claim.status === "started");
     expect(claims.filter((claim) => claim.status === "started")).toHaveLength(1);
 
-    if (!owner || owner.status !== "started") {
+    if (owner?.status !== "started") {
       throw new Error("Missing owner");
     }
 

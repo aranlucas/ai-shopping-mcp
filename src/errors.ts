@@ -103,7 +103,20 @@ function toErrorCause(cause: unknown): ErrorCause {
     return cause as Record<string, unknown>;
   }
 
-  return String(cause);
+  if (typeof cause === "function") {
+    return String(cause);
+  }
+
+  if (
+    typeof cause === "number" ||
+    typeof cause === "boolean" ||
+    typeof cause === "bigint" ||
+    typeof cause === "symbol"
+  ) {
+    return String(cause);
+  }
+
+  return undefined;
 }
 
 export const apiError = (message: string, cause?: unknown, status?: number): ApiError => ({
@@ -174,6 +187,10 @@ export function errorRecovery(
       return "retry_later";
     case "INVALID_RESPONSE":
       return "contact_support";
+    default: {
+      const unexpected: never = error;
+      throw new Error(`Unknown error kind: ${JSON.stringify(unexpected)}`);
+    }
   }
 }
 

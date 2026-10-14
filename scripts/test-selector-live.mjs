@@ -1,9 +1,14 @@
+import { z } from "zod/v4";
+import { selectionSchema } from "./eval-schemas.mjs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { unstable_dev } from "wrangler";
-import { fileURLToPath } from "node:url";
+import { URL, fileURLToPath } from "node:url";
 
+/** @param {boolean} condition
+ * @param {string} message
+ */
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
@@ -92,8 +97,11 @@ async function main() {
       }),
     });
 
-    const body = await response.json();
-    assert(response.ok, body.error ?? `HTTP ${response.status}`);
+    /** @type {unknown} */
+    const payload = await response.json();
+    const errorBody = z.object({ error: z.string() }).safeParse(payload);
+    assert(response.ok, errorBody.success ? errorBody.data.error : `HTTP ${response.status}`);
+    const body = z.array(selectionSchema).parse(payload);
     const [selected, rejected] = body;
     assert(
       selected.status === "selected" && selected.product.upc === milk.upc,
@@ -106,8 +114,9 @@ async function main() {
     assert(body.length === items.length, "Expected one result per requested item.");
 
     for (const [index, product] of otherProducts.entries()) {
+      const selection = body[index + 2];
       assert(
-        body[index + 2].status === "selected" && body[index + 2].product.upc === product.upc,
+        selection.status === "selected" && selection.product.upc === product.upc,
         `Expected Jev to select ${product.description}.`,
       );
     }

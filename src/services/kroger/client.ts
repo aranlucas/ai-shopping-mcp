@@ -96,7 +96,7 @@ export function createKrogerCacheMiddleware(
   return {
     async onRequest({ request }) {
       if (!kv || request.method !== "GET") {
-        return;
+        return undefined;
       }
 
       const key = krogerCacheKeyFor(request.url);
@@ -106,7 +106,7 @@ export function createKrogerCacheMiddleware(
       const raw = cacheResult.isOk() ? cacheResult.value : null;
 
       if (!raw) {
-        return;
+        return undefined;
       }
 
       const parseResult = safeJsonParseWithSchema(raw, krogerCacheEntrySchema);
@@ -114,7 +114,7 @@ export function createKrogerCacheMiddleware(
       const entry: KrogerCacheEntry | null = parseResult.isOk() ? parseResult.value : null;
 
       if (!entry) {
-        return;
+        return undefined;
       }
 
       return new Response(entry.body, {

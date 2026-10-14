@@ -267,7 +267,7 @@ export function ActionButton({
     <Button
       variant={shadcnVariant[state]}
       size="default"
-      disabled={disabled || state === "loading"}
+      disabled={Boolean(disabled) || state === "loading"}
       aria-busy={state === "loading"}
       aria-label={labelContext ? `${label}: ${labelContext}` : undefined}
       onClick={handleClick}
@@ -392,7 +392,9 @@ export function CartActionControl({ app, state, onSubmit, ...labels }: CartButto
           state={CART_BUTTON_STATE[state.status]}
           doneLabel={state.status === "already_added" ? "Already added" : labels.doneLabel}
           onClick={onSubmit}
-          disabled={labels.disabled || state.status === "added" || state.status === "already_added"}
+          disabled={
+            Boolean(labels.disabled) || state.status === "added" || state.status === "already_added"
+          }
           icon={CART_ICON}
         />
       )}
@@ -536,7 +538,7 @@ function SaveToListControl({ app, product, disabled, onSave }: SaveToListButtonP
         <ActionButton
           state={saveState}
           onClick={handleSave}
-          disabled={disabled || listsState === "loading"}
+          disabled={Boolean(disabled) || listsState === "loading"}
           idleLabel="Save"
           loadingLabel="Saving..."
           doneLabel="Saved!"
@@ -593,7 +595,7 @@ export function ProductActions({
         app={app}
         state={cart.state}
         onSubmit={cart.submit}
-        disabled={disabled || cartDisabled}
+        disabled={Boolean(disabled) || Boolean(cartDisabled)}
         idleLabel="Add to Cart"
         loadingLabel="Adding..."
         doneLabel="Added!"
@@ -648,9 +650,11 @@ export function ProductCard({ app, product, canCallTools, onAddToList }: Product
   const upc = product.upc;
   const size = product.size;
 
-  const aisle =
-    product.aisle?.description ||
-    (product.aisle?.number ? `Aisle ${product.aisle.number}` : undefined);
+  const aisle = product.aisle?.description?.length
+    ? product.aisle.description
+    : product.aisle?.number
+      ? `Aisle ${product.aisle.number}`
+      : undefined;
 
   return (
     <Card size="sm" className="h-full gap-3 pt-0">
@@ -658,7 +662,7 @@ export function ProductCard({ app, product, canCallTools, onAddToList }: Product
       <CardContent className="flex flex-1 flex-col pt-2">
         <div className="flex-1">
           <h3 className="text-sm leading-snug font-semibold text-gray-900">{name}</h3>
-          {(brand || size) && (
+          {(Boolean(brand) || Boolean(size)) && (
             <div className="mt-0.5 text-xs text-gray-400">
               {brand}
               {brand && size && " · "}

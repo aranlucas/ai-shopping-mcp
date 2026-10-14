@@ -29,7 +29,7 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
   const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const { store: location } = data;
-  const id = location.locationId || "";
+  const id = location.locationId ?? "";
 
   const mapsUrl = useMemo(() => {
     const a = location.address;
@@ -93,7 +93,7 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
             </div>
             <div>
               <h1 className="text-sm font-semibold text-gray-900">
-                {location.name || "Unknown Store"}
+                {location.name?.length ? location.name : "Unknown Store"}
               </h1>
               {location.chain && (
                 <div className="mt-0.5">
