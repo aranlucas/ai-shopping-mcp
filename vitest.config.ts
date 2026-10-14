@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { URL, fileURLToPath } from "node:url";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
@@ -73,12 +72,7 @@ if (process.env.EVAL_LOG && miniflare.bindings) {
   miniflare.bindings.EVAL_LOG = process.env.EVAL_LOG;
 }
 
-const resolve = {
-  alias: {
-    "@": fileURLToPath(new URL("./src", import.meta.url)),
-    "@test": fileURLToPath(new URL("./test", import.meta.url)),
-  },
-};
+const resolve = { tsconfigPaths: true };
 
 export default defineConfig({
   test: {

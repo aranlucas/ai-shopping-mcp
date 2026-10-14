@@ -165,7 +165,7 @@ function PantryItemRow({ item, canCallTools, onRemove, onUse, now }: PantryItemP
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-gray-900">{item.productName}</div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+        <div className="mbs-0.5 flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-xs text-gray-400">×{item.quantity}</span>
           <ExpiryBadge expiresAt={item.expiresAt} now={now} />
         </div>
@@ -274,7 +274,7 @@ export function PantryView({ data, setData, app, canCallTools }: PantryViewProps
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
-        <h1 className="mb-1 text-sm font-semibold tracking-tight text-gray-900">Pantry</h1>
+        <h1 className="mbe-1 text-sm font-semibold tracking-tight text-gray-900">Pantry</h1>
         <EmptyState
           icon={EMPTY_PANTRY_ICON}
           message="Your pantry is empty"
@@ -289,7 +289,7 @@ export function PantryView({ data, setData, app, canCallTools }: PantryViewProps
       <SectionHeader title="Pantry" badge={headerBadge} subtitle={actionDetail} />
 
       {items.length >= 3 && (
-        <div className="mb-3 flex justify-end">
+        <div className="mbe-3 flex justify-end">
           <button
             type="button"
             onClick={handleSuggestRecipes}
@@ -317,7 +317,7 @@ export function PantryView({ data, setData, app, canCallTools }: PantryViewProps
       {/* Expiring items pinned at top */}
       {expiring.length > 0 && (
         <>
-          <div className="mb-1 flex items-center gap-2">
+          <div className="mbe-1 flex items-center gap-2">
             <svg
               aria-hidden="true"
               className="size-3.5 shrink-0 text-amber-500"

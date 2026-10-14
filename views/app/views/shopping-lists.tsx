@@ -68,7 +68,7 @@ function ListRow({ list, canOpen, onOpen }: ShoppingListSummaryProps) {
     <li className="flex items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-gray-900">{list.name}</div>
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
+        <div className="mbs-0.5 flex items-center gap-2 text-xs text-gray-500">
           <span>
             {list.itemCount} {list.itemCount === 1 ? "item" : "items"}
           </span>

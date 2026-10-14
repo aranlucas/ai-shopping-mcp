@@ -27,8 +27,8 @@ export function OrderHistoryView({ data }: OrderHistoryViewProps) {
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <SectionHeader title="Order Placed" badge={RECORDED_BADGE} subtitle={placedDate} />
 
-      <Card size="sm" className="mb-3">
-        <CardContent className="flex flex-col gap-1 pt-3">
+      <Card size="sm" className="mbe-3">
+        <CardContent className="flex flex-col gap-1 pbs-3">
           <div className="flex items-center justify-between text-xs text-gray-500">
             <span className="font-mono text-xs">{orderId}</span>
             {locationId && (
@@ -57,7 +57,7 @@ export function OrderHistoryView({ data }: OrderHistoryViewProps) {
             )}
           </div>
 
-          <div className="flex items-baseline justify-between pt-1">
+          <div className="flex items-baseline justify-between pbs-1">
             <span className="text-xs text-gray-500">
               {totalItems} item{totalItems !== 1 ? "s" : ""}
             </span>
@@ -68,11 +68,11 @@ export function OrderHistoryView({ data }: OrderHistoryViewProps) {
             )}
           </div>
 
-          {notes && <p className="pt-1 text-xs text-gray-400 italic">{notes}</p>}
+          {notes && <p className="pbs-1 text-xs text-gray-400 italic">{notes}</p>}
         </CardContent>
       </Card>
 
-      <p className="mb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+      <p className="mbe-2 text-xs font-semibold tracking-wider text-gray-400 uppercase">
         Items · {items.length}
       </p>
       <div className="divide-y divide-border">

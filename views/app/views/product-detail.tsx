@@ -33,17 +33,17 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         {/* Header */}
-        <div className="border-b border-border px-4 pt-4 pb-3">
+        <div className="border-be border-border px-4 pbs-4 pbe-3">
           <h1 className="text-sm leading-snug font-semibold text-gray-900">{name}</h1>
-          {brand && <p className="mt-0.5 text-xs text-gray-400">{brand}</p>}
-          <div className="mt-2.5 flex flex-wrap items-center gap-3">
+          {brand && <p className="mbs-0.5 text-xs text-gray-400">{brand}</p>}
+          <div className="mbs-2.5 flex flex-wrap items-center gap-3">
             <PriceDisplay product={product} />
             <FulfillmentTags product={product} />
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-1.5 border-b border-border px-4 py-3">
+        <div className="flex gap-1.5 border-be border-border px-4 py-3">
           <ProductActions
             app={app}
             upc={upc}
@@ -55,7 +55,7 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
           />
         </div>
         {product.url && (
-          <div className="border-b border-border px-4 py-3">
+          <div className="border-be border-border px-4 py-3">
             <ExternalLink app={app} href={product.url}>
               Open in Kroger
             </ExternalLink>
@@ -66,7 +66,7 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
         <div className="flex flex-col gap-3.5 px-4 py-3">
           {product.size && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              <p className="mbe-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Options
               </p>
               <div className="flex flex-col gap-1">
@@ -79,7 +79,7 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
 
           {product.category && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              <p className="mbe-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Category
               </p>
               <div className="flex flex-wrap gap-1">
@@ -92,7 +92,7 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
 
           {product.aisle && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              <p className="mbe-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
                 Aisle
               </p>
               <div className="text-xs text-gray-600">
@@ -103,7 +103,9 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
           )}
 
           <div>
-            <p className="mb-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">UPC</p>
+            <p className="mbe-1 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              UPC
+            </p>
             <p className="font-mono text-xs text-gray-400">{upc}</p>
           </div>
         </div>

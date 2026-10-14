@@ -439,7 +439,7 @@ export function Preview() {
 
   return (
     <>
-      <div className="border-b border-border bg-muted px-4 py-3 text-sm">
+      <div className="border-be border-border bg-muted px-4 py-3 text-sm">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-4">
           <strong>Local preview · sample data</strong>
           <label className="flex items-center gap-2">
@@ -483,7 +483,7 @@ export function Preview() {
             Unknown cart outcome
           </label>
         </div>
-        <output className="mx-auto mt-2 block max-w-4xl text-xs text-gray-500">
+        <output className="mx-auto mbs-2 block max-w-4xl text-xs text-gray-500">
           {lastAction} Uses a simulated host; no account or cart is changed.
         </output>
       </div>

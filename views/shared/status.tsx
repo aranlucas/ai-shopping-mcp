@@ -54,13 +54,13 @@ export function ProductCardSkeleton() {
       <div className="flex flex-col gap-2 p-3">
         <Skeleton className="h-3.5 w-full" />
         <Skeleton className="h-3 w-2/3" />
-        <Skeleton className="mt-1 h-4 w-1/3" />
-        <div className="mt-1 flex gap-1">
+        <Skeleton className="mbs-1 h-4 w-1/3" />
+        <div className="mbs-1 flex gap-1">
           <Skeleton className="h-4 w-10 rounded-full" />
           <Skeleton className="h-4 w-14 rounded-full" />
         </div>
       </div>
-      <div className="flex gap-1.5 px-3 pb-3">
+      <div className="flex gap-1.5 px-3 pbe-3">
         <Skeleton className="h-6 flex-1 rounded-lg" />
         <Skeleton className="h-6 w-14 rounded-lg" />
       </div>
@@ -74,8 +74,8 @@ export function DealCardSkeleton() {
       <Skeleton className="h-3.5 w-3/4" />
       <Skeleton className="h-3 w-full" />
       <Skeleton className="h-3 w-5/6" />
-      <Skeleton className="mt-1 h-6 w-1/3" />
-      <div className="flex gap-1.5 pt-2">
+      <Skeleton className="mbs-1 h-6 w-1/3" />
+      <div className="flex gap-1.5 pbs-2">
         <Skeleton className="h-6 w-24 rounded-lg" />
         <Skeleton className="h-6 w-20 rounded-lg" />
       </div>
@@ -99,13 +99,13 @@ export function ItemRowSkeleton() {
 export function ProductSearchSkeleton() {
   return (
     <div className="mx-auto max-w-4xl px-3.5 py-3">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mbe-4 flex items-center gap-2">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="h-3 w-12" />
       </div>
       {[0, 1].map((i) => (
-        <div key={i} className="mb-6">
-          <div className="mb-2.5 flex items-center gap-2">
+        <div key={i} className="mbe-6">
+          <div className="mbe-2.5 flex items-center gap-2">
             <Skeleton className="h-3 w-20" />
             <Skeleton className="h-3 w-12" />
           </div>
@@ -125,7 +125,7 @@ export function ProductSearchSkeleton() {
 export function WeeklyDealsSkeleton() {
   return (
     <div className="mx-auto max-w-4xl px-3.5 py-3">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mbe-4 flex items-center gap-2">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-3 w-14" />
       </div>
@@ -141,7 +141,7 @@ export function WeeklyDealsSkeleton() {
 export function ListSkeleton() {
   return (
     <div className="mx-auto max-w-2xl px-3.5 py-3">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mbe-4 flex items-center gap-2">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="h-3 w-14" />
       </div>
