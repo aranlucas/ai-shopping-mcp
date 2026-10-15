@@ -1,0 +1,3 @@
+# oxlint reads tsconfig.json, which references the generated Workers types.
+[ -f .cloudflare/types/index.d.ts ] || pnpm run cf-typegen
+pnpm exec lint-staged

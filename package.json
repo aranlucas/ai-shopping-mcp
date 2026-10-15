@@ -40,7 +40,8 @@
     "eval:agent:report": "vitest-evals serve eval-results",
     "format": "oxfmt --config oxfmt.config.ts --write",
     "format:check": "oxfmt --config oxfmt.config.ts --check",
-    "test:scripts": "vitest run --project node test/scripts"
+    "test:scripts": "vitest run --project node test/scripts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -88,6 +89,8 @@
     "cf": "1.0.0-beta.17",
     "concurrently": "^10.0.6",
     "drizzle-kit": "0.31.11",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "oxfmt": "^0.73.0",
     "oxlint": "^1.88.0",
     "oxlint-tailwindcss": "1.16.0",
@@ -99,6 +102,15 @@
     "vitest": "~5.0.5",
     "vitest-evals": "^0.17.0",
     "wrangler": "^4.151.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [
+      "oxlint --fix",
+      "oxfmt --config oxfmt.config.ts --no-error-on-unmatched-pattern"
+    ],
+    "*.{json,jsonc,json5,css,scss,md,mdx,yml,yaml,html,toml,vue,graphql}": [
+      "oxfmt --config oxfmt.config.ts --no-error-on-unmatched-pattern"
+    ]
   },
   "engines": {
     "node": ">=24.18.1"
