@@ -83,7 +83,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest-evals/harness-ai-sdk": "^0.17.0",
-    "@vitest/coverage-istanbul": "~5.0.3",
+    "@vitest/coverage-istanbul": "~5.0.4",
     "ai": "^7.0.137",
     "cf": "1.0.0-beta.14",
     "concurrently": "^10.0.6",
@@ -96,7 +96,7 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vite-plugin-singlefile": "^2.3.3",
-    "vitest": "~5.0.3",
+    "vitest": "~5.0.4",
     "vitest-evals": "^0.17.0",
     "wrangler": "^4.149.0"
   },
