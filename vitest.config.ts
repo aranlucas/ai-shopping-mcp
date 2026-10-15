@@ -95,6 +95,9 @@ export default defineConfig({
         test: {
           name: "worker",
           testTimeout: 30_000,
+          // With @cloudflare/vitest-plugin 1.4.3, a worker that loads modules
+          // another test file already cached exits during startup.
+          fsModuleCache: false,
           include: ["test/**/*.test.ts"],
           exclude: ["test/node/**"],
         },
