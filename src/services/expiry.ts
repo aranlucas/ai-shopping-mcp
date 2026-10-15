@@ -9,8 +9,6 @@
  */
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-export type ExpiryStatus = "none" | "invalid" | "expired" | "today" | "soon" | "ok";
-
 export type ExpiryClassification =
   | { status: "none" }
   | { status: "invalid" }
