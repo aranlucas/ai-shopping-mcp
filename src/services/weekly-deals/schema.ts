@@ -214,8 +214,6 @@ export const cacheWeeklyDealsResultSchema = normalizedWeeklyDealsResultSchema.ex
   warnings: z.array(cacheWarningSchema),
 });
 
-export type CachedQfcDealsApiResponse = z.output<typeof cacheWeeklyDealsResultSchema>;
-
 export const weeklyDealCacheEntrySchema = z
   .object({
     version: z.literal(1),
