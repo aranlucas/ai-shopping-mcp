@@ -2,14 +2,9 @@ export type EvalEnvironment = Cloudflare.Env;
 
 declare global {
   namespace Cloudflare {
-    /** Optional bindings supplied by this repository's opt-in Vitest eval configuration. */
+    /** Optional bindings supplied by the deterministic MCP test configuration. */
     interface Env {
-      EVAL_AGENT?: string;
       EVAL_LOG?: string;
-      EVAL_MODELS?: string;
-      EVAL_TASKS?: string;
-      OPENROUTER_API_KEY?: string;
-      EVAL_CODEX_DRIVER?: Fetcher;
     }
   }
 }

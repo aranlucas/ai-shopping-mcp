@@ -1,5 +1,8 @@
 # Codex eval hill climbing — 2026-10-02
 
+This is a historical record. The interactive driver, agent task harness, graders,
+and report tooling have since been retired. The comparison JSON remains available.
+
 The current Codex session drove the shopping MCP against the existing task
 suite. The retained candidate passes all ten training tasks when the original
 Codex decisions are replayed, and all five held-out tasks with live Codex
@@ -56,20 +59,7 @@ List-backed confirmations and retry messages use the same quantity wording.
 The held-out delivery task independently returned two lines, three packages,
 and `DELIVERY`. Cart writes retain their existing retry behavior.
 
-## Running subsequent iterations
-
-Use `pnpm eval:agent:codex` to expose the real fixture-backed MCP to the
-current Codex session. The driver creates a fresh run directory and preserves
-the transcript, standard vitest-evals report, run metadata, and relevant source
-snapshots. It uses the same task setup and end-state judge as the OpenRouter
-harness. The [eval README](../test/evals/README.md#using-the-current-codex-session-as-the-llm)
-documents the turn protocol and `EVAL_TASKS` filtering.
-
-Retain a training baseline before editing. Choose changes from its tool
-results and inspect grading failures before attributing them to the model.
-Validate the candidate on held-out tasks after tuning. Clearly mark any
-replayed decisions; the candidate training feedback above was copied from the
-baseline and therefore still describes the old confirmations.
+## Interpretation
 
 Codex had repository context, so these runs are developer diagnostics rather
 than a blind small-model benchmark. No OpenRouter models were run. Interactive

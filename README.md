@@ -54,7 +54,7 @@ The local Worker runs at `https://ai-shopping-mcp.localhost` through [Portless](
 
 Cloudflare commands use the pinned `cf` dependency. `cloudflare.config.ts` defines runtime bindings and Durable Object lifecycle declarations, and `vite.config.ts` uses `@cloudflare/vite-plugin` v2 for the Worker. `vite.views.config.ts` builds the single-file MCP App into `dist/views`, which the Worker build includes as static assets. `pnpm build` validates and builds both parts; `pnpm deploy` builds and deploys that output with `cf deploy --prebuilt --mode production`. `pnpm deploy:preview` builds views before running `cf previews deploy`.
 
-The live selector tests and evaluation scripts start isolated `cf dev` projects with remote AI bindings. They require Cloudflare authentication, use ephemeral local state, and remove their temporary projects from `.cloudflare/evals` when they finish. The offline script tests cover CLI startup, HTTP forwarding, shutdown, and startup failure without making AI calls. The Workers Vitest integration remains `@cloudflare/vitest-plugin`; it currently brings Wrangler as an internal test dependency.
+The Workers Vitest integration remains `@cloudflare/vitest-plugin`; it currently brings Wrangler as an internal test dependency. Deterministic MCP regression tests live in `test/evals/` and run with `pnpm eval:mcp` or `pnpm test`. Live agent and selector evaluation tooling has been retired; historical findings and reports remain in `docs/`.
 
 ```sh
 pnpm lint
@@ -193,9 +193,8 @@ model calls and requires no AI Gateway or OpenRouter key.
 ```
 
 JEV was removed after the [paired selector evaluation](docs/jev-value-evaluation.md).
-The raw reports and archived selector remain available to reproduce the experiment;
-they are not part of the production API. The live agent comparison can replay an
-existing report with `pnpm eval:agent-selector:live <paired-report.json>`.
+The raw reports remain as historical evidence; the archived selector and live
+evaluation runners have been removed.
 
 `search_products` searches Kroger directly using one optional `storeId`, defaulting
 to the preferred Kroger store. Terms run concurrently; a failed term retains its
@@ -346,9 +345,8 @@ pnpm eval:mcp
 pnpm cf-typegen  # writes .cloudflare/types; typecheck and lint run it first
 ```
 
-`pnpm test` runs all worker, Node-environment, and evaluation-script tests with Vitest.
-`pnpm test:scripts` selects only the script tests in the Node-environment project. The
-scripts still execute on Node.js; there is no separate Node built-in test runner.
+`pnpm test` runs the Worker and Node-environment regression tests with Vitest,
+including the deterministic MCP suites in `test/evals/`.
 
 `pnpm lint` runs both the standard rules and a focused type-aware pass via `oxlint-tsgolint`.
 Floating Promises (including `void` expressions and `ResultAsync` thenables) and misused async
@@ -372,15 +370,5 @@ opaque error/upstream metadata, syntax-only JSON parsing, raw schema/serializer 
 cross-realm overload and error classification, the MCP SDK's `onerror` callback property,
 async adapters whose failures must remain rejected Promises, deliberately invalid rejection
 tests, UTF-16 fixture hashing, and SDK default-argument contracts. The existing sequential-I/O inline exceptions remain intentional.
-`console.warn`/`console.error` retain operational diagnostics; evaluation scripts also retain
-`console.log`/`console.info` report output. These are local exceptions, not zero overrides.
-
-The archived JEV selection check uses Cloudflare credentials and incurs usage.
-It exercises the evaluation-only selector in `test/scripts/fixtures/jev-product-selector.ts`
-with synthetic products, without shopping-list or cart writes:
-
-```bash
-pnpm test:selector:live
-```
-
-Locally it uses the active Wrangler login. In CI it requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+`console.warn`/`console.error` retain operational diagnostics; token-budget tests also retain
+`console.log`/`console.info` measurement output. These are local exceptions, not zero overrides.

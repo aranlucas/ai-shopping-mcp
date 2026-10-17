@@ -12,10 +12,6 @@
     "coverage": "vitest run --coverage",
     "typecheck": "pnpm cf-typegen && tsc --noEmit && tsc --noEmit -p views/tsconfig.json",
     "eval:mcp": "vitest run test/evals",
-    "eval:agent": "node scripts/eval-agent.mjs",
-    "eval:agent:codex": "node scripts/eval-agent-codex.mjs",
-    "eval:agent:summary": "node scripts/eval-agent-summary.mjs",
-    "test:selector:live": "node test/scripts/selector-live.test.mjs",
     "deploy": "pnpm build:worker && cf deploy --prebuilt --mode production",
     "deploy:preview": "pnpm build:views && cf previews deploy",
     "dev": "pnpm build:views && NODE_ENV=development concurrently \"pnpm watch\" \"portless run cf dev\"",
@@ -34,13 +30,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "cf d1 migrations apply 7a03710e-48aa-445c-832d-fb14197e064b --local --persist-to .cloudflare/state",
     "db:migrate:remote": "cf d1 migrations apply 7a03710e-48aa-445c-832d-fb14197e064b",
-    "eval:selector:live": "node scripts/eval-selector-live.mjs",
-    "eval:agent-selector:live": "node scripts/eval-agent-selector-live.mjs",
     "build:worker": "pnpm build:views && cf build",
-    "eval:agent:report": "vitest-evals serve eval-results",
     "format": "oxfmt --config oxfmt.config.ts --write",
     "format:check": "oxfmt --config oxfmt.config.ts --check",
-    "test:scripts": "vitest run --project node test/scripts",
     "prepare": "husky"
   },
   "dependencies": {
@@ -78,15 +70,12 @@
     "@babel/core": "^8.0.7",
     "@cloudflare/vite-plugin": "2.0.0-beta.v.1",
     "@cloudflare/vitest-plugin": "^1.4.3",
-    "@openrouter/ai-sdk-provider": "^3.1.0",
     "@shadcn/lint": "^0.2.1",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "@vitest-evals/harness-ai-sdk": "^0.17.0",
     "@vitest/coverage-istanbul": "~5.0.5",
-    "ai": "^7.0.141",
     "cf": "1.0.0-beta.18",
     "concurrently": "^10.0.6",
     "drizzle-kit": "0.31.11",
@@ -100,8 +89,7 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vite-plugin-singlefile": "^2.3.3",
-    "vitest": "~5.0.5",
-    "vitest-evals": "^0.17.0"
+    "vitest": "~5.0.5"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [

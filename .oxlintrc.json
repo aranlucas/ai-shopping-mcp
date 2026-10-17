@@ -158,7 +158,6 @@
         "src/errors.ts",
         "src/utils/result.ts",
         "src/utils/user-storage.ts",
-        "scripts/eval-agent-codex.mjs",
         "test/auth-stub.mjs"
       ],
       "rules": {
@@ -195,13 +194,7 @@
       }
     },
     {
-      "files": [
-        "scripts/**/*.mjs",
-        "scripts/**/*.ts",
-        "test/scripts/**/*.mjs",
-        "test/scripts/**/*.ts",
-        "test/evals/token-budget.eval.test.ts"
-      ],
+      "files": ["test/evals/token-budget.eval.test.ts"],
       "rules": {
         "eslint/no-console": [
           "error",
@@ -241,10 +234,8 @@
     {
       "files": [
         "views/shared/types.ts",
-        "test/evals/agent/harness.ts",
         "views/app/tool-calls.ts",
-        "views/app/views/weekly-deals.tsx",
-        "test/evals/agent/codex-harness.ts"
+        "views/app/views/weekly-deals.tsx"
       ],
       "rules": {
         "unicorn/prefer-type-error": "off"
@@ -260,12 +251,6 @@
       "files": ["src/tools/weekly-deals.ts", "test/tools/cart.test.ts"],
       "rules": {
         "unicorn/no-object-as-default-parameter": "off"
-      }
-    },
-    {
-      "files": ["scripts/eval-agent-selector-live.mjs"],
-      "rules": {
-        "eslint/max-depth": ["error", 5]
       }
     },
     {

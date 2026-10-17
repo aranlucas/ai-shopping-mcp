@@ -3,8 +3,8 @@
 Implementation decision after these runs: JEV has been removed from the production
 API. `shop_for_items` now returns up to five eligible options per item for the
 calling agent to choose, and performs no list/cart writes. The findings below are
-retained as the record of the comparison. The old selector lives in
-`test/scripts/fixtures/jev-product-selector.ts` solely for evaluation reproduction.
+retained as the record of the comparison. The archived selector, fixtures, and live
+evaluation runners have since been retired; the JSON reports below retain the evidence.
 
 JEV improves these difficult synthetic shortlists over blindly taking the first eligible product. Its main benefit when retrieval already ranks a match first is abstention, rather than choosing a better product. This evaluation does not establish its marginal benefit on normal Kroger searches or against a calling assistant choosing exact UPCs. Keep it provisionally; measure real retrieval before removing it or declaring it essential.
 
@@ -54,17 +54,9 @@ Before a retain/remove decision, capture a representative sample of real Kroger 
 
 Two changes merit separate implementation review regardless of the model decision: explicit ambiguity/review outcomes, and reducing whole-list failure amplification while preserving validation before writes. No production behavior was changed in this evaluation.
 
-## Reproduce
+## Archived reports
 
-```sh
-pnpm eval:selector:live docs/jev-evaluation-comparison-compact.json --all --compact
-pnpm eval:selector:live docs/jev-evaluation-comparison-ranked.json --all --compact --ranked-control
-pnpm eval:selector:live docs/jev-evaluation-comparison-expanded.json --all
-```
-
-Requires Wrangler/Cloudflare access and the existing OpenRouter BYOK gateway. These commands incur inference usage. Run serially for isolated latency comparisons.
-
-Raw reports: [compact](jev-evaluation-comparison-compact.json), [ideal-retrieval control](jev-evaluation-comparison-ranked.json), [expanded](jev-evaluation-comparison-expanded.json). Fixtures: [fixed grocery cases](../test/scripts/fixtures/jev-grocery-cases.mjs). Runner: [live evaluation](../scripts/eval-selector-live.mjs).
+Raw reports: [compact](jev-evaluation-comparison-compact.json), [ideal-retrieval control](jev-evaluation-comparison-ranked.json), [expanded](jev-evaluation-comparison-expanded.json). Live reproduction tooling has been retired.
 
 ## Agent shortlist comparison — 2026-09-30
 
@@ -91,12 +83,4 @@ The two completed agent runs cost approximately $0.07995 in reported usage. An i
 
 **Updated decision:** Giving this model the shortlist is substantially better than the first-result baseline on the challenge set, but did not outperform JEV. Increasing shortlist size without improving relevance made its results worse. These data support keeping useful candidate evidence available to the calling agent, but do not support removing JEV on the claim that more options alone improve selection. A real-search comparison with the actual calling model remains needed for that decision. Agent latency here is a standalone model call, not measured incremental latency in an existing agent turn.
 
-Reproduce:
-
-```sh
-pnpm eval:agent-selector:live docs/jev-evaluation-comparison-compact.json docs/jev-evaluation-comparison-expanded.json
-```
-
-Set `EVAL_SELECTOR_MODEL` to test a different OpenRouter model. Reports are written beside the input files with an `-agent.json` suffix; copy them before rerunning a different model. Requires the same Cloudflare/OpenRouter gateway credentials and incurs usage.
-
-Raw agent reports: [compact](jev-evaluation-comparison-compact-agent.json), [expanded](jev-evaluation-comparison-expanded-agent.json). Runner: [agent comparison](../scripts/eval-agent-selector-live.mjs). Worker: [selection tool call](../scripts/agent-selector-live-worker.ts).
+Raw agent reports: [compact](jev-evaluation-comparison-compact-agent.json), [expanded](jev-evaluation-comparison-expanded-agent.json). The live comparison runner and Worker have been retired.

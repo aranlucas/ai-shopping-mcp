@@ -2,15 +2,6 @@ import { readFileSync } from "node:fs";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
-// The agent eval reads OPENROUTER_API_KEY from .dev.vars when it isn't exported.
-if (process.env.EVAL_AGENT === "1" && !process.env.OPENROUTER_API_KEY) {
-  try {
-    process.loadEnvFile(".dev.vars");
-  } catch {
-    // No .dev.vars: the agent eval skips itself without a key.
-  }
-}
-
 type TestOptions = Extract<Parameters<typeof cloudflareTest>[0], { miniflare?: object }>;
 
 type TestMiniflare = NonNullable<TestOptions["miniflare"]>;
@@ -43,27 +34,8 @@ const miniflare: TestMiniflare = {
     BETTER_AUTH_JWKS_URL: "https://auth.example/api/auth/jwks",
     MCP_RESOURCE_URL: "https://example.com/mcp",
     MCP_ALLOWED_ORIGINS: '["https://client.example"]',
-
-    // Agent eval over OpenRouter (`pnpm eval:agent`).
-    ...Object.fromEntries(
-      ["EVAL_AGENT", "EVAL_MODELS", "EVAL_TASKS", "OPENROUTER_API_KEY"].flatMap((name) =>
-        process.env[name] ? [[name, process.env[name]]] : [],
-      ),
-    ),
   },
 };
-
-if (process.env.EVAL_CODEX_PORT) {
-  miniflare.serviceBindings = {
-    ...miniflare.serviceBindings,
-    EVAL_CODEX_DRIVER: {
-      external: {
-        address: `127.0.0.1:${process.env.EVAL_CODEX_PORT}`,
-        http: {},
-      },
-    },
-  };
-}
 
 if (process.env.EVAL_LOG && miniflare.bindings) {
   miniflare.bindings.EVAL_LOG = process.env.EVAL_LOG;
@@ -104,9 +76,7 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: ["test/node/**/*.test.ts", "test/scripts/**/*.test.mjs"],
-          // This opt-in command requires live Cloudflare AI access.
-          exclude: ["test/scripts/selector-live.test.mjs"],
+          include: ["test/node/**/*.test.ts"],
         },
       },
     ],

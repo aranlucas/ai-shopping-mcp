@@ -30,11 +30,6 @@ export default defineConfig({
       USER_DATA_KV: bindings.kv({
         id: "d7f0b87afb2b49cdbab0ead481cef6ed",
       }),
-      AI: bindings.ai({
-        dev: {
-          remote: true,
-        },
-      }),
       ASSETS: bindings.assets(),
     },
   },

@@ -5,14 +5,14 @@ config, and docs. First audited September 2026; re-checked against the code afte
 the tool consolidation (18 → 13 tools) and the agent eval landed. Fixed items
 have been removed.
 
-| Check                               | Result                                                           |
-| ----------------------------------- | ---------------------------------------------------------------- |
-| `pnpm lint` (standard + type-aware) | clean                                                            |
-| `pnpm fmt:check`                    | clean                                                            |
-| `pnpm typecheck`                    | clean                                                            |
-| `pnpm coverage`                     | 829 passed; 94.1% statements, 83.2% branches                     |
-| `pnpm audit --prod`                 | 28 advisories (11 high, 13 moderate, 4 low), all transitive      |
-| `pnpm eval:agent` (4 free models)   | 57/60 tasks on 18 tools; 13-tool rerun in progress (see PR #140) |
+| Check                               | Result                                                      |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `pnpm lint` (standard + type-aware) | clean                                                       |
+| `pnpm fmt:check`                    | clean                                                       |
+| `pnpm typecheck`                    | clean                                                       |
+| `pnpm coverage`                     | 829 passed; 94.1% statements, 83.2% branches                |
+| `pnpm audit --prod`                 | 28 advisories (11 high, 13 moderate, 4 low), all transitive |
+| Archived agent eval (4 free models) | 57/60 tasks on 18 tools; tooling subsequently retired       |
 
 Severity: **High** means fix soon, **Medium** means schedule it, **Low** is hygiene.
 
@@ -225,29 +225,6 @@ Found while building and running the agent eval. See
   axe tests for the stateful views (shopping list, product search, pantry).
 - **T4. No migration-drift check.** Run `drizzle-kit generate` in CI and fail on a
   diff, so a `src/db/schema.ts` edit without a migration can't merge.
-- **T5. Schedule the paid and free live evals.** Run the agent eval weekly from
-  the `Agent Eval` workflow (it runs on demand and on PRs today) to catch model
-  and API drift; the archived selector evals could share a budget-capped job.
-- **T6. The agent eval barely separates capable models.** The baseline was 57/60,
-  with three models near-perfect. Add harder tasks: substitutions under a budget,
-  allergen and dietary questions (now answerable from UPC lookups), multi-store
-  price comparison, and recovery after a `MUTATION_OUTCOME_UNKNOWN`. Run each task
-  three times and report pass^3, since free models vary between runs.
-- **T7. Answer graders are brittle.** `missing-item` failed a correct answer
-  ("No such product exists at Kroger — I searched and got zero results") because
-  its regex wanted specific wording. Use a
-  cheap LLM judge (`FactualityJudge` in vitest-evals) for answer text, and keep
-  regexes for end state.
-- **T8. Fixtures mislead models.** Unknown search terms synthesize a generic
-  product (models then "substitute" it), fixture stores list only Monday and
-  Tuesday hours, and the weekly-deals circular endpoints aren't mocked, so every
-  deals call carries a fetch-failure warning. Make unknown terms return nothing,
-  give stores full hours, and mock the circular endpoints.
-- **T9. Schema rejections are invisible in eval metrics.** The AI SDK rejects
-  invalid tool input before `execute`, and vitest-evals records those calls as
-  `pending`, so `toolErrors` stays 0. Qwen's 16 rejected `search_stores` calls in
-  one run reported zero errors. Count `pending` calls as rejections in
-  `TaskChecksJudge` metadata and the summary.
 
 ---
 

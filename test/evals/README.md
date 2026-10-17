@@ -1,6 +1,6 @@
-# Small-Model MCP Evals
+# Deterministic MCP Regression Tests
 
-Evaluation framework for keeping this server usable by small-context models
+Regression tests for keeping this server usable by small-context models
 (Haiku-class). It drives the **real Worker end-to-end** — OAuth through
 `SELF`, a real MCP client over `StreamableHTTPClientTransport` — with the
 Kroger API served from deterministic fixtures (`harness.ts`), so every suite
@@ -13,98 +13,19 @@ pnpm eval:mcp                 # all deterministic suites (also run by pnpm test)
 EVAL_LOG=1 pnpm eval:mcp      # print measured token tables for recalibration
 ```
 
-The agent eval (`agent.eval.test.ts`) is separate and opt-in:
-
-```bash
-pnpm eval:agent                                   # 4 free OpenRouter models × all tasks
-EVAL_MODELS=qwen/qwen3.8-27b:free pnpm eval:agent # one model
-EVAL_TASKS=budget-basket,no-store-yet pnpm eval:agent
-EVAL_CONCURRENCY=1 pnpm eval:agent                # fewer parallel models
-pnpm eval:agent:summary                           # Markdown table of eval-results/
-pnpm eval:agent:report                            # browse eval-results/ in the UI
-```
-
-It needs `OPENROUTER_API_KEY` (exported or in `.dev.vars`). The default
-models are free, so a key with a $0 credit limit works. Each model runs in
-its own vitest process; `EVAL_CONCURRENCY` (default 2) caps how many run at
-once, because OpenRouter's free tier allows about 20 requests a minute and
-1000 a day per account. A full run is roughly 300 requests.
-
-The deterministic suites run in CI as part of `pnpm test`. The agent eval
-runs in the `Agent Eval` GitHub workflow on demand and on PRs that touch the
-tools.
-
-## Using the current Codex session as the LLM
-
-```bash
-pnpm eval:agent:codex
-EVAL_TASKS=budget-basket,missing-item pnpm eval:agent:codex
-```
-
-This opt-in driver needs no model API key. It uses the same real Worker,
-OAuth/MCP connection, Kroger fixtures, task setup, and `TaskChecksJudge` as
-the OpenRouter eval. Codex chooses actions interactively; this command does
-not start another model. Keep it running while Codex drives the local bridge.
-
-The command prints a loopback URL and creates a fresh
-`eval-results/codex-*/` directory. `GET /pending` returns the current turn's
-`id`, task prompt, server instructions, and tool definitions, or the latest
-tool's text and error flag. Submit one action with that exact turn ID:
-
-```json
-{
-  "id": "id-from-pending",
-  "action": {
-    "type": "tool",
-    "name": "search_stores",
-    "arguments": { "zipCode": "98105" }
-  }
-}
-```
-
-Send it to `POST /action`, then read the next pending turn. Finish a task with:
-
-```json
-{
-  "id": "id-from-pending",
-  "action": {
-    "type": "finish",
-    "answer": "Your final answer",
-    "feedback": "none"
-  }
-}
-```
-
-Stale turn IDs are rejected. Tool calls are capped at 16 per task. The driver
-keeps `transcript.jsonl`, `agent-codex.json`, run metadata, and source snapshots
-(as `.txt` files so build tools do not compile archived code). It returns a
-failing exit code when task checks fail. Summarize a specific run with:
-
-```bash
-node scripts/eval-agent-summary.mjs eval-results/codex-<run>
-```
-
-Token usage is unknown for an interactive session and appears as `-`, rather
-than a fabricated zero. Runs use fixture carts. All normal tests remain
-noninteractive unless the driver supplies its binding.
-
-For hill climbing, use training task IDs in `EVAL_TASKS`, retain the baseline
-before editing, and inspect actual tool transcripts before choosing a change.
-Use held-out tasks to validate the retained candidate. Distinguish fresh
-Codex decisions from replaying saved actions, and distinguish grader fixes
-from changes in task performance. The first comparison is recorded in
-[`docs/codex-eval-hill-climb.md`](../../docs/codex-eval-hill-climb.md).
+These deterministic suites run in CI as part of `pnpm test`. Live agent and
+selector runners, their report tools, and the Agent Eval workflow have been retired.
+Historical findings and JSON reports remain under `docs/`.
 
 ## What each suite measures
 
-| Suite                              | Question it answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp-agent-contract.test.ts`       | Is the tool surface the designed workflow-first set, with correct annotations and view metadata?                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `token-budget.eval.test.ts`        | How many tokens do the tool list, instructions, and representative responses cost — and did they regress? Budgets are calibrated against `estimateTokens()` (~4 chars/token) at ~1.3–2× measured baselines; recalibrate deliberately with `EVAL_LOG=1`, never bump-to-green.                                                                                                                                                                                                                                                  |
-| `golden-path.eval.test.ts`         | Can a "scripted small model" that only reads `content[0].text` and extracts ids with trivial regexes (`storeId=…`, `upc=…`, `listId=…`) finish the golden paths within the documented call budget? Also covers idempotent cart retry and partial no-result searches.                                                                                                                                                                                                                                                          |
-| `input-forgiveness.eval.test.ts`   | Are typical small-model input mistakes (unpadded UPCs, string numbers, lowercase enums, stray whitespace, extra keys) normalized instead of rejected — and when rejection is right, does the error name the fix?                                                                                                                                                                                                                                                                                                              |
-| `error-actionability.eval.test.ts` | Does every error name the concrete recovery tool, and does following that advice actually work?                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `agent.eval.test.ts`               | Following Anthropic's [writing tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents): can real models finish realistic multi-step tasks (`agent/tasks.ts`) through the MCP server? Built on [vitest-evals](https://github.com/getsentry/vitest-evals): an AI SDK tool loop on an OpenRouter model is the harness, `TaskChecksJudge` grades end state (cart, lists, pantry, recorded orders), and the report keeps tool calls, usage, and each model's TOOL FEEDBACK. `[test]` tasks are held out. |
+| Suite                              | Question it answers                                                                                                                                                                                                                                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp-agent-contract.test.ts`       | Is the tool surface the designed workflow-first set, with correct annotations and view metadata?                                                                                                                                                                             |
+| `token-budget.eval.test.ts`        | How many tokens do the tool list, instructions, and representative responses cost — and did they regress? Budgets are calibrated against `estimateTokens()` (~4 chars/token) at ~1.3–2× measured baselines; recalibrate deliberately with `EVAL_LOG=1`, never bump-to-green. |
+| `golden-path.eval.test.ts`         | Can a "scripted small model" that only reads `content[0].text` and extracts ids with trivial regexes (`storeId=…`, `upc=…`, `listId=…`) finish the golden paths within the documented call budget? Also covers idempotent cart retry and partial no-result searches.         |
+| `input-forgiveness.eval.test.ts`   | Are typical small-model input mistakes (unpadded UPCs, string numbers, lowercase enums, stray whitespace, extra keys) normalized instead of rejected — and when rejection is right, does the error name the fix?                                                             |
+| `error-actionability.eval.test.ts` | Does every error name the concrete recovery tool, and does following that advice actually work?                                                                                                                                                                              |
 
 ## The small-model contract
 
@@ -126,14 +47,6 @@ If you change a response format and one of these fails, the format change
 broke small-model interop — fix the format or renegotiate the contract here
 explicitly.
 
-## Adding an agent task
-
-Append to `AGENT_TASKS` in `agent/tasks.ts`: a prompt phrased the way a user
-would say it, optional `setup` (seeded through real tool calls), and `checks`
-over the end-state snapshot. Check outcomes, not a fixed tool path, so any
-valid strategy passes. Mark a task `split: "test"` to hold it out from tool
-tuning.
-
 ## Known limitations
 
 - `get_weekly_deals` is only covered for its no-store error path; the QFC
@@ -141,8 +54,5 @@ tuning.
   `tests/tools/weekly-deals.test.ts` cover the caching logic).
 - `estimateTokens()` is a chars/4 heuristic, not a real tokenizer. Budgets
   are for regression detection, not billing.
-- Free OpenRouter models vary run to run, and providers sometimes return
-  502s. Read a failing transcript before treating it as a tool regression,
-  and check model TOOL FEEDBACK against the transcript: models misreport.
 - Fixture artifacts look like tool bugs to models: unknown search terms
   synthesize a generic product, and fixture stores only list some hours.
