@@ -9,7 +9,7 @@ A tool-by-tool review of the 18 MCP tools against Anthropic's
 [Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents),
 followed by a proposed consolidated structure. Evidence comes from the
 `tools/list` payload the server actually sends, the agent eval
-(`pnpm eval:agent`, see `test/evals/README.md`), and the models' own
+(now retired; historical findings remain in `docs/`), and the models' own
 `TOOL FEEDBACK` in eval transcripts.
 
 <!-- EVAL-RESULTS -->
@@ -124,9 +124,7 @@ stay append-only and auditable — the merge is the most debatable row.
 
 ## How to validate a change
 
-1. `pnpm eval:agent` on the current surface → baseline in
-   `eval-results/agent.json` (`pnpm eval:agent:report` to browse).
-2. Apply one row of the proposal, rerun, compare train-task pass rate, tool
-   calls per task, and tool errors. Read the failing transcripts.
-3. Only after train improves, run the held-out (`[test]`) tasks to confirm it
-   generalizes. Don't edit descriptions to fix a held-out failure directly.
+Run `pnpm eval:mcp` for the current deterministic MCP contract, token-budget,
+golden-path, input-forgiveness, and error-recovery checks. The live agent runner,
+train/held-out task harness, and report viewer used for this historical review
+have been retired.

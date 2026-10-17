@@ -110,8 +110,6 @@ overrides:
   undici@>=7.0.0 <7.29.1: 7.29.1
   '@esbuild-kit/core-utils>esbuild': 0.25.0
 
-packageExtensionsChecksum: sha256-rhwGi4jbfTPcRiueHTbd2Fl0MyB7Kpl+XGNomp2PBKI=
-
 importers:
 
   .:
@@ -207,12 +205,12 @@ importers:
       '@babel/core':
         specifier: ^8.0.7
         version: 8.0.7
+      '@cloudflare/vite-plugin':
+        specifier: 2.0.0-beta.v.1
+        version: 2.0.0-beta.v.1(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(workerd@1.20261012.1)
       '@cloudflare/vitest-plugin':
         specifier: ^1.4.3
         version: 1.4.3(@types/node@26.6.5)(vitest@5.0.5)
-      '@openrouter/ai-sdk-provider':
-        specifier: ^3.1.0
-        version: 3.1.0(ai@7.0.141(zod@4.6.7))(zod@4.6.7)
       '@shadcn/lint':
         specifier: ^0.2.1
         version: 0.2.1
@@ -228,18 +226,12 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(@rolldown/plugin-babel@0.2.4(@babel/core@8.0.7)(@babel/runtime@8.0.7)(rolldown@1.2.14)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
-      '@vitest-evals/harness-ai-sdk':
-        specifier: ^0.17.0
-        version: 0.17.0(ai@7.0.141(zod@4.6.7))(vitest-evals@0.17.0(ai@7.0.141(zod@4.6.7))(tinyrainbow@3.2.0)(vitest@5.0.5)(zod@4.6.7))
       '@vitest/coverage-istanbul':
         specifier: ~5.0.5
         version: 5.0.5(vitest@5.0.5)
-      ai:
-        specifier: ^7.0.141
-        version: 7.0.141(zod@4.6.7)
       cf:
-        specifier: 1.0.0-beta.17
-        version: 1.0.0-beta.17(@types/node@26.6.5)
+        specifier: 1.0.0-beta.18
+        version: 1.0.0-beta.18(@types/node@26.6.5)
       concurrently:
         specifier: ^10.0.6
         version: 10.0.6
@@ -279,12 +271,6 @@ importers:
       vitest:
         specifier: ~5.0.5
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-istanbul@5.0.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
-      vitest-evals:
-        specifier: ^0.17.0
-        version: 0.17.0(ai@7.0.141(zod@4.6.7))(tinyrainbow@3.2.0)(vitest@5.0.5)(zod@4.6.7)
-      wrangler:
-        specifier: ^4.151.0
-        version: 4.151.0(@types/node@26.6.5)
 
 packages:
 
@@ -696,18 +682,18 @@ packages:
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
 
-  '@cloudflare/build-output-utils@0.9.2':
-    resolution: {integrity: sha512-31njjmJlyQASXZf1zTCQntNL0ZFOnu/dGCvdDrYKw8gX3c7P31Fw+cPA4dXBCo8+vKwA9n0oYAVN9vwUkLKuzA==}
+  '@cloudflare/build-output-utils@0.9.3':
+    resolution: {integrity: sha512-0MgvIq6UxbRWLwB2QJU7qjLqpPkfygOebN3UiENhdp+z6zpRKrNnwkms2ynadmxCOh3sL2v+SI0/pNXxgXdteA==}
 
-  '@cloudflare/config@0.26.0':
-    resolution: {integrity: sha512-18i2llyc49mWX/CQ5edwBlXclfMWZ6QIvquRbHWuxRYzKVd/immaQyRNvwqIHMUowDeNRwVk+K68xsVavdXPSQ==}
+  '@cloudflare/config@0.27.0':
+    resolution: {integrity: sha512-wNnL0z4lj5Gm2fze5qXTOvRPbUOi4jlMmwPk7ArCUakI5oVxgjfl3Rhnfd/Mmzo3g86x/ofH75yPIhsa5msqdQ==}
 
   '@cloudflare/kv-asset-handler@0.5.0':
     resolution: {integrity: sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg==}
     engines: {node: '>=22.0.0'}
 
-  '@cloudflare/runtime-types@0.1.11':
-    resolution: {integrity: sha512-iLOEoGkJidkJ+E5BuWeSXH137Z8oKyxsLN00/POU5rjz1+Rs5W1cq4PeHSfGd6GBR/7JL3Tt4/DK+uQhNDvxsg==}
+  '@cloudflare/runtime-types@0.1.12':
+    resolution: {integrity: sha512-eYF5teHQ+Jss4sbSVINM5tNPHxo/kJ2gKcMs7omyy7gO9PEkgUbGPZCYl06SxbBWTcJFF2vrX4epB775QTE4BQ==}
 
   '@cloudflare/unenv-preset@2.16.2':
     resolution: {integrity: sha512-JBP1+Z7ZSNG/d4mRP+y8VC5dka3tZVMLEZRvS+rzQ4DGV1EoxRFQckcJTTkXbHSQiTj0DtNI01Zwb/V2fX0mvQ==}
@@ -717,6 +703,12 @@ packages:
     peerDependenciesMeta:
       workerd:
         optional: true
+
+  '@cloudflare/vite-plugin@2.0.0-beta.v.1':
+    resolution: {integrity: sha512-gyxplbx5mImicE5bcMO3t3kAy5V9ad6X7Hk/K1DRINUv7n9vgjYcfmhiH0kOiXSOck/WT8R6e/HgNbBaVbhuaw==}
+    hasBin: true
+    peerDependencies:
+      vite: ^7.0.0 || ^8.0.0
 
   '@cloudflare/vitest-plugin@1.4.3':
     resolution: {integrity: sha512-GA0735VV3HgWRCO4sIXUL4uPDXbsaM4hA3Kj+8MqaLTgodeGt+VpcZYQUPg0hXBzkPeT/lxORPnWwIHRAmTavQ==}
@@ -1512,13 +1504,6 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
-
-  '@openrouter/ai-sdk-provider@3.1.0':
-    resolution: {integrity: sha512-BQy1TA9fKrh47s9ivsO6FY5QimN7GUF0i8Qon3pkxQclEgShso0dClpcWn8OIyPLEZZPFaFKgI8TW4S/O0p0Dw==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      ai: ^7.0.0
-      zod: ^3.25.76 || ^4.1.8
 
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
@@ -2403,18 +2388,6 @@ packages:
       oxc-transform-react:
         optional: true
 
-  '@vitest-evals/core@0.17.0':
-    resolution: {integrity: sha512-X1OBxLYWQnB+siIhI/BcDySMfpZ3AfeLiPRoZUi0iWMXeELwxxzOuzfsd2UZbJjeqyDbixRspdCfIzXYqzGxAw==}
-
-  '@vitest-evals/harness-ai-sdk@0.17.0':
-    resolution: {integrity: sha512-VJuuVDHpLxx/LpF2X0dbDtTMH7RAYrJEPXYXGBIs2inWSxSW8NVcUGlI92Kl8FUTEZ3RRC0ItqTVZ8T71MzAIQ==}
-    peerDependencies:
-      ai: '>=4 <7'
-      vitest-evals: '*'
-
-  '@vitest-evals/report-ui@0.17.0':
-    resolution: {integrity: sha512-7IWu7QoJpAomDsKO/RTKl8eichmJ9qQEmbQTJU5tao2gwQVzGvHx9bt79dB3b1MWuG7ZKMohv1h4FLGkZHUMqQ==}
-
   '@vitest/coverage-istanbul@5.0.5':
     resolution: {integrity: sha512-nmbE0+e1JSH9kYEoHGp/iKCQq6+TqwvQ4EcH2zKPULOIrY7rPHxDHsipYGGr+0xMDdzCy46F8zj3edz8dsqvdg==}
     peerDependencies:
@@ -2686,8 +2659,8 @@ packages:
   capnweb@0.12.0:
     resolution: {integrity: sha512-jgZ/LMtMVTi+RVlooIslH78Gg23XbDTdvcLghWx3oz17D6u5GuJARt+uhZk/wcTo+f81eeabfnow4d3zLBj+JQ==}
 
-  cf@1.0.0-beta.17:
-    resolution: {integrity: sha512-Lw7BF96BwJVY2f/93XuikgRNe+klVr+happT37JpmX6J0XiM+HXGiVt6ZmyWeUGNmBkCFVN5zWimiqq6GgdJrg==}
+  cf@1.0.0-beta.18:
+    resolution: {integrity: sha512-SG9NqB6xEZf/WZm6+E2v0OIY5JA0b9DUgl1VOOlF0D5Y+Nk5PyhHonJOd6K2/g6f261h+Z0FwTEK69c9bfIq4g==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -3635,6 +3608,10 @@ packages:
     resolution: {integrity: sha512-Cjrs+vHHQ7krLO4HYELYpYBJBuMhcnNZD/Z5z/UcQSnFqWSQY3DhtTCFalXgI1/yO1iK+YrRKK8EYkumrEopxg==}
     engines: {node: '>=22.0.0'}
 
+  miniflare@5.20261012.1-beta:
+    resolution: {integrity: sha512-8Canhy6g9+vAhqMc0o80YphqYIwpiA3aAp8aX+uDXU7J/qbUeoZzcII9c2V1P4uT/eHD4SB93qet1o1bRY3BuQ==}
+    engines: {node: '>=22.0.0'}
+
   minimatch@10.2.6:
     resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
     engines: {node: 18 || 20 || >=22}
@@ -4276,20 +4253,6 @@ packages:
       yaml:
         optional: true
 
-  vitest-evals@0.17.0:
-    resolution: {integrity: sha512-GCQEveS5tVhCNBjAW77usjeWxPi+TqI+wJEfF0BqpD6bq5Qw/9JhAmnbrnzbOvIn8MWzUA0Wc1aonCgWxRKawg==}
-    hasBin: true
-    peerDependencies:
-      ai: '>=4 <7'
-      tinyrainbow: '>=2 <4'
-      vitest: '>=4 <5'
-      zod: '>=3 <5'
-    peerDependenciesMeta:
-      ai:
-        optional: true
-      zod:
-        optional: true
-
   vitest@5.0.5:
     resolution: {integrity: sha512-cPODOMF8YnkiiYtDdHo6n4wWmBrOBBbOIYH2d33M4l3CdNn72h+qMmO6uXffUN6A5AZFXNND/d+krS9mgkXRfg==}
     engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
@@ -4440,6 +4403,7 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.60(zod@4.6.7)
       '@vercel/oidc': 3.2.0
       zod: 4.6.7
+    optional: true
 
   '@ai-sdk/provider-utils@5.0.60(zod@4.6.7)':
     dependencies:
@@ -4449,10 +4413,12 @@ snapshots:
       eventsource-parser: 3.1.1
       undici: 7.29.1
       zod: 4.6.7
+    optional: true
 
   '@ai-sdk/provider@4.0.27':
     dependencies:
       json-schema: 0.4.0
+    optional: true
 
   '@aranlucas/oxforge@0.2.2(@shadcn/lint@0.2.1)(oxfmt@0.73.0)(oxlint-tailwindcss@1.16.0)(oxlint-tsgolint@7.0.2004)(oxlint@1.88.0(oxlint-tsgolint@7.0.2004))':
     dependencies:
@@ -4899,19 +4865,19 @@ snapshots:
 
   '@cfworker/json-schema@4.1.1': {}
 
-  '@cloudflare/build-output-utils@0.9.2':
+  '@cloudflare/build-output-utils@0.9.3':
     dependencies:
-      '@cloudflare/config': 0.26.0
+      '@cloudflare/config': 0.27.0
 
-  '@cloudflare/config@0.26.0':
+  '@cloudflare/config@0.27.0':
     dependencies:
       zod: 4.6.5
 
   '@cloudflare/kv-asset-handler@0.5.0': {}
 
-  '@cloudflare/runtime-types@0.1.11(@types/node@26.6.5)':
+  '@cloudflare/runtime-types@0.1.12(@types/node@26.6.5)':
     dependencies:
-      miniflare: 5.20261012.0-beta(@types/node@26.6.5)
+      miniflare: 5.20261012.1-beta(@types/node@26.6.5)
       workerd: 1.20261012.1
     transitivePeerDependencies:
       - '@types/node'
@@ -4923,6 +4889,22 @@ snapshots:
       unenv: 2.0.0-rc.24
     optionalDependencies:
       workerd: 1.20261012.1
+
+  '@cloudflare/vite-plugin@2.0.0-beta.v.1(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))(workerd@1.20261012.1)':
+    dependencies:
+      '@cloudflare/build-output-utils': 0.9.3
+      '@cloudflare/config': 0.27.0
+      '@cloudflare/runtime-types': 0.1.12(@types/node@26.6.5)
+      '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20261012.1)
+      miniflare: 5.20261012.1-beta(@types/node@26.6.5)
+      unenv: 2.0.0-rc.24
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - '@types/node'
+      - bufferutil
+      - utf-8-validate
+      - workerd
 
   '@cloudflare/vitest-plugin@1.4.3(@types/node@26.6.5)(vitest@5.0.5)':
     dependencies:
@@ -5482,11 +5464,6 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
 
-  '@openrouter/ai-sdk-provider@3.1.0(ai@7.0.141(zod@4.6.7))(zod@4.6.7)':
-    dependencies:
-      ai: 7.0.141(zod@4.6.7)
-      zod: 4.6.7
-
   '@opentelemetry/api@1.9.1': {}
 
   '@opentelemetry/semantic-conventions@1.43.0': {}
@@ -5998,7 +5975,8 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@vercel/oidc@3.2.0': {}
+  '@vercel/oidc@3.2.0':
+    optional: true
 
   '@vitejs/plugin-react@6.1.2(@rolldown/plugin-babel@0.2.4(@babel/core@8.0.7)(@babel/runtime@8.0.7)(rolldown@1.2.14)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
@@ -6006,19 +5984,6 @@ snapshots:
       vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
     optionalDependencies:
       '@rolldown/plugin-babel': 0.2.4(@babel/core@8.0.7)(@babel/runtime@8.0.7)(rolldown@1.2.14)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
-
-  '@vitest-evals/core@0.17.0':
-    dependencies:
-      zod: 4.6.7
-
-  '@vitest-evals/harness-ai-sdk@0.17.0(ai@7.0.141(zod@4.6.7))(vitest-evals@0.17.0(ai@7.0.141(zod@4.6.7))(tinyrainbow@3.2.0)(vitest@5.0.5)(zod@4.6.7))':
-    dependencies:
-      ai: 7.0.141(zod@4.6.7)
-      vitest-evals: 0.17.0(ai@7.0.141(zod@4.6.7))(tinyrainbow@3.2.0)(vitest@5.0.5)(zod@4.6.7)
-
-  '@vitest-evals/report-ui@0.17.0':
-    dependencies:
-      '@vitest-evals/core': 0.17.0
 
   '@vitest/coverage-istanbul@5.0.5(vitest@5.0.5)':
     dependencies:
@@ -6064,7 +6029,8 @@ snapshots:
 
   '@vitest/spy@5.0.5': {}
 
-  '@workflow/serde@4.1.0': {}
+  '@workflow/serde@4.1.0':
+    optional: true
 
   accepts@2.0.0:
     dependencies:
@@ -6105,6 +6071,7 @@ snapshots:
       '@ai-sdk/provider': 4.0.27
       '@ai-sdk/provider-utils': 5.0.60(zod@4.6.7)
       zod: 4.6.7
+    optional: true
 
   ajv-formats@2.1.1(ajv@8.20.0):
     optionalDependencies:
@@ -6232,13 +6199,13 @@ snapshots:
 
   capnweb@0.12.0: {}
 
-  cf@1.0.0-beta.17(@types/node@26.6.5):
+  cf@1.0.0-beta.18(@types/node@26.6.5):
     dependencies:
-      '@cloudflare/build-output-utils': 0.9.2
-      '@cloudflare/config': 0.26.0
-      '@cloudflare/runtime-types': 0.1.11(@types/node@26.6.5)
+      '@cloudflare/build-output-utils': 0.9.3
+      '@cloudflare/config': 0.27.0
+      '@cloudflare/runtime-types': 0.1.12(@types/node@26.6.5)
       blake3-wasm: 2.1.5
-      miniflare: 5.20261012.0-beta(@types/node@26.6.5)
+      miniflare: 5.20261012.1-beta(@types/node@26.6.5)
     transitivePeerDependencies:
       - '@types/node'
       - bufferutil
@@ -6823,7 +6790,8 @@ snapshots:
 
   json-schema-typed@8.0.2: {}
 
-  json-schema@0.4.0: {}
+  json-schema@0.4.0:
+    optional: true
 
   json5@2.2.3: {}
 
@@ -7020,6 +6988,19 @@ snapshots:
   mimic-function@5.0.1: {}
 
   miniflare@5.20261012.0-beta(@types/node@26.6.5):
+    dependencies:
+      '@cspotcode/source-map-support': 0.8.1
+      sharp: 0.35.5(@types/node@26.6.5)
+      undici: 7.29.1
+      workerd: 1.20261012.1
+      ws: 8.21.0
+      youch: 4.1.0-beta.10
+    transitivePeerDependencies:
+      - '@types/node'
+      - bufferutil
+      - utf-8-validate
+
+  miniflare@5.20261012.1-beta(@types/node@26.6.5):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.5(@types/node@26.6.5)
@@ -7712,16 +7693,6 @@ snapshots:
       jiti: 2.7.0
       tsx: 4.23.15
       yaml: 2.9.1
-
-  vitest-evals@0.17.0(ai@7.0.141(zod@4.6.7))(tinyrainbow@3.2.0)(vitest@5.0.5)(zod@4.6.7):
-    dependencies:
-      '@vitest-evals/core': 0.17.0
-      '@vitest-evals/report-ui': 0.17.0
-      tinyrainbow: 3.2.0
-      vitest: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-istanbul@5.0.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
-    optionalDependencies:
-      ai: 7.0.141(zod@4.6.7)
-      zod: 4.6.7
 
   vitest@5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-istanbul@5.0.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:

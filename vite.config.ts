@@ -1,22 +1,18 @@
-import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
-import path from "node:path";
+import { cloudflare } from "@cloudflare/vite-plugin";
 import { defineConfig } from "vite";
-import { viteSingleFile } from "vite-plugin-singlefile";
 
-const isDevelopment = process.env.NODE_ENV === "development";
+const portlessUrl = process.env.PORTLESS_URL ? new URL(process.env.PORTLESS_URL) : undefined;
 
 export default defineConfig({
-  root: "views/",
-  plugins: [tailwindcss(), react(), viteSingleFile()],
-  build: {
-    sourcemap: isDevelopment ? "inline" : undefined,
-    cssMinify: !isDevelopment,
-    minify: !isDevelopment,
-    rollupOptions: {
-      input: path.resolve(import.meta.dirname, "views/mcp-app.html"),
-    },
-    outDir: path.resolve(import.meta.dirname, "dist/views"),
-    emptyOutDir: true,
+  plugins: [cloudflare()],
+  publicDir: "dist/views",
+  resolve: { tsconfigPaths: true },
+  server: {
+    host: "127.0.0.1",
+    port: Number(process.env.PORT ?? 8788),
+    ...(portlessUrl && {
+      allowedHosts: [portlessUrl.hostname],
+      origin: portlessUrl.origin,
+    }),
   },
 });

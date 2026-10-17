@@ -54,6 +54,6 @@ production tool failures and do not justify inventing extra capabilities.
 ## Validation
 
 Run `pnpm build:views`, `pnpm eval:mcp`, the cart and order tool tests,
-`pnpm lint`, and `pnpm typecheck`. Token caps remain unchanged. A new model
-comparison requires `OPENROUTER_API_KEY`; this worktree had neither an
-exported key nor `.dev.vars` at review time.
+`pnpm lint`, and `pnpm typecheck`. Token caps remain unchanged. The model
+comparison above is historical; its runner, agent harness, and report tooling
+have since been retired.
