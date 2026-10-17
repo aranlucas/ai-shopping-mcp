@@ -6,11 +6,9 @@ import {
 } from "./eval-schemas.mjs";
 
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { URL, fileURLToPath } from "node:url";
-import { unstable_dev } from "wrangler";
+import { readFile, writeFile } from "node:fs/promises";
+import { URL } from "node:url";
+import { startCfWorker } from "./cf-dev.mjs";
 
 const model = process.env.EVAL_SELECTOR_MODEL ?? "openai/gpt-5.4-mini";
 
@@ -25,32 +23,10 @@ const workerSource = await readFile(
   "utf8",
 );
 
-const directory = await mkdtemp(join(tmpdir(), "agent-selector-eval-"));
-
 let worker;
 
 try {
-  const config = join(directory, "wrangler.json");
-  await writeFile(
-    config,
-    JSON.stringify({
-      name: "agent-selector-eval",
-      compatibility_date: "2025-03-10",
-      ai: { binding: "AI", remote: true },
-    }),
-  );
-  worker = await unstable_dev(
-    fileURLToPath(new URL("./agent-selector-live-worker.ts", import.meta.url)),
-    {
-      config,
-      ip: "127.0.0.1",
-      port: 0,
-      inspectorPort: 0,
-      persist: false,
-      logLevel: "error",
-      experimental: { disableExperimentalWarning: true, watch: false },
-    },
-  );
+  worker = await startCfWorker(new URL("./agent-selector-live-worker.ts", import.meta.url));
 
   for (const sourcePath of sources) {
     /** @type {unknown} */
@@ -207,5 +183,4 @@ try {
   }
 } finally {
   await worker?.stop();
-  await rm(directory, { recursive: true, force: true });
 }

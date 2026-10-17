@@ -36,11 +36,8 @@ const miniflare: TestMiniflare = {
     },
     KROGER_CONNECTIONS: { className: "KrogerConnections", useSQLite: true },
   },
-  // Miniflare's WorkerOptions expose plain variables through
-  // `bindings`, not `vars` (which is wrangler-config syntax). Using
-  // `vars` here is silently ignored, so these must live under
-  // `bindings` to be available in tests (e.g. in CI, where the
-  // gitignored .dev.vars file does not exist).
+  // Miniflare exposes plain variables through `bindings`. Keep test values
+  // explicit so CI does not depend on the gitignored .dev.vars file.
   bindings: {
     BETTER_AUTH_ISSUER: "https://auth.example/api/auth",
     BETTER_AUTH_JWKS_URL: "https://auth.example/api/auth/jwks",

@@ -6,11 +6,9 @@ import {
 } from "./eval-schemas.mjs";
 
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { URL, fileURLToPath } from "node:url";
-import { unstable_dev } from "wrangler";
+import { readFile, writeFile } from "node:fs/promises";
+import { URL } from "node:url";
+import { startCfWorker } from "./cf-dev.mjs";
 import {
   cases as tuningCases,
   holdoutCases,
@@ -69,32 +67,10 @@ const report = {
   results: resultRows,
 };
 
-const directory = await mkdtemp(join(tmpdir(), "jev-selector-eval-"));
-
 let worker;
 
 try {
-  const configPath = join(directory, "wrangler.json");
-  await writeFile(
-    configPath,
-    JSON.stringify({
-      name: "jev-selector-eval",
-      compatibility_date: "2025-03-10",
-      ai: { binding: "AI", remote: true },
-    }),
-  );
-  worker = await unstable_dev(
-    fileURLToPath(new URL("./selector-live-worker.ts", import.meta.url)),
-    {
-      config: configPath,
-      ip: "127.0.0.1",
-      port: 0,
-      inspectorPort: 0,
-      persist: false,
-      logLevel: "error",
-      experimental: { disableExperimentalWarning: true, watch: false },
-    },
-  );
+  worker = await startCfWorker(new URL("./selector-live-worker.ts", import.meta.url));
 
   const expanded = cases.map((testCase) => ({
     ...testCase,
@@ -295,5 +271,4 @@ try {
 } finally {
   await writeFile(outputPath, JSON.stringify(report, null, 2) + "\n");
   await worker?.stop();
-  await rm(directory, { recursive: true, force: true });
 }

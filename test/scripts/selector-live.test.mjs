@@ -1,10 +1,7 @@
 import { z } from "zod/v4";
 import { selectionSchema } from "../../scripts/eval-schemas.mjs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { unstable_dev } from "wrangler";
-import { URL, fileURLToPath } from "node:url";
+import { startCfWorker } from "../../scripts/cf-dev.mjs";
+import { URL } from "node:url";
 
 /** @param {boolean} condition
  * @param {string} message
@@ -16,31 +13,10 @@ function assert(condition, message) {
 }
 
 async function main() {
-  const directory = await mkdtemp(join(tmpdir(), "jev-selector-live-"));
   let worker;
 
   try {
-    const configPath = join(directory, "wrangler.json");
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        name: "jev-selector-live",
-        compatibility_date: "2025-03-10",
-        ai: { binding: "AI", remote: true },
-      }),
-    );
-    worker = await unstable_dev(
-      fileURLToPath(new URL("../../scripts/selector-live-worker.ts", import.meta.url)),
-      {
-        config: configPath,
-        ip: "127.0.0.1",
-        port: 0,
-        inspectorPort: 0,
-        persist: false,
-        logLevel: "error",
-        experimental: { disableExperimentalWarning: true, watch: false },
-      },
-    );
+    worker = await startCfWorker(new URL("../../scripts/selector-live-worker.ts", import.meta.url));
 
     const candy = {
       upc: "1111111111111",
@@ -126,7 +102,6 @@ async function main() {
     );
   } finally {
     await worker?.stop();
-    await rm(directory, { recursive: true, force: true });
   }
 }
 
