@@ -18,7 +18,12 @@ Only these additional generated declarations are excluded from lint:
 `src/services/kroger/cart.d.ts`, `location.d.ts`, `product.d.ts`, and
 `identity.d.ts`. Their openapi-typescript generator markers and original bytes
 are preserved. The `kroger/*.json` inputs and pinned 7.13.0 generation commands
-are unchanged. The hand-maintained `weekly-deals.d.ts` remains linted.
+are unchanged. Weekly-deal source types are inferred from the runtime schemas
+in `src/services/weekly-deals/schema.ts`; the unused, hand-maintained
+`weekly-deals.d.ts` has been removed. The current adapter validates circular,
+DACS print-ad, and product-search responses through those schemas. The old
+declaration module had no consumers or runtime behavior, and the private
+application does not publish a type API. Existing source-boundary tests remain.
 
 ## Boundary exceptions
 
@@ -39,8 +44,6 @@ untrusted values in aliases or replacing them with `any`:
 - `src/utils/json.ts`: syntax-only JSON output stays explicitly untrusted.
 - `src/tools/location.ts`: deliberately permissive location input is validated
   before consumption, preserving misspelled zip-key compatibility.
-- `src/services/kroger/weekly-deals.d.ts`: undocumented upstream metadata stays
-  opaque and is not consumed as a normalized application contract.
 - `test/v2-tool-handler.ts`: raw SDK output is checked by the native SDK schema.
 - `test/evals/harness.ts`: token estimation delegates arbitrary values to
   JSON.stringify without claiming application validation.
