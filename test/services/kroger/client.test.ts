@@ -23,7 +23,7 @@ type MiddlewareResult = Awaited<ReturnType<NonNullable<Middleware["onRequest"]>>
 
 function responseResult(value: MiddlewareResult): Response {
   if (!(value instanceof Response)) {
-    throw new Error("Expected a middleware Response");
+    throw new TypeError("Expected a middleware Response");
   }
 
   return value;
@@ -31,7 +31,7 @@ function responseResult(value: MiddlewareResult): Response {
 
 function requestResult(value: MiddlewareResult): Request {
   if (!(value instanceof Request)) {
-    throw new Error("Expected a middleware Request");
+    throw new TypeError("Expected a middleware Request");
   }
 
   return value;

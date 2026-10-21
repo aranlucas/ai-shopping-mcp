@@ -26,7 +26,7 @@ export function capturingServer(tools: CapturedTool[], auth: () => McpAuthContex
     const registered = register(name, config, handler);
 
     if (!(registered.inputSchema instanceof z.ZodObject)) {
-      throw new Error(`Tool ${name} needs its real Zod schema`);
+      throw new TypeError(`Tool ${name} needs its real Zod schema`);
     }
 
     const registration = { ...config, inputSchema: registered.inputSchema };

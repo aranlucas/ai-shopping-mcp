@@ -221,7 +221,7 @@ function getCompleteFn(name: string, field: string): CompleteFn {
   const template = getResource(name).uriOrTemplate;
 
   if (!(template instanceof ResourceTemplate)) {
-    throw new Error("Resource has no template");
+    throw new TypeError("Resource has no template");
   }
 
   const complete = template.completeCallback(field);
