@@ -48,7 +48,7 @@
     "@toon-format/toon": "^4.4.0",
     "agents": "^0.29.0",
     "better-auth": "1.7.12",
-    "better-call": "1.4.4",
+    "better-call": "2.0.6",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",
     "drizzle-orm": "0.45.4",
@@ -68,7 +68,7 @@
   "devDependencies": {
     "@aranlucas/oxforge": "0.2.2",
     "@babel/core": "^8.0.7",
-    "@cloudflare/vite-plugin": "2.0.0-beta.v.1",
+    "@cloudflare/vite-plugin": "2.0.0-beta.v.2",
     "@cloudflare/vitest-plugin": "^1.4.6",
     "@shadcn/lint": "^0.2.3",
     "@types/node": "^26.6.5",
