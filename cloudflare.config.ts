@@ -1,13 +1,13 @@
 import { bindings, defineConfig, exports } from "cf/config";
 
-import * as entrypoint from "./src/server" with { type: "cf-worker" };
+import * as entrypoint from "./src/index" with { type: "cf-worker" };
 
 export default defineConfig({
   worker: {
     exports: {
       MyMCP: exports.durableObject({ state: "deleted" }),
       CartOperations: exports.durableObject({ storage: "sqlite" }),
-      KrogerConnections: exports.durableObject({ storage: "sqlite" }),
+      KrogerConnections: exports.durableObject({ state: "deleted" }),
       LoginTransactions: exports.durableObject({ state: "deleted" }),
     },
     name: "ai-meal-planner-mcp",
