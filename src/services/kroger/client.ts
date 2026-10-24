@@ -28,8 +28,8 @@ const REAUTH_MSG = "Please sign in to your MCP client again to reconnect Kroger.
 
 /**
  * Middleware that adds Kroger Bearer tokens to requests.
- * Auth owns refresh; KrogerConnections serializes token requests before the request is built, so runtime
- * API calls cannot race Kroger's single-use refresh tokens.
+ * Auth's per-user broker serializes token reads and refreshes before returning credentials.
+ * Shopping API calls only use the access token obtained for the current request.
  */
 export function createKrogerAuthMiddleware(getTokenInfo: () => KrogerTokenInfo | null): Middleware {
   return {

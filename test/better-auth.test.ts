@@ -1,11 +1,11 @@
 import { SELF, env, reset } from "cloudflare:test";
-import { exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/server";
 import { getMcpAuthContext } from "agents/mcp/server";
 import * as composition from "@/composition.js";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { authIdentity, validateAccessToken } from "@/services/better-auth.js";
+import { krogerToken } from "@/services/kroger-token.js";
 import { fixtureJwks, fixtureToken, seedKrogerConnection } from "@test/better-auth-fixture.js";
 import { ensureShoppingSchema } from "@test/d1-schema.js";
 
@@ -290,6 +290,26 @@ describe("Better Auth resource server", () => {
     expect(response.headers.get("WWW-Authenticate")).toBeNull();
   });
 
+  it.each(["malformed", "expired"])(
+    "returns a service error without a re-login challenge for %s Kroger credentials",
+    async (failure) => {
+      await env.AUTH.fetch("https://auth-stub/seed", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: "auth-user",
+          token: {
+            accessToken: failure === "malformed" ? "" : "kroger-access-token",
+            expiresAt: Date.now() + (failure === "expired" ? -1000 : 1_800_000),
+          },
+        }),
+      });
+
+      const response = await SELF.fetch(mcpRequest(await fixtureToken()));
+      expect(response.status).toBe(503);
+      expect(response.headers.get("WWW-Authenticate")).toBeNull();
+    },
+  );
+
   it("requires re-login after an existing Kroger link is removed", async () => {
     await seedKrogerConnection();
     const token = await fixtureToken();
@@ -303,47 +323,60 @@ describe("Better Auth resource server", () => {
     expect(response.headers.get("WWW-Authenticate")).toContain("resource_metadata");
   });
 
-  it("passes the verified OAuth client and shopping user into the MCP context", async () => {
-    await seedKrogerConnection("subject-a");
-    vi.spyOn(composition, "buildServer").mockImplementation((_env, context) => {
-      const server = new McpServer({
-        name: "auth-context-probe",
-        version: "1",
+  it.each([
+    { grant: "authorization code", clientId: "client-a", extraClaims: {} },
+    {
+      grant: "token exchange",
+      clientId: "exchange-service",
+      extraClaims: { sid: "auth-session", reference_id: "auth-reference" },
+    },
+  ])(
+    "passes the verified $grant client and shopping user into the MCP context",
+    async ({ clientId, extraClaims }) => {
+      await seedKrogerConnection("subject-a");
+      vi.spyOn(composition, "buildServer").mockImplementation((_env, context) => {
+        const server = new McpServer({
+          name: "auth-context-probe",
+          version: "1",
+        });
+
+        server.registerTool("probe", {}, async () => ({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                userId: getMcpAuthContext()?.props.id,
+                clientId: context.authInfo?.clientId,
+              }),
+            },
+          ],
+        }));
+
+        return server;
       });
 
-      server.registerTool("probe", {}, async () => ({
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              userId: getMcpAuthContext()?.props.id,
-              clientId: context.authInfo?.clientId,
-            }),
-          },
-        ],
-      }));
+      // Auth's exchange preserves the user/session claims but sets client_id to the exchanging service.
+      const client = await connectClient(
+        await fixtureToken("subject-a", { ...extraClaims, client_id: clientId }),
+      );
 
-      return server;
-    });
-
-    const client = await connectClient(await fixtureToken("subject-a", { client_id: "client-a" }));
-
-    try {
-      expect(await client.callTool({ name: "probe", arguments: {} })).toMatchObject({
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              userId: authIdentity(env.BETTER_AUTH_ISSUER, "subject-a").id,
-              clientId: "client-a",
-            }),
-          },
-        ],
-      });
-    } finally {
-      await client.close();
-    }
-  });
+      try {
+        expect(await client.callTool({ name: "probe", arguments: {} })).toMatchObject({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                userId: authIdentity(env.BETTER_AUTH_ISSUER, "subject-a").id,
+                clientId,
+              }),
+            },
+          ],
+        });
+      } finally {
+        await client.close();
+      }
+    },
+  );
 
   it("serves shopping over a real MCP client after linking and isolates auth subjects", async () => {
     await ensureShoppingSchema();
@@ -359,10 +392,6 @@ describe("Better Auth resource server", () => {
     await client.close();
     const other = await SELF.fetch(mcpRequest(await fixtureToken("subject-b")));
     expect(other.status).toBe(401);
-    expect(
-      await exports.KrogerConnections.getByName(
-        authIdentity(env.BETTER_AUTH_ISSUER, "subject-b").id,
-      ).getToken("subject-b"),
-    ).toEqual({ status: "not_connected" });
+    expect(await krogerToken(env, "subject-b")).toBeNull();
   });
 });

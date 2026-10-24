@@ -25,7 +25,6 @@ const miniflare: TestMiniflare = {
       className: "CartOperations",
       useSQLite: true,
     },
-    KROGER_CONNECTIONS: { className: "KrogerConnections", useSQLite: true },
   },
   // Miniflare exposes plain variables through `bindings`. Keep test values
   // explicit so CI does not depend on the gitignored .dev.vars file.

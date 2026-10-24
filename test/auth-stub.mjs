@@ -39,10 +39,6 @@ function parseSeed(body) {
 /** @type {Map<string, Token>} */
 const accounts = new Map();
 
-let active = 0;
-
-let maxActive = 0;
-
 /** @type {string[]} */
 let calls = [];
 
@@ -52,20 +48,12 @@ export class KrogerTokens extends WorkerEntrypoint {
   /** @param {string} userId */
   async accessToken(userId) {
     calls.push(userId);
-    active++;
-    maxActive = Math.max(maxActive, active);
 
-    try {
-      await scheduler.wait(5);
-
-      if (fail) {
-        throw new Error("Auth service unavailable");
-      }
-
-      return accounts.get(userId) ?? null;
-    } finally {
-      active--;
+    if (fail) {
+      throw new Error("Auth service unavailable");
     }
+
+    return accounts.get(userId) ?? null;
   }
 
   /** @param {Request} request */
@@ -75,7 +63,6 @@ export class KrogerTokens extends WorkerEntrypoint {
     if (path === "/reset") {
       accounts.clear();
       calls = [];
-      maxActive = 0;
       fail = false;
     } else if (path === "/seed") {
       const { userId, token } = parseSeed(await request.json());
@@ -88,7 +75,7 @@ export class KrogerTokens extends WorkerEntrypoint {
     } else if (path === "/fail") {
       fail = true;
     } else if (path === "/stats") {
-      return Response.json({ calls, maxActive });
+      return Response.json({ calls });
     } else {
       return new Response(null, { status: 404 });
     }

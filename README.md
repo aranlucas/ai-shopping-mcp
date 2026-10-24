@@ -86,7 +86,7 @@ Clients that require a local proxy can use `mcp-remote`:
 
 ## Production resources and data
 
-User shopping data is stored in D1 and scoped to the verified Better Auth issuer and subject. Better Auth issues MCP access tokens; this Worker uses the official `@better-auth/mcp` resource-server helper (1.7.7) to verify them against JWKS and require `mcp:tools`. Auth stores and refreshes Kroger credentials. `KrogerConnections` Durable Objects serialize token requests through the `AUTH` service binding, and `CartOperations` own cart journals. Caches and cart receipts use `USER_DATA_KV`.
+User shopping data is stored in D1 and scoped to the verified Better Auth issuer and subject. Better Auth issues MCP access tokens; this Worker uses the official `@better-auth/mcp` resource-server helper (1.7.12) to verify them against JWKS and require `mcp:tools`. Auth stores Kroger credentials and serializes refreshes in its own broker. Shopping obtains an access token directly through the `AUTH` service binding for each request, and `CartOperations` own cart journals. Caches and cart receipts use `USER_DATA_KV`.
 
 The schema is defined in [`src/db/schema.ts`](src/db/schema.ts). Apply local migrations with `pnpm db:migrate:local`; apply remote migrations before a Worker deployment with `pnpm db:migrate:remote`. Kroger client credentials belong to the Auth Worker; the shopping Worker needs the `AUTH` binding to its `KrogerTokens` entrypoint. `SENTRY_DSN` is optional. See [the Better Auth integration contract](docs/better-auth-integration.md) for provider setup and callback registration.
 
@@ -152,6 +152,8 @@ https://auth.aranlucas.workers.dev/api/auth/callback/kroger
 The Kroger application must allow `profile.compact`, `cart.basic:write`, and `product.compact`.
 
 Configure `BETTER_AUTH_ISSUER`, `BETTER_AUTH_JWKS_URL`, and the `AUTH` service binding in `cloudflare.config.ts`. Register Kroger's callback on the Auth Worker (`/api/auth/callback/kroger`); configure the provider to allow the exact `/mcp` endpoint in `MCP_RESOURCE_URL` as an access-token audience and the `mcp:tools` scope. Set `MCP_ALLOWED_ORIGINS` to a JSON array of intended browser client origins; the default allows the Worker origin and clients without an Origin header. The Worker rejects unapproved origins and legacy MCP initialization traffic. This Worker no longer serves `/authorize`, `/register`, `/token`, or `/userinfo`. Existing MCP tokens must be replaced by signing in through Better Auth. Shopping data uses the new auth identity; legacy Kroger-ID records are not migrated.
+
+The checked-in configuration already uses `https://auth.aranlucas.workers.dev` (issuer `/api/auth`, JWKS `/api/auth/jwks`). Auth's RFC 8693 token exchange can issue the same resource-bound shopping JWT contract; it does not replace the private Kroger token service binding. See [token-exchange compatibility](docs/better-auth-integration.md#token-exchange) for requirements.
 
 ## MCP surface
 

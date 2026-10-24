@@ -1,5 +1,4 @@
 import * as Sentry from "@sentry/cloudflare";
-import { exports } from "cloudflare:workers";
 import { hostHeaderValidationResponse } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
@@ -9,6 +8,7 @@ import { APIError } from "better-call";
 
 import type { AppEnv } from "./env.js";
 import { buildServer } from "./composition.js";
+import { krogerToken } from "./services/kroger-token.js";
 import {
   authSettings,
   accessTokenOptions,
@@ -17,8 +17,6 @@ import {
 } from "./services/better-auth.js";
 
 export { CartOperations } from "./cart-operations.js";
-
-export { KrogerConnections } from "./kroger-connections.js";
 
 function invalidIdentity(resource: string) {
   const challenge = createResourceServerChallenge(
@@ -63,15 +61,13 @@ async function mcpApiHandler(request: Request, env: AppEnv, ctx: ExecutionContex
         return invalidIdentity(env.MCP_RESOURCE_URL);
       }
 
-      const connection = await exports.KrogerConnections.getByName(identity.props.id).getToken(
-        identity.props.subject,
-      );
+      const token = await krogerToken(env, identity.props.subject);
 
-      if (connection.status !== "connected") {
+      if (!token) {
         return invalidIdentity(env.MCP_RESOURCE_URL);
       }
 
-      const props = { id: identity.props.id, ...connection.token };
+      const props = { id: identity.props.id, ...token };
 
       const handler = createMcpHandler(
         (requestContext) => buildServer(env, requestContext, (promise) => ctx.waitUntil(promise)),

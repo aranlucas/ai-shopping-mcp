@@ -7,7 +7,7 @@ export default defineConfig({
     exports: {
       MyMCP: exports.durableObject({ state: "deleted" }),
       CartOperations: exports.durableObject({ storage: "sqlite" }),
-      KrogerConnections: exports.durableObject({ storage: "sqlite" }),
+      KrogerConnections: exports.durableObject({ state: "deleted" }),
       LoginTransactions: exports.durableObject({ state: "deleted" }),
     },
     name: "ai-meal-planner-mcp",
