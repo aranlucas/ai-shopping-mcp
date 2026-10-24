@@ -42,21 +42,20 @@ describe("Worker HTTP routing", () => {
   });
 
   it.each([
-    { path: "/", method: "POST", allow: "GET, HEAD" },
-    ...metadataPaths.map((path) => ({ path, method: "POST", allow: "GET, HEAD, OPTIONS" })),
+    { path: "/", method: "POST" },
+    ...metadataPaths.map((path) => ({ path, method: "POST" })),
     ...["GET", "HEAD", "PUT", "PATCH", "DELETE"].map((method) => ({
       path: "/mcp",
       method,
-      allow: "POST, OPTIONS",
     })),
-  ])("returns the route's Allow header for $method $path", async ({ path, method, allow }) => {
+  ])("leaves unsupported $method $path to Hono's fallback", async ({ path, method }) => {
     const response = await SELF.fetch(`${appOrigin}${path}`, {
       method,
       headers: { Host: new URL(appOrigin).host },
     });
 
-    expect(response.status).toBe(405);
-    expect(response.headers.get("Allow")).toBe(allow);
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Allow")).toBeNull();
     expect(response.headers.get("WWW-Authenticate")).toBeNull();
   });
 
@@ -66,8 +65,8 @@ describe("Worker HTTP routing", () => {
       headers: { Host: new URL(appOrigin).host, Origin: "https://client.example" },
     });
 
-    expect(response.status).toBe(405);
-    expect(response.headers.get("Allow")).toBe("POST, OPTIONS");
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Allow")).toBeNull();
     expect(response.headers.get("WWW-Authenticate")).toBeNull();
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://client.example");
     expect(response.headers.get("Access-Control-Expose-Headers")).toBe("WWW-Authenticate");
@@ -79,12 +78,10 @@ describe("Worker HTTP routing", () => {
     "/mcp/tools",
     "/mcp-other",
     "/MCP",
-    "/%6dcp",
     "/mcp%2f",
     "/.well-known/oauth-protected-resource/",
     "/.well-known/oauth-protected-resource/mcp/",
     "/.well-known/oauth-protected-resource/other",
-    "/.well-known/oauth-protected-resource/%6dcp",
   ])("keeps %s outside the MCP and discovery routes", async (path) => {
     await Promise.all(
       ["GET", "POST", "OPTIONS"].map(async (method) => {

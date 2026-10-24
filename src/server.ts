@@ -7,7 +7,6 @@ import { parseAccessTokenAuthorization } from "better-auth/oauth2";
 import { APIError } from "better-call";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { methodNotAllowed } from "hono/method-not-allowed";
 
 import type { AppEnv } from "./env.js";
 import { buildServer } from "./composition.js";
@@ -42,33 +41,15 @@ function invalidIdentity(resource: string) {
   );
 }
 
-const corsOptions = {
-  allowHeaders: [
-    "Content-Type",
-    "Accept",
-    "Authorization",
-    "MCP-Protocol-Version",
-    "Mcp-Method",
-    "Mcp-Name",
-  ],
-  exposeHeaders: ["WWW-Authenticate"],
-};
-
 /** Better Auth owns OAuth issuance; this Worker only validates resource tokens. */
-export const app = new Hono<WorkerEnv>({
-  strict: true,
-  // Match the same encoded path as the MCP transport, without decoding aliases.
-  getPath: (request) => new URL(request.url).pathname,
-});
-
-app.use(methodNotAllowed({ app }));
+export const app = new Hono<WorkerEnv>();
 
 const metadataPaths = [
   "/.well-known/oauth-protected-resource",
   "/.well-known/oauth-protected-resource/mcp",
 ];
 
-app.on("ALL", metadataPaths, cors({ ...corsOptions, allowMethods: ["GET", "HEAD", "OPTIONS"] }));
+app.on("ALL", metadataPaths, cors({ allowMethods: ["GET", "HEAD", "OPTIONS"] }));
 
 app.on("GET", metadataPaths, (c) => {
   const settings = authSettings(c.env);
@@ -82,8 +63,6 @@ app.on("GET", metadataPaths, (c) => {
   });
 });
 
-app.on("OPTIONS", metadataPaths, (c) => c.body(null, 204));
-
 app.use("/mcp", async (c: Context<WorkerEnv, "/mcp">, next) => {
   const settings = mcpSettings(c.env);
   const origin = c.req.header("Origin");
@@ -96,15 +75,14 @@ app.use("/mcp", async (c: Context<WorkerEnv, "/mcp">, next) => {
   return hostHeaderValidation([new URL(settings.resource).hostname])(c, next);
 });
 
-app.use("/mcp", (c: Context<WorkerEnv, "/mcp">, next) => {
-  const corsOrigin = c.req.header("Origin") ?? new URL(c.env.MCP_RESOURCE_URL).origin;
-
-  return cors({
-    ...corsOptions,
-    origin: () => corsOrigin,
+app.use(
+  "/mcp",
+  cors({
+    origin: (origin) => origin,
     allowMethods: ["POST", "OPTIONS"],
-  })(c, next);
-});
+    exposeHeaders: ["WWW-Authenticate"],
+  }),
+);
 
 app.post("/mcp", (c) => {
   const options = accessTokenOptions(c.env, c.env.MCP_RESOURCE_URL);
@@ -140,7 +118,6 @@ app.post("/mcp", (c) => {
         (requestContext) =>
           buildServer(c.env, requestContext, (promise) => c.executionCtx.waitUntil(promise)),
         {
-          route: "/mcp",
           authContext: { props },
           legacy: "reject",
           allowedHostnames: [new URL(c.env.MCP_RESOURCE_URL).hostname],
@@ -165,13 +142,9 @@ app.post("/mcp", (c) => {
   return protectedHandler(c.req.raw);
 });
 
-app.options("/mcp", (c) => c.body(null, 204));
-
 app.get("/", (c) =>
   c.text("Shopping MCP: connect your AI client to /mcp and sign in to link Kroger."),
 );
-
-app.notFound((c) => c.text("Not found", 404));
 
 app.onError((error, c) => {
   Sentry.captureException(error);

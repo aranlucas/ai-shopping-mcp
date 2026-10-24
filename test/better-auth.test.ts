@@ -107,7 +107,7 @@ describe("Better Auth resource server", () => {
 
     expect(response.status).toBe(204);
     expect(response.headers.get("Access-Control-Allow-Methods")).toBe("POST,OPTIONS");
-    expect(response.headers.get("Access-Control-Allow-Headers")).toContain("Authorization");
+    expect(response.headers.get("Access-Control-Allow-Headers")).toBe("authorization");
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://client.example");
   });
 
