@@ -346,16 +346,15 @@ items and add matched items to the pickup cart. The user completes the purchase 
 pnpm build
 pnpm test
 pnpm eval:mcp
-pnpm cf-typegen  # writes .cloudflare/types; typecheck and lint run it first
+pnpm cf-typegen  # writes .cloudflare/types; Vite dev and build also regenerate it
 ```
 
 `pnpm test` runs the Worker and Node-environment regression tests with Vitest,
 including the deterministic MCP suites in `test/evals/`.
 
-`pnpm lint` runs both the standard rules and a focused type-aware pass via `oxlint-tsgolint`.
+`pnpm lint` runs one oxlint pass with type-aware rules via `oxlint-tsgolint`.
 Floating Promises (including `void` expressions and `ResultAsync` thenables) and misused async
-callbacks fail lint and build. The focused configuration avoids enabling unrelated type-aware
-style rules across the repository. Synchronous `Result` consumption, including handling an
+callbacks fail lint and build. Synchronous `Result` consumption, including handling an
 `Err` after `await`, still requires review.
 
 The same command runs [`@shadcn/lint`](https://github.com/shadcn-ui/lint) on the

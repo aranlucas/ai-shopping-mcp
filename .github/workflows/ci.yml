@@ -36,7 +36,7 @@ jobs:
 
       - parallel:
           - name: Lint
-            run: pnpm exec oxlint && pnpm exec oxlint -c .oxlintrc.type-aware.json && pnpm fmt:check
+            run: pnpm exec oxlint && pnpm fmt:check
 
           - name: Typecheck
             run: pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p views/tsconfig.json
