@@ -16,8 +16,6 @@ import {
   mcpSettings,
 } from "./services/better-auth.js";
 
-export { CartOperations } from "./cart-operations.js";
-
 function invalidIdentity(resource: string) {
   const challenge = createResourceServerChallenge(
     new APIError("UNAUTHORIZED", { message: "Invalid shopping identity" }),
@@ -116,7 +114,7 @@ function withMcpCors(response: Response, origin = "*", methods = "GET, OPTIONS")
 }
 
 /** Better Auth owns OAuth issuance; this Worker only validates resource tokens. */
-export async function handleRequest(
+async function handleRequest(
   request: Request,
   env: AppEnv,
   ctx: ExecutionContext,

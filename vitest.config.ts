@@ -56,7 +56,7 @@ export default defineConfig({
         resolve,
         plugins: [
           cloudflareTest({
-            main: "./src/server.ts",
+            main: "./src/index.ts",
             miniflare,
           }),
         ],
