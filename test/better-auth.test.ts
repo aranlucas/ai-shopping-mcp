@@ -75,7 +75,7 @@ describe("Better Auth resource server", () => {
   it("publishes the external issuer and scopes and challenges unauthenticated requests", async () => {
     const metadata = await SELF.fetch(`${appOrigin}/.well-known/oauth-protected-resource`);
 
-    expect(metadata.headers.get("Access-Control-Allow-Methods")).toBe("GET, OPTIONS");
+    expect(metadata.headers.get("Access-Control-Allow-Origin")).toBe("*");
 
     expect(await metadata.json()).toMatchObject({
       resource: env.MCP_RESOURCE_URL,
@@ -105,9 +105,9 @@ describe("Better Auth resource server", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Access-Control-Allow-Methods")).toBe("POST, OPTIONS");
-    expect(response.headers.get("Access-Control-Allow-Headers")).toContain("Authorization");
+    expect(response.status).toBe(204);
+    expect(response.headers.get("Access-Control-Allow-Methods")).toBe("POST,OPTIONS");
+    expect(response.headers.get("Access-Control-Allow-Headers")).toBe("authorization");
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://client.example");
   });
 
