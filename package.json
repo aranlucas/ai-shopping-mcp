@@ -42,6 +42,7 @@
     "@better-auth/oauth-provider": "1.7.12",
     "@modelcontextprotocol/client": "2.3.1",
     "@modelcontextprotocol/ext-apps": "^2.0.3",
+    "@modelcontextprotocol/hono": "2.0.2",
     "@modelcontextprotocol/server": "2.3.1",
     "@sentry/cloudflare": "^11.8.0",
     "@tailwindcss/vite": "^4.3.3",
