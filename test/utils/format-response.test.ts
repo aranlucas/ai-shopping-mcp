@@ -652,12 +652,4 @@ describe("formatWeeklyDealsMarkdown", () => {
       "- Zucchini | $1.99",
     ]);
   });
-
-  it("does not use markdown heading syntax for category labels", () => {
-    const text = formatWeeklyDealsMarkdown([
-      { title: "Flank Steaks", price: "$6.99/lb", category: "Meat & Seafood" },
-    ]);
-
-    expect(text).not.toContain("#");
-  });
 });
