@@ -363,6 +363,20 @@ pnpm cf-typegen  # writes .cloudflare/types; Vite dev and build also regenerate 
 `pnpm test` runs the Worker and Node-environment regression tests with Vitest,
 including the deterministic MCP suites in `test/evals/`.
 
+For coverage, run `pnpm coverage`. The Istanbul report measures `src/**/*.ts`
+(excluding generated Kroger declarations); the `views/` UI is exercised by tests
+but is outside that coverage scope. To compare a proposed test removal, run the
+same command before and after, keeping the source and Vitest configuration fixed:
+
+```sh
+pnpm exec vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --coverage.reportsDirectory=/tmp/ai-shopping-coverage-before
+# After the test edit, repeat with /tmp/ai-shopping-coverage-after.
+```
+
+Compare covered and total counts for statements, branches, functions, and lines
+in `coverage-summary.json`, and confirm the retained tests still assert the same
+behavior. Equal percentages alone do not establish that a test is redundant.
+
 `pnpm lint` runs one oxlint pass with type-aware rules via `oxlint-tsgolint`.
 Floating Promises (including `void` expressions and `ResultAsync` thenables) and misused async
 callbacks fail lint and build. Synchronous `Result` consumption, including handling an
