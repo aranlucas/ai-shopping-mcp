@@ -151,6 +151,17 @@ describe("input forgiveness", () => {
       expect(result.isError).toBe(true);
     });
 
+    it.each(["milk", '["milk"]'])(
+      "rejects string terms %s with a copyable JSON array example",
+      async (terms) => {
+        const result = await call("search_products", { terms });
+
+        expect(result.isError).toBe(true);
+        expect(contentText(result)).toContain("JSON array of strings");
+        expect(contentText(result)).toContain('{"terms":["milk"]}');
+      },
+    );
+
     it("rejects a wrong-length storeId pointing at search_stores", async () => {
       const result = await call("search_stores", { storeId: "123" });
       expect(result.isError).toBe(true);
