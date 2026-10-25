@@ -40,7 +40,7 @@ export function registerProductTools(
     {
       title: "Search Products",
       description:
-        "Compare Kroger products and prices at the preferred store. Batch all items in terms; do not call once per item. Returns upc, size, price, sale price, pickup availability, and stock status; check availability before cart adds. Copy exact UPCs into lists or carts. All-digit terms look up exact UPCs with aisles and variants. Results are candidates, not guaranteed exact matches or the cheapest in the catalog.",
+        'Compare Kroger products and prices at the preferred store. Batch names or exact UPCs in terms, even for one item: {"terms":["milk","bread"]}. Returns upc, size, price, sale price, pickup availability, and stock; check availability before cart adds. Copy exact UPCs into lists or carts. All-digit terms return exact UPCs with aisles and variants. Results are candidates, not guaranteed exact matches or the cheapest in the catalog.',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,
@@ -50,7 +50,10 @@ export function registerProductTools(
       },
       inputSchema: z.strictObject({
         terms: z
-          .array(z.string().trim().min(1).max(100))
+          .array(z.string().trim().min(1).max(100), {
+            error:
+              'terms must be a JSON array of strings, even for one item. Example: {"terms":["milk"]}. For multiple items: {"terms":["milk","bread"]}.',
+          })
           .min(1, { message: "At least one search term is required" })
           .max(MAX_CATALOG_REQUESTS, {
             message: `Maximum ${MAX_CATALOG_REQUESTS} product requests per call.`,
@@ -59,7 +62,7 @@ export function registerProductTools(
             message: `Maximum ${MAX_TEXT_TERMS} text search terms per call (UPC terms don't count).`,
           })
           .describe(
-            "Product names to search, e.g. ['milk', 'bread'], and/or UPCs to look up exactly, e.g. ['0001111041700']",
+            'Required JSON array of product names and/or exact UPCs. Single item: ["milk"]. Multiple items: ["milk","bread"]. Exact UPC: ["0001111041700"].',
           ),
         storeId: storeIdSchema
           .optional()

@@ -208,6 +208,17 @@ that also returns the product's other variants with their UPCs, allergens, dieta
 claims, ingredients, nutrition, rating, and storage. Text terms follow Kroger's
 limits: at least 3 characters, trimmed to 8 words, at most 10 per call.
 
+In MCP Inspector, `terms` must be a JSON array, including for a single item.
+Use these tool arguments:
+
+```json
+{ "terms": ["milk", "bread"] }
+```
+
+For one item, use `{ "terms": ["milk"] }`. A plain string such as
+`{ "terms": "milk" }` or a string containing JSON such as
+`{ "terms": "[\"milk\"]" }` fails validation.
+
 Products use UPCs throughout the tools, domain model, and app. Copy `upc` from
 search results into lists and orders. There is no
 provider registry or capability dispatch. Name-only list items still need a Kroger
