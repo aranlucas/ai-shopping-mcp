@@ -75,7 +75,8 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: ["test/node/**/*.test.ts"],
+          // Render tests stay under the views' DOM TypeScript project; domain tests use Worker types.
+          include: ["test/node/**/*.test.ts", "views/test/**/*.test.ts"],
         },
       },
     ],

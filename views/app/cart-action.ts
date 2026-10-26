@@ -12,7 +12,7 @@ type Modality = AddShoppingListToCartArgs["modality"];
 
 export type CartRequest =
   | { kind: "product"; product: ProductShoppingListInput; modality: Modality }
-  | { kind: "list"; listId: string; modality: Modality };
+  | { kind: "list"; listId: string; modality: Modality; storeId?: string };
 
 export type CartState =
   | { status: "idle"; request: CartRequest }
@@ -55,7 +55,7 @@ export function createCartAction(input: CartRequest) {
         transition({ status: "submitting", request });
       }
 
-      const result = await addListToCart(app, request.listId, request.modality);
+      const result = await addListToCart(app, request.listId, request.modality, request.storeId);
 
       if (result.outcome === "already_added") {
         transition({

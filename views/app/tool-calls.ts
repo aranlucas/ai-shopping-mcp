@@ -100,14 +100,21 @@ export function createProductShoppingListCall({
 export function addShoppingListToCartCall(
   listId: string,
   modality: AddShoppingListToCartArgs["modality"] = "PICKUP",
+  storeId?: string,
 ): AddShoppingListToCartCall {
-  return {
+  const call: AddShoppingListToCartCall = {
     name: "add_shopping_list_to_cart",
     arguments: {
       listId,
       modality,
     },
   };
+
+  if (storeId) {
+    call.arguments.storeId = storeId;
+  }
+
+  return call;
 }
 
 export function shoppingListIdFromResult(result: CallToolResult | undefined): string {
@@ -319,6 +326,7 @@ export async function addListToCart(
   app: Parameters<typeof callTool>[0],
   listId: string,
   modality: AddShoppingListToCartArgs["modality"] = "PICKUP",
+  storeId?: string,
 ): Promise<AddShoppingListToCartContent> {
   if (!app) {
     throw new Error("The shopping app is disconnected. Reopen it and try again.");
@@ -327,7 +335,7 @@ export async function addListToCart(
   let result: CallToolResult;
 
   try {
-    result = await callTool(app, addShoppingListToCartCall(listId, modality));
+    result = await callTool(app, addShoppingListToCartCall(listId, modality, storeId));
   } catch {
     throw new CartActionError(
       "Cart confirmation was lost. Check your Kroger cart before adding again.",

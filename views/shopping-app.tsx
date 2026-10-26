@@ -20,6 +20,7 @@ import { ProductSearchView } from "./app/views/product-search.js";
 import { ShoppingListView } from "./app/views/shopping-list.js";
 import { ShoppingListsView } from "./app/views/shopping-lists.js";
 import { WeeklyDealsView } from "./app/views/weekly-deals.js";
+import { MealPlanView, MealPlansView } from "./app/views/meal-plan.js";
 import { toolResultErrorMessage } from "./app/tool-calls.js";
 import { useResettableState } from "./shared/hooks.js";
 import {
@@ -217,6 +218,18 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
   }
 
   switch (data.view) {
+    case "meal_plan":
+      return (
+        <MealPlanView
+          key={data.plan.id}
+          data={data}
+          setData={setData}
+          app={app}
+          canCallTools={canCallTools}
+        />
+      );
+    case "meal_plans":
+      return <MealPlansView data={data} setData={setData} app={app} canCallTools={canCallTools} />;
     case "search_products":
       return (
         <ProductSearchView

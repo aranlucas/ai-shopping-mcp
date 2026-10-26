@@ -104,11 +104,11 @@ This will make future shopping and product searches more convenient.`,
             text: `I want to make ${recipe_type}. Please help me by:
 
 1. Asking whether I already have a specific recipe; if not, propose a practical ingredient list for ${recipe_type}
-2. Checking my pantry context when useful so we do not buy items I already have
-3. Calling search_products once with all missing ingredients in its terms array at my preferred store
-4. Creating a shopping list with create_shopping_list using UPCs for the selected products
-5. Offering to add that list to my cart with add_shopping_list_to_cart after I confirm pickup or delivery
-6. Suggesting alternatives for any ingredients that are not available
+2. Calling get_shopping_profile and confirming servings, store and pickup/delivery
+3. Saving the chosen recipe with create_meal_plan, keeping explicit recipe units and baseServings
+4. Calling search_products for missing ingredients at the plan's store, then update_meal_plan to save my reviewed products and package counts. Confirm pantry quantities in recipe units; inventory quantities have no unit
+5. Resolving unavailable ingredients or recording my deliberate exclusions; never silently omit them
+6. After my review, calling prepare_meal_plan to save one shopping list, then offering a separate add_shopping_list_to_cart only when I approve. Do not create a second list with create_shopping_list
 
 Please make sure to check product availability at my preferred location before adding to cart.`,
           },
@@ -145,7 +145,9 @@ Please make sure to check product availability at my preferred location before a
 1. Call get_shopping_profile
 2. Use the returned pantry, expiry, equipment, and recent-order context to suggest ${numberOfMeals} meals
 3. Prioritize expiring ingredients and exclude expired items
-4. For missing ingredients I want to buy, create a shopping list with create_shopping_list
+4. Confirm servings, store and pickup/delivery, then save the meals with create_meal_plan so I can resume with get_meal_plan
+5. Use update_meal_plan for individual meal changes and ingredient reviews. Confirm pantry quantities in the recipe's unit; do not infer units from inventory. Use explicit product/package choices or my deliberate exclusion reason
+6. When I approve the reviewed plan, prepare_meal_plan saves one shopping list. Do not create a second list with create_shopping_list. Adding to the cart requires a separate request
 
 If I ask to plan around sales, call get_shopping_profile with includeWeeklyDeals: true; use my preferred Kroger store or an explicit storeId. Confirm exact products and current prices with search_products before creating the list.
 

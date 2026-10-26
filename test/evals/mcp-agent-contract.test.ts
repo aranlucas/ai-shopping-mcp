@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 import { registerCartTools } from "@/tools/cart.js";
 import { registerInventoryTools } from "@/tools/inventory.js";
 import { registerLocationTools } from "@/tools/location.js";
+import { registerMealPlanTools } from "@/tools/meal-plan.js";
+import { createD1MealPlanStore } from "@/utils/d1-meal-plan-storage.js";
+import { env } from "cloudflare:test";
 import { registerOrderTools } from "@/tools/orders.js";
 import { registerProductTools } from "@/tools/product.js";
 import { registerShopTools } from "@/tools/shop.js";
@@ -39,6 +42,7 @@ function registerAllTools() {
 
   registerCartTools(deps.server, deps);
   registerLocationTools(deps.server, deps);
+  registerMealPlanTools(deps.server, createD1MealPlanStore(env.SHOPPING_DB, "contract-user"));
   registerProductTools(deps.server, deps);
   registerInventoryTools(deps.server, deps);
   registerOrderTools(deps.server, deps);
@@ -67,16 +71,20 @@ describe("MCP agent contract", () => {
 
     expect(toolNames).toEqual([
       "add_shopping_list_to_cart",
+      "create_meal_plan",
       "create_shopping_list",
+      "get_meal_plan",
       "get_shopping_list",
       "get_shopping_profile",
       "get_weekly_deals",
+      "prepare_meal_plan",
       "record_order",
       "search_products",
       "search_stores",
       "set_preferred_store",
       "shop_for_items",
       "update_inventory",
+      "update_meal_plan",
       "update_shopping_list",
       "view_cart",
     ]);

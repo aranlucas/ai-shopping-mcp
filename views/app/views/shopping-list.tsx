@@ -237,7 +237,13 @@ function ShoppingItemRow({ item, canEdit, onEdit }: ShoppingListItemProps) {
 
 export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingListViewProps) {
   const { name, items, listId } = data;
-  const cart = useCartAction(app, { kind: "list", listId, modality: "PICKUP" });
+
+  const cart = useCartAction(app, {
+    kind: "list",
+    listId,
+    modality: data.fulfillment?.modality ?? "PICKUP",
+    storeId: data.fulfillment?.storeId,
+  });
 
   // Keyed by list, not by list contents: editing an item must not re-enable
   // an action that already ran (for example recording the purchase twice).

@@ -11,6 +11,8 @@ export type {
   KitchenEquipmentContent,
   KitchenEquipmentItemData,
   LocationData,
+  MealPlanContent,
+  MealPlansContent,
   OrderHistoryContent,
   PantryItemData,
   PantryListContent,
@@ -37,11 +39,20 @@ import type {
   UpdateInventoryArgs,
   UpdateShoppingListArgs,
 } from "../../src/tools/tool-types.js";
+import type { z } from "zod/v4";
+import type {
+  getMealPlanInputSchema,
+  updateMealPlanInputSchema,
+  prepareMealPlanInputSchema,
+} from "../../src/tools/meal-plan.js";
 
 export type { AddShoppingListToCartArgs };
 
 /** Discriminated union of callable tools used by the app UI. */
 export type ToolCall =
+  | { name: "get_meal_plan"; arguments: z.input<typeof getMealPlanInputSchema> }
+  | { name: "update_meal_plan"; arguments: z.input<typeof updateMealPlanInputSchema> }
+  | { name: "prepare_meal_plan"; arguments: z.input<typeof prepareMealPlanInputSchema> }
   | { name: "add_shopping_list_to_cart"; arguments: AddShoppingListToCartArgs }
   | { name: "create_shopping_list"; arguments: CreateShoppingListArgs }
   | { name: "get_shopping_list"; arguments: GetShoppingListArgs }

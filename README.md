@@ -13,17 +13,26 @@ An OAuth-protected MCP server that gives AI clients a way to plan meals, check K
 
 > “Use what's in my pantry, plan three vegetarian dinners, then make a list of what I need from Kroger.”
 
-The host AI handles the meal plan; this Worker supplies the shopper-specific pantry, product, store, list, deal, and cart tools.
+The host AI proposes recipes; this Worker saves the chosen meals, servings, ingredient reviews and shopping list so the shopper can resume without rebuilding the plan.
 
 ## A grocery workflow with real store context
 
 - Find Kroger products and compare weekly deals for a preferred store.
 - Keep pantry, equipment, order history, and shopping lists in one shopper profile.
+- Save up to seven meals, change one meal's servings, and review a combined ingredient queue. Pantry allocations use explicit recipe units; package counts are chosen separately.
 - Turn recipe ingredients into a list, review matches, and choose which matched items to add to the cart.
 - Use the bundled MCP App to review lists, check items off, and retry safely after an uncertain cart response.
 - Connect over remote MCP OAuth to compatible clients.
 
 Shopping, product search, stores, and weekly deals are Kroger/QFC-only.
+
+## Resume a dinner plan
+
+Ask: “Save three dinners for two people at my preferred store. Let me review the ingredients before preparing the list.” The assistant uses `create_meal_plan`, then `get_meal_plan` to resume. The MCP App shows servings, unresolved ingredients, pantry confirmations and previous choices that need review after an edit. Use **Review with assistant** to choose exact products and package counts.
+
+**Prepare reviewed list** saves one shopping list and reuses it on retries. Open that list to make a separate cart addition. A plan covered entirely by pantry items or deliberate exclusions creates no list. Plans and lists are scoped to the authenticated shopper; there is no household sharing in this release.
+
+See [saved meal plans](docs/meal-plans.md) for tool contracts, recovery, database rollout and the pilot checklist. The checked-in implementation requires release and migration before it is available at the hosted endpoint.
 
 ## How the Worker is wired
 
