@@ -33,7 +33,7 @@ function nameKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
-function newListItems(items: ShoppingListItem[]): StoredShoppingListItem[] {
+export function newListItems(items: ShoppingListItem[]): StoredShoppingListItem[] {
   return items.map((item) => ({
     ...item,
     id: `item_${crypto.randomUUID().replaceAll("-", "")}`,
@@ -73,12 +73,18 @@ function toEquipmentItems(rows: (typeof equipmentItems.$inferSelect)[]) {
 }
 
 function listFromRow(row: typeof shoppingLists.$inferSelect): ShoppingList {
-  return {
+  const list: ShoppingList = {
     id: row.id,
     name: row.name,
     items: row.items,
     createdAt: row.createdAt,
   };
+
+  if (row.fulfillment) {
+    list.fulfillment = row.fulfillment;
+  }
+
+  return list;
 }
 
 /** D1-backed shopping records for one authenticated Kroger shopper. */
