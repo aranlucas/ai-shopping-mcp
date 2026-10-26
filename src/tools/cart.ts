@@ -103,7 +103,11 @@ export const addShoppingListToCartInputSchema = z
     storeId: storeIdSchema
       .optional()
       .describe("8-character storeId from search_stores. Uses your preferred store if omitted."),
-    modality: modalityEnum.default("PICKUP").describe("PICKUP (default) or DELIVERY"),
+    modality: modalityEnum
+      .optional()
+      .describe(
+        "PICKUP (default) or DELIVERY; meal-plan lists retain their reviewed choice when omitted.",
+      ),
   })
   // With both, the saved list wins (see the handler).
   .refine((value) => Boolean(value.listId ?? value.items), {
@@ -355,7 +359,7 @@ async function handleListIdCart(
   cartClient: KrogerClients["cartClient"],
   listId: string,
   storeId: string | undefined,
-  modality: "PICKUP" | "DELIVERY",
+  requestedModality: "PICKUP" | "DELIVERY" | undefined,
 ) {
   const listResult = await safeStorage(() => shoppingList.get(listId), "fetch shopping list");
 
@@ -372,6 +376,23 @@ async function handleListIdCart(
       ),
     );
   }
+
+  const fulfillment = list.fulfillment;
+
+  if (
+    fulfillment &&
+    ((storeId && storeId !== fulfillment.storeId) ||
+      (requestedModality && requestedModality !== fulfillment.modality))
+  ) {
+    return toMcpError(
+      validationError(
+        `This meal-plan list was reviewed for store ${fulfillment.storeId} and ${fulfillment.modality}. Use those choices or create and review a new plan.`,
+      ),
+    );
+  }
+
+  const modality = fulfillment?.modality ?? requestedModality ?? "PICKUP";
+  const reviewedStoreId = fulfillment?.storeId ?? storeId;
 
   const cartable = list.items.flatMap((item) => {
     return item.upc ? [{ item, upc: item.upc }] : [];
@@ -415,7 +436,7 @@ async function handleListIdCart(
     };
   }
 
-  const locationResult = await safeResolveLocationId(preferredLocation, storeId);
+  const locationResult = await safeResolveLocationId(preferredLocation, reviewedStoreId);
 
   if (locationResult.isErr()) {
     return toMcpError(locationResult.error);
@@ -615,7 +636,7 @@ export function registerCartTools(
           cartClient,
           items,
           storeId,
-          modality,
+          modality ?? "PICKUP",
           operationId,
         );
       }

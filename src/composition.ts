@@ -14,6 +14,8 @@ import { createWeeklyDealsLoader } from "./services/weekly-deals/runtime.js";
 import { registerCartTools } from "./tools/cart.js";
 import { registerInventoryTools } from "./tools/inventory.js";
 import { registerLocationTools } from "./tools/location.js";
+import { registerMealPlanTools } from "./tools/meal-plan.js";
+import { createD1MealPlanStore } from "./utils/d1-meal-plan-storage.js";
 import { registerOrderTools } from "./tools/orders.js";
 import { registerProductTools } from "./tools/product.js";
 import { registerResources } from "./tools/resources.js";
@@ -33,7 +35,7 @@ export const SERVER_INFO = {
 
 export const SERVER_OPTIONS = {
   instructions:
-    "Kroger grocery assistant. Use the saved preferred store; if a tool reports none, ask for a ZIP code, then search_stores and set_preferred_store. Use shop_for_items to get up to five product options per item, then choose suitable products using the user's preferences. Copy chosen UPCs and quantities into create_shopping_list or add_shopping_list_to_cart; use search_products to refine searches or inspect exact products. Report unmatched items. For an existing list, get_shopping_list then update_shopping_list with its listId. Call get_shopping_profile before personalized suggestions or meal planning; update the pantry with update_inventory. Cart adds default to PICKUP; use DELIVERY when requested. view_cart defaults to assistant add history, without prices or totals. record_order logs completed purchases by name; no product search needed.",
+    "Kroger grocery assistant. Use the preferred store; if missing, ask for ZIP, search_stores then set_preferred_store. Use shop_for_items for options, search_products to refine, then selected UPCs and packages in create_shopping_list. Existing lists: get_shopping_list then update_shopping_list. Before meal planning, get_shopping_profile. Save chosen meals with create_meal_plan; resume with get_meal_plan. Use update_meal_plan for servings and reviewed ingredient decisions: confirm pantry units and explicit package counts. After approval, prepare_meal_plan saves one list. Only add_shopping_list_to_cart after separate approval; meal-plan lists retain reviewed store/modality. Other adds default PICKUP. Report unresolved items. update_inventory changes pantry; view_cart shows assistant add history; record_order logs completed purchases.",
 } as const;
 
 /**
@@ -117,6 +119,7 @@ export function buildServer(
     locationClient: clients.locationClient,
     preferredLocation,
   });
+  registerMealPlanTools(server, createD1MealPlanStore(env.SHOPPING_DB, userId));
   registerOrderTools(server, { orderHistory, preferredLocation });
   registerProductTools(server, {
     productService,

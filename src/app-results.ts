@@ -1,5 +1,6 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
+import { mealPlanSchema } from "./domain/meal-plan.js";
 
 const APP_VIEW_META_KEY = "dev.aranlucas/view";
 
@@ -160,6 +161,18 @@ const cartResultSchema = z
 
 /** Shared wire contracts; view types are inferred so validation cannot drift. */
 export const appPayloadSchemas = {
+  meal_plan: z.object({ plan: mealPlanSchema }),
+  meal_plans: z.object({
+    plans: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        mealCount: z.number().int(),
+        status: z.enum(["draft", "prepared"]),
+        updatedAt: z.string(),
+      }),
+    ),
+  }),
   get_weekly_deals: z.object({
     deals: z.array(dealSchema),
     validFrom: z.string().optional(),
@@ -208,6 +221,9 @@ export const appPayloadSchemas = {
     name: z.string(),
     items: z.array(shoppingListItemSchema),
     actionDetail: z.string().optional(),
+    fulfillment: z
+      .object({ storeId: z.string(), modality: z.enum(["PICKUP", "DELIVERY"]) })
+      .optional(),
   }),
   shopping_lists: z.object({ lists: z.array(shoppingListSummarySchema) }),
   add_shopping_list_to_cart: cartResultSchema,
@@ -254,6 +270,10 @@ export type AppData = {
   [View in AppViewName]: { view: View } & AppResultPayloads[View];
 }[AppViewName];
 
+export type MealPlanContent = Extract<AppData, { view: "meal_plan" }>;
+
+export type MealPlansContent = Extract<AppData, { view: "meal_plans" }>;
+
 export type WeeklyDealsContent = Extract<AppData, { view: "get_weekly_deals" }>;
 
 export type StoreResultsContent = Extract<AppData, { view: "search_stores" }>;
@@ -281,6 +301,8 @@ export type ShoppingListsContent = Extract<AppData, { view: "shopping_lists" }>;
 export type CartViewContent = Extract<AppData, { view: "view_cart" }>;
 
 export const APP_VIEW_NAMES: Record<AppViewName, true> = {
+  meal_plan: true,
+  meal_plans: true,
   get_weekly_deals: true,
   search_stores: true,
   get_store: true,

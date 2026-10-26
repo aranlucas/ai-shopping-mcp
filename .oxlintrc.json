@@ -109,6 +109,16 @@
   },
   "overrides": [
     {
+      "files": [
+        "src/domain/meal-plan.ts",
+        "src/tools/meal-plan.ts",
+        "src/utils/d1-meal-plan-storage.ts",
+        "views/app/meal-plan-calls.ts",
+        "views/app/views/meal-plan.tsx"
+      ],
+      "rules": { "eslint/complexity": ["error", { "max": 9, "variant": "classic" }] }
+    },
+    {
       "files": ["test/strict-fake.ts"],
       "rules": {
         "anti-slop/no-runtime-typeof": [

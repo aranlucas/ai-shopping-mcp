@@ -1,6 +1,7 @@
 import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import type { OrderRecord, StoredShoppingListItem } from "../domain/shopping.js";
+import type { MealPlanDraft } from "../domain/meal-plan.js";
+import type { OrderRecord, ShoppingList, StoredShoppingListItem } from "../domain/shopping.js";
 
 export const preferredStores = sqliteTable("preferred_stores", {
   userId: text("user_id").primaryKey(),
@@ -46,8 +47,24 @@ export const shoppingLists = sqliteTable(
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     version: integer("version").notNull().default(1),
+    fulfillment: text("fulfillment_json", { mode: "json" }).$type<ShoppingList["fulfillment"]>(),
   },
   (table) => [index("shopping_lists_user_updated").on(table.userId, table.updatedAt)],
+);
+
+export const mealPlans = sqliteTable(
+  "meal_plans",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    draft: text("draft_json", { mode: "json" }).$type<MealPlanDraft>().notNull(),
+    status: text("status").$type<"draft" | "prepared">().notNull().default("draft"),
+    version: integer("version").notNull().default(1),
+    shoppingListId: text("shopping_list_id"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("meal_plans_user_updated").on(table.userId, table.updatedAt)],
 );
 
 export const orderHistory = sqliteTable(

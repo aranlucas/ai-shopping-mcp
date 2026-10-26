@@ -29,7 +29,11 @@ Collect the baseline before building the first slice. Use voluntary pilot feedba
 
 ## Next shippable slice
 
-Ship the resumable plan summary and unresolved-ingredient queue using existing list, product and cart capabilities.
+The resumable plan summary and unresolved-ingredient queue are implemented for review, using existing list, product and cart capabilities. Saved plans retain meals/servings, explicit pantry allocations, product/package decisions, store and fulfillment choice. Preparing is atomic and retry-safe; cart addition remains a separate approval. Prepared plans are immutable in this first slice.
+
+Release gates: apply the additive D1 migration, deploy the Worker and bundled app, then run the five-session pilot above. Local fixture tests are implementation evidence, not measured adoption or a live Kroger result. [Feature contract and rollout](docs/meal-plans.md).
+
+After the pilot, prioritize budget/substitution review only if shoppers complete and return to this workflow. Weekly templates and household coordination remain later work.
 
 ## Dependencies and deliberate limits
 

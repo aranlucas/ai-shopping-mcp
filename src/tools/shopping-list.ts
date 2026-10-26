@@ -157,6 +157,7 @@ export function shoppingListViewResult(list: ShoppingList, text: string) {
       listId: list.id,
       name: list.name,
       items: list.items,
+      fulfillment: list.fulfillment,
     }),
   };
 }

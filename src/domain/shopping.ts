@@ -70,4 +70,6 @@ export interface ShoppingList {
   name: string;
   items: StoredShoppingListItem[];
   createdAt: string;
+  /** A reviewed meal plan keeps its store and fulfillment choice when reopened. */
+  fulfillment?: { storeId: string; modality: "PICKUP" | "DELIVERY" };
 }

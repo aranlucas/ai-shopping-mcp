@@ -1,6 +1,7 @@
 import { applyD1Migrations, env } from "cloudflare:test";
 
 import shoppingSchema from "../migrations/0000_flawless_sister_grimm.sql?raw";
+import mealPlanSchema from "../migrations/0001_harsh_marvel_apes.sql?raw";
 
 /** Run the same SQL used by Wrangler migrations in local Worker tests. */
 export async function ensureShoppingSchema(): Promise<void> {
@@ -8,6 +9,13 @@ export async function ensureShoppingSchema(): Promise<void> {
     {
       name: "0000_flawless_sister_grimm.sql",
       queries: shoppingSchema
+        .split("--> statement-breakpoint")
+        .map((statement) => statement.trim())
+        .filter(Boolean),
+    },
+    {
+      name: "0001_harsh_marvel_apes.sql",
+      queries: mealPlanSchema
         .split("--> statement-breakpoint")
         .map((statement) => statement.trim())
         .filter(Boolean),
