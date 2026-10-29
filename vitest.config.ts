@@ -46,10 +46,6 @@ export default defineConfig({
   test: {
     root: ".",
     testTimeout: 30_000,
-    // Miniflare's Durable Object SQLite storage stalls when Vitest starts one
-    // isolated Worker runtime for every test file at once. Bound concurrency
-    // while keeping file isolation and all tests enabled.
-    maxWorkers: 4,
     coverage: {
       provider: "istanbul",
       include: ["src/**/*.ts"],
@@ -67,6 +63,11 @@ export default defineConfig({
         test: {
           name: "worker",
           testTimeout: 30_000,
+          // Reuse one Workers runtime; the setup hook clears file-owned state.
+          isolate: false,
+          fileParallelism: false,
+          sequence: { groupOrder: 1 },
+          setupFiles: ["./test/setup-worker.ts"],
           // With @cloudflare/vitest-plugin 1.4.3, a worker that loads modules
           // another test file already cached exits during startup.
           fsModuleCache: false,
