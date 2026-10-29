@@ -46,6 +46,10 @@ export default defineConfig({
   test: {
     root: ".",
     testTimeout: 30_000,
+    // Miniflare's Durable Object SQLite storage stalls when Vitest starts one
+    // isolated Worker runtime for every test file at once. Bound concurrency
+    // while keeping file isolation and all tests enabled.
+    maxWorkers: 4,
     coverage: {
       provider: "istanbul",
       include: ["src/**/*.ts"],
