@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { APP_VIEW_NAMES, appPayloadSchemas, appResult, parseAppResult } from "@/app-results.js";
+import { appPayloadSchemas, appResult, parseAppResult } from "@/app-results.js";
 
 describe("MCP App view routing", () => {
   it("routes from namespaced result metadata without exposing _view on the wire", () => {
@@ -51,10 +51,6 @@ describe("MCP App view routing", () => {
     });
   });
 
-  it("keeps every contract view name unique", () => {
-    const names = Object.keys(APP_VIEW_NAMES);
-    expect(new Set(names).size).toBe(names.length);
-  });
   it.each(Object.keys(appPayloadSchemas))("rejects a missing payload for %s", (view) => {
     expect(
       parseAppResult({

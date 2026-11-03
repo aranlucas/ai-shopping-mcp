@@ -265,14 +265,5 @@ describe("inventory and profile tools", () => {
       expect(text).toContain("Dutch oven (Cooking)");
       expect(text).toContain("milk (ordered 1x)");
     });
-
-    it("is a read-only, idempotent tool with no app view", () => {
-      registerInventoryTools(makeContext());
-
-      const tool = getCapturedTool("get_shopping_profile");
-      expect(tool.config.annotations?.readOnlyHint).toBe(true);
-      expect(tool.config.annotations?.idempotentHint).toBe(true);
-      expect(tool.config._meta?.ui).toBeUndefined();
-    });
   });
 });

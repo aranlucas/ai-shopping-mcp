@@ -300,24 +300,6 @@ export type ShoppingListsContent = Extract<AppData, { view: "shopping_lists" }>;
 
 export type CartViewContent = Extract<AppData, { view: "view_cart" }>;
 
-export const APP_VIEW_NAMES: Record<AppViewName, true> = {
-  meal_plan: true,
-  meal_plans: true,
-  get_weekly_deals: true,
-  search_stores: true,
-  get_store: true,
-  set_preferred_store: true,
-  search_products: true,
-  get_product: true,
-  pantry: true,
-  kitchen_equipment: true,
-  create_shopping_list: true,
-  shopping_lists: true,
-  add_shopping_list_to_cart: true,
-  view_cart: true,
-  record_order: true,
-};
-
 const appViewNameSchema = z.keyof(z.object(appPayloadSchemas));
 
 /** Attach a typed MCP Apps payload and its routing metadata to a tool result. */

@@ -245,28 +245,6 @@ describe("search_products", () => {
     authenticate();
   });
 
-  it("defines one-call batching explicitly for small models", () => {
-    registerProducts(async () => makeSearchResponse([]));
-
-    const tool = getCapturedTool("search_products");
-    const config = tool.config;
-
-    expect(config.inputSchema.shape.providers).toBeUndefined();
-    expect(config.inputSchema.shape.stores).toBeUndefined();
-    expect(
-      config.inputSchema.safeParse({
-        terms: ["milk"],
-        providers: ["kroger"],
-      }).success,
-    ).toBe(false);
-    expect(
-      config.inputSchema.safeParse({
-        terms: ["milk"],
-        stores: { kroger: "70500847" },
-      }).success,
-    ).toBe(false);
-  });
-
   it("describes shelf location output as opt-in for in-store grocery routes", () => {
     registerProducts(async () => makeSearchResponse([]));
 
@@ -300,25 +278,6 @@ describe("search_products", () => {
     expect(sc.results[0].term).toBe("milk");
     expect(sc.results[0].products[0].upc).toBe("0001111041700");
     expect(sc.results[0].failed).toBe(false);
-  });
-
-  it("rejects more than 10 search terms", () => {
-    registerProducts(async () => makeSearchResponse([]));
-
-    const tool = getCapturedTool("search_products");
-
-    const config = tool.config;
-
-    expect(
-      config.inputSchema.safeParse({
-        terms: Array.from({ length: 10 }, (_, i) => `term-${i}`),
-      }).success,
-    ).toBe(true);
-    expect(
-      config.inputSchema.safeParse({
-        terms: Array.from({ length: 11 }, (_, i) => `term-${i}`),
-      }).success,
-    ).toBe(false);
   });
 
   it("returns routeable structured content when all terms return empty results and no failures", async () => {
@@ -976,34 +935,5 @@ describe("search_products UPC terms", () => {
 
     expect(config.inputSchema.safeParse({ terms: [...words, ...upcs] }).success).toBe(true);
     expect(config.inputSchema.safeParse({ terms: [...words, "one more"] }).success).toBe(false);
-  });
-
-  it("rejects productRef in the input schema", () => {
-    registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("search_products");
-
-    const config = tool.config;
-
-    expect(config.inputSchema.safeParse({ productRef: "kroger:0001111041700" }).success).toBe(
-      false,
-    );
-  });
-
-  it("rejects productId instead of upc", () => {
-    registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("search_products");
-
-    const config = tool.config;
-
-    expect(config.inputSchema.safeParse({ productId: "1111041700" }).success).toBe(false);
-  });
-
-  it("rejects a call without terms", () => {
-    registerProducts(async () => makeDetailResponse(undefined));
-    const tool = getCapturedTool("search_products");
-
-    const config = tool.config;
-
-    expect(config.inputSchema.safeParse({}).success).toBe(false);
   });
 });

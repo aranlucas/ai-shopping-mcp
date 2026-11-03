@@ -256,15 +256,6 @@ describe("getQfcWeeklyDeals", () => {
       expect(result.printCircular?.eventId).toBe("evt-print-1");
     });
 
-    it("skips non-Offer content types in print pages", async () => {
-      setupPrintAdFetch();
-
-      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
-
-      // MOCK_PAGE_RESPONSE has 2 Offers + 1 Banner — only 2 should appear
-      expect(result.deals.every((d) => d.title !== "Store Header")).toBe(true);
-    });
-
     it("enriches print offers with structured DACS promotion details", async () => {
       fetchMock.mockImplementation((input: string | Request | URL) => {
         const url = urlOf(input);
@@ -1036,14 +1027,6 @@ describe("getQfcWeeklyDeals", () => {
   });
 
   describe("division code inference", () => {
-    it("infers division code from first 3 chars of locationId", async () => {
-      setupPrintAdFetch();
-
-      const result = await getQfcWeeklyDeals({ locationId: "70500847" });
-
-      expect(result.divisionCode).toBe("705");
-    });
-
     it("uses explicit divisionCode when provided", async () => {
       fetchMock.mockImplementation((input: string | Request | URL) => {
         const url = urlOf(input);

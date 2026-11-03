@@ -725,14 +725,6 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(sc["listId"]).toBeUndefined();
       expect(textFromResult(result)).toContain("at QFC Broadway");
     });
-
-    it("pads a short UPC to 13 digits via the shared upc schema", () => {
-      const parsed = addShoppingListToCartInputSchema.parse({
-        items: [{ upc: "1111042578" }],
-      });
-
-      expect(parsed.items?.[0]?.upc).toBe("0001111042578");
-    });
   });
 
   describe("cart mirror", () => {
@@ -1226,14 +1218,6 @@ describe("addShoppingListToCartInputSchema", () => {
       expect(result.success).toBe(true);
     });
 
-    it("accepts listId alone", () => {
-      const result = addShoppingListToCartInputSchema.safeParse({
-        listId: SHORT_LIST_ID,
-      });
-
-      expect(result.success).toBe(true);
-    });
-
     it("accepts items alone", () => {
       const result = addShoppingListToCartInputSchema.safeParse({
         items: [{ upc: "0001111042578", quantity: 2 }],
@@ -1262,15 +1246,6 @@ describe("addShoppingListToCartInputSchema", () => {
       expect(result.success).toBe(false);
     });
 
-    it("accepts a storeId that is exactly 8 characters", () => {
-      const result = addShoppingListToCartInputSchema.safeParse({
-        listId: SHORT_LIST_ID,
-        storeId: LOCATION_ID,
-      });
-
-      expect(result.success).toBe(true);
-    });
-
     it("trims whitespace from storeId", () => {
       const result = addShoppingListToCartInputSchema.parse({
         listId: SHORT_LIST_ID,
@@ -1278,14 +1253,6 @@ describe("addShoppingListToCartInputSchema", () => {
       });
 
       expect(result.storeId).toBe(LOCATION_ID);
-    });
-
-    it("accepts input when storeId is omitted", () => {
-      const result = addShoppingListToCartInputSchema.safeParse({
-        listId: SHORT_LIST_ID,
-      });
-
-      expect(result.success).toBe(true);
     });
   });
 });

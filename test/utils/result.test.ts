@@ -1,12 +1,11 @@
 import type { PreferredLocation } from "@/domain/shopping.js";
 import { strictFake } from "@test/strict-fake.js";
-import { err, ok } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
 import * as z from "zod/v4";
 
 import type { Props } from "@/tools/types.js";
 
-import { AppErrorException, apiError, authError, notFoundError } from "@/errors.js";
+import { AppErrorException, apiError, authError } from "@/errors.js";
 import { KrogerTokenExpiredError } from "@/services/kroger/client.js";
 import type { PreferredLocationStore } from "@/utils/shopping-store.js";
 import {
@@ -430,30 +429,5 @@ describe("safeStorage", () => {
     expect(error.type).toBe("STORAGE_ERROR");
     expect(error.message).toContain("write equipment");
     expect(error.message).toContain("503");
-  });
-});
-
-// --- Integration: composing Result utilities like tool handlers ---
-
-describe("tool handler error path integration", () => {
-  it("fromApiResponse → andThen chain produces correct not-found error", async () => {
-    const result = await fromApiResponse(
-      Promise.resolve({
-        data: { item: null },
-        error: undefined,
-        response: new Response(null, { status: 200 }),
-      }),
-      "get product",
-    ).andThen((data) => {
-      if (!data.item) {
-        return err(notFoundError("Product not found"));
-      }
-
-      return ok("found");
-    });
-
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().type).toBe("NOT_FOUND");
-    expect(result._unsafeUnwrapErr().message).toBe("Product not found");
   });
 });

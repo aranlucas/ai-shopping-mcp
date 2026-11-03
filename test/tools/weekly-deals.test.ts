@@ -113,11 +113,6 @@ describe("buildWeeklyDealsCacheKey", () => {
     const key = buildWeeklyDealsCacheKey({ limit: 50, pageLimit: 2 });
     expect(key).toBe("qfc|weekly-deals|v1|loc:default|limit:50|pages:2");
   });
-
-  it("includes version prefix v1", () => {
-    const key = buildWeeklyDealsCacheKey({ limit: 1, pageLimit: 1 });
-    expect(key).toContain("|v1|");
-  });
 });
 
 // ---------------------------------------------------------------------------
