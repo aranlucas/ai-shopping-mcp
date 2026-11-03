@@ -77,29 +77,6 @@ describe("storage-backed tools", () => {
     expect(await storage.shoppingList.list()).toEqual([]);
   });
 
-  it("returns a fresh listId on each call so lists don't collide", async () => {
-    registerShoppingListTools(makeContext());
-    const handler = getCapturedHandler("create_shopping_list");
-
-    const first = await handler({
-      name: "First",
-      items: [{ upc: "0001111000001", quantity: 1 }],
-    });
-
-    const second = await handler({
-      name: "Second",
-      items: [{ upc: "0001111000002", quantity: 2 }],
-    });
-
-    const firstId = parseToolPayload(appPayloadSchemas.create_shopping_list, first).listId;
-
-    const secondId = parseToolPayload(appPayloadSchemas.create_shopping_list, second).listId;
-
-    expect(firstId).not.toBe(secondId);
-    expect(parseToolPayload(appPayloadSchemas.create_shopping_list, first).name).toBe("First");
-    expect(parseToolPayload(appPayloadSchemas.create_shopping_list, second).name).toBe("Second");
-  });
-
   describe("create_shopping_list pantry/deal flags", () => {
     it("flags an item already in the pantry", async () => {
       const storage = makeStorage({

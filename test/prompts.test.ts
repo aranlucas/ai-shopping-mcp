@@ -92,10 +92,6 @@ describe("registerPrompts", () => {
     registerPrompts(makeServer());
   });
 
-  it("registers exactly 4 prompts", () => {
-    expect(capturedPrompts).toHaveLength(4);
-  });
-
   it("registers the workflow-first prompt names", () => {
     const names = capturedPrompts.map((p) => p.name);
     expect(names).toEqual([

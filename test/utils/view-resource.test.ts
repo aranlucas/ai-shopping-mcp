@@ -49,16 +49,6 @@ async function readResource(resource: RegisteredResource, uri = APP_VIEW_URI) {
 
 describe("registerViewResource", () => {
   describe("resource registration", () => {
-    it("registers the resource on the server", () => {
-      const env = makeFakeEnv(null);
-      const server = makeServer();
-      const registerResource = vi.spyOn(server, "registerResource");
-
-      registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
-
-      expect(registerResource).toHaveBeenCalledOnce();
-    });
-
     it("passes resourceUri as both the name and uri arguments", () => {
       const env = makeFakeEnv(null);
       const server = makeServer();
@@ -90,22 +80,6 @@ describe("registerViewResource", () => {
   });
 
   describe("resource handler — happy path", () => {
-    it("returns HTML text from ASSETS when fetch succeeds with an ok response", async () => {
-      const htmlContent = "<html><body>Shopping App</body></html>";
-
-      const fakeAssets: FakeFetcher = {
-        fetch: async (_req: Request) => new Response(htmlContent, { status: 200 }),
-      };
-
-      const env = makeFakeEnv(fakeAssets);
-      const server = makeServer();
-
-      const resource = registerViewResource(server, () => env, APP_VIEW_URI, "mcp-app.html");
-
-      const result = await readResource(resource);
-      expect(result.contents[0]).toMatchObject({ text: htmlContent });
-    });
-
     it("wraps the HTML in contents[0] with the correct uri, mimeType, and text", async () => {
       const htmlContent = "<!DOCTYPE html><html></html>";
 
