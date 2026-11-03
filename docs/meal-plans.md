@@ -52,29 +52,8 @@ Edits compare the version read by the shopper with the database version. A stale
 
 After an ambiguous create response, call `get_meal_plan` with no arguments and find the saved plan before creating another. Create is not idempotent. After an ambiguous update or prepare response, reload by plan ID. No plan operation calls Kroger or changes a cart. A later `add_shopping_list_to_cart` uses existing operation receipts and ambiguity handling; it rejects an explicit store/modality conflicting with the prepared list.
 
-## Implementation and validation
+## Rollout
 
-- [`src/domain/meal-plan.ts`](../src/domain/meal-plan.ts): Zod contracts, quantity aggregation, change application, review validity and purchase projection.
-- [`src/utils/d1-meal-plan-storage.ts`](../src/utils/d1-meal-plan-storage.ts): shopper-scoped persistence, version checks and transactional preparation using Drizzle/D1.
-- [`src/tools/meal-plan.ts`](../src/tools/meal-plan.ts): four MCP tools, typed app payloads and actionable errors.
-- [`views/app/views/meal-plan.tsx`](../views/app/views/meal-plan.tsx): saved-plan index, servings and ingredient review, reload and prepare actions. App wire calls reuse the native MCP Apps SDK.
+Migration `0001_harsh_marvel_apes.sql` adds `meal_plans` and an optional `shopping_lists.fulfillment_json` column; existing rows remain valid. Apply through the existing `pnpm db:migrate:local`, then the authorized production D1 migration process before deploying the new Worker. Roll back application code only after considering prepared lists: older versions do not enforce their stored fulfillment choice. Keep the additive schema and saved data rather than deleting plans during rollback.
 
-No new dependency or custom setup/validation/maintenance script is needed. Schema changes use `pnpm db:generate` (Drizzle Kit); tests use existing Vitest Node/Cloudflare projects; the app uses the existing Vite build.
-
-```sh
-pnpm cf-typegen
-pnpm lint
-pnpm fmt:check
-pnpm typecheck
-pnpm build:views
-pnpm test
-pnpm build:worker
-```
-
-Retained regressions cover quantity and stale-review rules, shopper isolation, edit/preparation races, transaction rollback, the real MCP/Worker/D1 journey against fixture Kroger APIs, cart retry/fulfillment behavior, rendered review states and visible app-call failures. A live MCP-host browser and real Kroger shopping pilot remain release validation.
-
-## Rollout and value check
-
-Migration `0001_harsh_marvel_apes.sql` adds `meal_plans` and an optional `shopping_lists.fulfillment_json` column; existing rows remain valid. Apply through the existing `pnpm db:migrate:local`, then the authorized production D1 migration process before deploying the new Worker. This change does not itself run remote migrations or deploy. Roll back application code only after considering prepared lists: older versions do not enforce their stored fulfillment choice. Keep the additive schema and saved data rather than deleting plans during rollback.
-
-Pilot five voluntary sessions. Record baseline and new time from meal request to reviewed list, unresolved ingredients, manual corrections, and return use the next week. Target four of five completing without developer assistance. Do not count fixture tests as completed customer shopping, and do not collect recipe content or credentials as telemetry. Time savings, retention and revenue impact are unmeasured until that pilot.
+Run the [repository validation](../README.md#validation) before release. A live MCP-host browser and real Kroger shopping pilot remain release checks; [pilot criteria](../ROADMAP.md#pilot) distinguish fixture correctness from shopper value.

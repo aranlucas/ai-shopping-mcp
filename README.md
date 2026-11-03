@@ -2,333 +2,39 @@
 
 [![CI](https://github.com/aranlucas/ai-shopping-mcp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aranlucas/ai-shopping-mcp/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/github/license/aranlucas/ai-shopping-mcp)](LICENSE)
-![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)
-![MCP](https://img.shields.io/badge/MCP-grocery_tools-5B5BD6)
 
 ![Illustration of meal planning turning fresh groceries into a checked shopping list](docs/images/readme-cover.png)
 
 _Concept artwork for the grocery MCP; the Worker serves the tools and app view described below._
 
-An OAuth-protected MCP server that gives AI clients a way to plan meals, check Kroger and QFC products and weekly deals, organize shopping lists, and prepare cart additions. A bundled interactive MCP App makes lists and product results easier to review.
-
-> “Use what's in my pantry, plan three vegetarian dinners, then make a list of what I need from Kroger.”
-
-The host AI proposes recipes; this Worker saves the chosen meals, servings, ingredient reviews and shopping list so the shopper can resume without rebuilding the plan.
-
-## A grocery workflow with real store context
-
-- Find Kroger products and compare weekly deals for a preferred store.
-- Keep pantry, equipment, order history, and shopping lists in one shopper profile.
-- Save up to seven meals, change one meal's servings, and review a combined ingredient queue. Pantry allocations use explicit recipe units; package counts are chosen separately.
-- Turn recipe ingredients into a list, review matches, and choose which matched items to add to the cart.
-- Use the bundled MCP App to review lists, check items off, and retry safely after an uncertain cart response.
-- Connect over remote MCP OAuth to compatible clients.
-
-Shopping, product search, stores, and weekly deals are Kroger/QFC-only.
-
-## Resume a dinner plan
-
-Ask: “Save three dinners for two people at my preferred store. Let me review the ingredients before preparing the list.” The assistant uses `create_meal_plan`, then `get_meal_plan` to resume. The MCP App shows servings, unresolved ingredients, pantry confirmations and previous choices that need review after an edit. Use **Review with assistant** to choose exact products and package counts.
-
-**Prepare reviewed list** saves one shopping list and reuses it on retries. Open that list to make a separate cart addition. A plan covered entirely by pantry items or deliberate exclusions creates no list. Plans and lists are scoped to the authenticated shopper; there is no household sharing in this release.
-
-See [saved meal plans](docs/meal-plans.md) for tool contracts, recovery, database rollout and the pilot checklist. The checked-in implementation requires release and migration before it is available at the hosted endpoint.
-
-## How the Worker is wired
-
-```mermaid
-flowchart LR
-  Client[MCP client] --> Auth[Shared Better Auth OAuth provider]
-  Client --> OAuth[Worker validates resource access tokens]
-  OAuth --> Tools[MCP tools and prompts]
-  Tools --> Kroger[Kroger APIs]
-  Tools --> D1[(Shopping D1 database)]
-  Tools --> KV[Cache KV]
-  Tools --> Connections[Kroger connection Durable Objects]
-  Tools --> Cart[Cart operations Durable Object]
-  Tools --> App[MCP App view]
-```
+An OAuth-protected MCP server for Kroger/QFC product and weekly-deal search, pantry tracking, shopping lists, and reviewed cart additions. The host AI proposes recipes; this Worker saves chosen meals, servings and ingredient decisions so shoppers can resume a plan. A bundled MCP App supports review and editing. Checkout stays in Kroger.
 
 ## Run locally
 
-Requires Node.js 24.18.1 or newer and the pnpm version pinned in `packageManager`. `cf dev` runs the Worker locally; copy `.dev.vars.example` to the ignored `.dev.vars` file and configure Better Auth and Kroger credentials before testing sign-in or shopping requests.
+Use the Node.js version in [.node-version](.node-version) (minimum in `package.json`) and the pnpm version pinned in `packageManager`.
 
 ```sh
 pnpm install
+cp .dev.vars.example .dev.vars
 pnpm db:migrate:local
 pnpm start
 ```
 
-The local Worker runs at `https://ai-shopping-mcp.localhost` through [Portless](https://github.com/vercel-labs/portless) (a dev dependency); its first run may ask for `sudo` to bind port 443 and trust a local certificate. `pnpm start` builds the MCP App before starting `cf dev`; use `pnpm dev` to also rebuild views as they change. For authenticated local MCP testing, set `MCP_RESOURCE_URL="https://ai-shopping-mcp.localhost/mcp"` in `.dev.vars`, allow that audience in Better Auth, run Auth with the `KrogerTokens` entrypoint available to the `AUTH` binding, and register the Auth service's `/api/auth/callback/kroger` URL with your Kroger application. The database schema is in `src/db/schema.ts`; generate a migration after schema changes with `pnpm db:generate`. Local migrations and development share `.cloudflare/state/v3` through `--persist-to .cloudflare/state`. To preview the MCP App with sample data, run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html`.
+Portless serves the Worker at `https://ai-shopping-mcp.localhost`; its first run may request permission to bind port 443 and trust a local certificate. `pnpm start` builds the app once; `pnpm dev` also rebuilds views as they change. Local migrations and Worker development use `.cloudflare/state`.
 
-Cloudflare commands use the pinned `cf` dependency. `cloudflare.config.ts` defines runtime bindings and Durable Object lifecycle declarations, and `vite.config.ts` uses `@cloudflare/vite-plugin` v2 for the Worker. `vite.views.config.ts` builds the single-file MCP App into `dist/views`, which the Worker build includes as static assets. `pnpm build` validates and builds both parts; `pnpm deploy` builds and deploys that output with `cf deploy --prebuilt --mode production`. `pnpm deploy:preview` builds views before running `cf previews deploy`.
+Authenticated requests require the shared Auth Worker with its `KrogerTokens` entrypoint available to the `AUTH` service binding. Allow `https://ai-shopping-mcp.localhost/mcp` as a resource in Auth, and register the Auth service's `/api/auth/callback/kroger` URL with Kroger. Kroger client credentials belong to Auth, not `.dev.vars` in this project. See the [integration contract](docs/better-auth-integration.md) for configuration and recovery.
 
-[`src/server.ts`](src/server.ts) uses Hono with typed `AppEnv` bindings through `c.env` and background work through `c.executionCtx.waitUntil`. Hono provides path and method routing, CORS preflight, `HEAD`, and the default `404` fallback for unmatched paths or methods. The official `@modelcontextprotocol/hono` adapter supplies Host validation using the request's configured resource hostname. Agents owns body parsing and the authenticated MCP request context. Full-origin validation checks scheme and port against `MCP_ALLOWED_ORIGINS`. `/mcp` accepts `POST` and `OPTIONS`; discovery accepts `GET`, `HEAD`, and `OPTIONS`. CORS preflight returns `204`.
-
-The Workers Vitest integration remains `@cloudflare/vitest-plugin`; it currently brings Wrangler as an internal test dependency. Deterministic MCP regression tests live in `test/evals/` and run with `pnpm eval:mcp` or `pnpm test`. Live agent and selector evaluation tooling has been retired; historical findings and reports remain in `docs/`.
-
-```sh
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-```
-
-## Connect an MCP client
-
-The deployed service accepts remote MCP connections at:
-
-```text
-https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp
-```
-
-Clients that require a local proxy can use `mcp-remote`:
-
-```json
-{
-  "mcpServers": {
-    "kroger-shopping": {
-      "command": "pnpm",
-      "args": ["dlx", "mcp-remote", "https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp"]
-    }
-  }
-}
-```
-
-## Production resources and data
-
-User shopping data is stored in D1 and scoped to the verified Better Auth issuer and subject. Better Auth issues MCP access tokens; this Worker uses the official `@better-auth/mcp` resource-server helper (1.7.12) to verify them against JWKS and require `mcp:tools`. Auth stores Kroger credentials and serializes refreshes in its own broker. Shopping obtains an access token directly through the `AUTH` service binding for each request, and `CartOperations` own cart journals. Caches and cart receipts use `USER_DATA_KV`.
-
-The schema is defined in [`src/db/schema.ts`](src/db/schema.ts). Apply local migrations with `pnpm db:migrate:local`; apply remote migrations before a Worker deployment with `pnpm db:migrate:remote`. Kroger client credentials belong to the Auth Worker; the shopping Worker needs the `AUTH` binding to its `KrogerTokens` entrypoint. `SENTRY_DSN` is optional. See [the Better Auth integration contract](docs/better-auth-integration.md) for provider setup and callback registration.
-
----
-
-### Tool dependencies
-
-MCP dependencies are assembled in [`src/composition.ts`](src/composition.ts)
-with ordinary TypeScript function calls. Each request constructs its own
-authenticated clients, shopper-specific storage, and MCP server. Each tool
-registration receives the server and an explicit dependency object checked by
-TypeScript.
-
-Tool registrations receive named repositories and operations directly. Preferred-store
-access uses a `PreferredLocationStore`; pantry, equipment, orders, and lists have
-their own contracts. `ShoppingStore` groups those repositories for the persistence
-implementation, while tools depend on the individual repositories they use.
-
-Weekly-deal caching is an adapter with a domain-level interface. It owns the KV
-implementation and no-cache behavior, so tool dependencies do not contain nullable
-KV bindings. Weekly-deal lookup and cache-only item annotations share that adapter.
-
-For example, the weekly-deals loader declares the operations it needs:
-
-```ts
-type WeeklyDealsLoaderDependencies = {
-  preferredLocation: PreferredLocationStore;
-  productClient: KrogerClients["productClient"];
-  weeklyDealsCache: WeeklyDealsCache;
-};
-```
-
-Wire dependencies in the composition code and pass only the operations each
-module uses. Tool tests call the same registration functions with plain dependency
-objects. Keep shopper-specific storage, authenticated Kroger clients, and cart
-persistence local to each request.
-
-## Production resources
-
-Deploy from this repository with:
-
-```bash
-pnpm build
-pnpm deploy
-```
-
-Keep the Worker name, KV namespace IDs, and Durable Object lifecycle declarations in `cloudflare.config.ts` stable. Configure these runtime secrets in Cloudflare:
-
-- `SENTRY_DSN` (optional; enables errors-only Sentry reporting)
-
-Apply pending D1 migrations before deploying a Worker that uses the new schema:
-
-```bash
-pnpm db:migrate:remote
-```
-
-Register the exact production callback URL with Kroger:
-
-```text
-https://auth.aranlucas.workers.dev/api/auth/callback/kroger
-```
-
-The Kroger application must allow `profile.compact`, `cart.basic:write`, and `product.compact`.
-
-Configure `BETTER_AUTH_ISSUER`, `BETTER_AUTH_JWKS_URL`, and the `AUTH` service binding in `cloudflare.config.ts`. Register Kroger's callback on the Auth Worker (`/api/auth/callback/kroger`); configure the provider to allow the exact `/mcp` endpoint in `MCP_RESOURCE_URL` as an access-token audience and the `mcp:tools` scope. Set `MCP_ALLOWED_ORIGINS` to a JSON array of intended browser client origins; the default allows the Worker origin and clients without an Origin header. The Worker rejects unapproved origins and legacy MCP initialization traffic. This Worker no longer serves `/authorize`, `/register`, `/token`, or `/userinfo`. Existing MCP tokens must be replaced by signing in through Better Auth. Shopping data uses the new auth identity; legacy Kroger-ID records are not migrated.
-
-The checked-in configuration already uses `https://auth.aranlucas.workers.dev` (issuer `/api/auth`, JWKS `/api/auth/jwks`). Auth's RFC 8693 token exchange can issue the same resource-bound shopping JWT contract; it does not replace the private Kroger token service binding. See [token-exchange compatibility](docs/better-auth-integration.md#token-exchange) for requirements.
-
-## MCP surface
-
-After Kroger is linked, the server exposes 14 tools:
-
-- Stores: `search_stores` (by zip code, or one store's details by `storeId`), `set_preferred_store`
-- Products and deals: `search_products` (text terms and/or exact UPCs in one `terms` list), `shop_for_items`, `get_weekly_deals`
-- Household: `get_shopping_profile`, `update_inventory`, `record_order`
-- Lists and cart: `create_shopping_list`, `get_shopping_list`, `update_shopping_list`, `add_shopping_list_to_cart`, `view_cart`
-
-Most tools default to the preferred store, and cart adds default to `PICKUP`.
-See `docs/tool-surface-review.md` for why the surface is shaped this way.
-
-### Kroger product search
-
-`shop_for_items` is read-only. It searches up to 10 requested items at the preferred
-store and returns up to **five distinct product options per item**, with UPC, brand,
-size, price, and any supplied dietary declarations, allergens, and ingredients.
-Explicitly out-of-stock products are excluded. Options must support the requested
-`modality` (`PICKUP` by default, or `DELIVERY`). The search retrieves up to 20
-catalog records per item, filters eligibility and duplicate UPCs, then returns the
-first five remaining options. These are candidates, not guaranteed semantic matches.
-
-The calling agent chooses products using the user's requirements and preferences,
-then passes exact UPCs and original quantities to `create_shopping_list`,
-`update_shopping_list`, or `add_shopping_list_to_cart`. Searches preserve partial
-failures and empty results per item. No list or cart changes occur during search;
-`addToCart` is no longer an accepted input. Kroger selection makes no server-side
-model calls and requires no AI Gateway or OpenRouter key.
-
-```json
-{
-  "items": [
-    { "name": "whole milk", "quantity": 1 },
-    { "name": "eggs", "quantity": 2 }
-  ],
-  "modality": "PICKUP"
-}
-```
-
-JEV was removed after the [paired selector evaluation](docs/jev-value-evaluation.md).
-The raw reports remain as historical evidence; the archived selector and live
-evaluation runners have been removed.
-
-`search_products` searches Kroger directly using one optional `storeId`, defaulting
-to the preferred Kroger store. Terms run concurrently; a failed term retains its
-error type and recovery guidance while successful terms remain usable. An all-digit
-term is an exact UPC lookup (five Kroger calls at a time, no limit on how many)
-that also returns the product's other variants with their UPCs, allergens, dietary
-claims, ingredients, nutrition, rating, and storage. Text terms follow Kroger's
-limits: at least 3 characters, trimmed to 8 words, at most 10 per call.
-
-In MCP Inspector, `terms` must be a JSON array, including for a single item.
-Use these tool arguments:
-
-```json
-{ "terms": ["milk", "bread"] }
-```
-
-For one item, use `{ "terms": ["milk"] }`. A plain string such as
-`{ "terms": "milk" }` or a string containing JSON such as
-`{ "terms": "[\"milk\"]" }` fails validation.
-
-Products use UPCs throughout the tools, domain model, and app. Copy `upc` from
-search results into lists and orders. There is no
-provider registry or capability dispatch. Name-only list items still need a Kroger
-match before they can be added to the cart.
-
-### Editing a list by hand
-
-Lists live in the Worker's D1 database and are edited through `get_shopping_list` (with
-no arguments it returns every list and its id; with a `listId`, or a list `name`
-matched case-insensitively, it returns that list's items and their `itemId`s),
-then `update_shopping_list`, which adds, changes, and removes items in one call. List items accept
-`upc` values or plain `productName` entries for unmatched ingredients, plus an
-optional unit `price`. `shop_for_items` returns each option's current Kroger price for the agent to copy,
-so list results include an estimated total (`~$42.18 est.`).
-
-All the list tools render the shopping-list app view, so the list in the chat
-stays current after every edit. In the app, items can be checked off (checked
-items move to the bottom), their quantity changed, or removed. Edits appear
-immediately and roll back if the server rejects them. After adding a list to the
-cart, **Mark as purchased** records the matched items with `record_order`.
-
-`update_inventory` edits the pantry and kitchen equipment. A `pantry.remove`
-entry with a `quantity` uses up part of an item (the pantry view's **Use one**
-button); the item is removed when none is left.
-
-It exposes four workflow prompts:
-
-- `plan_shopping_route`
-- `set_preferred_store`
-- `shop_recipe_ingredients`
-- `plan_meals_from_pantry`
-
-### Planning meals around weekly deals
-
-Pass `includeWeeklyDeals: true` to `get_shopping_profile` to combine your pantry,
-expiring ingredients, equipment, and recent purchases with up to ten QFC/Kroger offers:
-
-```json
-{ "includeWeeklyDeals": true, "storeId": "70500847" }
-```
-
-Omit `storeId` to use your preferred Kroger store. This option also works with an
-empty pantry, so the assistant can plan meals from sale items and identify everything
-you need to buy. The host model still writes the meal plan.
-
-The summary reuses the default `get_weekly_deals` cache and preserves offer prices,
-conditions, validity dates, and warnings. Stale ads are explicitly labeled; unavailable
-deals leave pantry context usable with recovery guidance. Call `get_weekly_deals` for
-more offers, then `search_products` to confirm exact products and current prices before
-creating a list. Without `includeWeeklyDeals`, the profile makes no deal requests.
-
-The primary small-model contract is concise text in `content[0].text`. MCP App routing metadata stays in `_meta`; do not treat `structuredContent` as the reasoning payload.
-
-### Cart outcomes and retries
-
-List-backed cart writes reserve an atomic journal entry before contacting Kroger.
-The journal is scoped to the authenticated user and OAuth client. Concurrent calls
-for the same list cannot submit twice. Completed operations remain recorded even
-if the legacy KV receipt fails; pending operations do not expire into permission
-to retry. A lost upstream response is reported as `MUTATION_OUTCOME_UNKNOWN` with
-`recovery: "check_cart"`. Check the real Kroger cart before starting a new operation;
-the assistant mirror is not proof of the upstream outcome.
-
-For inline cart items, supply a unique `operationId` and reuse it for retries.
-Reusing an id with changed items is rejected. Calls without an id remain supported
-for compatibility but have no cross-request deduplication key. A new id means a
-new intentional cart add. `shop_for_items` only returns product options; after
-choosing products and creating a list, retry its cart step using the saved `listId`.
-
-Product buttons in the app retain the original list for a cart retry and coalesce
-concurrent clicks. Both product and saved-list views replace retry controls with
-**Check Kroger cart** after an unknown outcome or lost cart response.
-
-Cart UI behavior belongs to `views/app/cart-action.ts`, with React integration in
-`use-cart-action.ts`. Its states are `idle`, `submitting`, `added`, `already_added`, `needs_match`,
-`retryable`, and `check_cart`; views derive controls from that state instead of maintaining separate
-loading, error, and recovery flags. Add new cart transitions there so product and
-saved-list actions keep the same retry rules. Shopping search results follow the
-same pattern in `src/services/shopping-outcomes.ts`: classify each requested item
-once as matched, not found, needing review, or failed, then consume that outcome.
-
-The `v3` migration adds the SQLite-backed `CartOperations` class. Deploy the code,
-binding, and migration together. Retain the old `v1`/`v2` migration history.
-
-Kroger requests have a 10-second deadline and inherit HTTP request
-cancellation. GET responses with 502/503/504 are retried once after 200ms within
-that same deadline, unless the server supplies `Retry-After`. Mutations are never
-automatically retried. MCP errors include `structuredContent.error` with `code`,
-`message`, and `recovery`; concise text remains the primary model-facing payload.
+For a sample-data app preview, run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html`. Preview actions use a simulated host without contacting a shopping account. **Fail actions** and **Unknown cart outcome** exercise recovery controls. The preview entry is excluded from the production bundle.
 
 ## Connect a client
 
-Clients with remote MCP and OAuth support can connect directly to:
+The configured hosted endpoint is:
 
 ```text
 https://ai-meal-planner-mcp.aranlucas.workers.dev/mcp
 ```
 
-OAuth discovery points clients to the shared Better Auth provider. MCP sign-in includes Kroger linking before consent, then exposes the shopping tools. If Kroger is unlinked or its refresh fails, the Worker returns a 401 challenge and the client signs in again to reconnect Kroger.
-
-For a client that still needs a local proxy:
+Use a remote MCP client with OAuth support. Discovery points to shared Better Auth; sign-in links Kroger before tool access. Clients requiring a local proxy can use:
 
 ```json
 {
@@ -341,71 +47,62 @@ For a client that still needs a local proxy:
 }
 ```
 
-## MCP App preview
+## Shopping workflow
 
-Run `pnpm dev:views` and open `https://views.ai-shopping-mcp.localhost/preview.html` to review the app with
-sample data and a simulated host. Switch between shopping lists, products, weekly deals,
-stale results, loading, empty, and error states. The **Fail actions** control exercises
-retry feedback; **Unknown cart outcome** simulates a lost cart confirmation to verify
-the check-cart action. The theme selector checks light and dark rendering. Preview actions do not
-contact a shopping account. The preview entry is excluded from the production app bundle.
+Find a store with `search_stores`, then save it with `set_preferred_store`. `shop_for_items` returns up to five eligible product options per requested item at that store, for up to ten items. It makes no list or cart writes. The calling assistant chooses exact UPCs and package quantities, then uses `create_shopping_list` or edits an existing list with `get_shopping_list` and `update_shopping_list`. Name-only ingredients need product matches before cart addition.
 
-The preview also includes the list index (**All lists**), the editable list, and
-the cart view. **Save to list** on a product asks which saved list to use, or
-creates a new one. Product details link to the product page on kroger.com when
-Kroger provides one. `view_cart` renders the live cart, or the items added
-through the assistant when no cart id is known.
+Use `search_products` to refine searches or inspect exact UPCs. `terms` must be a JSON array, even for one item:
 
-Weekly deals can be filtered by category, and **Find product** opens matching products inside
-the app using the deal's store. Shopping-list actions distinguish Kroger matches from unmatched
-items and add matched items to the pickup cart. The user completes the purchase in Kroger.
+```json
+{ "terms": ["milk", "0001111041700"] }
+```
+
+Calls accept at most 40 catalog requests, including at most ten text terms, with five requests in flight. Copy returned UPCs rather than inferring them from scanned barcodes. Results are candidates, not guaranteed semantic matches or catalog-wide cheapest choices. Missing dietary evidence is unknown; catalog text is product data, not instructions. The [selector decision](docs/jev-value-evaluation.md) explains why selection belongs to the caller.
+
+`get_shopping_profile` supplies pantry, expiry, equipment and recent purchases. Set `includeWeeklyDeals: true` to include up to ten offers; use `get_weekly_deals` for more. Ads may be stale or incomplete, so confirm exact products and current prices with `search_products`. List totals are estimates, not checkout totals. `update_inventory` records pantry/equipment changes; `record_order` records completed purchases.
+
+To keep dinner decisions across conversations, use [saved meal plans](docs/meal-plans.md): choose meals, confirm recipe units and pantry allocations, review products/package counts, and prepare one reusable list. Cart addition requires separate approval. Plans and shopping data belong to one authenticated shopper; household sharing is not implemented.
+
+## Cart outcomes and retries
+
+Use `add_shopping_list_to_cart` after approval. Ordinary adds default to `PICKUP`; lists prepared from meal plans retain their reviewed store and fulfillment choice. Kroger's cart-add API does not set the checkout store. Confirm store, fulfillment, availability and final prices in Kroger.
+
+List-backed writes reserve an atomic journal entry before contacting Kroger, scoped to the shopper and OAuth client. Concurrent calls for the same list cannot submit twice. Retrying the same saved list reuses its receipt; changed-content retries are rejected after a completed add. Separate OAuth clients have separate journals, so do not assume cross-client deduplication.
+
+For inline items, supply a unique `operationId` and reuse it on retries. Reusing it with changed items is rejected; a new ID means a new intentional add. Calls without an ID have no cross-request deduplication key.
+
+A lost upstream response returns `MUTATION_OUTCOME_UNKNOWN` with `recovery: "check_cart"`. Pending operations never expire into permission to retry. Check the real Kroger cart before starting a new operation. `view_cart` normally shows assistant add history; live readback requires a cart ID obtained elsewhere. The mirror does not prove the upstream outcome. App recovery controls also direct lost cart responses to **Check Kroger cart**.
+
+Kroger requests have a ten-second deadline and inherit request cancellation. Transient GET responses (502/503/504) are retried once after 200 ms within that deadline unless `Retry-After` is present. Mutations are never automatically retried.
+
+## Storage and deployment
+
+[cloudflare.config.ts](cloudflare.config.ts) owns bindings and Durable Object lifecycle declarations. Shared Auth validates identity and brokers Kroger tokens; shopping verifies resource tokens locally. D1 stores shopper data under `(issuer, subject)`, KV stores caches and receipts, and `CartOperations` owns durable cart journals. Keep authenticated clients and shopper storage request-local when changing [composition](src/composition.ts).
+
+Keep Worker names, resource IDs and Durable Object lifecycle declarations stable across deployments. The current config marks retired objects deleted; do not restore their old bindings. Legacy Kroger-ID shopping records are not migrated to Better Auth identities.
+
+Schema changes use [Drizzle](src/db/schema.ts) and `pnpm db:generate`. Apply pending D1 migrations before deploying code that needs them:
+
+```sh
+pnpm db:migrate:remote
+pnpm deploy
+```
+
+`pnpm deploy` builds views and the Worker, then deploys prebuilt output. Run validation separately before deployment. `pnpm deploy:preview` builds views and deploys a preview. The app build emits `dist/views`, which the Worker build includes as assets. `SENTRY_DSN` is optional. The [meal-plan rollout](docs/meal-plans.md#rollout) records migration and rollback constraints.
 
 ## Validation
 
-```bash
-pnpm build
-pnpm test
-pnpm eval:mcp
-pnpm cf-typegen  # writes .cloudflare/types; Vite dev and build also regenerate it
-```
-
-`pnpm test` runs the Worker and Node-environment regression tests with Vitest,
-including the deterministic MCP suites in `test/evals/`.
-
-For coverage, run `pnpm coverage`. The Istanbul report measures `src/**/*.ts`
-(excluding generated Kroger declarations); the `views/` UI is exercised by tests
-but is outside that coverage scope. To compare a proposed test removal, run the
-same command before and after, keeping the source and Vitest configuration fixed:
-
 ```sh
-pnpm exec vitest run --coverage --coverage.reporter=text-summary --coverage.reporter=json-summary --coverage.reportsDirectory=/tmp/ai-shopping-coverage-before
-# After the test edit, repeat with /tmp/ai-shopping-coverage-after.
+pnpm lint
+pnpm fmt:check
+pnpm typecheck
+pnpm build:views
+pnpm test
+pnpm build:worker
 ```
 
-Compare covered and total counts for statements, branches, functions, and lines
-in `coverage-summary.json`, and confirm the retained tests still assert the same
-behavior. Equal percentages alone do not establish that a test is redundant.
+A fresh checkout needs `pnpm cf-typegen` before typechecking; Vite dev/build also generates `.cloudflare/types`. `pnpm build` builds both bundles, lints and typechecks; tests and formatting remain separate checks.
 
-`pnpm lint` runs one oxlint pass with type-aware rules via `oxlint-tsgolint`.
-Floating Promises (including `void` expressions and `ResultAsync` thenables) and misused async
-callbacks fail lint and build. Synchronous `Result` consumption, including handling an
-`Err` after `await`, still requires review.
+`pnpm test` uses isolated Worker fixtures and a Node test project, including the [deterministic MCP suites](test/evals/README.md). `pnpm eval:mcp` runs just those suites. `pnpm coverage` measures `src/**/*.ts`, excluding generated Kroger declarations; views are outside that coverage scope. API types regenerate from `kroger/*.json` with `pnpm generate:apis`.
 
-The same command runs [`@shadcn/lint`](https://github.com/shadcn-ui/lint) on the
-React views. `.oxlintrc.json` enables `no-restyle`, `require-static-classes`, and
-`no-inline-styles`, and recognizes relative UI imports and the shared component
-barrel. Components own their appearance: use Badge `tone` values (`success`,
-`warning`, `danger`, `info`, or `muted`) and Button variants instead of overriding
-their colors. Explicit contracts allow container spacing, carousel item gutters,
-and skeleton rounding. Shared UI implementations retain their existing lint
-exclusion. The existing Tailwind plugin continues to check utility validity,
-arbitrary values, and hardcoded colors through the shared Oxforge Tailwind preset
-in `.oxlintrc.json`.
-
-The configuration keeps scoped exceptions for contracts the generic rules cannot represent:
-opaque error/upstream metadata, syntax-only JSON parsing, raw schema/serializer boundaries,
-cross-realm overload and error classification, the MCP SDK's `onerror` callback property,
-async adapters whose failures must remain rejected Promises, deliberately invalid rejection
-tests, UTF-16 fixture hashing, and SDK default-argument contracts. The existing sequential-I/O inline exceptions remain intentional.
-`console.warn`/`console.error` retain operational diagnostics; token-budget tests also retain
-`console.log`/`console.info` measurement output. These are local exceptions, not zero overrides.
+UI styling and library/script conventions are in [AGENTS.md](AGENTS.md); rule provenance is in [lint attribution](docs/anti-slop.md). See [open risks](IMPROVEMENTS.md) and [product priorities](ROADMAP.md) for remaining limits.
