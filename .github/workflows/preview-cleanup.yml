@@ -80,3 +80,23 @@ jobs:
             npx --yes "cf@$CF_VERSION" previews delete "$name" --worker "$WORKER_NAME" --force \
               || echo "::warning::Could not delete Preview '$name'."
           done <<<"$previews"
+
+      # Deploys fail outright at the cap, so fail this scheduled run first: GitHub emails
+      # on scheduled-workflow failures. The count is account-wide, not just this Worker.
+      - name: Check Durable Object namespace headroom
+        env:
+          WARN_AT: 80
+          FAIL_AT: 90
+          CAP: 100
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then exit 0; fi
+          count=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/durable_objects/namespaces?per_page=1" \
+            | jq '.result_info.total_count')
+          echo "Durable Object namespaces in account: $count / $CAP"
+          if [ "$count" -ge "$FAIL_AT" ]; then
+            echo "::error::$count of $CAP Durable Object namespaces used; deploys fail at $CAP."
+            exit 1
+          elif [ "$count" -ge "$WARN_AT" ]; then
+            echo "::warning::$count of $CAP Durable Object namespaces used."
+          fi
