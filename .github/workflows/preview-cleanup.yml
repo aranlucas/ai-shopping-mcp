@@ -1,0 +1,81 @@
+name: Preview cleanup
+
+# Workers Builds creates a Preview for every pushed branch, and each Preview
+# gets its own Durable Object namespace. Nothing removes them after merge, and
+# the account is capped at 100 namespaces on Workers Free. Delete a branch's
+# Preview when its PR closes or the branch is deleted, and sweep daily for
+# Previews whose branch is gone (merges by GITHUB_TOKEN, e.g. Dependabot
+# auto-merge, trigger no workflow events, so the sweep is what catches them).
+
+on:
+  pull_request:
+    types: [closed]
+  delete:
+  schedule:
+    - cron: "23 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-cleanup
+  cancel-in-progress: false
+
+env:
+  WORKER_NAME: ai-meal-planner-mcp
+  WRANGLER_VERSION: 4.157.0
+  CLOUDFLARE_ACCOUNT_ID: d93c650f72e597f96785abba389b0ce4
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  delete-branch-preview:
+    if: github.event_name == 'pull_request' || (github.event_name == 'delete' && github.event.ref_type == 'branch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete this branch's Preview
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref || github.event.ref }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN is not set; skipping Preview cleanup."
+            exit 0
+          fi
+          npx --yes "wrangler@$WRANGLER_VERSION" preview delete \
+            --worker-name "$WORKER_NAME" --name "$BRANCH" --skip-confirmation \
+            || echo "::notice::No Preview named '$BRANCH' to delete."
+
+  prune-orphaned-previews:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Previews whose branch is gone or that are stale
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_AGE_DAYS: 14
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN is not set; skipping Preview cleanup."
+            exit 0
+          fi
+          branches=$(gh api "repos/$GITHUB_REPOSITORY/branches" --paginate --jq '.[].name')
+          cutoff=$(date -u -d "-$MAX_AGE_DAYS days" +%Y-%m-%dT%H:%M:%SZ)
+          # Previews are capped at 100 per Worker on Free (500 on Paid); one page covers Free.
+          previews=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/workers/$WORKER_NAME/previews?per_page=100" \
+            | jq -r '.result[] | [.name, (.deployed_on // .updated_on)] | @tsv')
+          while IFS=$'\t' read -r name deployed; do
+            [ -z "$name" ] && continue
+            if ! grep -Fxq -- "$name" <<<"$branches"; then
+              reason="branch is gone"
+            elif [[ "$deployed" < "$cutoff" ]]; then
+              reason="not deployed since ${deployed:0:10}"
+            else
+              echo "Keeping '$name'"
+              continue
+            fi
+            echo "Deleting '$name' ($reason)"
+            npx --yes "wrangler@$WRANGLER_VERSION" preview delete \
+              --worker-name "$WORKER_NAME" --name "$name" --skip-confirmation \
+              || echo "::warning::Could not delete Preview '$name'."
+          done <<<"$previews"
