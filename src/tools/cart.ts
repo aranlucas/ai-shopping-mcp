@@ -147,6 +147,18 @@ export async function addLineItemsToCart(
   modality: "PICKUP" | "DELIVERY",
   options: SubmitCartOptions = {},
 ): Promise<Result<CartAddStatus, AppError>> {
+  if (
+    lineItems.some(
+      (item) => !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 999,
+    )
+  ) {
+    return err(
+      validationError(
+        "Cart quantities must be whole package counts from 1 to 999. Update the shopping list before adding it.",
+      ),
+    );
+  }
+
   const cartItems: CartItem[] = lineItems.map((item) => ({
     upc: item.upc,
     quantity: item.quantity,

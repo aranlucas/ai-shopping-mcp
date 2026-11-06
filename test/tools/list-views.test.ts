@@ -82,6 +82,34 @@ describe("app-backed shopping list tools", () => {
     resetToolTestHarness();
   });
 
+  it("applies every partial pantry removal for duplicate names", async () => {
+    const fixture = setup();
+    await fixture.pantry.add({ productName: "Eggs", quantity: 12, addedAt: "2026-11-06" });
+
+    const result = await getCapturedHandler("update_inventory")({
+      pantry: {
+        remove: [
+          { name: "Eggs", quantity: 2 },
+          { name: "eggs", quantity: 3 },
+        ],
+      },
+    });
+
+    expect(result.isError).toBe(false);
+    expect(await fixture.pantry.getAll()).toMatchObject([{ productName: "Eggs", quantity: 7 }]);
+  });
+
+  it("returns choices for duplicate exact list names", async () => {
+    setup();
+    const first = await createList("Dinner", [{ productName: "Milk", quantity: 1 }]);
+    const second = await createList("Dinner", [{ productName: "Bread", quantity: 1 }]);
+    const result = await getCapturedHandler("get_shopping_list")({ name: "Dinner" });
+    expect(parseAppResult(result)).toMatchObject({
+      view: "shopping_lists",
+      lists: [{ id: first.listId }, { id: second.listId }],
+    });
+  });
+
   it("stores prices and reports an estimated total on create", async () => {
     setup();
 

@@ -46,6 +46,28 @@ describe("D1 shopping storage", () => {
     expect(await user.preferredLocation.get()).toBeNull();
   });
 
+  it("consumes duplicate and concurrent quantities without losing writes", async () => {
+    const user = shopper();
+    const other = shopper();
+    const eggs = { productName: "Eggs", quantity: 12, addedAt: "2026-11-06" };
+    await user.pantry.add(eggs);
+    await other.pantry.add(eggs);
+    expect(
+      await user.pantry.consume([
+        { name: "Eggs", quantity: 2 },
+        { name: "eggs", quantity: 3 },
+      ]),
+    ).toMatchObject([{ quantity: 7 }]);
+    await Promise.all([
+      user.pantry.consume([{ name: "EGGS", quantity: 2 }]),
+      user.pantry.consume([{ name: "eggs", quantity: 3 }]),
+      user.pantry.add({ ...eggs, quantity: 1 }),
+    ]);
+    expect(await user.pantry.getAll()).toMatchObject([{ quantity: 3 }]);
+    expect(await user.pantry.consume([{ name: "Eggs", quantity: 4 }])).toEqual([]);
+    expect(await other.pantry.getAll()).toMatchObject([{ quantity: 12 }]);
+  });
+
   it("merges duplicate pantry names within one batched write", async () => {
     const user = shopper();
     const now = "2026-09-23T00:00:00.000Z";

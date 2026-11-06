@@ -123,6 +123,27 @@ export function makeStorage(
         pantryItems.length = 0;
       },
       getAll: async () => pantryItems,
+      consume: async (items) => {
+        for (const removal of items) {
+          const index = pantryItems.findIndex(
+            (item) => item.productName.trim().toLowerCase() === removal.name.trim().toLowerCase(),
+          );
+
+          const stored = pantryItems[index];
+
+          if (!stored) {
+            continue;
+          }
+
+          if (removal.quantity === undefined || removal.quantity >= stored.quantity) {
+            pantryItems.splice(index, 1);
+          } else {
+            stored.quantity -= removal.quantity;
+          }
+        }
+
+        return pantryItems;
+      },
       updateQuantity: async (name, quantity) => {
         const item = pantryItems.find((candidate) => candidate.productName === name);
 

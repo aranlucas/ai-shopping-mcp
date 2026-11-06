@@ -6,7 +6,7 @@ import {
   sendUserMessage,
 } from "../../shared/types.js";
 
-import { type ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { estimateListTotal } from "../../../src/domain/list-total.js";
 import { Badge } from "../../shared/ui/badge";
 import { Button } from "../../shared/ui/button";
@@ -276,13 +276,31 @@ export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingL
 
   // Show the edit immediately, then adopt the server's list; roll back if the
   // edit fails so the row never shows a change that wasn't saved.
-  // Only the newest edit's response is applied, so responses that arrive out
-  // of order cannot replace a newer list with an older one.
-  const latestEdit = useRef(0);
+  // Disable other rows until the server confirms the edit; initiation order
+  // alone cannot tell us the order in which concurrent edits commit.
+  const editSessionRef = useRef({ generation: 0, pending: false });
+  const [editing, setEditing] = useResettableState(listId, () => false);
+  useLayoutEffect(() => {
+    const session = editSessionRef.current;
+    session.pending = false;
+
+    return () => {
+      session.generation++;
+      session.pending = false;
+    };
+  }, [listId]);
 
   const handleEdit = useCallback(
     async (itemId: string, edit: ItemEdit) => {
-      const editNumber = ++latestEdit.current;
+      const editSession = editSessionRef.current;
+
+      if (editSession.pending) {
+        return;
+      }
+
+      const generation = editSession.generation;
+      editSession.pending = true;
+      setEditing(true);
       setData?.(applyItemEdit(data, itemId, edit));
 
       try {
@@ -292,18 +310,23 @@ export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingL
           ...edit,
         });
 
-        if (editNumber === latestEdit.current) {
+        if (generation === editSession.generation) {
           setData?.(updated);
         }
       } catch (error) {
-        if (editNumber === latestEdit.current) {
+        if (generation === editSession.generation) {
           setData?.(data);
         }
 
         throw error;
+      } finally {
+        if (generation === editSession.generation) {
+          editSession.pending = false;
+          setEditing(false);
+        }
       }
     },
-    [app, data, listId, setData],
+    [app, data, listId, setData, setEditing],
   );
 
   const handleFindMatches = useCallback(async () => {
@@ -352,7 +375,7 @@ export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingL
     [items.length, pricedCount, total],
   );
 
-  const canEdit = canCallTools && setData !== undefined;
+  const canEdit = canCallTools && setData !== undefined && !editing;
 
   const cartDone = cart.state.status === "added" || cart.state.status === "already_added";
 
