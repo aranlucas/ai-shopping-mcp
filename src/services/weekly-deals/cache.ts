@@ -50,7 +50,6 @@ export function buildWeeklyDealsCacheKey(params: WeeklyDealsCacheParams): string
   ].join("|");
 }
 
-/** Parse and normalize a complete cached record. */
 export function parseWeeklyDealsCacheEntry(raw: string | null): WeeklyDealsCacheEntry | null {
   if (!raw) {
     return null;
@@ -137,7 +136,6 @@ export function writeWeeklyDealsCache(
   )();
 }
 
-/** Adapt the optional Worker KV binding to the non-null service contract. */
 export function createWeeklyDealsCache(kv: KvLike | null): WeeklyDealsCache {
   if (!kv) {
     return {

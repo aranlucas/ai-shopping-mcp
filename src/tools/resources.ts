@@ -6,7 +6,8 @@ import type {
   PantryStore,
   PreferredLocationStore,
 } from "../utils/shopping-store.js";
-import { getProps, safeStorage } from "../utils/result.js";
+import { getProps } from "../utils/request-identity.js";
+import { safeStorage } from "../utils/result.js";
 import { toonResource } from "../utils/toon.js";
 
 export type ResourceDependencies = {
@@ -139,10 +140,6 @@ export function registerResources(
       list: undefined,
       complete: {
         upc: async (value) => {
-          // Suggest 13-digit UPCs from the user's recent orders, filtered by
-          // the in-flight prefix. The shopping list is no longer a source:
-          // lists are now request-scoped via create_shopping_list, not a
-          // session-persistent document.
           getProps();
           const prefix = value.trim();
 

@@ -230,7 +230,6 @@ const CATEGORY_PATTERNS: Array<CategoryPattern> =
     }),
   );
 
-/** Lowercase and strip diacritics so accented titles (e.g. "Entrée") match ASCII keywords. */
 function normalizeTitle(title: string): string {
   return title
     .normalize("NFD")
@@ -238,12 +237,6 @@ function normalizeTitle(title: string): string {
     .toLowerCase();
 }
 
-/**
- * Classifies a weekly-deal title into a meal-planning category by testing
- * word-boundary keyword matches in priority order (DEAL_CATEGORIES order,
- * excluding "Other"). Falls back to "Other" when nothing matches. Pure and
- * synchronous — safe to call for every deal on every request.
- */
 export function classifyDealCategory(title: string): DealCategory {
   const normalized = normalizeTitle(title);
 

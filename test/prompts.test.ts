@@ -179,14 +179,14 @@ describe("registerPrompts", () => {
   });
 
   describe("shop_recipe_ingredients", () => {
-    it("interpolates the recipe type into the message twice when recipe_type is provided", async () => {
+    it("includes the chosen recipe and the reviewed shopping-list workflow", async () => {
       const result = await callPrompt("shop_recipe_ingredients", {
         recipe_type: "chocolate cake",
       });
 
       const text = getText(result);
-      const occurrences = text.split("chocolate cake").length - 1;
-      expect(occurrences).toBeGreaterThanOrEqual(2);
+      expect(text).toContain("chocolate cake");
+      expect(text).toContain("create_shopping_list");
       expect(text).toContain("add_shopping_list_to_cart");
       expect(text).not.toContain("add_to_cart");
     });

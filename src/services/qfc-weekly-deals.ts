@@ -112,11 +112,7 @@ export interface QfcWeeklyDealsOptions {
   divisionCode?: string;
   limit?: number;
   pageLimit?: number;
-  /**
-   * Authenticated Kroger Product Search API callback.
-   * When provided, deals are sourced from the search API (products with promo
-   * pricing) rather than the print-ad fallback.
-   */
+
   searchProducts?: ProductSearchFn;
   signal?: AbortSignal;
 }
@@ -255,11 +251,6 @@ function selectCurrentCirculars(circulars: Circular[]) {
 // Kroger Product Search API — deal discovery
 // ---------------------------------------------------------------------------
 
-/**
- * Broad grocery category terms used to discover on-sale products via the
- * Kroger Product Search API. We search all categories in parallel and filter
- * for items where price.promo < price.regular.
- */
 const DEAL_SEARCH_TERMS = [
   "chicken",
   "beef",
@@ -366,14 +357,12 @@ async function fetchDealsBySearchApi(params: SearchDealsParams): Promise<SearchD
 
   const allProducts = results.flatMap((result) => result.products);
 
-  // Keep only products with an active promo price below the regular price
   const onSale = allProducts.filter((product) => {
     const { price, regularPrice } = normalizeKrogerPrice(product.items?.[0]?.price);
 
     return price !== undefined && regularPrice !== undefined && price < regularPrice;
   });
 
-  // Deduplicate by productId / upc
   const seen = new Set<string>();
 
   const unique = onSale.filter((product) => {
@@ -668,11 +657,6 @@ async function normalizePrintDeals(params: NormalizePrintDealsParams): Promise<P
 // Search API augmentation for print-ad deals
 // ---------------------------------------------------------------------------
 
-/**
- * For each print-ad deal, searches the Kroger Product API by deal title and
- * merges real pricing (regular + promo) into the normalized deal. Deals that
- * don't match any product are returned unchanged.
- */
 async function augmentPrintDealsWithSearchApi(
   deals: NormalizedWeeklyDeal[],
   searchProducts: ProductSearchFn,
@@ -684,7 +668,6 @@ async function augmentPrintDealsWithSearchApi(
     const parsedProducts = productSearchProductsSchema.safeParse(rawProducts);
     const products = parsedProducts.success ? parsedProducts.data : [];
 
-    // Prefer a product that has a promo price, otherwise take any priced product
     const match =
       products.find((p) => normalizeKrogerPrice(p.items?.[0]?.price).regularPrice !== undefined) ??
       products.find((p) => normalizeKrogerPrice(p.items?.[0]?.price).price !== undefined);
@@ -752,7 +735,6 @@ export async function getQfcWeeklyDeals(
         signal: options.signal,
       });
 
-      // Augment print deals with real pricing from the Kroger Search API
       let finalDeals = deals;
       let augmentedCount: number | undefined;
 

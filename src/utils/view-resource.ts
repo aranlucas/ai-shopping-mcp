@@ -1,23 +1,6 @@
-/**
- * MCP Apps resource helper for serving Vite-built Views from the ASSETS binding.
- *
- * A single unified View HTML file (built by Vite + vite-plugin-singlefile)
- * uses @modelcontextprotocol/ext-apps/react to receive tool results
- * via ontoolresult and render them client-side. The view routes internally
- * using the namespaced discriminator in CallToolResult `_meta`.
- *
- * Flow:
- *  1. At init: registerViewResource registers a single resource backed by ASSETS
- *  2. At tool call: tool returns structuredContent (JSON data)
- *  3. Host fetches the resource → ASSETS.fetch() returns the built HTML
- *  4. Host renders iframe with the HTML, passes tool result via ontoolresult
- *  5. Client-side React in the iframe routes to the correct view component
- */
-
 import { registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer, RegisteredResource } from "@modelcontextprotocol/server";
 
-/** Single resource URI shared by all app tools. */
 export const APP_VIEW_URI = "ui://shopping-app";
 
 const ERROR_HTML = `<!DOCTYPE html>
@@ -25,9 +8,6 @@ const ERROR_HTML = `<!DOCTYPE html>
 <body><div style="text-align:center;padding:32px;color:#9ca3af">
 Error loading view</div></body></html>`;
 
-/**
- * Load a built View HTML file from the Cloudflare Workers ASSETS binding.
- */
 async function loadViewHtml(env: Env, htmlPath: string): Promise<string> {
   try {
     const assets = env.ASSETS;

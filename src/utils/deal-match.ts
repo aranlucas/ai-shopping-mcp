@@ -11,14 +11,8 @@ type RankedDeal = { deal: Deal; ratio: number };
 
 export type Deal = NormalizedWeeklyDeal;
 
-/** A deal matches when at least this fraction of the item's tokens appear in its title. */
 const OVERLAP_THRESHOLD = 0.6;
 
-/**
- * Lowercases, strips punctuation, splits on whitespace, and cheaply
- * singularizes trailing "s" (words longer than 3 characters only, so short
- * words like "gas" or "bus" are left alone).
- */
 function normalizeTokens(text: string): string[] {
   return text
     .toLowerCase()
@@ -28,12 +22,6 @@ function normalizeTokens(text: string): string[] {
     .map((word) => (word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word));
 }
 
-/**
- * Finds the best-matching deal for a shopping item name: a deal matches when
- * every normalized item token appears in the (normalized) deal title, or when
- * the fraction of item tokens found is at least `OVERLAP_THRESHOLD`. Returns
- * the highest-overlap match, or undefined when nothing clears the bar.
- */
 export function findDealForItem(itemName: string, deals: Deal[]): Deal | undefined {
   const itemTokens = normalizeTokens(itemName);
 

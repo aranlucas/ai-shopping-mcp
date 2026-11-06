@@ -302,7 +302,6 @@ export type CartViewContent = Extract<AppData, { view: "view_cart" }>;
 
 const appViewNameSchema = z.keyof(z.object(appPayloadSchemas));
 
-/** Attach a typed MCP Apps payload and its routing metadata to a tool result. */
 export function appResult<View extends AppViewName>(
   view: View,
   structuredContent: AppResultPayloads[View],
@@ -313,7 +312,6 @@ export function appResult<View extends AppViewName>(
   };
 }
 
-/** Convert a wire result into the app's internal discriminated view data. */
 export function parseAppResult(result: CallToolResult | null | undefined): AppData | null {
   const structuredContent = result?.structuredContent;
 

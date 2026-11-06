@@ -31,7 +31,6 @@ export type WeeklyDealWarningCode = z.output<typeof weeklyDealWarningCodeSchema>
 
 export type WeeklyDealWarning = z.output<typeof weeklyDealWarningSchema>;
 
-/** Construct a warning while keeping the details free of presentation text. */
 export function weeklyDealWarning(
   code: Exclude<WeeklyDealWarningCode, "legacy">,
   details?: Record<string, string | number | boolean>,
@@ -181,7 +180,6 @@ export const normalizedWeeklyDealsMetaSchema = z.object({
   failureMessages: z.array(z.string()).optional(),
 });
 
-/** Fully normalized result shared by live source, cache, and tools. */
 export const normalizedWeeklyDealsResultSchema = z.object({
   sourceMode: z.enum(["search_api", "print_fallback"]),
   locationId: z.string().min(1),

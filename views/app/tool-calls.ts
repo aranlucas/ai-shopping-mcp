@@ -62,7 +62,6 @@ export function needsListCheck(cause: unknown): boolean {
   return cause instanceof CartActionError && cause.recovery === "check_list";
 }
 
-/** Validate the structured cart payload before a UI state transition. */
 export function cartResultContent(result: CallToolResult): AddShoppingListToCartContent {
   const data = parseToolResult(result);
 
@@ -174,10 +173,6 @@ export async function createProductList(
   }
 }
 
-/**
- * Saves a product to an existing list, or to a new list named after the
- * product when no list is chosen.
- */
 export async function saveProductToList(
   app: Parameters<typeof callTool>[0],
   input: ProductShoppingListInput,
@@ -209,7 +204,6 @@ export async function saveProductToList(
   );
 }
 
-/** Call a tool whose result renders an app view, and return that view data. */
 export async function callForView(
   app: Parameters<typeof callTool>[0],
   call: ToolCall,
@@ -269,7 +263,6 @@ export type ShoppingListItemEdit = {
   remove?: boolean;
 };
 
-/** Edit or remove one list item and return the whole updated list. */
 export async function editShoppingListItem(
   app: Parameters<typeof callTool>[0],
   { listId, itemId, remove, ...change }: ShoppingListItemEdit,
@@ -292,7 +285,6 @@ export async function editShoppingListItem(
   return data;
 }
 
-/** Record list items as purchased in order history. */
 export async function recordPurchase(
   app: Parameters<typeof callTool>[0],
   items: ShoppingListItemData[],
@@ -321,7 +313,6 @@ export async function recordPurchase(
   );
 }
 
-/** Shared error semantics for product and saved-list cart actions. */
 export async function addListToCart(
   app: Parameters<typeof callTool>[0],
   listId: string,

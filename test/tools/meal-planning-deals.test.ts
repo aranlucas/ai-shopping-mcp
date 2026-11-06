@@ -5,8 +5,7 @@ import { memoryKv } from "@test/memory-kv.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QfcDealsApiResponse, getQfcWeeklyDeals } from "@/services/qfc-weekly-deals.js";
-import type { WeeklyDealWarning } from "@/services/weekly-deals/schema.js";
-import type { WeeklyDealsCacheEntry } from "@/tools/weekly-deals.js";
+import type { WeeklyDealWarning, WeeklyDealsCacheEntry } from "@/services/weekly-deals/schema.js";
 
 import {
   getCapturedHandler,
@@ -16,7 +15,7 @@ import {
   resetToolTestHarness,
 } from "@test/tools/tool-test-harness.js";
 import { registerInventoryTools } from "@/tools/inventory.js";
-import { buildWeeklyDealsCacheKey } from "@/tools/weekly-deals.js";
+import { buildWeeklyDealsCacheKey } from "@/services/weekly-deals/cache.js";
 
 const fetchDeals = vi.fn<typeof getQfcWeeklyDeals>();
 

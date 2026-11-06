@@ -1,3 +1,4 @@
+import { locationToMapsUrl } from "../location-maps.js";
 import {
   type ShoppingAppClient,
   type AppData,
@@ -12,13 +13,13 @@ import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 import { useCallback, useMemo, useState } from "react";
 
 import { ActionButton, Badge, DisplayModeToggle, SectionHeader } from "../../shared/components.js";
+import { PreferredStoreButton } from "../location-actions.js";
 import { EmptyState } from "../../shared/status.js";
 
 type LocationCardProps = {
   location: LocationData;
   canCallTools: boolean;
   app: ShoppingAppClient | null;
-  onSetPreferred: (id: string) => Promise<void>;
   onViewDetails: (id: string) => Promise<void>;
 };
 
@@ -48,54 +49,12 @@ const EMPTY_LOCATIONS_ICON = (
   </svg>
 );
 
-const PREFERRED_STAR_ICON = (
-  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"
-    />
-  </svg>
-);
-
-function locationToMapsUrl(loc: LocationData): string | null {
-  const a = loc.address;
-
-  if (!a?.addressLine1) {
-    return null;
-  }
-
-  const parts = [a.addressLine1, a.city, a.state, a.zipCode].filter(Boolean).join(", ");
-
-  return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
-}
-
-function LocationCard({
-  location,
-  canCallTools,
-  app,
-  onSetPreferred,
-  onViewDetails,
-}: LocationCardProps) {
+function LocationCard({ location, canCallTools, app, onViewDetails }: LocationCardProps) {
   const id = location.locationId ?? "";
-
-  const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const [detailState, setDetailState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const mapsUrl = locationToMapsUrl(location);
-
-  const handleSetPreferred = useCallback(async () => {
-    setPrefState("loading");
-
-    try {
-      await onSetPreferred(id);
-      setPrefState("done");
-    } catch {
-      setPrefState("error");
-      setTimeout(() => setPrefState("idle"), 2000);
-    }
-  }, [id, onSetPreferred]);
 
   const handleViewDetails = useCallback(async () => {
     setDetailState("loading");
@@ -117,7 +76,6 @@ function LocationCard({
 
   return (
     <div className="rounded-lg border border-border bg-card p-3 transition-all duration-150 hover:border-primary/20 hover:shadow-sm">
-      {/* Header */}
       <div className="mbe-2 flex items-start gap-2">
         <div className="flex size-7 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-500">
           <svg
@@ -149,7 +107,6 @@ function LocationCard({
         </div>
       </div>
 
-      {/* Address */}
       {location.address && (
         <div className="mbe-1 flex items-start gap-1 text-xs text-gray-500">
           <svg
@@ -222,18 +179,13 @@ function LocationCard({
       )}
       <div className="mbe-2.5 font-mono text-xs text-gray-300">{id}</div>
 
-      {/* Actions */}
       <div className="flex gap-1.5 border-bs border-border pbs-2.5">
-        <ActionButton
-          state={prefState}
-          onClick={handleSetPreferred}
-          disabled={!canCallTools || prefState === "done"}
+        <PreferredStoreButton
+          app={app}
+          storeId={id}
+          canCallTools={canCallTools}
           idleLabel="Set Preferred"
-          loadingLabel="Saving..."
           doneLabel="Preferred!"
-          failLabel="Failed"
-          variant="primary"
-          icon={PREFERRED_STAR_ICON}
         />
         <ActionButton
           state={detailState}
@@ -258,20 +210,6 @@ export function LocationResultsView({
   hostContext,
 }: LocationResultsViewProps) {
   const { stores } = data;
-
-  const handleSetPreferred = useCallback(
-    async (id: string) => {
-      const result = await callTool(app, {
-        name: "set_preferred_store",
-        arguments: { storeId: id },
-      });
-
-      if (result?.isError) {
-        throw new Error("Failed to set preferred location");
-      }
-    },
-    [app],
-  );
 
   const handleViewDetails = useCallback(
     async (id: string) => {
@@ -328,7 +266,6 @@ export function LocationResultsView({
             location={loc}
             canCallTools={canCallTools}
             app={app}
-            onSetPreferred={handleSetPreferred}
             onViewDetails={handleViewDetails}
           />
         ))}

@@ -2,12 +2,6 @@ import { estimateListTotal } from "../domain/list-total.js";
 import { errorRecovery } from "../errors.js";
 import { classifyExpiry } from "../services/expiry.js";
 import { formatKrogerPrice } from "../services/kroger/price.js";
-/**
- * Response formatting utilities for MCP tool responses: compact, non-markdown
- * summaries for storage-backed lists (pantry, equipment, orders, shopping
- * lists, preferred location), plus the markdown formatters below the banner
- * that render model-facing `content[0].text` for Kroger API responses.
- */
 
 import type { components as LocationComponents } from "../services/kroger/location.js";
 import type { components as ProductComponents } from "../services/kroger/product.js";
@@ -35,15 +29,9 @@ type Product = ProductComponents["schemas"]["products.productModel"];
 
 type Location = LocationComponents["schemas"]["locations.location"];
 
-/**
- * COMPACT: Token-efficient pantry item formatting
- * Format: Name x qty | Exp: date
- */
 export function formatPantryItemCompact(item: PantryItem): string {
-  // Name and quantity
   const parts: string[] = [`${item.productName} x${item.quantity}`];
 
-  // Expiry with urgency indicator
   if (item.expiresAt) {
     const expiry = classifyExpiry(item.expiresAt);
 
@@ -61,9 +49,6 @@ export function formatPantryItemCompact(item: PantryItem): string {
   return parts.join(" | ");
 }
 
-/**
- * COMPACT: Format pantry list efficiently
- */
 export function formatPantryListCompact(items: PantryItem[]): string {
   if (items.length === 0) {
     return "Pantry empty.";
@@ -72,27 +57,19 @@ export function formatPantryListCompact(items: PantryItem[]): string {
   return items.map((item, index) => `${index + 1}. ${formatPantryItemCompact(item)}`).join("\n");
 }
 
-/**
- * COMPACT: Token-efficient order record formatting
- * Format: OrderID | Date | N items $total | Location
- */
 export function formatOrderRecordCompact(order: OrderRecord): string {
   const parts: string[] = [];
 
-  // Order ID (shortened)
   const lastIdPart = order.orderId.split("-").pop();
   const shortId = lastIdPart?.length ? lastIdPart : order.orderId;
   parts.push(`#${shortId}`);
 
-  // Date
   const date = new Date(order.placedAt).toLocaleDateString();
   parts.push(date);
 
-  // Items and total
   const itemsSummary = `${order.totalItems} items${order.estimatedTotal ? ` $${order.estimatedTotal.toFixed(2)}` : ""}`;
   parts.push(itemsSummary);
 
-  // Location
   if (order.locationId) {
     parts.push(order.locationId);
   }
@@ -100,9 +77,6 @@ export function formatOrderRecordCompact(order: OrderRecord): string {
   return parts.join(" | ");
 }
 
-/**
- * COMPACT: Format order history efficiently
- */
 export function formatOrderHistoryCompact(orders: OrderRecord[]): string {
   if (orders.length === 0) {
     return "No orders.";
@@ -113,15 +87,9 @@ export function formatOrderHistoryCompact(orders: OrderRecord[]): string {
     .join("\n");
 }
 
-/**
- * COMPACT: Token-efficient equipment item formatting
- * Format: Name | Category
- */
 export function formatEquipmentItemCompact(item: EquipmentItem): string {
-  // Name
   const parts: string[] = [item.equipmentName];
 
-  // Category
   if (item.category) {
     parts.push(item.category);
   }
@@ -129,9 +97,6 @@ export function formatEquipmentItemCompact(item: EquipmentItem): string {
   return parts.join(" | ");
 }
 
-/**
- * COMPACT: Format equipment list efficiently
- */
 export function formatEquipmentListCompact(items: EquipmentItem[]): string {
   if (items.length === 0) {
     return "Equipment list empty.";
@@ -140,18 +105,10 @@ export function formatEquipmentListCompact(items: EquipmentItem[]): string {
   return items.map((item, index) => `${index + 1}. ${formatEquipmentItemCompact(item)}`).join("\n");
 }
 
-/**
- * COMPACT: Token-efficient preferred location formatting
- */
 export function formatPreferredLocationCompact(location: PreferredLocation): string {
   return `${location.locationName} (${location.chain}) | ${location.address} | ${location.locationId}`;
 }
 
-/**
- * COMPACT: Token-efficient shopping list item formatting
- * Format: Name x qty | UPC | Notes
- */
-/** "3 item(s)" plus "~$12.47 est." when at least one item has a price. */
 export function formatListSize(items: readonly ShoppingListItem[]): string {
   const count = `${items.length} item(s)`;
   const { total, pricedCount } = estimateListTotal(items);
@@ -183,9 +140,6 @@ export function formatShoppingListItemCompact(item: ShoppingListItem): string {
   return parts.join(" | ");
 }
 
-/**
- * COMPACT: Format shopping list efficiently
- */
 export function formatShoppingListCompact(items: ShoppingListItem[]): string {
   if (items.length === 0) {
     return "Shopping list empty.";
@@ -207,7 +161,6 @@ export function formatShoppingListCompact(items: ShoppingListItem[]): string {
 // the React views because some hosts also expose it to the model.
 // ---------------------------------------------------------------------------
 
-/** A compact Kroger product line with a copyable UPC. */
 export function formatProductLine(product: ProductData, options: ProductLineOptions = {}): string {
   const parts: string[] = [`upc=${product.upc}`, product.name];
 
@@ -276,10 +229,6 @@ export function formatProductDetails(product: ProductData): string {
   return formatProductLine(product, { includeLocation: true }).slice(2);
 }
 
-/**
- * One result per requested term; preserve failures separately from empty
- * searches. Terms in `exactUpcs` were UPC lookups and show full detail.
- */
 export function formatProductSearchMarkdown(
   results: ProductSearchResult[],
   options: ProductSearchFormatOptions = {},
@@ -328,11 +277,6 @@ const MAX_INGREDIENT_CHARS = 300;
 
 const MAX_NUTRIENTS = 8;
 
-/**
- * Detail-only facts from Kroger's product model for an exact lookup:
- * dietary claims, allergens, ingredients, nutrition, rating, storage, and
- * purchase restrictions. Absent fields are skipped.
- */
 function formatProductFacts(product: Product): string[] {
   const lines: string[] = [];
 
@@ -423,10 +367,6 @@ function formatProductFacts(product: Product): string[] {
   return lines;
 }
 
-/**
- * An exact-UPC lookup: the product line with location, then every other
- * variant (Kroger item) with its own upc, then the detail-only facts.
- */
 function formatExactProductLines(product: Product, upc: string): string[] {
   const lines = [
     formatProductLine(toProductData(product, true, upc), {
@@ -475,7 +415,6 @@ function formatExactProductLines(product: Product, upc: string): string[] {
   return lines;
 }
 
-/** One markdown line for a store: storeId, name, address, phone. */
 export function formatStoreLineMarkdown(location: Location): string {
   const parts: string[] = [
     `storeId=${location.locationId ?? "unknown"}`,
@@ -503,7 +442,6 @@ export function formatStoreLineMarkdown(location: Location): string {
   return `- ${parts.join(" | ")}`;
 }
 
-/** Markdown for search_stores: one line per store. */
 export function formatStoreListMarkdown(stores: Location[]): string {
   if (stores.length === 0) {
     return "No stores found.";
@@ -512,7 +450,6 @@ export function formatStoreListMarkdown(stores: Location[]): string {
   return stores.map(formatStoreLineMarkdown).join("\n");
 }
 
-/** Hours block for a single-store lookup. */
 function formatStoreHoursMarkdown(location: Location): string {
   if (!location.hours) {
     return "";
@@ -541,7 +478,6 @@ function formatStoreHoursMarkdown(location: Location): string {
   return lines.length > 1 ? lines.join("\n") : "";
 }
 
-/** A single-store lookup: the store line plus hours. */
 export function formatStoreDetailMarkdown(location: Location): string {
   const lines = [formatStoreLineMarkdown(location)];
   const hours = formatStoreHoursMarkdown(location);
@@ -553,7 +489,6 @@ export function formatStoreDetailMarkdown(location: Location): string {
   return lines.join("\n");
 }
 
-/** Minimal shape formatWeeklyDealsMarkdown needs — matches QfcDealsApiResponse deal entries. */
 export type WeeklyDealMarkdownItem = {
   title: string;
   details?: string;
@@ -562,7 +497,6 @@ export type WeeklyDealMarkdownItem = {
   category: string;
 };
 
-/** One markdown line for a weekly deal: title, details, price, savings. */
 function formatWeeklyDealLineMarkdown(deal: WeeklyDealMarkdownItem): string {
   const parts: string[] = [deal.title];
 

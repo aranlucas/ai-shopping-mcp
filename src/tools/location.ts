@@ -16,9 +16,10 @@ import {
   formatStoreDetailMarkdown,
   formatStoreListMarkdown,
 } from "../utils/format-response.js";
-import { fromApiResponse, safeStorage, toMcpError } from "../utils/result.js";
+import { fromApiResponse, safeStorage } from "../utils/result.js";
+import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { storeIdSchema } from "./schemas.js";
+import { storeIdSchema } from "../domain/shopping-schemas.js";
 
 type Location = LocationComponents["schemas"]["locations.location"];
 

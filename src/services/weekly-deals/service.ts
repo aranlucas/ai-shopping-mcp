@@ -8,6 +8,9 @@ import { AppErrorException, networkError, notFoundError } from "../../errors.js"
 import { addWeeklyDealsWarning as addWarning, buildWeeklyDealsCacheKey } from "./cache.js";
 import { weeklyDealWarning } from "./schema.js";
 
+// Fetch limits form the cache identity shared by browsing, meal planning and item flags.
+export const WEEKLY_DEALS_FETCH = { limit: 50, pageLimit: 2 } as const;
+
 export type WeeklyDealsServiceDependencies = {
   resolveLocationId: (storeId: string | undefined) => ResultAsync<string, AppError>;
   weeklyDealsCache: WeeklyDealsCache;

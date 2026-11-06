@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { QfcDealsApiResponse } from "../services/weekly-deals/schema.js";
-import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
+import { WEEKLY_DEALS_FETCH, type WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 
 import { appResult } from "../app-results.js";
 import {
@@ -12,22 +12,11 @@ import {
 } from "../services/weekly-deals/format.js";
 import { DEAL_CATEGORIES, classifyDealCategory } from "../utils/deal-category.js";
 import { formatWeeklyDealsMarkdown } from "../utils/format-response.js";
-import { toMcpError } from "../utils/result.js";
+import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { storeIdSchema } from "./schemas.js";
+import { storeIdSchema } from "../domain/shopping-schemas.js";
 
 type WeeklyDealsPage = { limit: number; offset: number };
-
-export type { LoadedWeeklyDeals, WeeklyDealsLoader } from "../services/weekly-deals/service.js";
-
-export type { WeeklyDealsCacheEntry } from "../services/weekly-deals/schema.js";
-
-export {
-  addWeeklyDealsWarning as addCacheWarning,
-  buildWeeklyDealsCacheKey,
-  getLatestCircularEndTime,
-  parseWeeklyDealsCacheEntry as parseCacheEntry,
-} from "../services/weekly-deals/cache.js";
 
 export type WeeklyDealsToolDependencies = {
   loadWeeklyDeals: WeeklyDealsLoader;
@@ -95,7 +84,6 @@ export function registerWeeklyDealsTools(
   );
 }
 
-/** Page footer: which slice this is and how to get the next one. */
 function formatDealsPage(offset: number, shown: number, total: number) {
   if (shown === total) {
     return "";
@@ -111,9 +99,6 @@ function formatDealsPage(offset: number, shown: number, total: number) {
     ? `\nDeals ${offset + 1}-${end} of ${total}. More: nextOffset=${end}`
     : `\nDeals ${offset + 1}-${end} of ${total} (last page).`;
 }
-
-/** Fetch size behind every weekly-deals read, so all readers share one cache key. */
-export const WEEKLY_DEALS_FETCH = { limit: 50, pageLimit: 2 } as const;
 
 export function formatWeeklyDealsToolResponse(
   result: QfcDealsApiResponse,

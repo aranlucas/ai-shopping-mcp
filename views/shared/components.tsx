@@ -302,7 +302,6 @@ export function ActionButton({
   );
 }
 
-/** A link that opens through the host when it can, else as a normal link. */
 export function ExternalLink({ app, href, children }: HostLinkProps) {
   const [error, setError] = useState<string | null>(null);
 
@@ -360,7 +359,6 @@ const CART_BUTTON_STATE = {
   retryable: "error",
 } as const;
 
-/** Render recovery and button state from the same cart outcome. */
 export function CartActionControl({ app, state, onSubmit, ...labels }: CartButtonProps) {
   if (state.status === "needs_match") {
     return (
@@ -412,7 +410,6 @@ export function CartActionControl({ app, state, onSubmit, ...labels }: CartButto
   );
 }
 
-/** A product to save to a shopping list. */
 export type SaveableProduct = {
   productName: string;
   upc: string;
@@ -478,7 +475,6 @@ function SaveToListControl({ app, product, disabled, onSave }: SaveToListButtonP
       await onSave(product, target || undefined);
       setSaveState("done");
 
-      // A new list now exists; reload next time the picker opens.
       if (!target) {
         setLists(null);
       }

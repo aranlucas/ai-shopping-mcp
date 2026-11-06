@@ -32,7 +32,6 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        {/* Header */}
         <div className="border-be border-border px-4 pbs-4 pbe-3">
           <h1 className="text-sm leading-snug font-semibold text-gray-900">{name}</h1>
           {brand && <p className="mbs-0.5 text-xs text-gray-400">{brand}</p>}
@@ -42,7 +41,6 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex gap-1.5 border-be border-border px-4 py-3">
           <ProductActions
             app={app}
@@ -62,7 +60,6 @@ export function ProductDetailView({ data, app, canCallTools }: ProductDetailView
           </div>
         )}
 
-        {/* Details */}
         <div className="flex flex-col gap-3.5 px-4 py-3">
           {product.size && (
             <div>

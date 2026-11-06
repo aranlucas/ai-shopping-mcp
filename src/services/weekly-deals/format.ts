@@ -10,7 +10,6 @@ function detailText(warning: WeeklyDealWarning, key: string): string {
   return value === undefined ? "unknown error" : String(value);
 }
 
-/** Convert a domain warning into text for a human/model-facing response. */
 export function formatWeeklyDealWarning(warning: WeeklyDealWarning): string {
   switch (warning.code) {
     case "legacy":
@@ -50,7 +49,6 @@ export function formatWeeklyDealWarnings(warnings: WeeklyDealWarning[]): string[
   return warnings.map(formatWeeklyDealWarning);
 }
 
-/** User-facing warning copy used by the structured app payload. */
 export function formatWeeklyDealAppWarning(warning: WeeklyDealWarning): string | undefined {
   switch (warning.code) {
     case "cache_served":

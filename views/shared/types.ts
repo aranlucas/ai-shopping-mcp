@@ -48,7 +48,6 @@ import type {
 
 export type { AddShoppingListToCartArgs };
 
-/** Discriminated union of callable tools used by the app UI. */
 export type ToolCall =
   | { name: "get_meal_plan"; arguments: z.input<typeof getMealPlanInputSchema> }
   | { name: "update_meal_plan"; arguments: z.input<typeof updateMealPlanInputSchema> }
@@ -88,7 +87,6 @@ export function callTool(
   return app.callServerTool(call);
 }
 
-/** Open an external URL via the host. No-ops if the host doesn't support openLink. */
 export async function openExternalLink(
   app: ShoppingAppClient | null | undefined,
   url: string,

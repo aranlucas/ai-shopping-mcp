@@ -12,7 +12,8 @@ import type { WeeklyDealsCache } from "./cache.js";
 import { AppErrorException } from "../../errors.js";
 import { getQfcWeeklyDeals } from "../qfc-weekly-deals.js";
 import { loadWeeklyDeals } from "./service.js";
-import { fromApiResponse, safeResolveLocationId } from "../../utils/result.js";
+import { fromApiResponse } from "../../utils/result.js";
+import { safeResolveLocationId } from "../../utils/resolve-location.js";
 
 export type WeeklyDealsLoaderDependencies = {
   preferredLocation: PreferredLocationStore;
@@ -21,7 +22,6 @@ export type WeeklyDealsLoaderDependencies = {
   fetchDeals?: typeof getQfcWeeklyDeals;
 };
 
-/** Binds request-scoped MCP infrastructure to the weekly-deals service. */
 export function createWeeklyDealsLoader(
   dependencies: WeeklyDealsLoaderDependencies,
 ): WeeklyDealsLoader {

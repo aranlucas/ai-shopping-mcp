@@ -16,7 +16,6 @@ export function isKvLike(value: unknown): value is KvLike {
   return z.object({ get: z.function(), put: z.function() }).safeParse(value).success;
 }
 
-/** Resolves the shared user-data KV binding, or null when absent/malformed. */
 export function getUserDataKv(env: UserDataKvEnv): KvLike | null {
   return isKvLike(env?.USER_DATA_KV) ? env.USER_DATA_KV : null;
 }

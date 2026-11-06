@@ -17,10 +17,13 @@ import type {
   PreferredLocationStore,
   ShoppingListStore,
 } from "../utils/shopping-store.js";
-import { getProps, safeResolveLocationId, safeStorage, toMcpError } from "../utils/result.js";
+import { getProps } from "../utils/request-identity.js";
+import { safeResolveLocationId } from "../utils/resolve-location.js";
+import { safeStorage } from "../utils/result.js";
+import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
-import { upcSchema } from "./schemas.js";
+import { upcSchema } from "../domain/shopping-schemas.js";
 import { textResult } from "./types.js";
 
 /**
@@ -95,10 +98,6 @@ export type ShoppingListToolDependencies = {
   shoppingList: ShoppingListStore;
 };
 
-/**
- * Resolves each input item to the domain model and enriches a UPC when the
- * caller omitted a name.
- */
 async function toStoredItems(
   productService: ShoppingListProductService,
   items: ShoppingListItemInput[],
@@ -149,7 +148,6 @@ export function createShoppingListRecord(
   );
 }
 
-/** Text plus the editable shopping-list app view for one list. */
 export function shoppingListViewResult(list: ShoppingList, text: string) {
   return {
     content: [{ type: "text" as const, text }],
@@ -194,10 +192,6 @@ function shoppingListsViewResult(lists: ShoppingListSummary[], text: string) {
   };
 }
 
-/**
- * Exact case-insensitive name matches win; otherwise every list whose name
- * contains the query. Summaries arrive most recently updated first.
- */
 export function matchListsByName(
   lists: ShoppingListSummary[],
   name: string,
@@ -405,7 +399,7 @@ export function registerShoppingListTools(
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
-        // `remove` deletes items.
+
         destructiveHint: true,
         idempotentHint: false,
         openWorldHint: false,
@@ -415,7 +409,6 @@ export function registerShoppingListTools(
     async ({ listId, add, change: requestedChanges, remove: requested }) => {
       const summary: string[] = [];
 
-      // quantity 0 means "take it off the list".
       const change = (requestedChanges ?? []).filter((entry) => entry.quantity !== 0);
 
       const removeRefs = [

@@ -17,7 +17,8 @@ import type { PreferredLocationStore } from "@/utils/shopping-store.js";
 
 import { AppErrorException, apiError, authError } from "@/errors.js";
 import { ProductService } from "@/services/kroger/product-service.js";
-import { registerProductTools, logProductSearchError } from "@/tools/product.js";
+import { registerProductTools } from "@/tools/product.js";
+import { logProductSearchError } from "@/services/kroger/search.js";
 
 type Product = ProductComponents["schemas"]["products.productModel"];
 

@@ -3,20 +3,16 @@ import { strictFake } from "@test/strict-fake.js";
 import { describe, expect, it, vi } from "vitest";
 import * as z from "zod/v4";
 
-import type { Props } from "@/tools/types.js";
+import type { Props } from "@/utils/request-identity.js";
 
 import { AppErrorException, apiError, authError } from "@/errors.js";
 import { KrogerTokenExpiredError } from "@/services/kroger/client.js";
 import type { PreferredLocationStore } from "@/utils/shopping-store.js";
-import {
-  fromApiResponse,
-  parseAuthenticatedProps,
-  safeJsonParse,
-  safeJsonParseWithSchema,
-  safeResolveLocationId,
-  safeStorage,
-  toMcpError,
-} from "@/utils/result.js";
+import { fromApiResponse, safeStorage } from "@/utils/result.js";
+import { parseAuthenticatedProps } from "@/utils/request-identity.js";
+import { safeJsonParse, safeJsonParseWithSchema } from "@/utils/json.js";
+import { safeResolveLocationId } from "@/utils/resolve-location.js";
+import { toMcpError } from "@/utils/mcp-result.js";
 
 type AuthTestState = { context: unknown };
 

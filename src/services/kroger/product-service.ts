@@ -56,7 +56,6 @@ export class ProductService {
     });
   }
 
-  /** Reject excess work before any provider calls; deduplicate after normalizing. */
   async resolveProducts(
     terms: string[],
     params: ProductSearchOptions,
@@ -111,7 +110,6 @@ export class ProductService {
     return ok({ results, exactUpcs });
   }
 
-  /** Aligned names, with null for unavailable products; duplicates use one lookup. */
   async enrichProductNames(
     upcs: string[],
     locationId?: string,

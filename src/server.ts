@@ -71,7 +71,6 @@ app.use("/mcp", async (c: Context<WorkerEnv, "/mcp">, next) => {
     return c.text("Origin not allowed", 403);
   }
 
-  // Use the SDK's Hono adapter with the hostname from this request's bindings.
   return hostHeaderValidation([new URL(settings.resource).hostname])(c, next);
 });
 

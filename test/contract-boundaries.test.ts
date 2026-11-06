@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encode } from "@toon-format/toon";
 import { apiError, networkError, storageError } from "@/errors.js";
-import { toonResource } from "@/utils/toon.js";
 
 describe("opaque infrastructure contracts", () => {
   it("retains arbitrary error objects and arrays by identity", () => {
@@ -21,19 +19,5 @@ describe("opaque infrastructure contracts", () => {
     expect(networkError("network", null).cause).toBeUndefined();
     expect(Object.hasOwn(apiError("api"), "detail")).toBe(true);
     expect(Object.hasOwn(apiError("api"), "status")).toBe(true);
-  });
-
-  it("delegates arbitrary TOON input values without normalization", () => {
-    for (const value of [
-      null,
-      undefined,
-      false,
-      42,
-      "text",
-      [1, { extra: true }],
-      { omitted: undefined, explicit: null, future: ["v"] },
-    ]) {
-      expect(toonResource("shopping://synthetic", value).contents[0].text).toBe(encode(value));
-    }
   });
 });

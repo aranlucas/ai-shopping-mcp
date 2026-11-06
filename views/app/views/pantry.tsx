@@ -142,7 +142,6 @@ function PantryItemRow({ item, canCallTools, onRemove, onUse, now }: PantryItemP
     <div
       className={`flex items-center gap-2.5 py-2.5 transition-opacity duration-150 ${removeState !== "idle" ? "opacity-40" : ""}`}
     >
-      {/* Icon */}
       <div
         className={`flex size-6 shrink-0 items-center justify-center rounded ${isExpiringSoon ? "bg-amber-50 text-amber-500" : "bg-gray-100 text-gray-400"}`}
       >
@@ -162,7 +161,6 @@ function PantryItemRow({ item, canCallTools, onRemove, onUse, now }: PantryItemP
         </svg>
       </div>
 
-      {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-gray-900">{item.productName}</div>
         <div className="mbs-0.5 flex flex-wrap items-center gap-1.5">
@@ -171,7 +169,6 @@ function PantryItemRow({ item, canCallTools, onRemove, onUse, now }: PantryItemP
         </div>
       </div>
 
-      {/* Use one */}
       <ActionButton
         state={consumeState}
         onClick={handleUse}
@@ -183,7 +180,6 @@ function PantryItemRow({ item, canCallTools, onRemove, onUse, now }: PantryItemP
         variant="secondary"
       />
 
-      {/* Remove */}
       <ActionButton
         state={removeState}
         onClick={handleRemove}
@@ -314,7 +310,6 @@ export function PantryView({ data, setData, app, canCallTools }: PantryViewProps
         </div>
       )}
 
-      {/* Expiring items pinned at top */}
       {expiring.length > 0 && (
         <>
           <div className="mbe-1 flex items-center gap-2">
@@ -352,7 +347,6 @@ export function PantryView({ data, setData, app, canCallTools }: PantryViewProps
         </>
       )}
 
-      {/* Rest of pantry */}
       {nonExpiring.length > 0 && (
         <div className="divide-y divide-border">
           {nonExpiring.map((item) => (

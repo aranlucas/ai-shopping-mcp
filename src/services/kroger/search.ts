@@ -33,11 +33,6 @@ export type ProductSearchFailure = ProductSearchRequest & {
 
 export type ProductSearchResult = ProductSearchSuccess | ProductSearchFailure;
 
-/**
- * Searches Kroger products for each term in parallel. Shared by `search_products`
- * and `shop_for_items` so both tools use the same query shape, sorting, and
- * error handling.
- */
 /** Kroger's `filter.term` limits (kroger/product.json). */
 const MIN_TERM_CHARS = 3;
 
@@ -108,7 +103,6 @@ export async function searchProductsForTerms(
       }
     }
 
-    // Preserve Result type — map Ok to success shape, log and convert Err
     return apiResult
       .map((data) => {
         const products = (data?.data ?? []).filter((product) => Boolean(product.upc?.trim()));

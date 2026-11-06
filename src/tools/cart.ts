@@ -14,15 +14,13 @@ import type { PreferredLocationStore, ShoppingListStore } from "../utils/shoppin
 import type { CartSnapshotItem, CartStore } from "../utils/user-storage.js";
 
 import { mutationOutcomeUnknown, validationError } from "../errors.js";
-import {
-  fromApiResponse,
-  getProps,
-  safeResolveLocationId,
-  safeStorage,
-  toMcpError,
-} from "../utils/result.js";
+import { fromApiResponse, safeStorage } from "../utils/result.js";
+import { getProps } from "../utils/request-identity.js";
+import { safeResolveLocationId } from "../utils/resolve-location.js";
+import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { modalityEnum, storeIdSchema, upcSchema } from "./schemas.js";
+import { modalityEnum } from "./schemas.js";
+import { storeIdSchema, upcSchema } from "../domain/shopping-schemas.js";
 import { textResult } from "./types.js";
 
 type CartQuantity = { quantity: number };
