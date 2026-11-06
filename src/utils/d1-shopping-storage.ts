@@ -262,6 +262,28 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
 
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
+      consume: async (items) => {
+        const writes = items.flatMap((item): BatchItem<"sqlite">[] => {
+          const owned = and(
+            eq(pantryItems.userId, userId),
+            eq(pantryItems.nameKey, nameKey(item.name)),
+          );
+
+          if (item.quantity === undefined) {
+            return [db.delete(pantryItems).where(owned)];
+          }
+
+          return [
+            db
+              .update(pantryItems)
+              .set({ quantity: sql`${pantryItems.quantity} - ${item.quantity}` })
+              .where(owned),
+            db.delete(pantryItems).where(and(owned, sql`${pantryItems.quantity} <= 0`)),
+          ];
+        });
+
+        return toPantryItems(await writeThenRead(writes, selectPantry()));
+      },
       updateQuantity: async (productName, quantity) => {
         await db
           .update(pantryItems)

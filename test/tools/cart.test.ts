@@ -307,6 +307,22 @@ describe("add_shopping_list_to_cart tool", () => {
   });
 
   describe("listId happy path", () => {
+    it("rejects fractional saved packages before writing to Kroger", async () => {
+      const list = listFixture();
+      list.items[0].quantity = 1.5;
+      const { context, putCalls } = makeContext(makeStorage(list));
+      registerCartTools(context.server, context);
+
+      const result = await getCapturedHandler("add_shopping_list_to_cart")({
+        listId: SHORT_LIST_ID,
+        storeId: LOCATION_ID,
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.text).toContain("whole package counts");
+      expect(putCalls).toEqual([]);
+    });
+
     it("adds items with a UPC from the shopping list and reports the list name", async () => {
       const { context, putCalls, snapshotSetCalls } = makeContext();
       registerCartTools(context.server, context);

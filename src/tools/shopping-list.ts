@@ -355,9 +355,7 @@ export function registerShoppingListTools(
           );
         }
 
-        const exact = matches[0].name.toLowerCase() === name.toLowerCase();
-
-        if (matches.length > 1 && !exact) {
+        if (matches.length > 1) {
           return shoppingListsViewResult(
             matches,
             `${matches.length} lists match "${name}". Pass the listId you want.\n\n${listSummaryLines(matches)}`,

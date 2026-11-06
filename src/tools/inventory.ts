@@ -31,10 +31,6 @@ import {
   computeRestockSuggestions,
 } from "../services/order-insights.js";
 
-type PantryConsumption = { name: string; quantity?: number };
-
-type PantryQuantityUpdate = { name: string; quantity: number };
-
 const pantryAddSchema = z.object({
   name: z.string().trim().min(1).max(200).describe("Item name, e.g. 'Eggs'"),
   quantity: z.coerce.number().min(1).max(999).optional().default(1),
@@ -97,43 +93,6 @@ export const updateInventoryInputSchema = z
       ),
     { message: "Pass pantry and/or equipment with add or remove items." },
   );
-
-async function consumePantryItems(
-  pantry: PantryStore,
-  items: Array<PantryConsumption>,
-): Promise<PantryItem[]> {
-  const partial = items.filter((item) => item.quantity !== undefined);
-
-  const removeNames = items.flatMap((item) => (item.quantity === undefined ? [item.name] : []));
-
-  if (partial.length > 0) {
-    const current = new Map(
-      (await pantry.getAll()).map((item) => [item.productName.trim().toLowerCase(), item]),
-    );
-
-    const updates: Array<PantryQuantityUpdate> = [];
-
-    for (const item of partial) {
-      const stored = current.get(item.name.trim().toLowerCase());
-
-      if (!stored) {
-        continue;
-      }
-
-      const remaining = stored.quantity - (item.quantity ?? 0);
-
-      if (remaining > 0) {
-        updates.push({ name: item.name, quantity: remaining });
-      } else {
-        removeNames.push(item.name);
-      }
-    }
-
-    await Promise.all(updates.map((update) => pantry.updateQuantity(update.name, update.quantity)));
-  }
-
-  return removeNames.length > 0 ? pantry.remove(removeNames) : pantry.getAll();
-}
 
 function pantryResponse(text: string, items: PantryItem[], actionDetail: string) {
   return {
@@ -223,10 +182,7 @@ export function registerInventoryTools(
       if (pantryChanges?.remove) {
         const removals = pantryChanges.remove;
 
-        const removed = await safeStorage(
-          () => consumePantryItems(pantry, removals),
-          "remove pantry items",
-        );
+        const removed = await safeStorage(() => pantry.consume(removals), "remove pantry items");
 
         if (removed.isErr()) {
           return toMcpError(removed.error);

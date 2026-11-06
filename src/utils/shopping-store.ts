@@ -23,6 +23,7 @@ export interface PantryStore {
   add(items: PantryItem | PantryItem[]): Promise<PantryItem[]>;
   remove(names: string | string[]): Promise<PantryItem[]>;
   updateQuantity(productName: string, quantity: number): Promise<PantryItem[]>;
+  consume(items: Array<{ name: string; quantity?: number }>): Promise<PantryItem[]>;
   clear(): Promise<void>;
 }
 
