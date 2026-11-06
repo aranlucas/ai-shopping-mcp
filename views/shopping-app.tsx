@@ -1,7 +1,5 @@
 import { z } from "zod/v4";
-/**
- * @file MCP Apps React view for the AI Shopping MCP server.
- */
+
 import type { App, McpUiHostContext } from "@modelcontextprotocol/ext-apps";
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
@@ -89,8 +87,6 @@ export function ShoppingApp() {
     },
   });
 
-  // Sync the initial host context during render (React-recommended derived-state
-  // pattern) instead of an effect, so there is no cascading render.
   if (app && hostContext === undefined) {
     setHostContext(app.getHostContext());
   }
@@ -163,10 +159,7 @@ function getPartialLoadingMessage(viewKey: string | null, args: PartialToolInput
 
 function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: ShoppingAppInnerProps) {
   const toolName = hostContext?.toolInfo?.tool?.name ?? null;
-  // `data` is seeded from `toolResult` but child views edit it locally (optimistic
-  // updates via `setData`), so it isn't purely derived — we can't compute it inline.
-  // `useResettableState` re-seeds it during render whenever a new tool result
-  // arrives, which is what React recommends instead of a re-syncing Effect.
+
   const [data, setData] = useResettableState(toolResult, parseToolResult);
   const canCallTools = !!app.getHostCapabilities()?.serverTools;
 
@@ -285,8 +278,6 @@ function ShoppingAppInner({ app, toolResult, partialArgs, hostContext }: Shoppin
     case "record_order":
       return <OrderHistoryView data={data} />;
     default:
-      // `parseToolResult` only yields known views, so this is unreachable
-      // — but it keeps the switch exhaustive and avoids a silent blank render.
       return <ErrorDisplay message="This result can't be displayed." />;
   }
 }

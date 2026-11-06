@@ -4,10 +4,6 @@ type PurchaseFrequency = { name: string; count: number };
 
 type PurchaseHistory = { displayName: string; timestamps: number[] };
 
-/**
- * Ranks item names by purchase frequency across recent orders. Used by
- * `get_shopping_profile`.
- */
 export function computeFrequentlyPurchasedItems(
   recentOrders: OrderRecord[],
   limit = 10,

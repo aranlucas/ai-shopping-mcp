@@ -11,16 +11,11 @@ import {
   isUpcTerm,
 } from "../services/kroger/catalog-workload.js";
 import { formatProductSearchMarkdown } from "../utils/format-response.js";
-import { safeStorage, toMcpError } from "../utils/result.js";
+import { safeStorage } from "../utils/result.js";
+import { toMcpError } from "../utils/mcp-result.js";
 import type { PreferredLocationStore } from "../utils/shopping-store.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { storeIdSchema } from "./schemas.js";
-
-export {
-  type ProductSearchResult,
-  logProductSearchError,
-  searchProductsForTerms,
-} from "../services/kroger/search.js";
+import { storeIdSchema } from "../domain/shopping-schemas.js";
 
 const NO_STORE_NOTICE =
   "No preferred store is set, so prices and availability are not for a specific store, and cart adds will fail. Use search_stores and set_preferred_store first when the user wants to buy.";

@@ -5,7 +5,7 @@ import type { ShoppingStore } from "@/utils/shopping-store.js";
 import { appPayloadSchemas } from "@/app-results.js";
 import { registerCartTools as registerCartToolsImpl } from "@/tools/cart.js";
 import { registerShoppingListTools as registerShoppingListToolsImpl } from "@/tools/shopping-list.js";
-import { buildWeeklyDealsCacheKey } from "@/tools/weekly-deals.js";
+import { buildWeeklyDealsCacheKey } from "@/services/weekly-deals/cache.js";
 import { parseToolPayload } from "@test/app-payload.js";
 import { memoryKv } from "@test/memory-kv.js";
 import { strictFake } from "@test/strict-fake.js";

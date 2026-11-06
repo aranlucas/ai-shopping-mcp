@@ -1,8 +1,3 @@
-/**
- * Domain-specific error types for the MCP server.
- * Used with neverthrow's Result type for type-safe error handling.
- */
-
 /** Narrowed cause type for error context — captures Error instances, strings, or structured data */
 // Error context intentionally retains opaque upstream objects and their identity; it is never trusted as domain data.
 export type ErrorCause = Error | string | Record<string, unknown> | undefined;
@@ -60,7 +55,6 @@ export interface MutationOutcomeUnknownError {
   readonly cause?: ErrorCause;
 }
 
-/** Discriminated union of all application errors */
 export type AppError =
   | ApiError
   | AuthError
@@ -81,7 +75,6 @@ export class AppErrorException extends Error {
 
 // --- Error constructors ---
 
-/** Coerce an unknown value into an ErrorCause for safe storage */
 function toErrorCause(cause: unknown): ErrorCause {
   if (cause === undefined || cause === null) {
     return undefined;
@@ -194,7 +187,6 @@ export function errorRecovery(
   }
 }
 
-/** Format any AppError into a user-facing message */
 export function formatAppError(error: AppError): string {
   if (error.type === "API_ERROR" && error.detail) {
     return `${error.message}: ${JSON.stringify(error.detail)}`;

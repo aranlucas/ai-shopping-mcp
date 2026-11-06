@@ -7,9 +7,11 @@ import type { OrderHistoryStore, PreferredLocationStore } from "../utils/shoppin
 
 import { appResult } from "../app-results.js";
 import { formatShoppingListItemCompact } from "../utils/format-response.js";
-import { getProps, safeStorage, toMcpError } from "../utils/result.js";
+import { getProps } from "../utils/request-identity.js";
+import { safeStorage } from "../utils/result.js";
+import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { storeIdSchema, upcSchema } from "./schemas.js";
+import { storeIdSchema, upcSchema } from "../domain/shopping-schemas.js";
 
 const orderItemSchema = z.strictObject({
   upc: upcSchema.optional().describe("13-digit UPC from search_products, if known"),

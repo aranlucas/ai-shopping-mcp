@@ -265,7 +265,6 @@ export function ShoppingListView({ data, setData, app, canCallTools }: ShoppingL
 
   const unmatchedItems = useMemo(() => items.filter((item) => !item.upc), [items]);
 
-  // Checked items sink to the bottom so the list reads as what's left to buy.
   const sortedItems = useMemo(
     () => [...items.filter((item) => !item.checked), ...items.filter((item) => item.checked)],
     [items],

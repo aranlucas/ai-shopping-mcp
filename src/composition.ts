@@ -1,5 +1,4 @@
 import { exports } from "cloudflare:workers";
-import { z } from "zod/v4";
 import { McpServer, type McpRequestContext } from "@modelcontextprotocol/server";
 import { getMcpAuthContext } from "agents/mcp/server";
 
@@ -24,7 +23,7 @@ import { registerShoppingListTools } from "./tools/shopping-list.js";
 import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { createD1ShoppingStore } from "./utils/d1-shopping-storage.js";
 import { getUserDataKv } from "./utils/kv.js";
-import { getProps } from "./utils/result.js";
+import { getProps, requestTokenSchema } from "./utils/request-identity.js";
 import { createCartPersistence } from "./utils/user-storage.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
@@ -60,12 +59,7 @@ export function buildServer(
     (): KrogerTokenInfo | null => {
       const props = getMcpAuthContext()?.props;
 
-      const parsed = z
-        .object({
-          accessToken: z.string(),
-          tokenExpiresAt: z.union([z.number(), z.nan(), z.literal(Infinity), z.literal(-Infinity)]),
-        })
-        .safeParse(props);
+      const parsed = requestTokenSchema.safeParse(props);
 
       return parsed.success ? parsed.data : null;
     },

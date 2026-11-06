@@ -1,4 +1,4 @@
-import { getProps } from "@/utils/result.js";
+import { getProps } from "@/utils/request-identity.js";
 import { authenticatedRequest } from "@test/authenticated-request.js";
 import { expect, it } from "vitest";
 

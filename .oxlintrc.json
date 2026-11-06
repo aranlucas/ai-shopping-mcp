@@ -177,6 +177,7 @@
     {
       "files": [
         "src/utils/result.ts",
+        "src/utils/request-identity.ts",
         "src/utils/toon.ts",
         "test/v2-tool-handler.ts",
         "test/evals/harness.ts"

@@ -1,6 +1,7 @@
 import { assert, describe, expect, it } from "vitest";
 
-import { modalityEnum, quantitySchema, storeIdSchema, upcSchema } from "@/tools/schemas.js";
+import { modalityEnum, quantitySchema } from "@/tools/schemas.js";
+import { storeIdSchema, upcSchema } from "@/domain/shopping-schemas.js";
 
 describe("upcSchema", () => {
   it("accepts a 13-digit UPC unchanged", () => {

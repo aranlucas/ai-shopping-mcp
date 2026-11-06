@@ -205,7 +205,6 @@ const CART: CartViewContent = {
   ],
 };
 
-/** Applies a simulated list update so the preview behaves like the server. */
 function updatePreviewList(
   list: ShoppingListContent,
   args: Extract<ToolCall, UpdateShoppingListTool>["arguments"],

@@ -75,7 +75,6 @@ export function accessTokenOptions(env: AuthBindings, resource: string) {
   };
 }
 
-/** Map library-verified user claims into the shopping application's identity. */
 export function shoppingIdentity(issuer: string, payload: JWTPayload) {
   const claims = accessClaimsSchema.safeParse(payload);
 
@@ -95,7 +94,6 @@ export function shoppingIdentity(issuer: string, payload: JWTPayload) {
   };
 }
 
-/** Verify a resource access token through Better Auth. */
 export async function validateAccessToken(env: AuthBindings, resource: string, token: string) {
   const payload = await verifyBearerToken(token, accessTokenOptions(env, resource));
 

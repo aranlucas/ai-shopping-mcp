@@ -1,5 +1,5 @@
 import * as z from "zod/v4";
-import { storeIdSchema, upcSchema } from "../tools/schemas.js";
+import { storeIdSchema, upcSchema } from "./shopping-schemas.js";
 import type { ShoppingListItem } from "./shopping.js";
 
 const nameSchema = z.string().trim().min(1).max(200);

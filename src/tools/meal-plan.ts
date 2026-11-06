@@ -11,9 +11,10 @@ import {
 } from "../domain/meal-plan.js";
 import { AppErrorException, storageError, validationError } from "../errors.js";
 import type { MealPlanStore } from "../utils/d1-meal-plan-storage.js";
-import { getProps, toMcpError } from "../utils/result.js";
+import { getProps } from "../utils/request-identity.js";
+import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
-import { storeIdSchema } from "./schemas.js";
+import { storeIdSchema } from "../domain/shopping-schemas.js";
 
 const planIdSchema = z.string().trim().min(1).max(200);
 

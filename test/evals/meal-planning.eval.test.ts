@@ -12,8 +12,7 @@ import { env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QfcDealsApiResponse } from "@/services/qfc-weekly-deals.js";
-import type { WeeklyDealWarning } from "@/services/weekly-deals/schema.js";
-import type { WeeklyDealsCacheEntry } from "@/tools/weekly-deals.js";
+import type { WeeklyDealWarning, WeeklyDealsCacheEntry } from "@/services/weekly-deals/schema.js";
 
 import {
   type KrogerFetchStub,
@@ -26,7 +25,7 @@ import {
   extractUpcs,
   installKrogerFetchStub,
 } from "@test/evals/harness.js";
-import { buildWeeklyDealsCacheKey } from "@/tools/weekly-deals.js";
+import { buildWeeklyDealsCacheKey } from "@/services/weekly-deals/cache.js";
 
 const CACHE_KEY = buildWeeklyDealsCacheKey({
   locationId: DEFAULT_STORE_ID,

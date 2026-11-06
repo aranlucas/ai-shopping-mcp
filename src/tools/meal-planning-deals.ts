@@ -1,3 +1,4 @@
+import { WEEKLY_DEALS_FETCH } from "../services/weekly-deals/service.js";
 import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 
 import { formatWeeklyDealWarnings } from "../services/weekly-deals/format.js";
@@ -13,8 +14,7 @@ export async function getMealPlanningDeals(
   // Share the default get_weekly_deals cache and fetch limits; only the summary is smaller.
   const result = await loadWeeklyDeals({
     storeId,
-    limit: 50,
-    pageLimit: 2,
+    ...WEEKLY_DEALS_FETCH,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 

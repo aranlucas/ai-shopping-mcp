@@ -1,3 +1,7 @@
+import {
+  WEEKLY_DEALS_FETCH,
+  getCachedWeeklyDealsForFlags,
+} from "../services/weekly-deals/service.js";
 /**
  * Best-effort pantry/deal annotations shared by `shop_for_items` and
  * `create_shopping_list`: a short " | in pantry" / " | on sale: $X" suffix
@@ -10,7 +14,6 @@ import type { PantryItem } from "../domain/shopping.js";
 import type { PantryStore } from "../utils/shopping-store.js";
 
 import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
-import { getCachedWeeklyDealsForFlags } from "../services/weekly-deals/service.js";
 import { findDealForItem } from "../utils/deal-match.js";
 
 type PantryReader = Pick<PantryStore, "getAll">;
@@ -38,8 +41,7 @@ export async function getDealsForFlags(
   try {
     const cached = await getCachedWeeklyDealsForFlags(weeklyDealsCache, {
       locationId,
-      limit: 50,
-      pageLimit: 2,
+      ...WEEKLY_DEALS_FETCH,
     });
 
     return cached?.deals ?? [];
@@ -48,11 +50,6 @@ export async function getDealsForFlags(
   }
 }
 
-/**
- * Case-insensitive containment match (either direction) between the
- * requested item name and a pantry item's product name, e.g. "milk" matches
- * "Whole Milk".
- */
 export function pantryFlagLabel(requestedName: string, pantry: PantryItem[]): string | undefined {
   const lower = requestedName.toLowerCase().trim();
 
@@ -69,7 +66,6 @@ export function pantryFlagLabel(requestedName: string, pantry: PantryItem[]): st
   return inPantry ? "in pantry" : undefined;
 }
 
-/** Fuzzy-matches the requested name against deal titles; undefined when nothing matches. */
 export function dealFlagLabel(requestedName: string, deals: Deal[]): string | undefined {
   const deal = findDealForItem(requestedName, deals);
 

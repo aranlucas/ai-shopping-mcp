@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { QfcDealsApiResponse } from "@/services/qfc-weekly-deals.js";
 import type { WeeklyDealsCache } from "@/services/weekly-deals/cache.js";
-import { createWeeklyDealsCache } from "@/services/weekly-deals/cache.js";
-import type { WeeklyDealsCacheEntry } from "@/tools/weekly-deals.js";
+import { createWeeklyDealsCache, buildWeeklyDealsCacheKey } from "@/services/weekly-deals/cache.js";
+import type { WeeklyDealsCacheEntry } from "@/services/weekly-deals/schema.js";
 import type { PantryItem } from "@/domain/shopping.js";
 
 import {
@@ -14,7 +14,6 @@ import {
   itemFlagLabels,
   pantryFlagLabel,
 } from "@/tools/item-flags.js";
-import { buildWeeklyDealsCacheKey } from "@/tools/weekly-deals.js";
 
 function makePantryItem(overrides: Partial<PantryItem> = {}): PantryItem {
   return {

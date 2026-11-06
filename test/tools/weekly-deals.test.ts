@@ -1,7 +1,7 @@
 import { productClient as createProductClient } from "@test/kroger-clients.js";
 import { appPayloadSchemas } from "@/app-results.js";
 import { parseToolPayload } from "@test/app-payload.js";
-import type { Props } from "@/tools/types.js";
+import type { Props } from "@/utils/request-identity.js";
 import { memoryKv } from "@test/memory-kv.js";
 import {
   type TestToolResult,
@@ -12,22 +12,23 @@ import type { getQfcWeeklyDeals, QfcDealsApiResponse } from "@/services/qfc-week
 import { capturingServer } from "@test/capturing-server.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type WeeklyDealWarning } from "@/services/weekly-deals/schema.js";
-import type { WeeklyDealsCacheEntry } from "@/tools/weekly-deals.js";
+import {
+  type WeeklyDealWarning,
+  type WeeklyDealsCacheEntry,
+} from "@/services/weekly-deals/schema.js";
 import type { PreferredLocation } from "@/domain/shopping.js";
 import type { KvLike } from "@/utils/kv.js";
 import type { PreferredLocationStore } from "@/utils/shopping-store.js";
 
 import { AppErrorException, authError } from "@/errors.js";
+import { formatWeeklyDealsToolResponse, registerWeeklyDealsTools } from "@/tools/weekly-deals.js";
 import {
-  addCacheWarning,
+  addWeeklyDealsWarning as addCacheWarning,
   buildWeeklyDealsCacheKey,
-  formatWeeklyDealsToolResponse,
   getLatestCircularEndTime,
-  parseCacheEntry,
-  registerWeeklyDealsTools,
-} from "@/tools/weekly-deals.js";
-import { createWeeklyDealsCache } from "@/services/weekly-deals/cache.js";
+  parseWeeklyDealsCacheEntry as parseCacheEntry,
+  createWeeklyDealsCache,
+} from "@/services/weekly-deals/cache.js";
 import { createWeeklyDealsLoader } from "@/services/weekly-deals/runtime.js";
 
 type TextContent = { type: "text"; text: string };

@@ -1,13 +1,14 @@
+import { locationToMapsUrl } from "../location-maps.js";
 import {
   type ShoppingAppClient,
   type StoreDetailContent,
-  callTool,
   openExternalLink,
 } from "../../shared/types.js";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback } from "react";
 
-import { ActionButton, Badge } from "../../shared/components.js";
+import { Badge } from "../../shared/components.js";
+import { PreferredStoreButton } from "../location-actions.js";
 
 type LocationDetailViewProps = {
   data: StoreDetailContent;
@@ -15,53 +16,11 @@ type LocationDetailViewProps = {
   canCallTools: boolean;
 };
 
-const PREFERRED_STAR_ICON = (
-  <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"
-    />
-  </svg>
-);
-
 export function LocationDetailView({ data, app, canCallTools }: LocationDetailViewProps) {
-  const [prefState, setPrefState] = useState<"idle" | "loading" | "done" | "error">("idle");
-
   const { store: location } = data;
   const id = location.locationId ?? "";
 
-  const mapsUrl = useMemo(() => {
-    const a = location.address;
-
-    if (!a?.addressLine1) {
-      return null;
-    }
-
-    const parts = [a.addressLine1, a.city, a.state, a.zipCode].filter(Boolean).join(", ");
-
-    return `https://maps.google.com/?q=${encodeURIComponent(parts)}`;
-  }, [location.address]);
-
-  const handleSetPreferred = useCallback(async () => {
-    setPrefState("loading");
-
-    try {
-      const result = await callTool(app, {
-        name: "set_preferred_store",
-        arguments: { storeId: id },
-      });
-
-      if (result?.isError) {
-        throw new Error("Failed");
-      }
-
-      setPrefState("done");
-    } catch {
-      setPrefState("error");
-      setTimeout(() => setPrefState("idle"), 2000);
-    }
-  }, [app, id]);
+  const mapsUrl = locationToMapsUrl(location);
 
   const handleOpenMaps = useCallback(() => {
     if (mapsUrl) {
@@ -72,7 +31,6 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
   return (
     <div className="mx-auto max-w-2xl animate-in px-3.5 py-3 fade-in slide-in-from-bottom-1">
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        {/* Header */}
         <div className="border-be border-border px-4 pbs-4 pbe-3">
           <div className="flex items-start gap-2.5">
             <div className="flex size-8 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-500">
@@ -106,7 +64,6 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
           </div>
         </div>
 
-        {/* Details */}
         <div className="flex flex-col gap-3 px-4 py-3">
           {location.address && (
             <div>
@@ -192,18 +149,13 @@ export function LocationDetailView({ data, app, canCallTools }: LocationDetailVi
           </div>
         </div>
 
-        {/* Action */}
         <div className="flex gap-1.5 px-4 pbs-1 pbe-4">
-          <ActionButton
-            state={prefState}
-            onClick={handleSetPreferred}
-            disabled={!canCallTools || prefState === "done"}
+          <PreferredStoreButton
+            app={app}
+            storeId={id}
+            canCallTools={canCallTools}
             idleLabel="Set as Preferred Store"
-            loadingLabel="Saving..."
             doneLabel="Set as Preferred!"
-            failLabel="Failed"
-            variant="primary"
-            icon={PREFERRED_STAR_ICON}
           />
           {mapsUrl && (
             <button

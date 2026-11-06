@@ -109,7 +109,6 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
     writes: BatchItem<"sqlite">[],
     read: BatchItem<"sqlite"> & PromiseLike<TRow[]>,
   ): Promise<TRow[]> => {
-    // The read is always present, so the batch is never empty.
     const statements: BatchItem<"sqlite">[] = [...writes, read];
 
     // SAFETY: read is always appended, so this tuple has at least one statement.
@@ -342,7 +341,6 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
         return row ? listFromRow(row) : null;
       },
       list: async () => {
-        // Count in SQL so summaries never load every list's items.
         return db
           .select({
             id: shoppingLists.id,

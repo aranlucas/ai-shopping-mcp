@@ -30,7 +30,7 @@ import { registerResources } from "@/tools/resources.js";
 
 type TextResourceResult = { contents: Array<{ text: string }> };
 
-type ProductClientOverrides = { product?: unknown; error?: boolean };
+type ProductClientOverrides = { product?: unknown; error?: boolean; requests?: Request[] };
 
 type AuthContext = {
   props: { id: string; accessToken: string; tokenExpiresAt: number };
@@ -235,7 +235,9 @@ function getCompleteFn(name: string, field: string): CompleteFn {
 }
 
 function makeProductClient(overrides: ProductClientOverrides = {}) {
-  return createProductClient(async () => {
+  return createProductClient(async (request) => {
+    overrides.requests?.push(request);
+
     if (overrides.error) {
       return new Response(null, { status: 500, statusText: "Server Error" });
     }
@@ -423,6 +425,7 @@ describe("registerResources", () => {
     });
 
     it("fetches product details using the preferred location filter", async () => {
+      const requests: Request[] = [];
       registerTestResources(
         makeContext(
           makeStorage({
@@ -436,6 +439,7 @@ describe("registerResources", () => {
           }),
           makeProductClient({
             product: { upc: "0001112223334", description: "Whole Milk" },
+            requests,
           }),
         ),
       );
@@ -445,15 +449,19 @@ describe("registerResources", () => {
       );
 
       expect(decoded.description).toBe("Whole Milk");
+      expect(requests).toHaveLength(1);
+      expect(new URL(requests[0].url).searchParams.get("filter.locationId")).toBe("12345678");
     });
 
     it("returns product data when no preferred location is configured", async () => {
+      const requests: Request[] = [];
       // When location is null the API call should still succeed without filter.locationId.
       registerTestResources(
         makeContext(
           makeStorage({ location: null }),
           makeProductClient({
             product: { upc: "0001112223334", description: "Organic Milk" },
+            requests,
           }),
         ),
       );
@@ -463,6 +471,8 @@ describe("registerResources", () => {
       );
 
       expect(decoded.description).toBe("Organic Milk");
+      expect(requests).toHaveLength(1);
+      expect(new URL(requests[0].url).searchParams.has("filter.locationId")).toBe(false);
       expect(decoded.error).toBeUndefined();
     });
 

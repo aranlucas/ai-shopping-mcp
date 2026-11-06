@@ -1,6 +1,3 @@
-/**
- * MCP prompts for guided Kroger/QFC shopping workflows.
- */
 import type { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 

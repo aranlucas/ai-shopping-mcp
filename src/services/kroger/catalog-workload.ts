@@ -19,7 +19,6 @@ export function normalizeProductTerm(term: string): string {
   return isUpcTerm(trimmed) ? trimmed.padStart(13, "0") : trimmed;
 }
 
-/** One shared concurrency limit across mixed exact and text requests. */
 export async function mapCatalogRequests<T, R>(
   items: T[],
   resolve: (item: T, index: number) => Promise<R>,

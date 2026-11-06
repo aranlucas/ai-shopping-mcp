@@ -17,12 +17,15 @@ import {
   formatPantryListCompact,
   formatPreferredLocationCompact,
 } from "../utils/format-response.js";
-import { getProps, safeStorage, toMcpError } from "../utils/result.js";
+import { getProps } from "../utils/request-identity.js";
+import { safeStorage } from "../utils/result.js";
+import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { classifyExpiry } from "../services/expiry.js";
 import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 import { getMealPlanningDeals } from "./meal-planning-deals.js";
-import { coercedBooleanSchema, storeIdSchema } from "./schemas.js";
+import { coercedBooleanSchema } from "./schemas.js";
+import { storeIdSchema } from "../domain/shopping-schemas.js";
 import {
   computeFrequentlyPurchasedItems,
   computeRestockSuggestions,
@@ -95,10 +98,6 @@ export const updateInventoryInputSchema = z
     { message: "Pass pantry and/or equipment with add or remove items." },
   );
 
-/**
- * Removes whole pantry items, or subtracts a quantity and removes the item
- * once none is left. Names match case-insensitively, like storage.
- */
 async function consumePantryItems(
   pantry: PantryStore,
   items: Array<PantryConsumption>,
