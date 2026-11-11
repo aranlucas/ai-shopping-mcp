@@ -49,7 +49,7 @@ Use a remote MCP client with OAuth support. Discovery points to shared Better Au
 
 ## Shopping workflow
 
-Find a store with `search_stores`, then save it with `set_preferred_store`. `shop_for_items` returns up to five eligible product options per requested item at that store, for up to ten items. It makes no list or cart writes. The calling assistant chooses exact UPCs and package quantities, then uses `create_shopping_list` or edits an existing list with `get_shopping_list` and `update_shopping_list`. Name-only ingredients need product matches before cart addition.
+Find a store with `search_stores`, then save it with `set_preferred_store`. `shop_for_items` returns up to five eligible product options per requested item at that store, for up to ten items. It makes no list or cart writes. The calling assistant chooses exact UPCs and package quantities, then uses `create_shopping_list` or edits an existing list with `get_shopping_list` and `update_shopping_list`. `delete_shopping_list` permanently removes one saved list when the shopper asks, and the app's list index offers **Delete** with a confirmation step; it does not touch the Kroger cart, and a prepared meal plan keeps its status without recreating the list. Name-only ingredients need product matches before cart addition.
 
 Use `search_products` to refine searches or inspect exact UPCs. `terms` must be a JSON array, even for one item:
 

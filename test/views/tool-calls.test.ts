@@ -2,6 +2,7 @@ import { App } from "@modelcontextprotocol/ext-apps";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { appResult } from "../../src/app-results.js";
 import { callTool, sendUserMessage } from "../../views/shared/types.js";
 
 import {
@@ -11,13 +12,16 @@ import {
   needsListCheck,
   addShoppingListToCartCall,
   createProductShoppingListCall,
+  deleteShoppingList,
   saveProductToList,
   shoppingListIdFromResult,
   toolResultErrorMessage,
 } from "../../views/app/tool-calls.js";
 
 function makeToolCallingApp(
-  results: Array<Pick<Awaited<ReturnType<App["callServerTool"]>>, "isError" | "structuredContent">>,
+  results: Array<
+    Pick<Awaited<ReturnType<App["callServerTool"]>>, "isError" | "structuredContent" | "_meta">
+  >,
 ) {
   const calls: Parameters<App["callServerTool"]>[0][] = [];
 
@@ -208,5 +212,28 @@ describe("view tool call helpers", () => {
     await expect(addListToCart(null, "list-1")).rejects.toSatisfy(
       (cause) => !needsCartCheck(cause),
     );
+  });
+
+  it("deletes a list and returns the lists that remain", async () => {
+    const remaining = [
+      { id: "list-2", name: "Brunch", itemCount: 3, updatedAt: "2026-11-01T00:00:00.000Z" },
+    ];
+
+    const { app, calls } = makeToolCallingApp([appResult("shopping_lists", { lists: remaining })]);
+
+    await expect(deleteShoppingList(app, "list-1")).resolves.toEqual(remaining);
+    expect(calls).toEqual([{ name: "delete_shopping_list", arguments: { listId: "list-1" } }]);
+  });
+
+  it("rejects with the server's message when the delete fails", async () => {
+    const { app } = makeToolCallingApp([{ isError: true }]);
+
+    await expect(deleteShoppingList(app, "list-1")).rejects.toThrow("Could not delete that list");
+  });
+
+  it("says the list was deleted when only the reload is missing", async () => {
+    const { app } = makeToolCallingApp([{ isError: false }]);
+
+    await expect(deleteShoppingList(app, "list-1")).rejects.toThrow("The list was deleted");
   });
 });

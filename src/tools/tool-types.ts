@@ -5,6 +5,7 @@ import type { updateInventoryInputSchema } from "./inventory.js";
 import type { recordOrderInputSchema } from "./orders.js";
 import type {
   createShoppingListInputSchema,
+  deleteShoppingListInputSchema,
   getShoppingListInputSchema,
   updateShoppingListInputSchema,
 } from "./shopping-list.js";
@@ -16,6 +17,8 @@ export type CreateShoppingListArgs = z.input<typeof createShoppingListInputSchem
 export type UpdateInventoryArgs = z.input<typeof updateInventoryInputSchema>;
 
 export type UpdateShoppingListArgs = z.input<typeof updateShoppingListInputSchema>;
+
+export type DeleteShoppingListArgs = z.input<typeof deleteShoppingListInputSchema>;
 
 export type GetShoppingListArgs = z.input<typeof getShoppingListInputSchema>;
 

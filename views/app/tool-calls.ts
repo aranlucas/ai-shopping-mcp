@@ -236,6 +236,27 @@ export async function loadShoppingLists(
   return data.view === "shopping_lists" ? data.lists : [];
 }
 
+/** Deletes one saved list and returns the lists that remain. */
+export async function deleteShoppingList(
+  app: Parameters<typeof callTool>[0],
+  listId: string,
+): Promise<ShoppingListSummaryData[]> {
+  const result = await callTool(app, { name: "delete_shopping_list", arguments: { listId } });
+
+  if (result.isError) {
+    throw new Error(toolResultErrorMessage(result, "Could not delete that list"));
+  }
+
+  const data = parseToolResult(result);
+
+  // A successful delete without a lists view means only the re-read failed.
+  if (data?.view !== "shopping_lists") {
+    throw new Error("The list was deleted, but your lists could not be reloaded. Reopen them.");
+  }
+
+  return data.lists;
+}
+
 export async function openShoppingList(
   app: Parameters<typeof callTool>[0],
   listId: string,

@@ -248,11 +248,13 @@ export function Preview() {
   const [lastAction, setLastAction] = useState("No actions yet.");
   const [listData, setListData] = useState<AppData | null>(LIST);
   const listRef = useRef<ShoppingListContent>(LIST);
+  const listsRef = useRef<ShoppingListsContent>(LISTS);
 
   const handleView = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     const next = event.target.value;
     setView(next);
     listRef.current = LIST;
+    listsRef.current = LISTS;
     setListData(next === "lists" ? LISTS : LIST);
   }, []);
 
@@ -329,7 +331,16 @@ export function Preview() {
                 content: [],
                 ...appResult("create_shopping_list", listRef.current),
               }
-            : { content: [], ...appResult("shopping_lists", LISTS) };
+            : { content: [], ...appResult("shopping_lists", listsRef.current) };
+        }
+
+        if (call.name === "delete_shopping_list") {
+          listsRef.current = {
+            ...listsRef.current,
+            lists: listsRef.current.lists.filter((list) => list.id !== call.arguments.listId),
+          };
+
+          return { content: [], ...appResult("shopping_lists", listsRef.current) };
         }
 
         if (call.name === "update_shopping_list") {

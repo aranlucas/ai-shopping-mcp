@@ -34,6 +34,7 @@ export { parseAppResult as parseToolResult } from "../../src/app-results.js";
 import type {
   AddShoppingListToCartArgs,
   CreateShoppingListArgs,
+  DeleteShoppingListArgs,
   GetShoppingListArgs,
   RecordOrderArgs,
   UpdateInventoryArgs,
@@ -56,6 +57,7 @@ export type ToolCall =
   | { name: "create_shopping_list"; arguments: CreateShoppingListArgs }
   | { name: "get_shopping_list"; arguments: GetShoppingListArgs }
   | { name: "update_shopping_list"; arguments: UpdateShoppingListArgs }
+  | { name: "delete_shopping_list"; arguments: DeleteShoppingListArgs }
   | { name: "record_order"; arguments: RecordOrderArgs }
   | { name: "update_inventory"; arguments: UpdateInventoryArgs }
   | { name: "set_preferred_store"; arguments: { storeId: string } }
