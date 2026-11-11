@@ -77,7 +77,7 @@ Kroger requests have a ten-second deadline and inherit request cancellation. Tra
 
 ## Storage and deployment
 
-[cloudflare.config.ts](cloudflare.config.ts) owns bindings and Durable Object lifecycle declarations. Shared Auth validates identity and brokers Kroger tokens; shopping verifies resource tokens locally. D1 stores shopper data under `(issuer, subject)`, KV stores caches and receipts, and `CartOperations` owns durable cart journals. Keep authenticated clients and shopper storage request-local when changing [composition](src/composition.ts).
+[cloudflare.config.ts](cloudflare.config.ts) owns bindings and Durable Object lifecycle declarations. Shared Auth validates identity and brokers Kroger tokens; shopping verifies resource tokens locally. D1 stores shopper data under `(issuer, subject)`, KV stores catalog and deal caches, and `CartOperations` owns each shopper's cart journal, add history and saved cart ID. Keep authenticated clients and shopper storage request-local when changing [composition](src/composition.ts).
 
 Keep Worker names, resource IDs and Durable Object lifecycle declarations stable across deployments. The current config marks retired objects deleted; do not restore their old bindings. Legacy Kroger-ID shopping records are not migrated to Better Auth identities.
 
@@ -101,7 +101,7 @@ pnpm test
 pnpm build:worker
 ```
 
-A fresh checkout needs `pnpm cf-typegen` before typechecking; Vite dev/build also generates `.cloudflare/types`. `pnpm build` builds both bundles, lints and typechecks; tests and formatting remain separate checks.
+A fresh checkout needs `pnpm cf-typegen` before typechecking; Vite dev/build also generates `.cloudflare/types`. `pnpm build` builds both bundles. `pnpm check` runs lint, format check, typecheck, the app bundle build and tests.
 
 `pnpm test` uses isolated Worker fixtures and a Node test project, including the [deterministic MCP suites](test/evals/README.md). `pnpm eval:mcp` runs just those suites. `pnpm coverage` measures `src/**/*.ts`, excluding generated Kroger declarations; views are outside that coverage scope. API types regenerate from `kroger/*.json` with `pnpm generate:apis`.
 

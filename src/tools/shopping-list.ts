@@ -23,7 +23,7 @@ import { safeStorage } from "../utils/result.js";
 import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { getDealsForFlags, getPantryForFlags, itemFlagLabels } from "./item-flags.js";
-import { upcSchema } from "../domain/shopping-schemas.js";
+import { MAX_ITEM_BATCH, upcSchema } from "../domain/shopping-schemas.js";
 import { textResult } from "./types.js";
 
 /**
@@ -69,11 +69,13 @@ export const updateShoppingListInputSchema = z
     change: z
       .array(shoppingListItemChangeSchema)
       .min(1)
+      .max(MAX_ITEM_BATCH)
       .optional()
       .describe("Only the fields you pass change"),
     remove: z
       .array(itemIdSchema)
       .min(1)
+      .max(MAX_ITEM_BATCH)
       .optional()
       .describe("itemIds (or exact item names) to delete"),
   })

@@ -24,7 +24,7 @@ import { registerWeeklyDealsTools } from "./tools/weekly-deals.js";
 import { createD1ShoppingStore } from "./utils/d1-shopping-storage.js";
 import { getUserDataKv } from "./utils/kv.js";
 import { getProps, requestTokenSchema } from "./utils/request-identity.js";
-import { createCartPersistence } from "./utils/user-storage.js";
+import { createCartStore } from "./utils/cart-store.js";
 import { APP_VIEW_URI, registerViewResource } from "./utils/view-resource.js";
 
 export const SERVER_INFO = {
@@ -72,20 +72,7 @@ export function buildServer(
 
   const { preferredLocation, pantry, equipment, orderHistory, shoppingList } = shoppingStore;
 
-  const cartJournal = exports.CartOperations.getByName(userId);
-
-  const carts = createCartPersistence(env.USER_DATA_KV, () => ({ userId, clientId }), {
-    begin: (key, fingerprint) => cartJournal.begin(JSON.stringify([clientId, key]), fingerprint),
-    reconcileLegacy: (key, attempt, fingerprint, legacyFingerprint) =>
-      cartJournal.reconcileLegacy(
-        JSON.stringify([clientId, key]),
-        attempt,
-        fingerprint,
-        legacyFingerprint,
-      ),
-    complete: (key, attempt) => cartJournal.complete(JSON.stringify([clientId, key]), attempt),
-    reject: (key, attempt) => cartJournal.reject(JSON.stringify([clientId, key]), attempt),
-  });
+  const carts = createCartStore(exports.CartOperations.getByName(userId), clientId);
 
   const productService = new ProductService(clients.productClient);
   const weeklyDealsCache = createWeeklyDealsCache(userDataKv);

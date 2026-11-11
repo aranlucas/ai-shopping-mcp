@@ -20,7 +20,8 @@ import {
   preferredStores,
   shoppingLists,
 } from "../db/schema.js";
-import { AppErrorException, notFoundError, storageError } from "../errors.js";
+import { MAX_LIST_ITEMS } from "../domain/shopping-schemas.js";
+import { AppErrorException, notFoundError, storageError, validationError } from "../errors.js";
 
 type NonEmptyBatch = [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]];
 
@@ -377,6 +378,14 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
       },
       addItems: (listId, items) =>
         mutateList(listId, (current) => {
+          if (current.length + items.length > MAX_LIST_ITEMS) {
+            throw new AppErrorException(
+              validationError(
+                `A list holds at most ${MAX_LIST_ITEMS} items; it has ${current.length}. Remove items or create a new list.`,
+              ),
+            );
+          }
+
           const added = newListItems(items);
 
           return { items: [...current, ...added], result: added };
@@ -412,7 +421,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
       getAll: () => getOrders(50),
       getRecent: (limit = 10) => getOrders(limit),
       add: async (order) => {
-        await db
+        const inserted = await db
           .insert(orderHistory)
           .values({
             id: order.orderId,
@@ -420,9 +429,25 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
             record: order,
             placedAt: order.placedAt,
           })
-          .run();
+          .onConflictDoNothing()
+          .returning({ id: orderHistory.id })
+          .all();
 
-        return order;
+        if (inserted.length > 0) {
+          return { record: order, created: true };
+        }
+
+        const [existing] = await db
+          .select({ record: orderHistory.record })
+          .from(orderHistory)
+          .where(and(eq(orderHistory.userId, userId), eq(orderHistory.id, order.orderId)))
+          .all();
+
+        if (!existing) {
+          throw new Error(`Order ${order.orderId} conflicted but could not be read`);
+        }
+
+        return { record: existing.record, created: false };
       },
     },
   };

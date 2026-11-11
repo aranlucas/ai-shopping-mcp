@@ -8,7 +8,7 @@ pnpm eval:mcp
 EVAL_LOG=1 pnpm eval:mcp  # print token measurements for recalibration
 ```
 
-`pnpm test` also runs these suites in CI. Live agent/selector runners are retired. Historical evaluation JSON in `docs/` contains synthetic inputs, model outputs and provenance; its embedded source paths describe the evaluated revision, not runnable current modules. [Selector rationale](../../docs/jev-value-evaluation.md) explains the limitations. The [Codex comparison](../../docs/codex-eval-hill-climb.json) records a grader correction using paired replay, not a model-performance gain.
+`pnpm test` also runs these suites in CI. Live agent/selector runners are retired. Historical evaluation JSON, kept in git history and linked from the selector rationale, contains synthetic inputs, model outputs and provenance; its embedded source paths describe the evaluated revision, not runnable current modules. [Selector rationale](../../docs/jev-value-evaluation.md) explains the limitations. The [Codex comparison](https://github.com/aranlucas/ai-shopping-mcp/blob/5c5547297d3cfa75f410857edc98f1db8047c46b/docs/codex-eval-hill-climb.json) records a grader correction using paired replay, not a model-performance gain.
 
 ## Contract
 

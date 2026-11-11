@@ -33,3 +33,9 @@ Before hand-writing general-purpose code, use a well-maintained library: activel
 - Protect contracts, not incidental internal structure.
 - Distinguish temporary development scaffolding from checks worth maintaining.
 - Never delete or weaken a failing test just to make the suite pass.
+
+## Errors
+
+- Adapters (D1/KV/Durable Object stores, Kroger clients) throw; a typed failure throws `AppErrorException`.
+- Tools and services wrap adapter calls in `safeStorage` / `fromApiResponse` to get neverthrow `Result`s, and return `toMcpError` at the MCP boundary.
+- An `AppError` message is model-facing: name the operation and the recovery step, and pass the raw exception or upstream payload as `cause`/`detail`. `toMcpError` logs and reports that diagnostic server-side.

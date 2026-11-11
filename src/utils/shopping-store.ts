@@ -52,7 +52,8 @@ export interface ShoppingListStore {
 /** Durable completed-order history scoped to one verified Kroger shopper. */
 export interface OrderHistoryStore {
   getAll(): Promise<OrderRecord[]>;
-  add(order: OrderRecord): Promise<OrderRecord>;
+  /** Inserts once per orderId; a repeat returns the stored record with created=false. */
+  add(order: OrderRecord): Promise<{ record: OrderRecord; created: boolean }>;
   getRecent(limit?: number): Promise<OrderRecord[]>;
 }
 

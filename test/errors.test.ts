@@ -131,14 +131,19 @@ describe("error constructors", () => {
 });
 
 describe("formatAppError", () => {
-  it("formats ApiError with an object detail as JSON", () => {
-    const e = apiError("api failed", { code: "ERR" });
-    expect(formatAppError(e)).toBe('api failed: {"code":"ERR"}');
+  it("never shows a raw upstream payload", () => {
+    expect(formatAppError(apiError("api failed", { code: "ERR" }, 400))).toBe("api failed");
+    expect(formatAppError(apiError("api failed", "some string", 400))).toBe("api failed");
   });
 
-  it("formats ApiError with a string detail (JSON.stringify wraps in quotes)", () => {
-    const e = apiError("api failed", "some string");
-    expect(formatAppError(e)).toBe('api failed: "some string"');
+  it("shows an OAuth error description for client errors", () => {
+    const e = apiError(
+      "api failed",
+      { error: "invalid_grant", error_description: "Code expired" },
+      400,
+    );
+
+    expect(formatAppError(e)).toBe("api failed: Code expired");
   });
 
   it("formats ApiError without detail using only the message", () => {

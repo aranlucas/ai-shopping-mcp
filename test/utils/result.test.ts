@@ -27,12 +27,24 @@ describe("toMcpError", () => {
     });
   });
 
-  it("formats API errors with detail", () => {
-    const result = toMcpError(apiError("request failed", { status: 400 }));
-    expect(result).toMatchObject({
-      content: [{ type: "text", text: 'request failed: {"status":400}' }],
-      isError: true,
-    });
+  it("shows a client error's provider reason without the raw payload", () => {
+    const result = toMcpError(
+      apiError(
+        "Failed to add items to cart",
+        { errors: { reason: "Invalid UPC 123", code: "CART-2216", timestamp: 1 } },
+        400,
+      ),
+    );
+
+    expect(result.content[0]?.text).toBe("Failed to add items to cart: Invalid UPC 123");
+  });
+
+  it("hides upstream detail for server errors", () => {
+    const result = toMcpError(
+      apiError("Failed to search products", { errors: { reason: "db pool exhausted" } }, 503),
+    );
+
+    expect(result.content[0]?.text).toBe("Failed to search products");
   });
 });
 
@@ -87,15 +99,17 @@ describe("safeJsonParseWithSchema", () => {
 // --- fromApiResponse ---
 
 describe("fromApiResponse", () => {
-  it("captures synchronous adapter throws before a promise is returned", async () => {
+  it("keeps synchronous adapter throws out of the model-facing message", async () => {
+    const cause = new Error("adapter failed before fetch");
+
     const result = await fromApiResponse(() => {
-      throw new Error("adapter failed before fetch");
+      throw cause;
     }, "read product");
 
-    expect(result._unsafeUnwrapErr()).toMatchObject({
-      type: "NETWORK_ERROR",
-      message: "read product: adapter failed before fetch",
-    });
+    const error = result._unsafeUnwrapErr();
+    expect(error).toMatchObject({ type: "NETWORK_ERROR", cause });
+    expect(error.message).toContain("read product");
+    expect(error.message).not.toContain("adapter failed");
   });
 
   it("preserves typed adapter errors for synchronous and asynchronous failures", async () => {
@@ -175,33 +189,13 @@ describe("fromApiResponse", () => {
     expect(error.type === "API_ERROR" && error.status).toBe(500);
   });
 
-  it("returns Err on promise rejection with Error instance", async () => {
-    const result = await fromApiResponse(Promise.reject(new Error("network fail")), "test api");
+  it("keeps a rejected request's raw text out of the model-facing message", async () => {
+    const result = await fromApiResponse(Promise.reject("socket hang up at 10.0.0.4"), "test api");
 
-    expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("NETWORK_ERROR");
-    expect(error.message).toContain("network fail");
+    expect(error).toMatchObject({ type: "NETWORK_ERROR", cause: "socket hang up at 10.0.0.4" });
     expect(error.message).toContain("test api");
-  });
-
-  it("uses String() coercion in NETWORK_ERROR message when rejected value is not an Error instance", async () => {
-    const result = await fromApiResponse(Promise.reject("plain string rejection"), "test api");
-
-    expect(result.isErr()).toBe(true);
-    const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("NETWORK_ERROR");
-    expect(error.message).toContain("test api");
-    expect(error.message).toContain("plain string rejection");
-  });
-
-  it("uses String() coercion for non-Error rejection objects", async () => {
-    const result = await fromApiResponse(Promise.reject(42), "get product");
-    expect(result.isErr()).toBe(true);
-    const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("NETWORK_ERROR");
-    expect(error.message).toContain("get product");
-    expect(error.message).toContain("42");
+    expect(error.message).not.toContain("10.0.0.4");
   });
 
   it("preserves Kroger expired-token rejections as auth errors", async () => {
@@ -359,7 +353,7 @@ describe("safeResolveLocationId", () => {
     expect(result.isErr()).toBe(true);
     const error = result._unsafeUnwrapErr();
     expect(error.type).toBe("STORAGE_ERROR");
-    expect(error.message).toContain("KV unavailable");
+    expect(error.message).not.toContain("KV unavailable");
   });
 });
 
@@ -373,7 +367,7 @@ describe("safeStorage", () => {
 
     expect(result._unsafeUnwrapErr()).toMatchObject({
       type: "STORAGE_ERROR",
-      message: "read: sync failure",
+      message: "Could not read. Retry shortly.",
     });
   });
 
@@ -397,33 +391,14 @@ describe("safeStorage", () => {
     expect(result._unsafeUnwrap()).toEqual([1, 2, 3]);
   });
 
-  it("returns STORAGE_ERROR including context and error message on failure", async () => {
-    const result = await safeStorage(() => Promise.reject(new Error("boom")), "test op");
+  it("names the operation and keeps the raw failure as a server-side cause", async () => {
+    const cause = new Error("D1_ERROR: no such table: pantry_items");
 
-    expect(result.isErr()).toBe(true);
+    const result = await safeStorage(() => Promise.reject(cause), "save pantry");
+
     const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("STORAGE_ERROR");
-    expect(error.message).toContain("boom");
-    expect(error.message).toContain("test op");
-  });
-
-  it("uses String() coercion in STORAGE_ERROR message when rejected value is not an Error instance", async () => {
-    const result = await safeStorage(() => Promise.reject("storage quota exceeded"), "save pantry");
-
-    expect(result.isErr()).toBe(true);
-    const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("STORAGE_ERROR");
+    expect(error).toMatchObject({ type: "STORAGE_ERROR", cause });
     expect(error.message).toContain("save pantry");
-    expect(error.message).toContain("storage quota exceeded");
-  });
-
-  it("uses String() coercion for non-Error non-string rejection values", async () => {
-    const result = await safeStorage(() => Promise.reject(503), "write equipment");
-
-    expect(result.isErr()).toBe(true);
-    const error = result._unsafeUnwrapErr();
-    expect(error.type).toBe("STORAGE_ERROR");
-    expect(error.message).toContain("write equipment");
-    expect(error.message).toContain("503");
+    expect(error.message).not.toContain("pantry_items");
   });
 });

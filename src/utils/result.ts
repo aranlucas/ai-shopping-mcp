@@ -35,10 +35,7 @@ export function fromApiResponse<T>(
       return authError(cause.message);
     }
 
-    return networkError(
-      `${context}: ${cause instanceof Error ? cause.message : String(cause)}`,
-      cause,
-    );
+    return networkError(`Could not reach Kroger to ${context}. Retry shortly.`, cause);
   };
 
   const result =
@@ -69,6 +66,6 @@ export function safeStorage<T>(
   return ResultAsync.fromThrowable(operation, (e): AppError =>
     e instanceof AppErrorException
       ? e.appError
-      : storageError(`${context}: ${e instanceof Error ? e.message : String(e)}`, e),
+      : storageError(`Could not ${context}. Retry shortly.`, e),
   )();
 }
