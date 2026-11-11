@@ -6,6 +6,13 @@ import { ensureShoppingSchema } from "@test/d1-schema.js";
 
 beforeAll(ensureShoppingSchema);
 
+function listItems(from: number, count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    productName: `Item ${from + index}`,
+    quantity: 1,
+  }));
+}
+
 function shopper() {
   return createD1ShoppingStore(env.SHOPPING_DB, crypto.randomUUID());
 }
@@ -142,6 +149,21 @@ describe("D1 shopping storage", () => {
     expect(await other.shoppingList.list()).toEqual([]);
   });
 
+  it("caps a stored list at 300 items", async () => {
+    const user = shopper();
+
+    const list = await user.shoppingList.create({
+      name: "Big shop",
+      items: [{ productName: "Item 0", quantity: 1 }],
+    });
+
+    await user.shoppingList.addItems(list.id, listItems(1, 299));
+    await expect(user.shoppingList.addItems(list.id, listItems(300, 1))).rejects.toThrow(
+      "at most 300 items",
+    );
+    expect((await user.shoppingList.get(list.id))?.items).toHaveLength(300);
+  });
+
   it("persists order history by shopper", async () => {
     const user = shopper();
     const other = shopper();
@@ -153,7 +175,11 @@ describe("D1 shopping storage", () => {
       placedAt: "2026-09-23T00:00:00.000Z",
     };
 
-    await user.orderHistory.add(order);
+    expect(await user.orderHistory.add(order)).toEqual({ record: order, created: true });
+    expect(await user.orderHistory.add({ ...order, totalItems: 9 })).toEqual({
+      record: order,
+      created: false,
+    });
     expect(await user.orderHistory.getRecent()).toEqual([order]);
     expect(await other.orderHistory.getAll()).toEqual([]);
   });

@@ -1,5 +1,14 @@
 import * as z from "zod/v4";
 
+/** Pantry or equipment entries one inventory call may add or remove. */
+export const MAX_INVENTORY_BATCH = 50;
+
+/** Items one order record or one list change/remove batch may carry. */
+export const MAX_ITEM_BATCH = 100;
+
+/** Stored items per list; above the largest meal plan (7 meals x 40 ingredients). */
+export const MAX_LIST_ITEMS = 300;
+
 export const upcSchema = z
   .string()
   .trim()

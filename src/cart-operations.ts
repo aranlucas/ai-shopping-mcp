@@ -17,20 +17,26 @@ export type CartClaim =
 
 export interface CartOperationStore {
   begin(key: string, fingerprint: string): Promise<CartClaim>;
-  /**
-   * Reconcile a legacy KV receipt after `begin` has created this attempt.
-   * The implementation must atomically either migrate the legacy fingerprint
-   * or complete this attempt when both fingerprints agree.
-   */
-  reconcileLegacy(
-    key: string,
-    attempt: string,
-    fingerprint: string,
-    legacyFingerprint: string,
-  ): Promise<CartClaim>;
   complete(key: string, attempt: string): Promise<boolean>;
   reject(key: string, attempt: string): Promise<void>;
 }
+
+export type CartHistoryItem = CartReceiptItem & { productName?: string };
+
+export type CartHistoryEntry = CartHistoryItem & { addedAt: string };
+
+/** Per-user cart state held next to the journal so every write is atomic. */
+export interface CartJournal extends CartOperationStore {
+  history(): Promise<CartHistoryEntry[]>;
+  appendHistory(items: CartHistoryItem[], addedAt: string): Promise<CartHistoryEntry[]>;
+  cartId(): Promise<string | null>;
+  saveCartId(cartId: string): Promise<void>;
+}
+
+const HISTORY_KEY = "history";
+const CART_ID_KEY = "cart-id";
+const HISTORY_MAX_ITEMS = 100;
+const HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function cartItemsFingerprint(items: readonly CartReceiptItem[]) {
   return JSON.stringify(
@@ -42,49 +48,12 @@ export function cartItemsFingerprint(items: readonly CartReceiptItem[]) {
   );
 }
 
-/**
- * Claim a cart operation and reconcile a pre-journal receipt when needed.
- *
- * The journal is consulted first. Existing completed, pending, and conflict
- * states never read legacy KV, so a corrupt or expired receipt cannot override
- * authoritative journal state. Only a newly started attempt reads the legacy
- * receipt. A valid receipt is migrated atomically by the journal; a corrupt
- * receipt releases this local claim and blocks the mutation.
- */
-export async function claimCartOperation(
-  operations: CartOperationStore,
-  key: string,
-  fingerprint: string,
-  readLegacy?: () => Promise<CartReceiptItem[] | null>,
-): Promise<CartClaim> {
-  const claim = await operations.begin(key, fingerprint);
-
-  if (claim.status !== "started" || !readLegacy) {
-    return claim;
-  }
-
-  let legacy: CartReceiptItem[] | null;
-
-  try {
-    legacy = await readLegacy();
-  } catch (error) {
-    // No upstream mutation has happened for this attempt. Release the claim
-    // so a repaired receipt can be retried without falsely becoming unknown.
-    await operations.reject(key, claim.attempt);
-    throw error;
-  }
-
-  if (!legacy || legacy.length === 0) {
-    return claim;
-  }
-
-  const legacyFingerprint = cartItemsFingerprint(legacy);
-
-  return operations.reconcileLegacy(key, claim.attempt, fingerprint, legacyFingerprint);
+function recentHistory(entries: CartHistoryEntry[], now: number): CartHistoryEntry[] {
+  return entries.filter((entry) => now - Date.parse(entry.addedAt) < HISTORY_MAX_AGE_MS);
 }
 
 /** One journal per user. Pending writes never expire into permission to retry. */
-export class CartOperations extends DurableObject<Env> implements CartOperationStore {
+export class CartOperations extends DurableObject<Env> implements CartJournal {
   async begin(key: string, fingerprint: string): Promise<CartClaim> {
     return this.ctx.storage.transaction(async (txn) => {
       const existing = await txn.get<CartOperation>(key);
@@ -101,50 +70,6 @@ export class CartOperations extends DurableObject<Env> implements CartOperationS
       } satisfies CartOperation);
 
       return { status: "started", attempt, fingerprint };
-    });
-  }
-
-  async reconcileLegacy(
-    key: string,
-    attempt: string,
-    fingerprint: string,
-    legacyFingerprint: string,
-  ): Promise<CartClaim> {
-    return this.ctx.storage.transaction(async (txn) => {
-      const operation = await txn.get<CartOperation>(key);
-
-      if (operation?.status !== "pending" || operation.attempt !== attempt) {
-        if (!operation) {
-          return { status: "conflict" };
-        }
-
-        return operation.fingerprint === fingerprint ? operation : { status: "conflict" };
-      }
-
-      if (legacyFingerprint === fingerprint) {
-        const completed = {
-          status: "completed" as const,
-          attempt,
-          fingerprint,
-        } satisfies CartOperation;
-
-        await txn.put(key, completed);
-
-        return completed;
-      }
-
-      // Preserve the old receipt as the durable authority. This prevents a
-      // changed list from replacing a pre-journal cart write and keeps future
-      // retries deterministic even after the KV receipt expires.
-      const migrated = {
-        status: "completed" as const,
-        attempt: `legacy:${crypto.randomUUID()}`,
-        fingerprint: legacyFingerprint,
-      } satisfies CartOperation;
-
-      await txn.put(key, migrated);
-
-      return { status: "conflict" };
     });
   }
 
@@ -175,5 +100,36 @@ export class CartOperations extends DurableObject<Env> implements CartOperationS
         await txn.delete(key);
       }
     });
+  }
+
+  async history(): Promise<CartHistoryEntry[]> {
+    return recentHistory(
+      (await this.ctx.storage.get<CartHistoryEntry[]>(HISTORY_KEY)) ?? [],
+      Date.now(),
+    );
+  }
+
+  /** Atomic append, so concurrent adds cannot drop each other's entries. */
+  async appendHistory(items: CartHistoryItem[], addedAt: string): Promise<CartHistoryEntry[]> {
+    return this.ctx.storage.transaction(async (txn) => {
+      const existing = (await txn.get<CartHistoryEntry[]>(HISTORY_KEY)) ?? [];
+
+      const merged = [
+        ...recentHistory(existing, Date.parse(addedAt)),
+        ...items.map((item) => ({ ...item, addedAt })),
+      ].slice(-HISTORY_MAX_ITEMS);
+
+      await txn.put(HISTORY_KEY, merged);
+
+      return merged;
+    });
+  }
+
+  async cartId(): Promise<string | null> {
+    return (await this.ctx.storage.get<string>(CART_ID_KEY)) ?? null;
+  }
+
+  async saveCartId(cartId: string): Promise<void> {
+    await this.ctx.storage.put(CART_ID_KEY, cartId);
   }
 }

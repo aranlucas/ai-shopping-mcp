@@ -1,4 +1,6 @@
-import { type AppError, formatAppError, errorRecovery } from "../errors.js";
+import * as Sentry from "@sentry/cloudflare";
+
+import { type AppError, errorDiagnostics, formatAppError, errorRecovery } from "../errors.js";
 
 type McpToolResult = {
   content: Array<{ type: "text"; text: string }>;
@@ -13,6 +15,16 @@ type McpToolResult = {
 };
 
 export function toMcpError(error: AppError): McpToolResult {
+  const diagnostics = errorDiagnostics(error);
+
+  if (diagnostics !== undefined) {
+    console.error(`${error.type}: ${error.message}`, diagnostics);
+    Sentry.captureException(diagnostics instanceof Error ? diagnostics : new Error(error.message), {
+      tags: { errorType: error.type },
+      extra: diagnostics instanceof Error ? undefined : { diagnostics },
+    });
+  }
+
   return {
     content: [{ type: "text" as const, text: formatAppError(error) }],
     isError: true as const,

@@ -8,6 +8,9 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "jsx": "react-jsx",
+    "noEmit": true,
+    // Generated Worker types reach cloudflare.config.ts, which imports worker-runtime.ts.
+    "allowImportingTsExtensions": true,
     // The views import shared types from `src/`, which transitively pulls in
     // files referencing Cloudflare Worker globals (Env, KVNamespace). Include
     // the generated worker types so those resolve under this config too.

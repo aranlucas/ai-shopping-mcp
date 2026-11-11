@@ -1,6 +1,7 @@
 import { bindings, defineConfig, exports } from "cf/config";
 
 import * as entrypoint from "./src/index" with { type: "cf-worker" };
+import { compatibilityDate, compatibilityFlags } from "./worker-runtime.ts";
 
 export default defineConfig({
   worker: {
@@ -11,8 +12,8 @@ export default defineConfig({
       LoginTransactions: exports.durableObject({ state: "deleted" }),
     },
     name: "ai-meal-planner-mcp",
-    compatibilityDate: "2025-03-10",
-    compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public", "enable_ctx_exports"],
+    compatibilityDate,
+    compatibilityFlags,
     entrypoint,
     observability: {
       enabled: true,

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { env } from "cloudflare:test";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { OrderRecord } from "@/domain/shopping.js";
 import type { OrderHistoryStore } from "@/utils/shopping-store.js";
@@ -7,6 +8,8 @@ import { appPayloadSchemas } from "@/app-results.js";
 import { registerOrderTools, recordOrderInputSchema } from "@/tools/orders.js";
 import { parseToolPayload } from "@test/app-payload.js";
 import { strictFake } from "@test/strict-fake.js";
+import { ensureShoppingSchema } from "@test/d1-schema.js";
+import { createD1ShoppingStore } from "@/utils/d1-shopping-storage.js";
 import {
   getCapturedHandler,
   getCapturedTool,
@@ -23,8 +26,28 @@ function registerOrders(context: ReturnType<typeof makeContext>) {
 }
 
 describe("order storage-backed tools", () => {
+  beforeAll(ensureShoppingSchema);
+
   beforeEach(() => {
     resetToolTestHarness();
+  });
+
+  it("records a retried orderId once and rejects reuse for different items", async () => {
+    const shopper = createD1ShoppingStore(env.SHOPPING_DB, crypto.randomUUID());
+    registerOrders(makeContext(makeStorage({ orderHistory: shopper.orderHistory })));
+    const record = getCapturedHandler("record_order");
+    const items = [{ productName: "Milk", quantity: 2 }];
+
+    const first = await record({ orderId: "kroger-1234", items });
+    const retry = await record({ orderId: "kroger-1234", items });
+    const reused = await record({ orderId: "kroger-1234", items: [{ productName: "Eggs" }] });
+
+    expect(first.text).toContain("Order recorded successfully: orderId=kroger-1234");
+    expect(retry.isError).toBe(false);
+    expect(retry.text).toContain("Order already recorded");
+    expect(reused.isError).toBe(true);
+    expect(reused.text).toContain("different items");
+    expect(await shopper.orderHistory.getAll()).toMatchObject([{ orderId: "kroger-1234", items }]);
   });
 
   it("records order totals and optional metadata", async () => {
@@ -35,7 +58,7 @@ describe("order storage-backed tools", () => {
         add: async (order: OrderRecord) => {
           storedOrders.push(order);
 
-          return order;
+          return { record: order, created: true };
         },
         getAll: async () => storedOrders,
       }),

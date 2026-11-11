@@ -108,6 +108,7 @@ export const mealPlanDraftSchema = z.object({
     }),
   decisions: z
     .array(mealPlanDecisionSchema)
+    .max(7 * 40)
     .refine(
       (decisions) => new Set(decisions.map((decision) => decision.key)).size === decisions.length,
       {

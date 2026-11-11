@@ -21,7 +21,8 @@ import type {
   ShoppingListStore,
   ShoppingStore,
 } from "@/utils/shopping-store.js";
-import type { CartStore, CartSnapshotItem } from "@/utils/user-storage.js";
+import type { CartHistoryItem } from "@/cart-operations.js";
+import type { CartStore } from "@/utils/cart-store.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -89,7 +90,6 @@ export function makeStorage(
   const orders: OrderRecord[] = [];
   const preferredLocations: PreferredLocation[] = [];
   const createdLists: ShoppingListRecord[] = [];
-  const snapshots = new Map<string, CartSnapshotItem[]>();
 
   const requireList = (id: string) => {
     const list = createdLists.find((candidate) => candidate.id === id);
@@ -180,7 +180,7 @@ export function makeStorage(
       add: async (order: OrderRecord) => {
         orders.push(order);
 
-        return order;
+        return { record: order, created: true };
       },
       getAll: async () => orders,
       getRecent: async (limit = 10) => orders.slice(0, limit),
@@ -238,20 +238,10 @@ export function makeStorage(
       },
     },
     operations: cartOperationStore(),
-    cartSnapshot: {
-      get: async (id: string) => snapshots.get(id) ?? null,
-      set: async (id: string, items: CartSnapshotItem[]) => {
-        snapshots.set(id, items);
-      },
-      clear: async (id: string) => {
-        snapshots.delete(id);
-      },
-    },
     cartMirror: {
       getAll: async () => [],
-      append: async (items: CartSnapshotItem[], addedAt: string) =>
+      append: async (items: CartHistoryItem[], addedAt: string) =>
         items.map((item) => ({ ...item, addedAt })),
-      clear: async () => {},
     },
     cartId: {
       get: async () => null,

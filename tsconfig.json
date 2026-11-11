@@ -11,6 +11,7 @@
     "types": ["./.cloudflare/types/index.d.ts", "@cloudflare/vitest-plugin/types"],
     "allowJs": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "checkJs": true,
     "paths": {
       "@/*": ["./src/*"],

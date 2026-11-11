@@ -21,7 +21,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { KrogerClients } from "@/services/kroger/client.js";
 import type { ShoppingStore } from "@/utils/shopping-store.js";
 import type { PreferredLocation, ShoppingList } from "@/domain/shopping.js";
-import type { CartStore, CartSnapshotItem } from "@/utils/user-storage.js";
+import type { CartHistoryItem } from "@/cart-operations.js";
+import type { CartStore } from "@/utils/cart-store.js";
 
 import {
   addShoppingListToCartInputSchema,
@@ -139,17 +140,13 @@ type PutOptions = { body: unknown; headers: Record<string, string> };
 
 type PutCall = { path: string; options: PutOptions };
 
-interface MirrorItem extends CartSnapshotItem {
+interface MirrorItem extends CartHistoryItem {
   addedAt: string;
 }
-
-type SnapshotSetCall = [listId: string, items: CartSnapshotItem[]];
 
 function makeStorage(
   storedList: ShoppingList | null = null,
   storedLocation: PreferredLocation | null = null,
-  snapshotSetCalls: SnapshotSetCall[] = [],
-  existingSnapshot: CartSnapshotItem[] | null = null,
   mirrorAppendCalls: unknown[][] = [],
   mirrorItems: MirrorItem[] = [],
   storedCartId: string | null = null,
@@ -168,21 +165,13 @@ function makeStorage(
       create: async () => storedList ?? listFixture(),
     }),
     operations: cartOperationStore(),
-    cartSnapshot: strictFake<CartStore["cartSnapshot"]>({
-      get: async () => existingSnapshot,
-      set: async (_id: string, items: CartSnapshotItem[]) => {
-        snapshotSetCalls.push([_id, items]);
-      },
-      clear: async () => {},
-    }),
     cartMirror: strictFake<CartStore["cartMirror"]>({
       getAll: async () => mirrorItems,
-      append: async (items: CartSnapshotItem[], addedAt: string) => {
+      append: async (items: CartHistoryItem[], addedAt: string) => {
         mirrorAppendCalls.push([items, addedAt]);
 
         return [...mirrorItems, ...items.map((item) => ({ ...item, addedAt }))];
       },
-      clear: async () => {},
     }),
     cartId: strictFake<CartStore["cartId"]>({
       get: async () => storedCartId,
@@ -223,10 +212,9 @@ function makeContext(
   },
 ) {
   const putCalls: PutCall[] = [];
-  const snapshotSetCalls: SnapshotSetCall[] = [];
   const getCalls: GetCall[] = [];
 
-  const actualStorage = storage ?? makeStorage(listFixture(), null, snapshotSetCalls);
+  const actualStorage = storage ?? makeStorage(listFixture(), null);
 
   const server = capturingServer(testState.capturedTools, () => testState.authContext);
 
@@ -275,7 +263,7 @@ function makeContext(
     carts: actualStorage,
   };
 
-  return { context, putCalls, snapshotSetCalls, getCalls };
+  return { context, putCalls, getCalls };
 }
 
 function registerCartTools(server: McpServer, context: CartToolContext) {
@@ -324,7 +312,7 @@ describe("add_shopping_list_to_cart tool", () => {
     });
 
     it("adds items with a UPC from the shopping list and reports the list name", async () => {
-      const { context, putCalls, snapshotSetCalls } = makeContext();
+      const { context, putCalls } = makeContext();
       registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
@@ -352,14 +340,12 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(sc["addedCount"]).toBe(1);
       expect(sc["requestedCount"]).toBe(2);
       expect(sc["actionDetail"]).toContain("Tuesday Dinner");
-      expect(snapshotSetCalls).toHaveLength(1);
-      expect(snapshotSetCalls[0]?.[0]).toBe(SHORT_LIST_ID);
     });
 
     it("blocks the Kroger write when the retry receipt cannot be read", async () => {
       const storage = makeStorage(listFixture());
-      storage.cartSnapshot.get = async () => {
-        throw new Error("KV unavailable");
+      storage.operations.begin = async () => {
+        throw new Error("journal unavailable");
       };
 
       const { context, putCalls } = makeContext(storage);
@@ -371,14 +357,14 @@ describe("add_shopping_list_to_cart tool", () => {
       });
 
       expect(isErrorResult(result)).toBe(true);
-      expect(textFromResult(result)).toContain("KV unavailable");
+      expect(textFromResult(result)).toContain("Could not claim cart operation");
       expect(putCalls).toHaveLength(0);
     });
 
-    it("keeps success and blocks retries when the legacy KV snapshot write fails", async () => {
+    it("keeps success and blocks retries when the add history write fails", async () => {
       const storage = makeStorage(listFixture());
-      storage.cartSnapshot.set = async () => {
-        throw new Error("KV unavailable");
+      storage.cartMirror.append = async () => {
+        throw new Error("history unavailable");
       };
 
       const { context, putCalls } = makeContext(storage);
@@ -400,38 +386,6 @@ describe("add_shopping_list_to_cart tool", () => {
       expect(textFromResult(retry)).toContain("already added");
       expect(structuredContent(retry)["outcome"]).toBe("already_added");
       expect(putCalls).toHaveLength(1);
-    });
-
-    it("uses the completed journal when the legacy receipt later becomes corrupt", async () => {
-      const storage = makeStorage(listFixture());
-      let reads = 0;
-      storage.cartSnapshot.get = async () => {
-        reads += 1;
-
-        if (reads === 1) {
-          return null;
-        }
-
-        throw new Error("corrupt legacy receipt");
-      };
-
-      const { context, putCalls } = makeContext(storage);
-      registerCartTools(context.server, context);
-      const handler = getCapturedHandler("add_shopping_list_to_cart");
-
-      expect(isErrorResult(await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID }))).toBe(
-        false,
-      );
-
-      const retry = await handler({
-        listId: SHORT_LIST_ID,
-        storeId: LOCATION_ID,
-      });
-
-      expect(isErrorResult(retry)).toBe(false);
-      expect(structuredContent(retry)["outcome"]).toBe("already_added");
-      expect(putCalls).toHaveLength(1);
-      expect(reads).toBe(1);
     });
 
     it("submits only once for concurrent calls with the same list", async () => {
@@ -551,8 +505,6 @@ describe("add_shopping_list_to_cart tool", () => {
       const journal = context.carts.operations;
       context.carts.operations = {
         begin: (key, fingerprint) => journal.begin(key, fingerprint),
-        reconcileLegacy: (key, attempt, fingerprint, legacyFingerprint) =>
-          journal.reconcileLegacy(key, attempt, fingerprint, legacyFingerprint),
         reject: (key, attempt) => journal.reject(key, attempt),
         complete: async () => {
           throw new Error("journal unavailable");
@@ -573,17 +525,13 @@ describe("add_shopping_list_to_cart tool", () => {
     });
 
     it("uses preferred location from storage when storeId is omitted", async () => {
-      const storage = makeStorage(
-        listFixture(),
-        {
-          locationId: LOCATION_ID,
-          locationName: "QFC Broadway",
-          address: "500 Broadway E",
-          chain: "QFC",
-          setAt: new Date().toISOString(),
-        },
-        [],
-      );
+      const storage = makeStorage(listFixture(), {
+        locationId: LOCATION_ID,
+        locationName: "QFC Broadway",
+        address: "500 Broadway E",
+        chain: "QFC",
+        setAt: new Date().toISOString(),
+      });
 
       const { context } = makeContext(storage);
       registerCartTools(context.server, context);
@@ -678,30 +626,19 @@ describe("add_shopping_list_to_cart tool", () => {
   });
 
   describe("retry short-circuit", () => {
-    it("returns a success-style message and skips the PUT when a snapshot already exists for this listId", async () => {
-      const existingSnapshot: CartSnapshotItem[] = [
-        {
-          upc: "0001111042578",
-          quantity: 2,
-          modality: "PICKUP",
-          productName: "Organic Whole Milk",
-        },
-      ];
-
-      const storage = makeStorage(listFixture(), null, [], existingSnapshot);
-      const { context, putCalls } = makeContext(storage);
+    it("returns a success-style message and skips the PUT when the list was already added", async () => {
+      const { context, putCalls } = makeContext(makeStorage(listFixture(), null));
       registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
-      const result = await handler({
-        listId: SHORT_LIST_ID,
-        storeId: LOCATION_ID,
-      });
+      const first = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      const result = await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
 
       expect(isErrorResult(result)).toBe(false);
-      expect(putCalls).toHaveLength(0);
+      expect(putCalls).toHaveLength(1);
       expect(textFromResult(result)).toContain("already added to your Kroger cart from list");
-      expect(structuredContent(result)["items"]).toEqual(existingSnapshot);
+      expect(structuredContent(result)["outcome"]).toBe("already_added");
+      expect(structuredContent(result)["items"]).toEqual(structuredContent(first)["items"]);
     });
   });
 
@@ -747,7 +684,7 @@ describe("add_shopping_list_to_cart tool", () => {
     it("appends the added items to the cart mirror on a successful listId add", async () => {
       const mirrorAppendCalls: unknown[][] = [];
 
-      const storage = makeStorage(listFixture(), null, [], null, mirrorAppendCalls);
+      const storage = makeStorage(listFixture(), null, mirrorAppendCalls);
 
       const { context } = makeContext(storage);
       registerCartTools(context.server, context);
@@ -782,8 +719,6 @@ describe("add_shopping_list_to_cart tool", () => {
           chain: "QFC",
           setAt: new Date().toISOString(),
         },
-        [],
-        null,
         mirrorAppendCalls,
       );
 
@@ -811,24 +746,16 @@ describe("add_shopping_list_to_cart tool", () => {
     it("does not append to the mirror when the retry short-circuit skips the PUT", async () => {
       const mirrorAppendCalls: unknown[][] = [];
 
-      const existingSnapshot: CartSnapshotItem[] = [
-        {
-          upc: "0001111042578",
-          quantity: 2,
-          modality: "PICKUP",
-          productName: "Organic Whole Milk",
-        },
-      ];
-
-      const storage = makeStorage(listFixture(), null, [], existingSnapshot, mirrorAppendCalls);
+      const storage = makeStorage(listFixture(), null, mirrorAppendCalls);
 
       const { context } = makeContext(storage);
       registerCartTools(context.server, context);
       const handler = getCapturedHandler("add_shopping_list_to_cart");
 
       await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
+      await handler({ listId: SHORT_LIST_ID, storeId: LOCATION_ID });
 
-      expect(mirrorAppendCalls).toHaveLength(0);
+      expect(mirrorAppendCalls).toHaveLength(1);
     });
   });
 
@@ -917,8 +844,6 @@ describe("view_cart tool", () => {
       listFixture(),
       null,
       [],
-      null,
-      [],
       [
         {
           upc: "0001111042578",
@@ -958,8 +883,6 @@ describe("view_cart tool", () => {
   it("falls back to the upc when productName is missing", async () => {
     const storage = makeStorage(
       listFixture(),
-      null,
-      [],
       null,
       [],
       [
@@ -1005,7 +928,7 @@ describe("view_cart tool", () => {
   it("reads the live cart when an explicit cartId is passed and prints cartId= and upc=", async () => {
     const cartIdSetCalls: string[][] = [];
 
-    const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
+    const storage = makeStorage(null, null, [], [], null, cartIdSetCalls);
 
     const { context, getCalls } = makeContext(storage);
     registerCartTools(context.server, context);
@@ -1026,7 +949,7 @@ describe("view_cart tool", () => {
   it("persists the cartId after a successful live read", async () => {
     const cartIdSetCalls: string[][] = [];
 
-    const storage = makeStorage(null, null, [], null, [], [], null, cartIdSetCalls);
+    const storage = makeStorage(null, null, [], [], null, cartIdSetCalls);
 
     const { context } = makeContext(storage);
     registerCartTools(context.server, context);
@@ -1098,7 +1021,7 @@ describe("view_cart tool", () => {
   });
 
   it("uses the stored cartId for a live read when no cartId is passed", async () => {
-    const storage = makeStorage(null, null, [], null, [], [], "stored-cart-id");
+    const storage = makeStorage(null, null, [], [], "stored-cart-id");
     const { context, getCalls } = makeContext(storage);
     registerCartTools(context.server, context);
 
@@ -1111,8 +1034,6 @@ describe("view_cart tool", () => {
   it("explains the assistant history limits when no cart id is known", async () => {
     const storage = makeStorage(
       null,
-      null,
-      [],
       null,
       [],
       [
@@ -1144,8 +1065,6 @@ describe("view_cart tool", () => {
       null,
       null,
       [],
-      null,
-      [],
       [
         {
           upc: "0001111042578",
@@ -1174,8 +1093,6 @@ describe("view_cart tool", () => {
   it("falls back to the mirror and names the failed cartId when the stored cartId's live read errors", async () => {
     const storage = makeStorage(
       null,
-      null,
-      [],
       null,
       [],
       [

@@ -2,6 +2,7 @@ import type { E2EConfig } from "e2e";
 import { web } from "@e2e-dev/web";
 
 export default {
+  tests: ["test/e2e/**/*.e2e.ts"],
   targets: [
     {
       name: "preview",

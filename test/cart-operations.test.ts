@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { cartOperationStore } from "@test/cart-operation-store.js";
-import { cartItemsFingerprint, claimCartOperation } from "@/cart-operations.js";
 
 describe("cart operation journal", () => {
   it("atomically claims one writer and persists completion across stub reads", async () => {
@@ -44,63 +43,52 @@ describe("cart operation journal", () => {
     expect(await journal.complete("list:one", first.attempt)).toBe(false);
   });
 
-  it("migrates a matching legacy receipt into the journal", async () => {
+  it("keeps every entry when cart adds append history concurrently", async () => {
     const journal = cartOperationStore();
+    const addedAt = new Date().toISOString();
 
-    const items = [{ upc: "0001111042578", quantity: 2, modality: "PICKUP" as const }];
-
-    const fingerprint = cartItemsFingerprint(items);
-
-    const claim = await claimCartOperation(journal, "list:legacy", fingerprint, async () => items);
-
-    expect(claim).toMatchObject({ status: "completed", fingerprint });
-    expect(await journal.begin("list:legacy", fingerprint)).toMatchObject({
-      status: "completed",
-    });
-  });
-
-  it("keeps a changed list in conflict with a migrated legacy receipt", async () => {
-    const journal = cartOperationStore();
-
-    const legacy = [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" as const }];
-
-    const changed = [{ upc: "0001111042578", quantity: 2, modality: "PICKUP" as const }];
-
-    expect(
-      await claimCartOperation(
-        journal,
-        "list:legacy-change",
-        cartItemsFingerprint(changed),
-        async () => legacy,
+    await Promise.all(
+      ["0001", "0002", "0003", "0004", "0005"].map((upc) =>
+        journal.appendHistory([{ upc, quantity: 1, modality: "PICKUP" }], addedAt),
       ),
-    ).toEqual({ status: "conflict" });
-    expect(await journal.begin("list:legacy-change", cartItemsFingerprint(legacy))).toMatchObject({
-      status: "completed",
-    });
+    );
+
+    expect((await journal.history()).map((entry) => entry.upc).toSorted()).toEqual([
+      "0001",
+      "0002",
+      "0003",
+      "0004",
+      "0005",
+    ]);
   });
 
-  it("does not read a corrupt legacy receipt after a known journal completion", async () => {
+  it("keeps the newest 100 history entries", async () => {
     const journal = cartOperationStore();
+    const addedAt = new Date().toISOString();
 
-    const items = [{ upc: "0001111042578", quantity: 1, modality: "PICKUP" as const }];
+    const items = Array.from({ length: 101 }, (_, index) => ({
+      upc: String(index).padStart(13, "0"),
+      quantity: 1,
+      modality: "PICKUP" as const,
+    }));
 
-    const fingerprint = cartItemsFingerprint(items);
-    const owner = await journal.begin("list:known", fingerprint);
+    const history = await journal.appendHistory(items, addedAt);
 
-    if (owner.status !== "started") {
-      throw new Error("Missing owner");
-    }
+    expect(history).toHaveLength(100);
+    expect(history[0]?.upc).toBe("0000000000001");
+    expect(history.at(-1)?.upc).toBe("0000000000100");
+  });
 
-    await journal.complete("list:known", owner.attempt);
+  it("drops history entries older than seven days", async () => {
+    const journal = cartOperationStore();
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
 
-    let reads = 0;
+    await journal.appendHistory([{ upc: "old", quantity: 1, modality: "PICKUP" }], eightDaysAgo);
+    await journal.appendHistory(
+      [{ upc: "new", quantity: 1, modality: "PICKUP" }],
+      new Date().toISOString(),
+    );
 
-    const claim = await claimCartOperation(journal, "list:known", fingerprint, async () => {
-      reads += 1;
-      throw new Error("corrupt legacy receipt");
-    });
-
-    expect(claim.status).toBe("completed");
-    expect(reads).toBe(0);
+    expect((await journal.history()).map((entry) => entry.upc)).toEqual(["new"]);
   });
 });

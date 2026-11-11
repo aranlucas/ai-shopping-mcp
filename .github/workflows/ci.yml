@@ -47,49 +47,8 @@ jobs:
       - name: Build Worker
         run: pnpm build:worker
 
-      - name: Prove baseline tool regressions
-        if: ${{ github.event_name == 'pull_request' }}
-        shell: bash
-        run: |
-          cp src/tools/inventory.ts /tmp/inventory-fixed.ts
-          cp src/tools/cart.ts /tmp/cart-fixed.ts
-          cp src/tools/shopping-list.ts /tmp/shopping-list-fixed.ts
-          trap 'cp /tmp/inventory-fixed.ts src/tools/inventory.ts; cp /tmp/cart-fixed.ts src/tools/cart.ts; cp /tmp/shopping-list-fixed.ts src/tools/shopping-list.ts' EXIT
-          git fetch origin main
-          git show 62539df:src/tools/inventory.ts > src/tools/inventory.ts
-          git show 62539df:src/tools/cart.ts > src/tools/cart.ts
-          git show 62539df:src/tools/shopping-list.ts > src/tools/shopping-list.ts
-          for title in 'applies every partial pantry removal' 'returns choices for duplicate exact' 'rejects fractional saved packages'; do
-            set +e
-            pnpm exec vitest run test/tools/list-views.test.ts test/tools/cart.test.ts -t "$title" > /tmp/baseline-current.log 2>&1
-            result=$?
-            set -e
-            cat /tmp/baseline-current.log
-            cat /tmp/baseline-current.log >> /tmp/tool-baseline.log
-            test "$result" -ne 0
-            grep -q 'AssertionError' /tmp/baseline-current.log
-          done
-
       - name: Install browser
         run: pnpm exec e2e-web install chromium --with-deps
-
-      - name: Prove baseline view regression
-        if: ${{ github.event_name == 'pull_request' }}
-        shell: bash
-        env:
-          E2E_TELEMETRY_DISABLED: "1"
-        run: |
-          cp views/app/views/shopping-list.tsx /tmp/shopping-view-fixed.tsx
-          trap 'cp /tmp/shopping-view-fixed.tsx views/app/views/shopping-list.tsx' EXIT
-          git show 62539df:views/app/views/shopping-list.tsx > views/app/views/shopping-list.tsx
-          set +e
-          pnpm exec e2e run --grep 'edits a saved list' > /tmp/view-baseline.log 2>&1
-          result=$?
-          set -e
-          cat /tmp/view-baseline.log
-          test "$result" -ne 0
-          grep -q 'ASSERTION_FAILED' /tmp/view-baseline.log
-          cp -r .e2e /tmp/e2e-baseline
 
       - name: View regression journeys
         run: pnpm exec e2e run
@@ -100,12 +59,9 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: reliability-evidence
+          name: view-journeys
           path: |
             .e2e/report.json
             .e2e/junit.xml
             .e2e/results
-            /tmp/tool-baseline.log
-            /tmp/view-baseline.log
-            /tmp/e2e-baseline
           retention-days: 7

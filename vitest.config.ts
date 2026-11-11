@@ -2,20 +2,22 @@ import { readFileSync } from "node:fs";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
+import { compatibilityDate, compatibilityFlags } from "./worker-runtime.ts";
+
 type TestOptions = Extract<Parameters<typeof cloudflareTest>[0], { miniflare?: object }>;
 
 type TestMiniflare = NonNullable<TestOptions["miniflare"]>;
 
 const miniflare: TestMiniflare = {
-  compatibilityDate: "2025-03-10",
-  compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public", "enable_ctx_exports"],
+  compatibilityDate,
+  compatibilityFlags,
   serviceBindings: { AUTH: { name: "auth-stub", entrypoint: "KrogerTokens" } },
   workers: [
     {
       name: "auth-stub",
       modules: true,
       script: readFileSync("test/auth-stub.mjs", "utf8"),
-      compatibilityDate: "2025-03-10",
+      compatibilityDate,
     },
   ],
   kvNamespaces: ["USER_DATA_KV"],

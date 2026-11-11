@@ -1,7 +1,7 @@
 import { exports } from "cloudflare:workers";
-import type { CartOperationStore } from "@/cart-operations.js";
+import type { CartJournal } from "@/cart-operations.js";
 
 /** Real isolated journal, including atomic storage semantics in tool tests. */
-export function cartOperationStore(): CartOperationStore {
+export function cartOperationStore(): CartJournal {
   return exports.CartOperations.getByName(crypto.randomUUID());
 }

@@ -1,3 +1,5 @@
+import * as z from "zod/v4";
+
 /** Narrowed cause type for error context — captures Error instances, strings, or structured data */
 // Error context intentionally retains opaque upstream objects and their identity; it is never trusted as domain data.
 export type ErrorCause = Error | string | Record<string, unknown> | undefined;
@@ -187,10 +189,50 @@ export function errorRecovery(
   }
 }
 
+const MAX_UPSTREAM_REASON_CHARS = 200;
+
+/** Provider reason fields: Kroger's `errors.reason`, then OAuth and generic shapes. */
+const upstreamReasonSchema = z.union([
+  z.object({ errors: z.object({ reason: z.string() }) }).transform((body) => body.errors.reason),
+  z.object({ error_description: z.string() }).transform((body) => body.error_description),
+  z.object({ reason: z.string() }).transform((body) => body.reason),
+  z.object({ message: z.string() }).transform((body) => body.message),
+]);
+
+/** The provider's human-readable reason; never the raw payload. */
+function upstreamReason(detail: ErrorCause): string | undefined {
+  if (typeof detail !== "object" || detail instanceof Error) {
+    return undefined;
+  }
+
+  const parsed = upstreamReasonSchema.safeParse(detail);
+  const reason = parsed.success ? parsed.data.trim().slice(0, MAX_UPSTREAM_REASON_CHARS) : "";
+
+  return reason.length > 0 ? reason : undefined;
+}
+
+/**
+ * Text shown to the model. Causes and raw upstream payloads stay server-side;
+ * only a client error's provider reason is shown because it tells the model
+ * what to correct.
+ */
 export function formatAppError(error: AppError): string {
-  if (error.type === "API_ERROR" && error.detail) {
-    return `${error.message}: ${JSON.stringify(error.detail)}`;
+  if (error.type === "API_ERROR" && error.status !== undefined && error.status < 500) {
+    const reason = error.detail === undefined ? undefined : upstreamReason(error.detail);
+
+    if (reason) {
+      return `${error.message}: ${reason}`;
+    }
   }
 
   return error.message;
+}
+
+/** Server-side diagnostics retained by an error, if any. */
+export function errorDiagnostics(error: AppError): ErrorCause {
+  if (error.type === "API_ERROR") {
+    return error.detail;
+  }
+
+  return "cause" in error ? error.cause : undefined;
 }

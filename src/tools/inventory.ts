@@ -25,7 +25,7 @@ import { classifyExpiry } from "../services/expiry.js";
 import type { WeeklyDealsLoader } from "../services/weekly-deals/service.js";
 import { getMealPlanningDeals } from "./meal-planning-deals.js";
 import { coercedBooleanSchema } from "./schemas.js";
-import { storeIdSchema } from "../domain/shopping-schemas.js";
+import { MAX_INVENTORY_BATCH, storeIdSchema } from "../domain/shopping-schemas.js";
 import {
   computeFrequentlyPurchasedItems,
   computeRestockSuggestions,
@@ -59,11 +59,13 @@ export const updateInventoryInputSchema = z
         add: z
           .array(pantryAddSchema)
           .min(1)
+          .max(MAX_INVENTORY_BATCH)
           .optional()
           .describe("Food bought or found; increases quantity"),
         remove: z
           .array(pantryRemoveSchema)
           .min(1)
+          .max(MAX_INVENTORY_BATCH)
           .optional()
           .describe(
             'Food used up or thrown out; decreases quantity ("used 6 eggs" is remove Eggs quantity 6)',
@@ -73,10 +75,11 @@ export const updateInventoryInputSchema = z
       .describe("Food on hand. Names match case-insensitively."),
     equipment: z
       .object({
-        add: z.array(equipmentAddSchema).min(1).optional(),
+        add: z.array(equipmentAddSchema).min(1).max(MAX_INVENTORY_BATCH).optional(),
         remove: z
           .array(z.string().trim().min(1).max(200))
           .min(1)
+          .max(MAX_INVENTORY_BATCH)
           .optional()
           .describe("Equipment names to remove"),
       })

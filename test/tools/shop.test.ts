@@ -225,7 +225,7 @@ describe("shop_for_items product options", () => {
     get.mockRejectedValueOnce(new Error("Search timed out"));
     const result = await call({ items: [{ name: "milk" }] });
     expect(result.isError).toBe(true);
-    expect(result.text).toContain('search products for "milk": Search timed out');
+    expect(result.text).toContain('search products for "milk". Retry shortly.');
     expect(result.text).not.toContain("No available");
   });
 

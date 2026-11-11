@@ -8,10 +8,11 @@ import type { AppError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 
 import { appResult } from "../app-results.js";
-import { cartItemsFingerprint, claimCartOperation } from "../cart-operations.js";
+import { cartItemsFingerprint } from "../cart-operations.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { PreferredLocationStore, ShoppingListStore } from "../utils/shopping-store.js";
-import type { CartSnapshotItem, CartStore } from "../utils/user-storage.js";
+import type { CartHistoryItem } from "../cart-operations.js";
+import type { CartStore } from "../utils/cart-store.js";
 
 import { mutationOutcomeUnknown, validationError } from "../errors.js";
 import { fromApiResponse, safeStorage } from "../utils/result.js";
@@ -28,7 +29,7 @@ type CartQuantity = { quantity: number };
 type CartResultPayload = {
   listId?: string;
   name: string;
-  items: CartSnapshotItem[];
+  items: CartHistoryItem[];
   needsUpc: Array<{ productName: string; quantity: number }>;
   outcome: CartOutcome;
   requestedCount: number;
@@ -112,10 +113,10 @@ export const addShoppingListToCartInputSchema = z
     message: "Provide listId (from create_shopping_list) or items (inline upc/quantity pairs).",
   });
 
-function toCartSnapshotItems(
+function toCartHistoryItems(
   lineItems: LineItem[],
   modality: "PICKUP" | "DELIVERY",
-): CartSnapshotItem[] {
+): CartHistoryItem[] {
   return lineItems.map((item) => ({
     upc: item.upc,
     quantity: item.quantity,
@@ -137,8 +138,8 @@ function cartResultPayload(payload: CartResultPayload) {
  * PUT → mirror-append logic lives in one place. On success, also appends to
  * the per-user cart mirror
  * (`carts.cartMirror`) that `view_cart` reads — best-effort, a mirror
- * write failure does not fail the tool call. List-backed writes also persist
- * their retry receipt here so every caller gets the same duplicate protection.
+ * write failure does not fail the tool call. Every caller claims the same
+ * journal operation, so duplicate protection does not depend on the path.
  */
 export async function addLineItemsToCart(
   carts: CartStore,
@@ -171,16 +172,8 @@ export async function addLineItemsToCart(
     ? `list:${options.receiptListId}`
     : `inline:${options.operationId ?? crypto.randomUUID()}`;
 
-  const receiptListId = options.receiptListId;
-
   const claim = await safeStorage(
-    () =>
-      claimCartOperation(
-        carts.operations,
-        operationKey,
-        cartItemsFingerprint(cartItems),
-        receiptListId ? () => carts.cartSnapshot.get(receiptListId) : undefined,
-      ),
+    () => carts.operations.begin(operationKey, cartItemsFingerprint(cartItems)),
     "claim cart operation",
   );
 
@@ -210,9 +203,9 @@ export async function addLineItemsToCart(
 
   const { attempt } = claim.value;
 
-  // A list with no cartable items still claims and reconciles the operation so
-  // a pre-journal receipt cannot be silently bypassed. There is no upstream
-  // mutation to make, so release the claim and let the tool report needs_match.
+  // A list with no cartable items still claims the operation so a completed or
+  // pending add for this list is reported first. There is no upstream mutation
+  // to make, so release the claim and let the tool report needs_match.
   if (lineItems.length === 0) {
     const released = await safeStorage(
       () => carts.operations.reject(operationKey, attempt),
@@ -277,19 +270,11 @@ export async function addLineItemsToCart(
     );
   }
 
-  const mirrorItems = toCartSnapshotItems(lineItems, modality);
+  const mirrorItems = toCartHistoryItems(lineItems, modality);
   await safeStorage(
     () => carts.cartMirror.append(mirrorItems, new Date().toISOString()),
     "append cart mirror",
   ).orTee((e) => console.warn("Cart mirror append failed (non-fatal):", e.message));
-
-  if (receiptListId) {
-    // The atomic journal is authoritative; keep legacy receipts for compatibility.
-    await safeStorage(
-      () => carts.cartSnapshot.set(receiptListId, mirrorItems),
-      "persist cart snapshot",
-    ).orTee((e) => console.warn("Legacy cart snapshot write failed (non-fatal):", e.message));
-  }
 
   return ok("added");
 }
@@ -328,7 +313,7 @@ async function handleInlineItemsCart(
       ...cartResultPayload({
         listId: undefined,
         name: "Inline items",
-        items: toCartSnapshotItems(items, modality),
+        items: toCartHistoryItems(items, modality),
         needsUpc: [],
         outcome: "already_added",
         requestedCount: items.length,
@@ -468,7 +453,7 @@ async function handleListIdCart(
     return toMcpError(addResult.error);
   }
 
-  const snapshot = toCartSnapshotItems(lineItems, modality);
+  const snapshot = toCartHistoryItems(lineItems, modality);
   const alreadyAdded = addResult.value === "already_added";
 
   const locationInfo = resolved.locationName
