@@ -149,6 +149,21 @@ describe("D1 shopping storage", () => {
     expect(await other.shoppingList.list()).toEqual([]);
   });
 
+  it("deletes only the owning shopper's list", async () => {
+    const user = shopper();
+    const other = shopper();
+    const keep = await user.shoppingList.create({ name: "Brunch", items: listItems(0, 1) });
+    const doomed = await user.shoppingList.create({ name: "Dinner", items: listItems(0, 2) });
+
+    expect(await other.shoppingList.delete(doomed.id)).toBeNull();
+    expect(await user.shoppingList.get(doomed.id)).not.toBeNull();
+
+    expect(await user.shoppingList.delete(doomed.id)).toEqual({ id: doomed.id, name: "Dinner" });
+    expect(await user.shoppingList.get(doomed.id)).toBeNull();
+    expect(await user.shoppingList.list()).toMatchObject([{ id: keep.id }]);
+    expect(await user.shoppingList.delete(doomed.id)).toBeNull();
+  });
+
   it("caps a stored list at 300 items", async () => {
     const user = shopper();
 

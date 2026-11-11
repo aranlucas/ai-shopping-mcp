@@ -47,6 +47,8 @@ export interface ShoppingListStore {
     patch: ShoppingListItemPatch,
   ): Promise<StoredShoppingListItem>;
   removeItem(listId: string, itemId: string): Promise<void>;
+  /** Deletes one list; returns what was deleted, or null when this shopper has no such list. */
+  delete(listId: string): Promise<{ id: string; name: string } | null>;
 }
 
 /** Durable completed-order history scoped to one verified Kroger shopper. */

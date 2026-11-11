@@ -416,6 +416,15 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
             result: undefined,
           };
         }),
+      delete: async (listId) => {
+        const deleted = await db
+          .delete(shoppingLists)
+          .where(and(eq(shoppingLists.id, listId), eq(shoppingLists.userId, userId)))
+          .returning({ id: shoppingLists.id, name: shoppingLists.name })
+          .get();
+
+        return deleted ?? null;
+      },
     },
     orderHistory: {
       getAll: () => getOrders(50),

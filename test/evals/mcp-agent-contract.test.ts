@@ -73,6 +73,7 @@ describe("MCP agent contract", () => {
       "add_shopping_list_to_cart",
       "create_meal_plan",
       "create_shopping_list",
+      "delete_shopping_list",
       "get_meal_plan",
       "get_shopping_list",
       "get_shopping_profile",
@@ -166,7 +167,7 @@ describe("MCP agent contract", () => {
       expect(toolByName(tools, name).config.annotations?.readOnlyHint, name).toBe(true);
     }
 
-    for (const name of ["update_inventory", "update_shopping_list"]) {
+    for (const name of ["delete_shopping_list", "update_inventory", "update_shopping_list"]) {
       expect(
         toolByName(tools, name).config.annotations?.destructiveHint,
         `${name} can remove items`,
@@ -193,6 +194,7 @@ describe("MCP agent contract", () => {
     const appBackedTools = [
       "add_shopping_list_to_cart",
       "create_shopping_list",
+      "delete_shopping_list",
       "get_shopping_list",
       "get_weekly_deals",
       "record_order",

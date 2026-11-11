@@ -33,6 +33,13 @@ function setup() {
   return fixture;
 }
 
+function setupWith(overrides: Partial<ReturnType<typeof makeStorage>["shoppingList"]>) {
+  const storage = makeStorage();
+  storage.shoppingList = { ...storage.shoppingList, ...overrides };
+  const fixture = makeContext(storage);
+  registerShoppingListTools(fixture.server, fixture);
+}
+
 async function createList(name: string, items: CreateShoppingListArgs["items"]) {
   const result = await getCapturedHandler("create_shopping_list")({
     name,
@@ -219,6 +226,73 @@ describe("app-backed shopping list tools", () => {
     expect(parseAppResult(removed)).toMatchObject({
       items: [{ productName: "Rice" }],
     });
+  });
+});
+
+describe("delete_shopping_list", () => {
+  beforeEach(() => {
+    resetToolTestHarness();
+  });
+
+  it("deletes the list and returns the lists that remain", async () => {
+    setup();
+    const keep = await createList("Brunch", [{ productName: "Eggs" }]);
+    const doomed = await createList("Dinner", [{ productName: "Rice" }]);
+
+    const result = await getCapturedHandler("delete_shopping_list")({ listId: doomed.listId });
+
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain(`Deleted shopping list "Dinner" (listId=${doomed.listId})`);
+    expect(result.text).toContain("1 list(s) remain");
+    expect(parseAppResult(result)).toMatchObject({
+      view: "shopping_lists",
+      lists: [{ id: keep.listId }],
+    });
+
+    const reopened = await getCapturedHandler("get_shopping_list")({ listId: doomed.listId });
+    expect(reopened.isError).toBe(true);
+  });
+
+  it("reports an unknown list as not found without deleting anything", async () => {
+    setup();
+    const keep = await createList("Brunch", [{ productName: "Eggs" }]);
+
+    const result = await getCapturedHandler("delete_shopping_list")({ listId: "list_missing" });
+
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("nothing was deleted");
+    expect(result.text).toContain("get_shopping_list");
+
+    const lists = await getCapturedHandler("get_shopping_list")({});
+    expect(parseAppResult(lists)).toMatchObject({ lists: [{ id: keep.listId }] });
+  });
+
+  it("returns an error result when storage fails", async () => {
+    setupWith({
+      delete: async () => {
+        throw new Error("D1 unavailable");
+      },
+    });
+
+    const result = await getCapturedHandler("delete_shopping_list")({ listId: "list_a" });
+
+    expect(result.isError).toBe(true);
+    expect(result.text).not.toContain("Deleted shopping list");
+  });
+
+  it("still confirms the committed delete when the lists cannot be reloaded", async () => {
+    setupWith({
+      delete: async (listId) => ({ id: listId, name: "Dinner" }),
+      list: async () => {
+        throw new Error("D1 unavailable");
+      },
+    });
+
+    const result = await getCapturedHandler("delete_shopping_list")({ listId: "list_a" });
+
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain('Deleted shopping list "Dinner" (listId=list_a)');
+    expect(parseAppResult(result)).toBeNull();
   });
 });
 

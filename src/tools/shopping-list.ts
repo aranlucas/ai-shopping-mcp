@@ -83,6 +83,10 @@ export const updateShoppingListInputSchema = z
     message: "Pass at least one of add, change, or remove.",
   });
 
+export const deleteShoppingListInputSchema = z.object({
+  listId: listIdSchema.describe("listId from get_shopping_list"),
+});
+
 export const getShoppingListInputSchema = z.object({
   listId: listIdSchema.optional(),
   name: z.string().trim().min(1).max(200).optional().describe("List name, instead of listId"),
@@ -492,6 +496,53 @@ export function registerShoppingListTools(
       }
 
       return withUpdatedList(listId, `Updated listId=${listId}:\n${summary.join("\n")}`);
+    },
+  );
+
+  registerAppTool(
+    server,
+    "delete_shopping_list",
+    {
+      title: "Delete Shopping List",
+      description:
+        "Permanently deletes one saved list. Only call when the shopper asks to delete that list. Does not change the Kroger cart; a prepared meal plan keeps its status and will not recreate the list. Returns the remaining lists.",
+      _meta: { ui: { resourceUri: APP_VIEW_URI } },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: deleteShoppingListInputSchema,
+    },
+    async ({ listId }) => {
+      const deleted = await safeStorage(() => shoppingList.delete(listId), "delete shopping list");
+
+      if (deleted.isErr()) {
+        return toMcpError(deleted.error);
+      }
+
+      if (!deleted.value) {
+        return toMcpError(
+          notFoundError(
+            `No list with listId=${listId}; nothing was deleted. Call get_shopping_list with no arguments to see your lists.`,
+          ),
+        );
+      }
+
+      const text = `Deleted shopping list "${deleted.value.name}" (listId=${deleted.value.id}).`;
+
+      // The delete already committed, so a failed re-read only drops the view.
+      const remaining = await safeStorage(() => shoppingList.list(), "read shopping lists");
+
+      if (remaining.isErr()) {
+        return textResult(text);
+      }
+
+      return shoppingListsViewResult(
+        remaining.value,
+        `${text} ${remaining.value.length} list(s) remain.`,
+      );
     },
   );
 

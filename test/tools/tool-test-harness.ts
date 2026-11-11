@@ -236,6 +236,17 @@ export function makeStorage(
         const list = requireList(listId);
         list.items = list.items.filter((item) => item.id !== itemId);
       },
+      delete: async (listId) => {
+        const index = createdLists.findIndex((list) => list.id === listId);
+
+        if (index < 0) {
+          return null;
+        }
+
+        const [deleted] = createdLists.splice(index, 1);
+
+        return { id: deleted.id, name: deleted.name };
+      },
     },
     operations: cartOperationStore(),
     cartMirror: {
