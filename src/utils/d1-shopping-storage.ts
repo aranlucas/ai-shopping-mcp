@@ -20,6 +20,7 @@ import {
   preferredStores,
   shoppingLists,
 } from "../db/schema.js";
+import { hasValidPackageCount, PACKAGE_COUNT_MESSAGE } from "../domain/shopping.js";
 import { MAX_LIST_ITEMS } from "../domain/shopping-schemas.js";
 import { AppErrorException, notFoundError, storageError, validationError } from "../errors.js";
 
@@ -428,6 +429,13 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
           }
 
           const updated = { ...items[index], ...patch };
+
+          if (
+            (patch.upc !== undefined || patch.quantity !== undefined) &&
+            !hasValidPackageCount(updated)
+          ) {
+            throw new AppErrorException(validationError(PACKAGE_COUNT_MESSAGE));
+          }
 
           return {
             items: items.map((item, position) => (position === index ? updated : item)),

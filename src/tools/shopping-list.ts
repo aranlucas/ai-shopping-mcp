@@ -6,6 +6,7 @@ import * as z from "zod/v4";
 import type { AppError } from "../errors.js";
 import type { ShoppingList, ShoppingListItem, ShoppingListSummary } from "../domain/shopping.js";
 
+import { hasValidPackageCount, PACKAGE_COUNT_MESSAGE } from "../domain/shopping.js";
 import { appResult } from "../app-results.js";
 import { notFoundError, validationError } from "../errors.js";
 import { MAX_CATALOG_REQUESTS } from "../services/kroger/catalog-workload.js";
@@ -34,10 +35,15 @@ export const shoppingListItemInputSchema = z
   .strictObject({
     upc: upcSchema.optional().describe("13-digit UPC from search_products"),
     productName: z.string().trim().min(1).max(200).optional(),
-    quantity: z.coerce.number().min(1).max(999).default(1).describe("Packages to buy, not units"),
+    quantity: z
+      .union([z.number(), z.string().trim().min(1)])
+      .pipe(z.coerce.number<string | number>().positive().max(999))
+      .default(1)
+      .describe("Whole packages for matched products"),
     notes: z.string().max(500).optional(),
     price: z.coerce.number().min(0).max(10_000).optional().describe("Unit price, if known"),
   })
+  .refine(hasValidPackageCount, { message: PACKAGE_COUNT_MESSAGE, path: ["quantity"] })
   .refine((item) => Boolean(item.upc ?? item.productName), {
     message: "Each item needs a UPC or a productName.",
   });

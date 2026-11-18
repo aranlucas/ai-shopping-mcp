@@ -128,6 +128,24 @@ describe("D1 shopping storage", () => {
     expect(await user.pantry.getAll()).toEqual([]);
   });
 
+  it("requires a whole quantity when matching an existing fractional ingredient", async () => {
+    const user = shopper();
+
+    const list = await user.shoppingList.create({
+      name: "Dinner",
+      items: [{ productName: "Milk", quantity: 0.5 }],
+    });
+
+    const item = list.items[0];
+    await expect(
+      user.shoppingList.updateItem(list.id, item.id, { upc: "0000000000123" }),
+    ).rejects.toThrow(/whole package count/);
+    expect((await user.shoppingList.get(list.id))?.items).toEqual([item]);
+    await expect(
+      user.shoppingList.updateItem(list.id, item.id, { upc: "0000000000123", quantity: 1 }),
+    ).resolves.toMatchObject({ id: item.id, quantity: 1 });
+  });
+
   it("edits lists and keeps list IDs inaccessible to another shopper", async () => {
     const user = shopper();
     const other = shopper();
