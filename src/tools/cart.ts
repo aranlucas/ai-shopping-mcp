@@ -8,7 +8,7 @@ import type { AppError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 
 import { appResult } from "../app-results.js";
-import { cartItemsFingerprint } from "../cart-operations.js";
+import { CART_HISTORY_WINDOW, cartItemsFingerprint } from "../cart-operations.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { PreferredLocationStore, ShoppingListStore } from "../utils/shopping-store.js";
 import type { CartHistoryItem } from "../cart-operations.js";
@@ -526,11 +526,14 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
     return toMcpError(mirrorResult.error);
   }
 
-  const parts: string[] = note ? [note] : [];
+  const parts = [
+    note,
+    `Assistant history covers up to ${CART_HISTORY_WINDOW.maxItems} entries from the past ${CART_HISTORY_WINDOW.days} days.`,
+  ].filter(Boolean);
 
   if (mirrorResult.value.length === 0) {
     parts.push(
-      "No items added to your cart through this assistant yet. Use shop_for_items to find product options, then pass chosen UPCs to add_shopping_list_to_cart.",
+      "No recent assistant additions. Use shop_for_items to find product options, then pass chosen UPCs to add_shopping_list_to_cart.",
     );
   } else {
     const lines = mirrorResult.value.map(
@@ -545,6 +548,7 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
 
   const payload: AppResultPayloads["view_cart"] = {
     source: "assistant",
+    historyWindow: CART_HISTORY_WINDOW,
     items: mirrorResult.value.map((item) => ({
       upc: item.upc,
       productName: item.productName,

@@ -870,6 +870,7 @@ describe("view_cart tool", () => {
     expect(parseAppResult(result)).toMatchObject({
       view: "view_cart",
       source: "assistant",
+      historyWindow: { maxItems: 100, days: 7 },
       items: [
         {
           upc: "0001111042578",

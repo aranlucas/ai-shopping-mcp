@@ -229,6 +229,7 @@ export const appPayloadSchemas = {
   add_shopping_list_to_cart: cartResultSchema,
   view_cart: z.object({
     source: z.enum(["live", "assistant"]),
+    historyWindow: z.object({ maxItems: z.number(), days: z.number() }).optional(),
     cartId: z.string().optional(),
     items: z.array(cartViewItemSchema),
     note: z.string().optional(),

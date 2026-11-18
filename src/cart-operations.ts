@@ -35,8 +35,8 @@ export interface CartJournal extends CartOperationStore {
 
 const HISTORY_KEY = "history";
 const CART_ID_KEY = "cart-id";
-const HISTORY_MAX_ITEMS = 100;
-const HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const CART_HISTORY_WINDOW = { maxItems: 100, days: 7 } as const;
+const HISTORY_MAX_AGE_MS = CART_HISTORY_WINDOW.days * 24 * 60 * 60 * 1000;
 
 export function cartItemsFingerprint(items: readonly CartReceiptItem[]) {
   return JSON.stringify(
@@ -117,7 +117,7 @@ export class CartOperations extends DurableObject<Env> implements CartJournal {
       const merged = [
         ...recentHistory(existing, Date.parse(addedAt)),
         ...items.map((item) => ({ ...item, addedAt })),
-      ].slice(-HISTORY_MAX_ITEMS);
+      ].slice(-CART_HISTORY_WINDOW.maxItems);
 
       await txn.put(HISTORY_KEY, merged);
 
