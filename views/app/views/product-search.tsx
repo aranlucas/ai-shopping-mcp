@@ -1,36 +1,18 @@
-import {
-  type ShoppingAppClient,
-  type ProductData,
-  type ProductSearchResultsContent,
-} from "../../shared/types.js";
+import type { ShoppingAppClient, ProductSearchResultsContent } from "../../shared/types.js";
 import type { McpUiHostContext } from "@modelcontextprotocol/ext-apps/react";
 
+import { CircleAlertIcon, SearchIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
 import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "../../shared/ui/carousel";
-
-import {
-  Badge,
   DisplayModeToggle,
   ProductCard,
   type SaveProductToList,
   SectionHeader,
 } from "../../shared/components.js";
 import { EmptyState } from "../../shared/status.js";
+import { Alert, AlertDescription, AlertTitle } from "../../shared/ui/alert";
 import { saveProductToList } from "../tool-calls.js";
-
-type ProductResultsProps = {
-  app: ShoppingAppClient | null;
-  products: ProductData[];
-  onAddToList: SaveProductToList;
-  canCallTools: boolean;
-};
 
 type ProductSearchViewProps = {
   data: ProductSearchResultsContent;
@@ -39,50 +21,7 @@ type ProductSearchViewProps = {
   hostContext?: McpUiHostContext;
 };
 
-const CAROUSEL_OPTS = { align: "start" } as const;
-
-const EMPTY_SEARCH_ICON = (
-  <svg
-    aria-hidden="true"
-    className="size-5"
-    fill="none"
-    viewBox="0 0 24 24"
-    strokeWidth={1.5}
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-    />
-  </svg>
-);
-
-function ProductCarousel({ app, products, onAddToList, canCallTools }: ProductResultsProps) {
-  return (
-    <Carousel opts={CAROUSEL_OPTS} aria-label="Products">
-      <CarouselContent className="-ms-2">
-        {products.map((product) => (
-          <CarouselItem key={product.upc} className="basis-68 ps-2">
-            <ProductCard
-              app={app}
-              product={product}
-              onAddToList={onAddToList}
-              canCallTools={canCallTools}
-            />
-          </CarouselItem>
-        ))}
-      </CarouselContent>
-      {products.length > 1 && (
-        <div className="mbs-3 flex items-center justify-end gap-2">
-          <span className="me-auto text-xs text-gray-500">Swipe or use the arrows to compare</span>
-          <CarouselPrevious size="icon-lg" className="static translate-y-0" />
-          <CarouselNext size="icon-lg" className="static translate-y-0" />
-        </div>
-      )}
-    </Carousel>
-  );
-}
+const EMPTY_SEARCH_ICON = <SearchIcon aria-hidden="true" className="size-5" />;
 
 export function ProductSearchView({
   data,
@@ -97,33 +36,25 @@ export function ProductSearchView({
     [app],
   );
 
-  const hasResults = results.some((r) => !r.failed && r.products.length > 0);
-
-  const headerBadge = useMemo(
-    () => <Badge variant="secondary">{totalProducts} items</Badge>,
-    [totalProducts],
-  );
-
   const headerTrailing = useMemo(
     () => <DisplayModeToggle app={app} hostContext={hostContext} />,
     [app, hostContext],
   );
 
-  const headerSubtitle = useMemo(
-    () => `${results.length} search term${results.length !== 1 ? "s" : ""}`,
-    [results.length],
-  );
+  const hasResults = results.some((result) => !result.failed && result.products.length > 0);
+  const hasFailures = results.some((result) => result.failed);
+  const productCount = `${totalProducts} ${totalProducts === 1 ? "product" : "products"}`;
+  const termCount = `${results.length} search ${results.length === 1 ? "term" : "terms"}`;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-5 sm:px-6">
+    <div className="@container mx-auto max-w-4xl p-4 sm:px-6">
       <SectionHeader
         title="Product Search"
-        badge={headerBadge}
-        subtitle={headerSubtitle}
+        subtitle={`${productCount} · ${termCount}`}
         trailing={headerTrailing}
       />
 
-      {!hasResults && !results.some((result) => result.failed) && (
+      {!hasResults && !hasFailures && (
         <EmptyState
           icon={EMPTY_SEARCH_ICON}
           message="No products found"
@@ -131,64 +62,53 @@ export function ProductSearchView({
         />
       )}
 
-      {results.map((result) => {
-        if (result.failed) {
-          return (
-            <div
-              key={result.requestId ?? result.term}
-              role="alert"
-              className="mbe-4 flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
-            >
-              <svg
-                aria-hidden="true"
-                className="size-3.5 shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
-                />
-              </svg>
-              {result.error ?? (
-                <>Could not search for &ldquo;{result.term}&rdquo;. Ask your assistant to retry.</>
-              )}
-            </div>
-          );
-        }
+      <div className="divide-y divide-border border-bs border-border">
+        {results.map((result) => {
+          const key = result.requestId ?? result.term;
+          const count = result.products.length;
 
-        if (result.products.length === 0) {
-          return (
-            <div key={result.requestId ?? result.term} className="mbe-5">
-              <div className="mbe-1.5 flex items-center gap-2">
-                <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                  {result.term}
-                </span>
-                <span className="text-xs text-gray-300">·</span>
-                <span className="text-xs text-gray-400">No results</span>
+          if (result.failed) {
+            return (
+              <div key={key} className="py-3">
+                <Alert variant="destructive">
+                  <CircleAlertIcon aria-hidden="true" />
+                  <AlertTitle>Could not search for &ldquo;{result.term}&rdquo;</AlertTitle>
+                  <AlertDescription>
+                    {result.error ?? "Ask your assistant to retry."}
+                  </AlertDescription>
+                </Alert>
               </div>
-            </div>
-          );
-        }
+            );
+          }
 
-        return (
-          <section key={result.requestId ?? result.term} className="mbe-7 last:mbe-0">
-            <div className="mbe-3 flex flex-wrap items-baseline gap-2">
-              <h2 className="text-sm font-semibold text-gray-900">{result.term}</h2>
-              <span className="text-xs text-gray-500">{result.products.length} items</span>
-            </div>
-            <ProductCarousel
-              app={app}
-              products={result.products}
-              onAddToList={handleAddToList}
-              canCallTools={canCallTools}
-            />
-          </section>
-        );
-      })}
+          return (
+            <section key={key} className="py-3">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <h2 className="min-w-0 text-sm font-semibold wrap-anywhere text-foreground">
+                  {result.term}
+                </h2>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {count === 0 ? "No matches" : `${count} ${count === 1 ? "match" : "matches"}`}
+                </span>
+              </div>
+              {count > 0 && (
+                <ul className="mbs-2.5 grid gap-3 @xl:grid-cols-2">
+                  {result.products.map((product) => (
+                    <li key={product.upc} className="min-w-0 only:col-span-full">
+                      <ProductCard
+                        app={app}
+                        product={product}
+                        onAddToList={handleAddToList}
+                        canCallTools={canCallTools}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

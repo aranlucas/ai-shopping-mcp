@@ -27,8 +27,8 @@ function toImageUrl(product: Product): string | undefined {
     const sizes = image.sizes?.filter((size) => size.url) ?? [];
 
     const url =
-      sizes.find((size) => size.size === "thumbnail")?.url ??
       sizes.find((size) => size.size === "small")?.url ??
+      sizes.find((size) => size.size === "thumbnail")?.url ??
       sizes[0]?.url;
 
     return { default: image.default, perspective: image.perspective, url };
