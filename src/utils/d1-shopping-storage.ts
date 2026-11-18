@@ -7,9 +7,7 @@ import type {
   OrderRecord,
   PantryItem,
   ShoppingList,
-  ShoppingListItem,
   ShoppingListItemPatch,
-  StoredShoppingListItem,
 } from "../domain/shopping.js";
 import type { InventoryChanges, ShoppingStore } from "./shopping-store.js";
 
@@ -20,27 +18,14 @@ import {
   preferredStores,
   shoppingLists,
 } from "../db/schema.js";
-import { hasValidPackageCount, PACKAGE_COUNT_MESSAGE } from "../domain/shopping.js";
-import { MAX_LIST_ITEMS } from "../domain/shopping-schemas.js";
-import { AppErrorException, notFoundError, storageError, validationError } from "../errors.js";
+import { applyListEdit, newListItems, type ListEdit } from "../domain/list-edit.js";
+
+import { AppErrorException, notFoundError, storageError } from "../errors.js";
 
 type NonEmptyBatch = [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]];
 
-type ListMutation<T> = {
-  items: StoredShoppingListItem[];
-  result: T;
-};
-
 function nameKey(name: string): string {
   return name.trim().toLowerCase();
-}
-
-export function newListItems(items: ShoppingListItem[]): StoredShoppingListItem[] {
-  return items.map((item) => ({
-    ...item,
-    id: `item_${crypto.randomUUID().replaceAll("-", "")}`,
-    checked: false,
-  }));
 }
 
 function toPantryItems(rows: (typeof pantryItems.$inferSelect)[]) {
@@ -196,10 +181,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
       .where(and(eq(shoppingLists.id, listId), eq(shoppingLists.userId, userId)))
       .get();
 
-  const mutateList = async <T>(
-    listId: string,
-    mutate: (items: StoredShoppingListItem[]) => ListMutation<T>,
-  ): Promise<T> => {
+  const editList = async (listId: string, edit: ListEdit) => {
     for (let attempt = 0; attempt < 5; attempt++) {
       // Each retry must read the version written by the preceding attempt.
       // eslint-disable-next-line no-await-in-loop
@@ -209,13 +191,13 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
         throw new AppErrorException(notFoundError(`No shopping list ${listId}.`));
       }
 
-      const changed = mutate(row.items);
+      const changed = applyListEdit(listFromRow(row), edit);
 
       // eslint-disable-next-line no-await-in-loop
       const updated = await db
         .update(shoppingLists)
         .set({
-          items: changed.items,
+          items: changed.list.items,
           updatedAt: new Date().toISOString(),
           version: sql`${shoppingLists.version} + 1`,
         })
@@ -229,7 +211,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
         .run();
 
       if (updated.meta.changes === 1) {
-        return changed.result;
+        return changed;
       }
     }
 
@@ -406,53 +388,13 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
           .orderBy(desc(shoppingLists.updatedAt))
           .all();
       },
-      addItems: (listId, items) =>
-        mutateList(listId, (current) => {
-          if (current.length + items.length > MAX_LIST_ITEMS) {
-            throw new AppErrorException(
-              validationError(
-                `A list holds at most ${MAX_LIST_ITEMS} items; it has ${current.length}. Remove items or create a new list.`,
-              ),
-            );
-          }
-
-          const added = newListItems(items);
-
-          return { items: [...current, ...added], result: added };
-        }),
-      updateItem: (listId, itemId, patch: ShoppingListItemPatch) =>
-        mutateList(listId, (items) => {
-          const index = items.findIndex((item) => item.id === itemId);
-
-          if (index < 0) {
-            throw new AppErrorException(notFoundError(`No list item ${itemId}.`));
-          }
-
-          const updated = { ...items[index], ...patch };
-
-          if (
-            (patch.upc !== undefined || patch.quantity !== undefined) &&
-            !hasValidPackageCount(updated)
-          ) {
-            throw new AppErrorException(validationError(PACKAGE_COUNT_MESSAGE));
-          }
-
-          return {
-            items: items.map((item, position) => (position === index ? updated : item)),
-            result: updated,
-          };
-        }),
-      removeItem: (listId, itemId) =>
-        mutateList(listId, (items) => {
-          if (!items.some((item) => item.id === itemId)) {
-            throw new AppErrorException(notFoundError(`No list item ${itemId}.`));
-          }
-
-          return {
-            items: items.filter((item) => item.id !== itemId),
-            result: undefined,
-          };
-        }),
+      edit: editList,
+      addItems: async (listId, add) => (await editList(listId, { add })).added,
+      updateItem: async (listId, itemId, patch: ShoppingListItemPatch) =>
+        (await editList(listId, { change: [{ itemId, ...patch }] })).changed[0],
+      removeItem: async (listId, itemId) => {
+        await editList(listId, { remove: [itemId] });
+      },
       delete: async (listId) => {
         const deleted = await db
           .delete(shoppingLists)

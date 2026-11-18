@@ -1,15 +1,15 @@
-import { ok } from "neverthrow";
+import { err } from "neverthrow";
+import { storageError } from "@/errors.js";
+import { env } from "cloudflare:test";
+import { createD1ShoppingStore } from "@/utils/d1-shopping-storage.js";
+import { ensureShoppingSchema } from "@test/d1-schema.js";
 /**
  * Covers the human-editable list surface: reading lists and their item ids,
  * and update_shopping_list's add / change / remove batch.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  ShoppingListItem,
-  StoredShoppingListItem,
-  ShoppingListItemPatch,
-} from "@/domain/shopping.js";
+import type { ShoppingListItem, StoredShoppingListItem } from "@/domain/shopping.js";
 import type { ShoppingStore } from "@/utils/shopping-store.js";
 
 import { registerShoppingListTools as registerShoppingListToolsImpl } from "@/tools/shopping-list.js";
@@ -18,6 +18,7 @@ import {
   getCapturedTool,
   makeContext,
   makeStorage,
+  makeProductService,
   resetToolTestHarness,
 } from "@test/tools/tool-test-harness.js";
 
@@ -34,14 +35,21 @@ function makeListStorage(overrides: Partial<ListStore>) {
   return storage;
 }
 
-/** A stored list containing the given items, for `get` stubs. */
-function listWith(...items: StoredShoppingListItem[]) {
-  return async () => ({
-    id: "list-a",
-    name: "Weekly",
-    items,
-    createdAt: "2026-08-01T00:00:00Z",
-  });
+beforeAll(ensureShoppingSchema);
+
+async function setupEdit(items: ShoppingListItem[] = []) {
+  const storage = makeStorage();
+  storage.shoppingList = createD1ShoppingStore(env.SHOPPING_DB, crypto.randomUUID()).shoppingList;
+  const list = await storage.shoppingList.create({ name: "Weekly", items });
+  const fixture = makeContext(storage, makeProductService({ "0001111042578": "Whole Milk" }));
+  registerShoppingListTools(fixture);
+
+  return {
+    list,
+    fixture,
+    update: getCapturedHandler("update_shopping_list"),
+    read: () => storage.shoppingList.get(list.id),
+  };
 }
 
 function storedItem(overrides: Partial<StoredShoppingListItem> = {}): StoredShoppingListItem {
@@ -136,61 +144,26 @@ describe("shopping list editing tools", () => {
   });
 
   it("appends an item that has a name but no UPC", async () => {
-    const addItems = vi.fn<
-      (listId: string, items: ShoppingListItem[]) => Promise<StoredShoppingListItem[]>
-    >(async (_listId, items) =>
-      items.map((item, index) => ({
-        ...item,
-        checked: false,
-        id: `item-${index + 1}`,
-      })),
-    );
+    const { list, update, read } = await setupEdit();
 
-    const fixture = makeContext(makeListStorage({ addItems }));
-    registerShoppingListTools(fixture);
-
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
+    const result = await update({
+      listId: list.id,
       add: [{ productName: "Chili Onion Crunch", notes: "Sample Catalog" }],
     });
 
     expect(result.isError).toBe(false);
-    expect(addItems).toHaveBeenCalledWith("list-a", [
-      {
-        productName: "Chili Onion Crunch",
-        quantity: 1,
-        notes: "Sample Catalog",
-      },
+    const saved = await read();
+    expect(saved?.items).toMatchObject([
+      { productName: "Chili Onion Crunch", quantity: 1, notes: "Sample Catalog" },
     ]);
-    expect(result.text).toContain("itemId=item-1");
+    expect(result.text).toContain(`itemId=${String(saved?.items[0].id)}`);
   });
 
   it("looks a name up from the UPC when only a UPC is given", async () => {
-    const addItems = vi.fn<
-      (listId: string, items: ShoppingListItem[]) => Promise<StoredShoppingListItem[]>
-    >(async (_listId, items) => items.map((item) => ({ ...item, checked: false, id: "item-1" })));
-
-    const ctx = makeContext(makeListStorage({ addItems }));
-    ctx.productService = {
-      getProduct: () => {
-        throw new Error("productService not used in this test");
-      },
-      enrichProductNames: async (upcs: string[]) => ok(upcs.map(() => "Whole Milk")),
-      resolveProducts: async () => ok({ results: [], exactUpcs: new Set<string>() }),
-    };
-    registerShoppingListTools(ctx);
-
-    await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      add: [{ upc: "0001111042578", quantity: 2 }],
-    });
-
-    expect(addItems).toHaveBeenCalledWith("list-a", [
-      {
-        upc: "0001111042578",
-        productName: "Whole Milk",
-        quantity: 2,
-      },
+    const { list, update, read } = await setupEdit();
+    await update({ listId: list.id, add: [{ upc: "0001111042578", quantity: 2 }] });
+    expect((await read())?.items).toMatchObject([
+      { upc: "0001111042578", productName: "Whole Milk", quantity: 2 },
     ]);
   });
 
@@ -199,7 +172,7 @@ describe("shopping list editing tools", () => {
     registerShoppingListTools(fixture);
     const enrich = vi.spyOn(fixture.productService, "enrichProductNames");
     const create = vi.spyOn(fixture.shoppingList, "create");
-    const add = vi.spyOn(fixture.shoppingList, "addItems");
+    const add = vi.spyOn(fixture.shoppingList, "edit");
 
     const items = Array.from({ length: 41 }, (_, index) => ({
       upc: String(index),
@@ -267,201 +240,104 @@ describe("shopping list editing tools", () => {
     expect(inputSchema.safeParse({ listId: "list-a" }).success).toBe(false);
   });
 
-  it("edits only the fields it is given", async () => {
-    const updateItem = vi.fn<
-      (
-        listId: string,
-        itemId: string,
-        patch: ShoppingListItemPatch,
-      ) => Promise<StoredShoppingListItem>
-    >(async () => storedItem({ quantity: 3 }));
+  it("commits removals by name or zero, patches only supplied fields, and returns added IDs", async () => {
+    const { list, update, read } = await setupEdit([
+      { productName: "Milk", quantity: 1, notes: "Whole" },
+      { productName: "Bread", quantity: 1 },
+      { productName: "Cheddar", quantity: 1 },
+      { productName: "Butter", quantity: 1 },
+    ]);
 
-    const fixture = makeContext(makeListStorage({ updateItem }));
-    registerShoppingListTools(fixture);
+    const [milk, bread, , butter] = list.items;
 
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      change: [{ itemId: "item-1", quantity: 3 }],
+    const result = await update({
+      listId: list.id,
+      remove: ["cheddar"],
+      change: [
+        { itemId: milk.id, quantity: 2 },
+        { itemId: bread.id, checked: true },
+        { itemId: butter.id, quantity: 0 },
+      ],
+      add: [{ productName: "Eggs" }],
     });
 
     expect(result.isError).toBe(false);
-    expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", {
-      quantity: 3,
-    });
-  });
-
-  it("checks an item off without deleting it", async () => {
-    const updateItem = vi.fn<
-      (
-        listId: string,
-        itemId: string,
-        patch: ShoppingListItemPatch,
-      ) => Promise<StoredShoppingListItem>
-    >(async () => storedItem({ checked: true }));
-
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
-
-    const fixture = makeContext(makeListStorage({ updateItem, removeItem }));
-    registerShoppingListTools(fixture);
-
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      change: [{ itemId: "item-1", checked: true }],
-    });
-
-    expect(updateItem).toHaveBeenCalledWith("list-a", "item-1", {
-      checked: true,
-    });
-    expect(removeItem).not.toHaveBeenCalled();
+    const saved = await read();
+    expect(saved?.items).toMatchObject([
+      { ...milk, quantity: 2 },
+      { ...bread, checked: true },
+      { productName: "Eggs", checked: false },
+    ]);
+    expect(result.text).toContain(`Removed itemId=${butter.id}`);
     expect(result.text).toContain("checked off");
+    expect(result.text).toContain(`Added itemId=${String(saved?.items[2].id)}`);
   });
 
-  it("deletes removed items without also patching them", async () => {
-    const updateItem = vi.fn<
-      (
-        listId: string,
-        itemId: string,
-        patch: ShoppingListItemPatch,
-      ) => Promise<StoredShoppingListItem>
-    >(async () => storedItem());
+  it("retains concurrent additions to the same saved list", async () => {
+    const { list, update, read } = await setupEdit();
 
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
-
-    const fixture = makeContext(
-      makeListStorage({ updateItem, removeItem, get: listWith(storedItem()) }),
+    const results = await Promise.all(
+      ["Peas", "Carrots"].map((productName) => update({ listId: list.id, add: [{ productName }] })),
     );
 
-    registerShoppingListTools(fixture);
+    expect(results.map((result) => result.isError)).toEqual([false, false]);
+    expect((await read())?.items.map((item) => item.productName).toSorted()).toEqual([
+      "Carrots",
+      "Peas",
+    ]);
+  });
 
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      remove: ["item-1"],
+  it("accepts a fractional ingredient and rejects fractional packages before adding rows", async () => {
+    const { list, update, read } = await setupEdit();
+    await update({ listId: list.id, add: [{ productName: "Flour", quantity: 0.5 }] });
+    await expect(update({ listId: list.id, add: [{ upc: "123", quantity: 1.5 }] })).rejects.toThrow(
+      /whole package count/,
+    );
+    expect((await read())?.items).toMatchObject([{ productName: "Flour", quantity: 0.5 }]);
+  });
+
+  it("preserves every item when a later change is invalid", async () => {
+    const { list, update, read } = await setupEdit([
+      { productName: "Milk", quantity: 1 },
+      { productName: "Bread", quantity: 1 },
+    ]);
+
+    const result = await update({
+      listId: list.id,
+      remove: ["Bread"],
+      change: [
+        { itemId: list.items[0].id, quantity: 2 },
+        { itemId: "missing", checked: true },
+      ],
     });
 
-    expect(removeItem).toHaveBeenCalledWith("list-a", "item-1");
-    expect(updateItem).not.toHaveBeenCalled();
-    expect(result.text).toContain("Removed itemId=item-1");
+    expect(result.isError).toBe(true);
+    expect((await read())?.items).toEqual(list.items);
+  });
+
+  it("preserves the list when a replacement UPC lookup fails", async () => {
+    const { list, update, fixture, read } = await setupEdit([{ productName: "Milk", quantity: 1 }]);
+    vi.spyOn(fixture.productService, "enrichProductNames").mockResolvedValue(
+      err(storageError("Catalog unavailable")),
+    );
+    const result = await update({ listId: list.id, remove: ["Milk"], add: [{ upc: "123" }] });
+    expect(result.isError).toBe(true);
+    expect((await read())?.items).toEqual(list.items);
   });
 
   it("asks for a field rather than silently doing nothing", async () => {
-    const fixture = makeContext(makeListStorage({}));
-    registerShoppingListTools(fixture);
-
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      change: [{ itemId: "item-1" }],
-    });
-
+    const { list, update } = await setupEdit([{ productName: "Milk", quantity: 1 }]);
+    const result = await update({ listId: list.id, change: [{ itemId: list.items[0].id }] });
     expect(result.isError).toBe(true);
     expect(result.text).toContain("needs productName, quantity");
   });
 
-  it("applies a whole edit in one call: remove, change, then add", async () => {
-    const calls: string[] = [];
-
-    const storage = makeListStorage({
-      get: listWith(storedItem({ id: "cheese", productName: "Cheddar" })),
-      removeItem: async (_listId, itemId) => {
-        calls.push(`remove ${itemId}`);
-      },
-      updateItem: async (_listId, itemId, patch) => {
-        calls.push(`change ${itemId}`);
-
-        return storedItem({ id: itemId, ...patch });
-      },
-      addItems: async (_listId, items) => {
-        calls.push(`add ${items.length}`);
-
-        return items.map((item) => ({ ...item, checked: false, id: "new-1" }));
-      },
-    });
-
-    const fixture = makeContext(storage);
-    registerShoppingListTools(fixture);
-
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      add: [{ productName: "Eggs" }],
-      change: [
-        { itemId: "milk", quantity: 2 },
-        { itemId: "bread", checked: true },
-      ],
-      remove: ["cheese"],
-    });
-
-    expect(result.isError).toBe(false);
-    expect(calls).toEqual(["remove cheese", "change milk", "change bread", "add 1"]);
-    expect(result.text).toContain("Removed itemId=cheese");
-    expect(result.text).toContain("checked off");
-    expect(result.text).toContain("Added itemId=new-1");
-  });
-
-  it("reports edits already applied when a later one fails", async () => {
-    const storage = makeListStorage({
-      get: listWith(storedItem({ id: "cheese", productName: "Cheddar" })),
-      removeItem: async () => {},
-      updateItem: async () => {
-        throw new Error("row locked");
-      },
-    });
-
-    const fixture = makeContext(storage);
-    registerShoppingListTools(fixture);
-
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      change: [{ itemId: "milk", quantity: 2 }],
-      remove: ["cheese"],
-    });
-
-    expect(result.isError).toBe(true);
-    expect(result.text).toContain("Already applied");
-    expect(result.text).toContain("Removed itemId=cheese");
-  });
-
-  it("removes by item name or quantity 0, as models often send", async () => {
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
-
-    const fixture = makeContext(
-      makeListStorage({
-        removeItem,
-        get: listWith(
-          storedItem({ id: "item-c", productName: "Kroger Cheddar Block" }),
-          storedItem({ id: "item-m", productName: "Milk" }),
-        ),
-      }),
-    );
-
-    registerShoppingListTools(fixture);
-
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      remove: ["kroger cheddar block"],
-      change: [{ itemId: "item-m", quantity: 0 }],
-    });
-
-    expect(result.isError).toBe(false);
-    expect(removeItem.mock.calls).toEqual([
-      ["list-a", "item-c"],
-      ["list-a", "item-m"],
-    ]);
-  });
-
   it("changes nothing when a removal names an unknown item", async () => {
-    const removeItem = vi.fn<(listId: string, itemId: string) => Promise<void>>(async () => {});
-
-    const fixture = makeContext(makeListStorage({ removeItem, get: listWith(storedItem()) }));
-
-    registerShoppingListTools(fixture);
-
-    const result = await getCapturedHandler("update_shopping_list")({
-      listId: "list-a",
-      remove: ["item-1", "Caviar"],
-    });
-
+    const { list, update, read } = await setupEdit([{ productName: "Milk", quantity: 1 }]);
+    const result = await update({ listId: list.id, remove: ["Milk", "Caviar"] });
     expect(result.isError).toBe(true);
     expect(result.text).toContain('No item "Caviar"');
-    expect(result.text).toContain("itemId=item-1 Milk");
-    expect(removeItem).not.toHaveBeenCalled();
+    expect(result.text).toContain(`itemId=${list.items[0].id} Milk`);
+    expect((await read())?.items).toEqual(list.items);
   });
 });

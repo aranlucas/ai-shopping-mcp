@@ -304,6 +304,7 @@ describe("storage-backed tools", () => {
     let savedList: Awaited<ReturnType<typeof storage.shoppingList.create>> | null = null;
 
     storage.shoppingList = {
+      ...storage.shoppingList,
       create: async ({ name, items }) => {
         savedList = {
           id: gatewayListId,

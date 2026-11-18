@@ -1,3 +1,4 @@
+import { applyListEdit } from "@/domain/list-edit.js";
 import { cartClient, productClient, locationClient } from "@test/kroger-clients.js";
 
 import { getQfcWeeklyDeals } from "@/services/qfc-weekly-deals.js";
@@ -218,6 +219,13 @@ export function makeStorage(
           itemCount: list.items.length,
           updatedAt: list.createdAt,
         })),
+      edit: async (id, edit) => {
+        const list = requireList(id);
+        const result = applyListEdit(list, edit);
+        list.items = result.list.items;
+
+        return result;
+      },
       addItems: async (id, items) => {
         const stored = items.map((item) => ({
           ...item,

@@ -1,3 +1,4 @@
+import type { applyListEdit, ListEdit } from "../domain/list-edit.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -37,6 +38,7 @@ export interface EquipmentStore {
 
 /** Durable named shopping-list data scoped to one verified Kroger shopper. */
 export interface ShoppingListStore {
+  edit(listId: string, edit: ListEdit): Promise<ReturnType<typeof applyListEdit>>;
   create(input: { name: string; items: ShoppingListItem[] }): Promise<ShoppingList>;
   get(listId: string): Promise<ShoppingList | null>;
   list(): Promise<ShoppingListSummary[]>;
