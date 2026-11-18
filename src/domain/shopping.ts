@@ -43,6 +43,15 @@ export interface ShoppingListItem {
   price?: number;
 }
 
+export const PACKAGE_COUNT_MESSAGE =
+  "Use a whole package count from 1 to 999 for an item with a UPC.";
+
+export function hasValidPackageCount(item: Pick<ShoppingListItem, "upc" | "quantity">): boolean {
+  return (
+    !item.upc || (Number.isInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 999)
+  );
+}
+
 /** A record returned by storage always has durable identity and checked state. */
 export interface StoredShoppingListItem extends ShoppingListItem {
   id: string;
@@ -59,6 +68,7 @@ export interface ShoppingListSummary {
 
 /** Fields an edit may change. Omitted fields are left as they are. */
 export interface ShoppingListItemPatch {
+  upc?: string;
   productName?: string;
   quantity?: number;
   notes?: string;

@@ -7,11 +7,9 @@ import type {
   OrderRecord,
   PantryItem,
   ShoppingList,
-  ShoppingListItem,
   ShoppingListItemPatch,
-  StoredShoppingListItem,
 } from "../domain/shopping.js";
-import type { ShoppingStore } from "./shopping-store.js";
+import type { InventoryChanges, ShoppingStore } from "./shopping-store.js";
 
 import {
   equipmentItems,
@@ -20,26 +18,14 @@ import {
   preferredStores,
   shoppingLists,
 } from "../db/schema.js";
-import { MAX_LIST_ITEMS } from "../domain/shopping-schemas.js";
-import { AppErrorException, notFoundError, storageError, validationError } from "../errors.js";
+import { applyListEdit, newListItems, type ListEdit } from "../domain/list-edit.js";
+
+import { AppErrorException, notFoundError, storageError } from "../errors.js";
 
 type NonEmptyBatch = [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]];
 
-type ListMutation<T> = {
-  items: StoredShoppingListItem[];
-  result: T;
-};
-
 function nameKey(name: string): string {
   return name.trim().toLowerCase();
-}
-
-export function newListItems(items: ShoppingListItem[]): StoredShoppingListItem[] {
-  return items.map((item) => ({
-    ...item,
-    id: `item_${crypto.randomUUID().replaceAll("-", "")}`,
-    checked: false,
-  }));
 }
 
 function toPantryItems(rows: (typeof pantryItems.$inferSelect)[]) {
@@ -119,6 +105,75 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
     return results.at(-1) as TRow[];
   };
 
+  const addPantry = (entries: InventoryChanges["addPantry"]) =>
+    entries.map((item) =>
+      db
+        .insert(pantryItems)
+        .values({
+          userId,
+          nameKey: nameKey(item.productName),
+          productName: item.productName,
+          quantity: item.quantity,
+          addedAt: item.addedAt,
+          expiresAt: item.expiresAt ?? null,
+        })
+        .onConflictDoUpdate({
+          target: [pantryItems.userId, pantryItems.nameKey],
+          set: {
+            quantity: sql`${pantryItems.quantity} + excluded.quantity`,
+            addedAt: item.addedAt,
+            expiresAt: sql`COALESCE(excluded.expires_at, ${pantryItems.expiresAt})`,
+          },
+        }),
+    );
+
+  const consumePantry = (items: InventoryChanges["consumePantry"]) =>
+    items.flatMap((item): BatchItem<"sqlite">[] => {
+      const owned = and(
+        eq(pantryItems.userId, userId),
+        eq(pantryItems.nameKey, nameKey(item.name)),
+      );
+
+      if (item.quantity === undefined) {
+        return [db.delete(pantryItems).where(owned)];
+      }
+
+      return [
+        db
+          .update(pantryItems)
+          .set({ quantity: sql`${pantryItems.quantity} - ${item.quantity}` })
+          .where(owned),
+        db.delete(pantryItems).where(and(owned, sql`${pantryItems.quantity} <= 0`)),
+      ];
+    });
+
+  const addEquipment = (entries: InventoryChanges["addEquipment"]) =>
+    entries.map((item) =>
+      db
+        .insert(equipmentItems)
+        .values({
+          userId,
+          nameKey: nameKey(item.equipmentName),
+          equipmentName: item.equipmentName,
+          category: item.category ?? null,
+          addedAt: item.addedAt,
+        })
+        .onConflictDoUpdate({
+          target: [equipmentItems.userId, equipmentItems.nameKey],
+          set: {
+            category: sql`COALESCE(excluded.category, ${equipmentItems.category})`,
+            addedAt: item.addedAt,
+          },
+        }),
+    );
+
+  const removeEquipment = (entries: InventoryChanges["removeEquipment"]) =>
+    entries.map((name) =>
+      db
+        .delete(equipmentItems)
+        .where(and(eq(equipmentItems.userId, userId), eq(equipmentItems.nameKey, nameKey(name)))),
+    );
+
   const getListRow = (listId: string) =>
     db
       .select()
@@ -126,10 +181,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
       .where(and(eq(shoppingLists.id, listId), eq(shoppingLists.userId, userId)))
       .get();
 
-  const mutateList = async <T>(
-    listId: string,
-    mutate: (items: StoredShoppingListItem[]) => ListMutation<T>,
-  ): Promise<T> => {
+  const editList = async (listId: string, edit: ListEdit) => {
     for (let attempt = 0; attempt < 5; attempt++) {
       // Each retry must read the version written by the preceding attempt.
       // eslint-disable-next-line no-await-in-loop
@@ -139,13 +191,13 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
         throw new AppErrorException(notFoundError(`No shopping list ${listId}.`));
       }
 
-      const changed = mutate(row.items);
+      const changed = applyListEdit(listFromRow(row), edit);
 
       // eslint-disable-next-line no-await-in-loop
       const updated = await db
         .update(shoppingLists)
         .set({
-          items: changed.items,
+          items: changed.list.items,
           updatedAt: new Date().toISOString(),
           version: sql`${shoppingLists.version} + 1`,
         })
@@ -159,7 +211,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
         .run();
 
       if (updated.meta.changes === 1) {
-        return changed.result;
+        return changed;
       }
     }
 
@@ -181,6 +233,25 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
   };
 
   return {
+    updateInventory: async (changes) => {
+      const writes = [
+        ...addPantry(changes.addPantry),
+        ...consumePantry(changes.consumePantry),
+        ...addEquipment(changes.addEquipment),
+        ...removeEquipment(changes.removeEquipment),
+      ];
+
+      // D1 commits the changes and reads both snapshots in one transaction.
+      const statements = [...writes, selectPantry(), selectEquipment()];
+      // SAFETY: both snapshot queries are always present.
+      const results = await db.batch(statements as NonEmptyBatch);
+
+      // SAFETY: the last two statements select pantry and equipment rows in that order.
+      return {
+        pantry: toPantryItems(results.at(-2) as (typeof pantryItems.$inferSelect)[]),
+        equipment: toEquipmentItems(results.at(-1) as (typeof equipmentItems.$inferSelect)[]),
+      };
+    },
     preferredLocation: {
       get: async () => {
         const row = await db
@@ -231,26 +302,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
       add: async (items) => {
         const entries = Array.isArray(items) ? items : [items];
 
-        const writes = entries.map((item) =>
-          db
-            .insert(pantryItems)
-            .values({
-              userId,
-              nameKey: nameKey(item.productName),
-              productName: item.productName,
-              quantity: item.quantity,
-              addedAt: item.addedAt,
-              expiresAt: item.expiresAt ?? null,
-            })
-            .onConflictDoUpdate({
-              target: [pantryItems.userId, pantryItems.nameKey],
-              set: {
-                quantity: sql`${pantryItems.quantity} + excluded.quantity`,
-                addedAt: item.addedAt,
-                expiresAt: sql`COALESCE(excluded.expires_at, ${pantryItems.expiresAt})`,
-              },
-            }),
-        );
+        const writes = addPantry(entries);
 
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
@@ -264,24 +316,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
       consume: async (items) => {
-        const writes = items.flatMap((item): BatchItem<"sqlite">[] => {
-          const owned = and(
-            eq(pantryItems.userId, userId),
-            eq(pantryItems.nameKey, nameKey(item.name)),
-          );
-
-          if (item.quantity === undefined) {
-            return [db.delete(pantryItems).where(owned)];
-          }
-
-          return [
-            db
-              .update(pantryItems)
-              .set({ quantity: sql`${pantryItems.quantity} - ${item.quantity}` })
-              .where(owned),
-            db.delete(pantryItems).where(and(owned, sql`${pantryItems.quantity} <= 0`)),
-          ];
-        });
+        const writes = consumePantry(items);
 
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
@@ -303,35 +338,12 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
       add: async (items) => {
         const entries = Array.isArray(items) ? items : [items];
 
-        const writes = entries.map((item) =>
-          db
-            .insert(equipmentItems)
-            .values({
-              userId,
-              nameKey: nameKey(item.equipmentName),
-              equipmentName: item.equipmentName,
-              category: item.category ?? null,
-              addedAt: item.addedAt,
-            })
-            .onConflictDoUpdate({
-              target: [equipmentItems.userId, equipmentItems.nameKey],
-              set: {
-                category: sql`COALESCE(excluded.category, ${equipmentItems.category})`,
-                addedAt: item.addedAt,
-              },
-            }),
-        );
+        const writes = addEquipment(entries);
 
         return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
       remove: async (names) => {
-        const writes = (Array.isArray(names) ? names : [names]).map((name) =>
-          db
-            .delete(equipmentItems)
-            .where(
-              and(eq(equipmentItems.userId, userId), eq(equipmentItems.nameKey, nameKey(name))),
-            ),
-        );
+        const writes = removeEquipment(Array.isArray(names) ? names : [names]);
 
         return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
@@ -376,46 +388,13 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
           .orderBy(desc(shoppingLists.updatedAt))
           .all();
       },
-      addItems: (listId, items) =>
-        mutateList(listId, (current) => {
-          if (current.length + items.length > MAX_LIST_ITEMS) {
-            throw new AppErrorException(
-              validationError(
-                `A list holds at most ${MAX_LIST_ITEMS} items; it has ${current.length}. Remove items or create a new list.`,
-              ),
-            );
-          }
-
-          const added = newListItems(items);
-
-          return { items: [...current, ...added], result: added };
-        }),
-      updateItem: (listId, itemId, patch: ShoppingListItemPatch) =>
-        mutateList(listId, (items) => {
-          const index = items.findIndex((item) => item.id === itemId);
-
-          if (index < 0) {
-            throw new AppErrorException(notFoundError(`No list item ${itemId}.`));
-          }
-
-          const updated = { ...items[index], ...patch };
-
-          return {
-            items: items.map((item, position) => (position === index ? updated : item)),
-            result: updated,
-          };
-        }),
-      removeItem: (listId, itemId) =>
-        mutateList(listId, (items) => {
-          if (!items.some((item) => item.id === itemId)) {
-            throw new AppErrorException(notFoundError(`No list item ${itemId}.`));
-          }
-
-          return {
-            items: items.filter((item) => item.id !== itemId),
-            result: undefined,
-          };
-        }),
+      edit: editList,
+      addItems: async (listId, add) => (await editList(listId, { add })).added,
+      updateItem: async (listId, itemId, patch: ShoppingListItemPatch) =>
+        (await editList(listId, { change: [{ itemId, ...patch }] })).changed[0],
+      removeItem: async (listId, itemId) => {
+        await editList(listId, { remove: [itemId] });
+      },
       delete: async (listId) => {
         const deleted = await db
           .delete(shoppingLists)

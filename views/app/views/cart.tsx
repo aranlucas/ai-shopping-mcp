@@ -67,7 +67,7 @@ export function CartView({ data, app }: CartViewProps) {
       {items.length === 0 ? (
         <EmptyState
           icon={EMPTY_CART_ICON}
-          message="Nothing in the cart yet"
+          message={source === "live" ? "Your cart is empty" : "No recent assistant additions"}
           description="Ask your assistant to shop for items or add a list to your cart."
         />
       ) : (

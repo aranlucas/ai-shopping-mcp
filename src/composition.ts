@@ -34,7 +34,7 @@ export const SERVER_INFO = {
 
 export const SERVER_OPTIONS = {
   instructions:
-    "Kroger grocery assistant. Use the preferred store; if missing, ask for ZIP, search_stores then set_preferred_store. Use shop_for_items for options, search_products to refine, then selected UPCs and packages in create_shopping_list. Existing lists: get_shopping_list then update_shopping_list; delete_shopping_list only when asked. Before meal planning, get_shopping_profile. Save chosen meals with create_meal_plan; resume with get_meal_plan. Use update_meal_plan for servings and reviewed ingredient decisions: confirm pantry units and explicit package counts. After approval, prepare_meal_plan saves one list. Only add_shopping_list_to_cart after separate approval; meal-plan lists retain reviewed store/modality. Other adds default PICKUP. Report unresolved items. update_inventory changes pantry; view_cart shows assistant add history; record_order logs completed purchases.",
+    "Use the preferred store. If unset, ask for a ZIP code, then use search_stores and set_preferred_store. Find options with shop_for_items and refine with search_products. Save selected UPCs and package counts. Report unmatched items. Delete lists only on request. Before meal planning, read get_shopping_profile. Confirm pantry units and purchase quantities. Get approval to prepare_meal_plan and separate approval for add_shopping_list_to_cart. Keep the reviewed store and modality.",
 } as const;
 
 /**
@@ -90,6 +90,7 @@ export function buildServer(
     shoppingList,
   });
   registerInventoryTools(server, {
+    updateInventory: shoppingStore.updateInventory,
     loadWeeklyDeals,
     equipment,
     orderHistory,

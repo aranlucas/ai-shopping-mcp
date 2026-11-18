@@ -1,3 +1,4 @@
+import type { applyListEdit, ListEdit } from "../domain/list-edit.js";
 import type {
   EquipmentItem,
   OrderRecord,
@@ -37,6 +38,7 @@ export interface EquipmentStore {
 
 /** Durable named shopping-list data scoped to one verified Kroger shopper. */
 export interface ShoppingListStore {
+  edit(listId: string, edit: ListEdit): Promise<ReturnType<typeof applyListEdit>>;
   create(input: { name: string; items: ShoppingListItem[] }): Promise<ShoppingList>;
   get(listId: string): Promise<ShoppingList | null>;
   list(): Promise<ShoppingListSummary[]>;
@@ -59,8 +61,19 @@ export interface OrderHistoryStore {
   getRecent(limit?: number): Promise<OrderRecord[]>;
 }
 
+export interface InventoryChanges {
+  addPantry: PantryItem[];
+  consumePantry: Array<{ name: string; quantity?: number }>;
+  addEquipment: EquipmentItem[];
+  removeEquipment: string[];
+}
+
 /** Durable shopping data scoped to one verified Kroger shopper. */
 export interface ShoppingStore {
+  updateInventory(
+    this: void,
+    changes: InventoryChanges,
+  ): Promise<{ pantry: PantryItem[]; equipment: EquipmentItem[] }>;
   preferredLocation: PreferredLocationStore;
   pantry: PantryStore;
   equipment: EquipmentStore;

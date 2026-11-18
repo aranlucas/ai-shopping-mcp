@@ -3,7 +3,7 @@ import { type AppError, notFoundError } from "../errors.js";
 import type { PreferredLocationStore } from "./shopping-store.js";
 import { safeStorage } from "./result.js";
 
-type ResolvedLocation = { locationId: string; locationName?: string };
+export type ResolvedLocation = { locationId: string; locationName?: string };
 
 export function safeResolveLocationId(
   preferredLocation: PreferredLocationStore,

@@ -1,13 +1,14 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
-import { type Result, type ResultAsync, errAsync, okAsync } from "neverthrow";
+import { ok, type Result, type ResultAsync } from "neverthrow";
 import * as z from "zod/v4";
 
 import type { AppError } from "../errors.js";
 import type { ShoppingList, ShoppingListItem, ShoppingListSummary } from "../domain/shopping.js";
 
+import { hasValidPackageCount, PACKAGE_COUNT_MESSAGE } from "../domain/shopping.js";
 import { appResult } from "../app-results.js";
-import { notFoundError, validationError } from "../errors.js";
+import { notFoundError } from "../errors.js";
 import { MAX_CATALOG_REQUESTS } from "../services/kroger/catalog-workload.js";
 import type { ProductService } from "../services/kroger/product-service.js";
 import type { WeeklyDealsCache } from "../services/weekly-deals/cache.js";
@@ -34,10 +35,15 @@ export const shoppingListItemInputSchema = z
   .strictObject({
     upc: upcSchema.optional().describe("13-digit UPC from search_products"),
     productName: z.string().trim().min(1).max(200).optional(),
-    quantity: z.coerce.number().min(1).max(999).default(1).describe("Packages to buy, not units"),
+    quantity: z
+      .union([z.number(), z.string().trim().min(1)])
+      .pipe(z.coerce.number<string | number>().positive().max(999))
+      .default(1)
+      .describe("Whole packages for matched products"),
     notes: z.string().max(500).optional(),
     price: z.coerce.number().min(0).max(10_000).optional().describe("Unit price, if known"),
   })
+  .refine(hasValidPackageCount, { message: PACKAGE_COUNT_MESSAGE, path: ["quantity"] })
   .refine((item) => Boolean(item.upc ?? item.productName), {
     message: "Each item needs a UPC or a productName.",
   });
@@ -54,10 +60,15 @@ export const createShoppingListInputSchema = z.object({
     .max(MAX_CATALOG_REQUESTS),
 });
 
-const shoppingListItemChangeSchema = z.object({
+const shoppingListItemChangeSchema = z.strictObject({
+  upc: upcSchema.optional().describe("Selected UPC from shop_for_items or search_products"),
   itemId: itemIdSchema,
   productName: z.string().trim().min(1).max(200).optional(),
-  quantity: z.coerce.number().min(0).max(999).optional().describe("0 removes the item"),
+  quantity: z
+    .union([z.number(), z.string().trim().min(1)])
+    .pipe(z.coerce.number<string | number>().min(0).max(999))
+    .optional()
+    .describe("0 removes the item"),
   notes: z.string().max(500).optional(),
   checked: z.boolean().optional(),
 });
@@ -210,18 +221,6 @@ export function matchListsByName(
   }
 
   return lists.filter((list) => list.name.toLowerCase().includes(query));
-}
-
-/** Earlier edits in a batch already committed; say which before the error. */
-function partialFailure(error: AppError, applied: string[]) {
-  if (applied.length === 0) {
-    return toMcpError(error);
-  }
-
-  return toMcpError({
-    ...error,
-    message: `${error.message} Already applied before the failure:\n${applied.join("\n")}`,
-  });
 }
 
 export function registerShoppingListTools(
@@ -399,7 +398,7 @@ export function registerShoppingListTools(
     {
       title: "Update Shopping List",
       description:
-        "Edits a saved list in one call: add items, change existing items (quantity, productName, notes, checked:true to check off), and remove items. itemIds come from get_shopping_list.",
+        "Edits a saved list in one call: add items, change existing items (upc to match a product, quantity, productName, notes, checked:true to check off), and remove items. itemIds come from get_shopping_list.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -411,91 +410,46 @@ export function registerShoppingListTools(
       inputSchema: updateShoppingListInputSchema,
     },
     async ({ listId, add, change: requestedChanges, remove: requested }) => {
-      const summary: string[] = [];
+      const additions = add ? await toStoredItems(productService, add) : ok([]);
 
-      const change = (requestedChanges ?? []).filter((entry) => entry.quantity !== 0);
+      if (additions.isErr()) {
+        return toMcpError(additions.error);
+      }
 
-      const removeRefs = [
-        ...(requested ?? []),
-        ...(requestedChanges ?? [])
-          .filter((entry) => entry.quantity === 0)
-          .map((entry) => entry.itemId),
+      const changes = requestedChanges ?? [];
+
+      const result = await safeStorage(
+        () =>
+          shoppingList.edit(listId, {
+            add: additions.value,
+            change: changes.filter((entry) => entry.quantity !== 0),
+            remove: [
+              ...(requested ?? []),
+              ...changes.filter((entry) => entry.quantity === 0).map((entry) => entry.itemId),
+            ],
+          }),
+        "edit shopping list",
+      );
+
+      if (result.isErr()) {
+        return toMcpError(result.error);
+      }
+
+      const { list, added, changed, removed } = result.value;
+
+      const summary = [
+        ...removed.map((id) => `Removed itemId=${id}.`),
+        ...changed.map(
+          (item) =>
+            `Updated itemId=${item.id}: ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
+        ),
+        ...added.map((item) => `Added itemId=${item.id}: ${formatShoppingListItemCompact(item)}`),
       ];
 
-      const resolved = await resolveItemIds(listId, removeRefs);
-
-      if (resolved.isErr()) {
-        return toMcpError(resolved.error);
-      }
-
-      for (const itemId of resolved.value) {
-        // oxlint-disable-next-line eslint/no-await-in-loop -- edits apply in order so a failure reports what already changed
-        const removed = await safeStorage(
-          () => shoppingList.removeItem(listId, itemId),
-          "remove shopping list item",
-        );
-
-        if (removed.isErr()) {
-          return partialFailure(removed.error, summary);
-        }
-
-        summary.push(`Removed itemId=${itemId}.`);
-      }
-
-      for (const { itemId, ...fields } of change) {
-        const patch = Object.fromEntries(
-          Object.entries(fields).filter(([, value]) => value !== undefined),
-        );
-
-        if (Object.keys(patch).length === 0) {
-          return partialFailure(
-            validationError(
-              `change for itemId=${itemId} needs productName, quantity, notes, or checked.`,
-            ),
-            summary,
-          );
-        }
-
-        // oxlint-disable-next-line eslint/no-await-in-loop -- edits apply in order so a failure reports what already changed
-        const updated = await safeStorage(
-          () => shoppingList.updateItem(listId, itemId, patch),
-          "update shopping list item",
-        );
-
-        if (updated.isErr()) {
-          return partialFailure(updated.error, summary);
-        }
-
-        const item = updated.value;
-        summary.push(
-          `Updated itemId=${itemId}: ${formatShoppingListItemCompact(item)}${item.checked ? " | checked off" : ""}`,
-        );
-      }
-
-      if (add) {
-        const storedItems = await toStoredItems(productService, add);
-
-        if (storedItems.isErr()) {
-          return partialFailure(storedItems.error, summary);
-        }
-
-        const added = await safeStorage(
-          () => shoppingList.addItems(listId, storedItems.value),
-          "add shopping list items",
-        );
-
-        if (added.isErr()) {
-          return partialFailure(added.error, summary);
-        }
-
-        summary.push(
-          ...added.value.map(
-            (item) => `Added itemId=${item.id} ${formatShoppingListItemCompact(item)}`,
-          ),
-        );
-      }
-
-      return withUpdatedList(listId, `Updated listId=${listId}:\n${summary.join("\n")}`);
+      return shoppingListViewResult(
+        list,
+        `Updated listId=${listId}:\n${summary.join("\n")}\n\nList now has ${formatListSize(list.items)}.`,
+      );
     },
   );
 
@@ -545,65 +499,4 @@ export function registerShoppingListTools(
       );
     },
   );
-
-  /**
-   * Maps remove references to itemIds. Models sometimes pass an item's name
-   * instead of its id; an exact (case-insensitive) name match is accepted.
-   */
-  function resolveItemIds(listId: string, refs: string[]): ResultAsync<string[], AppError> {
-    if (refs.length === 0) {
-      return okAsync([]);
-    }
-
-    return safeStorage(() => shoppingList.get(listId), "read shopping list").andThen((list) => {
-      if (!list) {
-        return errAsync(
-          notFoundError(`No list with listId=${listId}. Call get_shopping_list with no listId.`),
-        );
-      }
-
-      const ids: string[] = [];
-
-      for (const ref of refs) {
-        const key = ref.trim().toLowerCase();
-
-        const item =
-          list.items.find((candidate) => candidate.id === ref) ??
-          list.items.find((candidate) => candidate.productName.toLowerCase() === key);
-
-        if (!item) {
-          return errAsync(
-            notFoundError(
-              `No item "${ref}" on listId=${listId}. Nothing was changed. Items: ${list.items
-                .map((candidate) => `itemId=${candidate.id} ${candidate.productName}`)
-                .join("; ")}`,
-            ),
-          );
-        }
-
-        ids.push(item.id);
-      }
-
-      return okAsync(ids);
-    });
-  }
-
-  /**
-   * Re-reads the list after a successful edit so the app can show it. The
-   * edit already committed, so a failed read only drops the view.
-   */
-  async function withUpdatedList(listId: string, text: string) {
-    const listResult = await safeStorage(
-      () => shoppingList.get(listId),
-      "read updated shopping list",
-    );
-
-    const list = listResult.isOk() ? listResult.value : null;
-
-    if (!list) {
-      return textResult(text);
-    }
-
-    return shoppingListViewResult(list, `${text}\n\nList now has ${formatListSize(list.items)}.`);
-  }
 }

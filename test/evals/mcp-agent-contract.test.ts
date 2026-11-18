@@ -161,11 +161,12 @@ describe("MCP agent contract", () => {
       "get_weekly_deals",
       "search_products",
       "search_stores",
-      "view_cart",
       "shop_for_items",
     ]) {
       expect(toolByName(tools, name).config.annotations?.readOnlyHint, name).toBe(true);
     }
+
+    expect(toolByName(tools, "view_cart").config.annotations?.readOnlyHint).toBe(false);
 
     for (const name of ["delete_shopping_list", "update_inventory", "update_shopping_list"]) {
       expect(

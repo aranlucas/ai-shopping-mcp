@@ -1,3 +1,4 @@
+import { applyListEdit } from "@/domain/list-edit.js";
 import { cartClient, productClient, locationClient } from "@test/kroger-clients.js";
 
 import { getQfcWeeklyDeals } from "@/services/qfc-weekly-deals.js";
@@ -102,6 +103,14 @@ export function makeStorage(
   };
 
   const storage: ShoppingStore & CartStore = {
+    updateInventory: async ({ addPantry, consumePantry, addEquipment, removeEquipment }) => {
+      await storage.pantry.add(addPantry);
+      await storage.pantry.consume(consumePantry);
+      await storage.equipment.add(addEquipment);
+      await storage.equipment.remove(removeEquipment);
+
+      return { pantry: pantryItems, equipment: equipmentItems };
+    },
     pantry: {
       add: async (items: PantryItem | PantryItem[]) => {
         pantryItems.push(...(Array.isArray(items) ? items : [items]));
@@ -210,6 +219,13 @@ export function makeStorage(
           itemCount: list.items.length,
           updatedAt: list.createdAt,
         })),
+      edit: async (id, edit) => {
+        const list = requireList(id);
+        const result = applyListEdit(list, edit);
+        list.items = result.list.items;
+
+        return result;
+      },
       addItems: async (id, items) => {
         const stored = items.map((item) => ({
           ...item,
@@ -297,6 +313,7 @@ export type ToolTestContext = {
   locationClient: KrogerClients["locationClient"];
   productService: Pick<ProductService, "getProduct" | "enrichProductNames" | "resolveProducts">;
   storage: ShoppingStore & CartStore;
+  updateInventory: ShoppingStore["updateInventory"];
   carts: CartStore;
   preferredLocation: PreferredLocationStore;
   pantry: PantryStore;
@@ -323,6 +340,9 @@ export function makeContext(storage = makeStorage(), productService = makeProduc
     }),
     productService,
     storage,
+    get updateInventory() {
+      return context.storage.updateInventory;
+    },
     get carts() {
       return context.storage;
     },

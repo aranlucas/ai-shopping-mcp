@@ -243,7 +243,7 @@ describe("storage-backed tools", () => {
     expect(sc["listId"]).toBe(listId);
     expect(sc["name"]).toBe("Dinner");
     expect(sc.items.length).toBe(1);
-    expect(result.text).toContain("at QFC Broadway");
+    expect(result.text).toContain("Shopping store: QFC Broadway");
   });
 
   it("short-circuits a retried add_shopping_list_to_cart call instead of re-adding", async () => {
@@ -304,6 +304,7 @@ describe("storage-backed tools", () => {
     let savedList: Awaited<ReturnType<typeof storage.shoppingList.create>> | null = null;
 
     storage.shoppingList = {
+      ...storage.shoppingList,
       create: async ({ name, items }) => {
         savedList = {
           id: gatewayListId,
@@ -433,6 +434,6 @@ describe("storage-backed tools", () => {
       upc: "0001111042578",
       quantity: 3,
     });
-    expect(result.text).toContain("at QFC Broadway");
+    expect(result.text).toContain("Shopping store: QFC Broadway");
   });
 });

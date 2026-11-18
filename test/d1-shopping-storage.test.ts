@@ -92,6 +92,23 @@ describe("D1 shopping storage", () => {
     expect(await user.pantry.remove(["milk", "bread"])).toEqual([]);
   });
 
+  it("rolls back pantry changes when equipment fails in the same inventory update", async () => {
+    const user = shopper();
+    const milk = { productName: "Milk", quantity: 2, addedAt: "2026-11-17" };
+    await user.pantry.add(milk);
+    await expect(
+      user.updateInventory({
+        addPantry: [milk],
+        consumePantry: [],
+        removeEquipment: [],
+        // @ts-expect-error Force a D1 NOT NULL violation after the pantry write.
+        addEquipment: [{ equipmentName: "Pan", addedAt: null }],
+      }),
+    ).rejects.toThrow(/NOT NULL/i);
+    expect(await user.pantry.getAll()).toEqual([milk]);
+    expect(await user.equipment.getAll()).toEqual([]);
+  });
+
   it("writes nothing when any statement in a pantry batch fails", async () => {
     const user = shopper();
     const now = "2026-09-23T00:00:00.000Z";
@@ -109,6 +126,24 @@ describe("D1 shopping storage", () => {
       ]),
     ).rejects.toThrow(/NOT NULL/i);
     expect(await user.pantry.getAll()).toEqual([]);
+  });
+
+  it("requires a whole quantity when matching an existing fractional ingredient", async () => {
+    const user = shopper();
+
+    const list = await user.shoppingList.create({
+      name: "Dinner",
+      items: [{ productName: "Milk", quantity: 0.5 }],
+    });
+
+    const item = list.items[0];
+    await expect(
+      user.shoppingList.updateItem(list.id, item.id, { upc: "0000000000123" }),
+    ).rejects.toThrow(/whole package count/);
+    expect((await user.shoppingList.get(list.id))?.items).toEqual([item]);
+    await expect(
+      user.shoppingList.updateItem(list.id, item.id, { upc: "0000000000123", quantity: 1 }),
+    ).resolves.toMatchObject({ id: item.id, quantity: 1 });
   });
 
   it("edits lists and keeps list IDs inaccessible to another shopper", async () => {

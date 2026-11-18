@@ -8,7 +8,7 @@ import type { AppError } from "../errors.js";
 import type { components } from "../services/kroger/cart.js";
 
 import { appResult } from "../app-results.js";
-import { cartItemsFingerprint } from "../cart-operations.js";
+import { CART_HISTORY_WINDOW, cartItemsFingerprint } from "../cart-operations.js";
 import type { KrogerClients } from "../services/kroger/client.js";
 import type { PreferredLocationStore, ShoppingListStore } from "../utils/shopping-store.js";
 import type { CartHistoryItem } from "../cart-operations.js";
@@ -17,7 +17,7 @@ import type { CartStore } from "../utils/cart-store.js";
 import { mutationOutcomeUnknown, validationError } from "../errors.js";
 import { fromApiResponse, safeStorage } from "../utils/result.js";
 import { getProps } from "../utils/request-identity.js";
-import { safeResolveLocationId } from "../utils/resolve-location.js";
+import { safeResolveLocationId, type ResolvedLocation } from "../utils/resolve-location.js";
 import { toMcpError } from "../utils/mcp-result.js";
 import { APP_VIEW_URI } from "../utils/view-resource.js";
 import { modalityEnum } from "./schemas.js";
@@ -279,6 +279,10 @@ export async function addLineItemsToCart(
   return ok("added");
 }
 
+function shoppingStoreLabel(store: ResolvedLocation) {
+  return `Shopping store: ${store.locationName ? `${store.locationName} ` : ""}(storeId=${store.locationId})`;
+}
+
 async function handleInlineItemsCart(
   preferredLocation: PreferredLocationStore,
   carts: CartStore,
@@ -324,15 +328,11 @@ async function handleInlineItemsCart(
 
   const resolved = locationResult.value;
 
-  const locationInfo = resolved.locationName
-    ? ` at ${resolved.locationName}`
-    : ` (Store: ${resolved.locationId})`;
-
   return {
     content: [
       {
         type: "text" as const,
-        text: `Added ${cartQuantitySummary(items)} to cart${locationInfo} for ${modality} (storeId=${resolved.locationId}):\n${items.map((i) => `  - upc=${i.upc} x${i.quantity}`).join("\n")}`,
+        text: `Added ${cartQuantitySummary(items)} to cart for ${modality}. ${shoppingStoreLabel(resolved)}.\n${items.map((i) => `  - upc=${i.upc} x${i.quantity}`).join("\n")}`,
       },
     ],
     ...cartResultPayload({
@@ -456,14 +456,10 @@ async function handleListIdCart(
   const snapshot = toCartHistoryItems(lineItems, modality);
   const alreadyAdded = addResult.value === "already_added";
 
-  const locationInfo = resolved.locationName
-    ? ` at ${resolved.locationName}`
-    : ` (Store: ${resolved.locationId})`;
-
   const resultParts: string[] = [
     alreadyAdded
       ? `These ${cartQuantitySummary(lineItems)} were already added to your Kroger cart from list "${list.name}" for ${modality}.`
-      : `Added ${cartQuantitySummary(lineItems)} from list "${list.name}" to cart${locationInfo} for ${modality} (storeId=${resolved.locationId}):\n${cartable.map(({ item, upc }) => `  - ${item.productName} x${item.quantity} | upc=${upc}`).join("\n")}`,
+      : `Added ${cartQuantitySummary(lineItems)} from list "${list.name}" to cart for ${modality}. ${shoppingStoreLabel(resolved)}.\n${cartable.map(({ item, upc }) => `  - ${item.productName} x${item.quantity} | upc=${upc}`).join("\n")}`,
   ];
 
   if (withoutUpc.length > 0) {
@@ -530,11 +526,14 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
     return toMcpError(mirrorResult.error);
   }
 
-  const parts: string[] = note ? [note] : [];
+  const parts = [
+    note,
+    `Assistant history covers up to ${CART_HISTORY_WINDOW.maxItems} entries from the past ${CART_HISTORY_WINDOW.days} days.`,
+  ].filter(Boolean);
 
   if (mirrorResult.value.length === 0) {
     parts.push(
-      "No items added to your cart through this assistant yet. Use shop_for_items to find product options, then pass chosen UPCs to add_shopping_list_to_cart.",
+      "No recent assistant additions. Use shop_for_items to find product options, then pass chosen UPCs to add_shopping_list_to_cart.",
     );
   } else {
     const lines = mirrorResult.value.map(
@@ -549,6 +548,7 @@ async function mirrorFallbackResult(carts: CartStore, note?: string) {
 
   const payload: AppResultPayloads["view_cart"] = {
     source: "assistant",
+    historyWindow: CART_HISTORY_WINDOW,
     items: mirrorResult.value.map((item) => ({
       upc: item.upc,
       productName: item.productName,
@@ -599,7 +599,7 @@ export function registerCartTools(
     {
       title: "Add Shopping List to Cart",
       description:
-        'Adds a saved list (listId) or up to 10 UPCs (items) to the Kroger cart at the preferred store, for PICKUP unless modality is DELIVERY. Reuse operationId when retrying an inline add. Example: {"listId":"list_a1b2c3d8"}',
+        "Add a saved list or up to 10 UPCs to the Kroger cart. Store ID is shopping context only. Defaults to PICKUP or the reviewed list modality. Reuse operationId for inline retries.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -650,10 +650,10 @@ export function registerCartTools(
     {
       title: "View Cart",
       description:
-        "Lists items added through this assistant, with quantities and fulfillment, without prices or totals; Kroger app changes are not shown. Reads a live cart only with a user-supplied or previously saved cartId. Cart-add tools do not return a cartId. For budget estimates, use product prices and quantities.",
+        "Show cart quantities and fulfillment. A successful live lookup saves the supplied cartId for future reads. Without a saved or supplied ID, show assistant add history. Prices and totals are unavailable.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
-        readOnlyHint: true,
+        readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: true,
         openWorldHint: true,
@@ -702,9 +702,11 @@ export function registerCartTools(
         );
       }
 
-      await safeStorage(() => carts.cartId.set(resolvedId), "store cart id").orTee((error) =>
-        console.warn("Cart id store failed (non-fatal):", error.message),
-      );
+      if (cartId) {
+        await safeStorage(() => carts.cartId.set(cartId), "store cart id").orTee((error) =>
+          console.warn("Cart id store failed (non-fatal):", error.message),
+        );
+      }
 
       return liveCartResult(liveResult.value.data ?? {}, resolvedId);
     },

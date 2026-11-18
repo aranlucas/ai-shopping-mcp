@@ -12,7 +12,7 @@ import {
   type MealPlanDraft,
 } from "../domain/meal-plan.js";
 import { AppErrorException, notFoundError, validationError } from "../errors.js";
-import { newListItems } from "./d1-shopping-storage.js";
+import { newListItems } from "../domain/list-edit.js";
 
 function planFromRow(row: typeof mealPlans.$inferSelect): MealPlan {
   return mealPlanSchema.parse({
