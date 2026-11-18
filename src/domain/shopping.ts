@@ -59,6 +59,7 @@ export interface ShoppingListSummary {
 
 /** Fields an edit may change. Omitted fields are left as they are. */
 export interface ShoppingListItemPatch {
+  upc?: string;
   productName?: string;
   quantity?: number;
   notes?: string;

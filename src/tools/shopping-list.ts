@@ -54,7 +54,8 @@ export const createShoppingListInputSchema = z.object({
     .max(MAX_CATALOG_REQUESTS),
 });
 
-const shoppingListItemChangeSchema = z.object({
+const shoppingListItemChangeSchema = z.strictObject({
+  upc: upcSchema.optional().describe("Selected UPC from shop_for_items or search_products"),
   itemId: itemIdSchema,
   productName: z.string().trim().min(1).max(200).optional(),
   quantity: z
@@ -403,7 +404,7 @@ export function registerShoppingListTools(
     {
       title: "Update Shopping List",
       description:
-        "Edits a saved list in one call: add items, change existing items (quantity, productName, notes, checked:true to check off), and remove items. itemIds come from get_shopping_list.",
+        "Edits a saved list in one call: add items, change existing items (upc to match a product, quantity, productName, notes, checked:true to check off), and remove items. itemIds come from get_shopping_list.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -454,7 +455,7 @@ export function registerShoppingListTools(
         if (Object.keys(patch).length === 0) {
           return partialFailure(
             validationError(
-              `change for itemId=${itemId} needs productName, quantity, notes, or checked.`,
+              `change for itemId=${itemId} needs productName, quantity, upc, notes, or checked.`,
             ),
             summary,
           );

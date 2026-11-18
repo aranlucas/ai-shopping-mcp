@@ -230,6 +230,27 @@ describe("shopping list editing tools", () => {
     expect(inputSchema.safeParse({ listId: "list-a", add: [{ quantity: 1 }] }).success).toBe(false);
   });
 
+  it("attaches a selected UPC to the existing row and rejects misspelled edit fields", async () => {
+    const fixture = makeContext();
+    registerShoppingListTools(fixture);
+
+    const list = await fixture.shoppingList.create({
+      name: "Weekly",
+      items: [{ productName: "Milk", notes: "Whole", quantity: 2 }],
+    });
+
+    const itemId = list.items[0].id;
+    const update = getCapturedHandler("update_shopping_list");
+    await expect(
+      update({ listId: list.id, change: [{ itemId, productName: "Whole Milk", ucp: "123" }] }),
+    ).rejects.toThrow(/ucp/);
+    const result = await update({ listId: list.id, change: [{ itemId, upc: "123" }] });
+    expect(result.isError).toBe(false);
+    expect((await fixture.shoppingList.get(list.id))?.items).toEqual([
+      { ...list.items[0], id: itemId, upc: "0000000000123", notes: "Whole", quantity: 2 },
+    ]);
+  });
+
   it("rejects productRef instead of UPC", () => {
     const fixture = makeContext();
     registerShoppingListTools(fixture);
