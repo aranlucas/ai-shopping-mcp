@@ -75,6 +75,12 @@ describe("saved dinner plan to reviewed cart (real MCP wire, fixture Kroger)", (
     );
   }
 
+  it("returns the empty shopping list index when a client omits arguments", async () => {
+    const result = await client.callTool({ name: "get_shopping_list" });
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toEqual({ lists: [] });
+  });
+
   it("resumes three meals, edits one, reviews quantities and makes one separately approved cart add", async () => {
     const original = await create();
     const ids = original.meals.map((meal) => meal.id);
