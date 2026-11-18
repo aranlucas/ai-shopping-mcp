@@ -20,9 +20,29 @@ import {
 
 type WorkerEnv = { Bindings: AppEnv };
 
-function invalidIdentity(resource: string) {
+const INVALID_ACCESS_TOKEN = "The MCP access token is invalid or expired.";
+const RECONNECT_KROGER = "Sign in again to reconnect Kroger.";
+
+function withInvalidTokenChallenge(response: Response, description: string): Response {
+  const challenge = response.headers.get("WWW-Authenticate");
+
+  if (
+    response.status === 401 &&
+    challenge?.startsWith("Bearer ") &&
+    !challenge.includes('error="')
+  ) {
+    response.headers.set(
+      "WWW-Authenticate",
+      `${challenge}, error="invalid_token", error_description="${description}"`,
+    );
+  }
+
+  return response;
+}
+
+function unauthorized(resource: string, message: string) {
   const challenge = createResourceServerChallenge(
-    new APIError("UNAUTHORIZED", { message: "Invalid shopping identity" }),
+    new APIError("UNAUTHORIZED", { message }),
     resource,
     { challengeScopes: ["mcp:tools"] },
   );
@@ -31,13 +51,16 @@ function invalidIdentity(resource: string) {
     throw new Error("Unable to build authentication challenge");
   }
 
-  return Response.json(
-    {
-      jsonrpc: "2.0",
-      error: { code: -32000, message: challenge.message },
-      id: null,
-    },
-    { status: challenge.statusCode, headers: challenge.headers },
+  return withInvalidTokenChallenge(
+    Response.json(
+      {
+        jsonrpc: "2.0",
+        error: { code: -32000, message: challenge.message },
+        id: null,
+      },
+      { status: challenge.statusCode, headers: challenge.headers },
+    ),
+    message,
   );
 }
 
@@ -83,8 +106,10 @@ app.use(
   }),
 );
 
-app.post("/mcp", (c) => {
-  const options = accessTokenOptions(c.env, c.env.MCP_RESOURCE_URL);
+app.post("/mcp", async (c) => {
+  const resource = c.env.MCP_RESOURCE_URL;
+  const options = accessTokenOptions(c.env, resource);
+  const authorization = parseAccessTokenAuthorization(c.req.header("Authorization"));
 
   const protectedHandler = createMcpProtectedRequestHandler(
     {
@@ -97,18 +122,14 @@ app.post("/mcp", (c) => {
     async (verifiedRequest, claims) => {
       const identity = shoppingIdentity(options.verifyOptions.issuer, claims);
 
-      const authorization = parseAccessTokenAuthorization(
-        verifiedRequest.headers.get("Authorization"),
-      );
-
       if (!identity || !authorization?.token) {
-        return invalidIdentity(c.env.MCP_RESOURCE_URL);
+        return unauthorized(resource, INVALID_ACCESS_TOKEN);
       }
 
       const token = await krogerToken(c.env, identity.props.subject);
 
       if (!token) {
-        return invalidIdentity(c.env.MCP_RESOURCE_URL);
+        return unauthorized(resource, RECONNECT_KROGER);
       }
 
       const props = { id: identity.props.id, ...token };
@@ -138,7 +159,12 @@ app.post("/mcp", (c) => {
     },
   );
 
-  return protectedHandler(c.req.raw);
+  const response = await protectedHandler(c.req.raw);
+
+  // Better Auth supplies discovery for a 401, but does not distinguish a rejected bearer token.
+  return authorization?.scheme === "Bearer" && authorization.token
+    ? withInvalidTokenChallenge(response, INVALID_ACCESS_TOKEN)
+    : response;
 });
 
 app.get("/", (c) =>

@@ -87,6 +87,7 @@ describe("Better Auth resource server", () => {
     expect(response.headers.get("WWW-Authenticate")).toContain(
       `resource_metadata="${appOrigin}/.well-known/oauth-protected-resource/mcp"`,
     );
+    expect(response.headers.get("WWW-Authenticate")).not.toContain("invalid_token");
     expect(response.headers.get("Access-Control-Expose-Headers")).toContain("WWW-Authenticate");
     expect(
       await (await SELF.fetch(`${appOrigin}/.well-known/oauth-protected-resource/mcp`)).json(),
@@ -205,7 +206,6 @@ describe("Better Auth resource server", () => {
     { iss: "https://attacker.example" },
     { aud: "https://another-api.example" },
     { aud: "https://example.com" },
-    { exp: Math.floor(Date.now() / 1000) - 10 },
     { sub: undefined },
     { client_id: undefined },
     { scope: undefined },
@@ -214,6 +214,17 @@ describe("Better Auth resource server", () => {
   ])("rejects invalid JWT claims %j", async (claims) => {
     const token = await fixtureToken("user", claims);
     expect((await SELF.fetch(mcpRequest(token))).status).toBe(401);
+  });
+
+  it("challenges an expired MCP token so the client can refresh it", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = await fixtureToken("user", { iat: now - 120, exp: now - 60 });
+    const response = await SELF.fetch(mcpRequest(token));
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("WWW-Authenticate")).toContain('error="invalid_token"');
+    expect(response.headers.get("WWW-Authenticate")).toContain("expired");
+    expect(await response.json()).toMatchObject({ error: { message: "token expired" } });
   });
 
   it("rejects opaque credentials and insufficient scopes", async () => {
@@ -281,6 +292,10 @@ describe("Better Auth resource server", () => {
     const response = await SELF.fetch(mcpRequest(await fixtureToken()));
     expect(response.status).toBe(401);
     expect(response.headers.get("WWW-Authenticate")).toContain("resource_metadata");
+    expect(response.headers.get("WWW-Authenticate")).toContain('error="invalid_token"');
+    expect(await response.json()).toMatchObject({
+      error: { message: "Sign in again to reconnect Kroger." },
+    });
   });
 
   it("returns a service error without a re-login challenge when Auth RPC is unavailable", async () => {
