@@ -10,7 +10,8 @@ import { loadShoppingLists } from "../app/tool-calls.js";
 
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardFooter } from "./ui/card";
+import { Card, CardContent } from "./ui/card";
+import { ImageOffIcon, MapPinIcon } from "lucide-react";
 
 type SectionHeaderProps = {
   title: string;
@@ -214,7 +215,7 @@ export function PriceDisplay({ product }: ProductDisplayProps) {
           <span className="text-xs text-gray-500 tabular-nums line-through">
             ${product.regularPrice?.toFixed(2)}
           </span>
-          <Badge variant="outline" tone="danger">
+          <Badge variant="outline" tone="warning">
             Sale
           </Badge>
         </>
@@ -604,47 +605,34 @@ export function ProductActions({
 }
 
 function ProductImage({ product }: ProductDisplayProps) {
-  const thumbnail = product.imageUrl;
-  const [failedUrl, setFailedUrl] = useState<string | undefined>();
+  const imageUrl = product.imageUrl;
+  const [failedUrl, setFailedUrl] = useState<string>();
 
-  const handleImageError = useCallback(() => setFailedUrl(thumbnail), [thumbnail]);
-
-  if (!thumbnail || failedUrl === thumbnail) {
-    const initials = product.name
-      .split(" ")
-      .slice(0, 2)
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase();
-
-    return (
-      <div className="flex aspect-4/3 w-full flex-col items-center justify-center gap-1 bg-muted">
-        <span aria-hidden="true" className="text-2xl font-semibold text-gray-500">
-          {initials}
-        </span>
-        <span className="text-xs text-gray-500">No image</span>
-      </div>
-    );
-  }
+  const handleImageError = useCallback(() => setFailedUrl(imageUrl), [imageUrl]);
 
   return (
-    <div className="aspect-4/3 w-full overflow-hidden bg-white">
-      <img
-        src={thumbnail}
-        alt={product.name}
-        className="size-full object-contain p-2"
-        loading="lazy"
-        onError={handleImageError}
-      />
+    <div
+      aria-hidden="true"
+      className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-muted @3xs:size-18"
+    >
+      {imageUrl && failedUrl !== imageUrl ? (
+        <img
+          src={imageUrl}
+          alt=""
+          className="size-full bg-product-image object-contain p-1"
+          loading="lazy"
+          decoding="async"
+          onError={handleImageError}
+        />
+      ) : (
+        <ImageOffIcon className="size-5 text-muted-foreground" />
+      )}
     </div>
   );
 }
 
 export function ProductCard({ app, product, canCallTools, onAddToList }: ProductCardProps) {
-  const name = product.name;
-  const brand = product.brand;
-  const upc = product.upc;
-  const size = product.size;
+  const { name, brand, upc, size } = product;
 
   const aisle = product.aisle?.description?.length
     ? product.aisle.description
@@ -653,61 +641,45 @@ export function ProductCard({ app, product, canCallTools, onAddToList }: Product
       : undefined;
 
   return (
-    <Card size="sm" className="h-full gap-3 pbs-0">
-      <ProductImage product={product} />
-      <CardContent className="flex flex-1 flex-col pbs-2">
-        <div className="flex-1">
-          <h3 className="text-sm leading-snug font-semibold text-gray-900">{name}</h3>
-          {(Boolean(brand) || Boolean(size)) && (
-            <div className="mbs-0.5 text-xs text-gray-400">
-              {brand}
-              {brand && size && " · "}
-              {size}
+    <Card size="sm" className="@container h-full p-3">
+      <CardContent className="flex flex-1 flex-col justify-between gap-3 p-0 @xl:flex-row @xl:items-center">
+        <div className="flex min-w-0 items-start gap-3">
+          <ProductImage product={product} />
+          <div className="min-w-0">
+            <h3 className="text-sm leading-snug font-semibold wrap-anywhere text-foreground">
+              {name}
+            </h3>
+            {(Boolean(brand) || Boolean(size)) && (
+              <p className="mbs-0.5 text-xs wrap-anywhere text-muted-foreground">
+                {brand}
+                {brand && size && " · "}
+                {size}
+              </p>
+            )}
+            {aisle && (
+              <p className="mbs-0.5 flex items-baseline gap-1 text-xs wrap-anywhere text-muted-foreground">
+                <MapPinIcon aria-hidden="true" className="size-3 shrink-0 self-center" />
+                {aisle}
+              </p>
+            )}
+            <div className="mbs-1.5">
+              <PriceDisplay product={product} />
             </div>
-          )}
-          {aisle && (
-            <div className="mbs-0.5 flex items-center gap-0.5 text-xs text-gray-400">
-              <svg
-                aria-hidden="true"
-                className="size-2.5 shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-                />
-              </svg>
-              {aisle}
-            </div>
-          )}
+            <FulfillmentTags product={product} />
+          </div>
         </div>
-        <div className="mbs-1.5">
-          <PriceDisplay product={product} />
-        </div>
-        <div className="min-h-7">
-          <FulfillmentTags product={product} />
+        <div className="@xl:max-w-1/2 @xl:shrink-0">
+          <ProductActions
+            app={app}
+            upc={upc}
+            cartDisabled={!product.available}
+            name={name}
+            price={product.price}
+            disabled={!canCallTools}
+            onAddToList={onAddToList}
+          />
         </div>
       </CardContent>
-      <CardFooter className="pbs-2">
-        <ProductActions
-          app={app}
-          upc={upc}
-          cartDisabled={!product.available}
-          name={name}
-          price={product.price}
-          disabled={!canCallTools}
-          onAddToList={onAddToList}
-        />
-      </CardFooter>
     </Card>
   );
 }

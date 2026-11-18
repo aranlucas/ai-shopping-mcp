@@ -47,22 +47,22 @@ export function EmptyState({ icon, message, description }: EmptyStateProps) {
   );
 }
 
-export function ProductCardSkeleton() {
+function ProductCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <Skeleton className="aspect-4/3 w-full rounded-none" />
-      <div className="flex flex-col gap-2 p-3">
-        <Skeleton className="h-3.5 w-full" />
-        <Skeleton className="h-3 w-2/3" />
-        <Skeleton className="mbs-1 h-4 w-1/3" />
-        <div className="mbs-1 flex gap-1">
-          <Skeleton className="h-4 w-10 rounded-full" />
-          <Skeleton className="h-4 w-14 rounded-full" />
+    <div className="@container rounded-xl border border-border bg-card p-3">
+      <div className="flex flex-col justify-between gap-3 @xl:flex-row @xl:items-center">
+        <div className="flex flex-1 gap-3">
+          <Skeleton className="size-14 shrink-0 rounded-lg @3xs:size-18" />
+          <div className="flex flex-1 flex-col gap-2">
+            <Skeleton className="h-3.5 w-4/5" />
+            <Skeleton className="h-3 w-1/2" />
+            <Skeleton className="h-4 w-12" />
+          </div>
         </div>
-      </div>
-      <div className="flex gap-1.5 px-3 pbe-3">
-        <Skeleton className="h-6 flex-1 rounded-lg" />
-        <Skeleton className="h-6 w-14 rounded-lg" />
+        <div className="flex gap-2">
+          <Skeleton className="h-8 w-24 rounded-lg" />
+          <Skeleton className="h-8 w-24 rounded-lg" />
+        </div>
       </div>
     </div>
   );
@@ -98,26 +98,24 @@ export function ItemRowSkeleton() {
 
 export function ProductSearchSkeleton() {
   return (
-    <div className="mx-auto max-w-4xl px-3.5 py-3">
-      <div className="mbe-4 flex items-center gap-2">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-3 w-12" />
+    <div className="@container mx-auto max-w-4xl p-4 sm:px-6">
+      <div className="mbe-5 flex flex-col gap-2">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-3.5 w-40" />
       </div>
-      {[0, 1].map((i) => (
-        <div key={i} className="mbe-6">
-          <div className="mbe-2.5 flex items-center gap-2">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-3 w-12" />
-          </div>
-          <div className="flex gap-2 overflow-hidden">
-            {[0, 1, 2].map((j) => (
-              <div key={j} className="w-68 shrink-0">
-                <ProductCardSkeleton />
-              </div>
-            ))}
+      <div className="divide-y divide-border border-bs border-border">
+        <div className="flex flex-col gap-2.5 py-3">
+          <Skeleton className="h-3.5 w-24" />
+          <ProductCardSkeleton />
+        </div>
+        <div className="flex flex-col gap-2.5 py-3">
+          <Skeleton className="h-3.5 w-24" />
+          <div className="grid gap-3 @xl:grid-cols-2">
+            <ProductCardSkeleton />
+            <ProductCardSkeleton />
           </div>
         </div>
-      ))}
+      </div>
     </div>
   );
 }

@@ -56,7 +56,7 @@ describe("toProductData", () => {
     }).toEqual(expected);
   });
 
-  it("prefers the default image and thumbnail regardless of response order", () => {
+  it("prefers the default image and small size regardless of response order", () => {
     const images: Product["images"] = [
       {
         perspective: "front",
@@ -65,17 +65,17 @@ describe("toProductData", () => {
       {
         default: true,
         sizes: [
-          { size: "small", url: "https://example.com/small.jpg" },
           { size: "thumbnail", url: "https://example.com/thumbnail.jpg" },
+          { size: "small", url: "https://example.com/small.jpg" },
         ],
       },
     ];
 
     expect(toProductData({ upc: "0001111041700", images }).imageUrl).toBe(
-      "https://example.com/thumbnail.jpg",
+      "https://example.com/small.jpg",
     );
     expect(toProductData({ upc: "0001111041700", images: images.toReversed() }).imageUrl).toBe(
-      "https://example.com/thumbnail.jpg",
+      "https://example.com/small.jpg",
     );
   });
 

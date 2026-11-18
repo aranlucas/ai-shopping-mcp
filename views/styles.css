@@ -135,6 +135,7 @@ a:focus-visible {
 }
 
 @theme inline {
+  --color-product-image: #ffffff;
   --color-success-soft: var(--color-emerald-50);
   --color-success-foreground: var(--color-emerald-700);
   --color-success-border: var(--color-emerald-300);
