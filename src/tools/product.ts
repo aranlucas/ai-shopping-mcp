@@ -35,7 +35,7 @@ export function registerProductTools(
     {
       title: "Search Products",
       description:
-        'Compare Kroger products and prices at the preferred store. Batch names or exact UPCs in terms, even for one item: {"terms":["milk","bread"]}. Returns upc, size, price, sale price, pickup availability, and stock; check availability before cart adds. Copy exact UPCs into lists or carts. All-digit terms return exact UPCs with aisles and variants. Results are candidates, not guaranteed exact matches or the cheapest in the catalog.',
+        'Compare products, prices, stock, and pickup availability. Pass names or exact UPCs in terms, e.g. {"terms":["milk","bread"]}. Exact UPCs include aisles and variants. Verify matches before copying UPCs into lists or carts.',
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,

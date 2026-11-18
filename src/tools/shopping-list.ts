@@ -57,7 +57,11 @@ export const createShoppingListInputSchema = z.object({
 const shoppingListItemChangeSchema = z.object({
   itemId: itemIdSchema,
   productName: z.string().trim().min(1).max(200).optional(),
-  quantity: z.coerce.number().min(0).max(999).optional().describe("0 removes the item"),
+  quantity: z
+    .union([z.number(), z.string().trim().min(1)])
+    .pipe(z.coerce.number<string | number>().min(0).max(999))
+    .optional()
+    .describe("0 removes the item"),
   notes: z.string().max(500).optional(),
   checked: z.boolean().optional(),
 });

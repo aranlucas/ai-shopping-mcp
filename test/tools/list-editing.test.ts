@@ -59,6 +59,26 @@ describe("shopping list editing tools", () => {
     resetToolTestHarness();
   });
 
+  it("requires an explicit zero to remove an item through quantity", () => {
+    registerShoppingListTools(makeContext());
+    const schema = getCapturedTool("update_shopping_list").config.inputSchema;
+
+    for (const invalid of [null, false, "", " ", []]) {
+      expect(
+        schema.safeParse({
+          listId: "list-a",
+          change: [{ itemId: "item-1", checked: true, quantity: invalid }],
+        }).success,
+      ).toBe(false);
+    }
+
+    for (const zero of [0, "0"]) {
+      expect(
+        schema.parse({ listId: "list-a", change: [{ itemId: "item-1", quantity: zero }] }),
+      ).toMatchObject({ change: [{ quantity: 0 }] });
+    }
+  });
+
   it("lists saved lists with their ids when no listId is given", async () => {
     const storage = makeListStorage({
       list: async () => [

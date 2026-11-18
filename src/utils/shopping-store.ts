@@ -59,8 +59,19 @@ export interface OrderHistoryStore {
   getRecent(limit?: number): Promise<OrderRecord[]>;
 }
 
+export interface InventoryChanges {
+  addPantry: PantryItem[];
+  consumePantry: Array<{ name: string; quantity?: number }>;
+  addEquipment: EquipmentItem[];
+  removeEquipment: string[];
+}
+
 /** Durable shopping data scoped to one verified Kroger shopper. */
 export interface ShoppingStore {
+  updateInventory(
+    this: void,
+    changes: InventoryChanges,
+  ): Promise<{ pantry: PantryItem[]; equipment: EquipmentItem[] }>;
   preferredLocation: PreferredLocationStore;
   pantry: PantryStore;
   equipment: EquipmentStore;

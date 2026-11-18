@@ -65,7 +65,7 @@ export function registerShopTools(
     {
       title: "Shop For Items",
       description:
-        'Find up to 5 available product options per item at the preferred store (max 10 items). Read-only: choose matches using the user\'s brand, size, dietary needs, and budget. Copy chosen UPCs and quantities into create_shopping_list or add_shopping_list_to_cart. Report unmatched items; use search_products to refine or inspect exact UPCs. modality defaults to PICKUP. Example: {"items":[{"name":"milk"},{"name":"eggs","quantity":2}]}',
+        "Find up to 5 eligible products per item at the preferred store. Match brand, size, diet, and budget. Keep requested package counts when saving selected UPCs. Report unmatched items and refine with search_products.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: true,

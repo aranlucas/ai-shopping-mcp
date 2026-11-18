@@ -92,6 +92,23 @@ describe("D1 shopping storage", () => {
     expect(await user.pantry.remove(["milk", "bread"])).toEqual([]);
   });
 
+  it("rolls back pantry changes when equipment fails in the same inventory update", async () => {
+    const user = shopper();
+    const milk = { productName: "Milk", quantity: 2, addedAt: "2026-11-17" };
+    await user.pantry.add(milk);
+    await expect(
+      user.updateInventory({
+        addPantry: [milk],
+        consumePantry: [],
+        removeEquipment: [],
+        // @ts-expect-error Force a D1 NOT NULL violation after the pantry write.
+        addEquipment: [{ equipmentName: "Pan", addedAt: null }],
+      }),
+    ).rejects.toThrow(/NOT NULL/i);
+    expect(await user.pantry.getAll()).toEqual([milk]);
+    expect(await user.equipment.getAll()).toEqual([]);
+  });
+
   it("writes nothing when any statement in a pantry batch fails", async () => {
     const user = shopper();
     const now = "2026-09-23T00:00:00.000Z";

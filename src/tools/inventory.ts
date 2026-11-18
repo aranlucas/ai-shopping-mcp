@@ -5,6 +5,7 @@ import * as z from "zod/v4";
 
 import type { EquipmentItem, PantryItem } from "../domain/shopping.js";
 import type {
+  ShoppingStore,
   EquipmentStore,
   OrderHistoryStore,
   PantryStore,
@@ -118,6 +119,7 @@ function equipmentResponse(text: string, items: EquipmentItem[], actionDetail: s
 }
 
 export type InventoryToolDependencies = {
+  updateInventory: ShoppingStore["updateInventory"];
   loadWeeklyDeals: WeeklyDealsLoader;
   equipment: EquipmentStore;
   orderHistory: OrderHistoryStore;
@@ -128,6 +130,7 @@ export type InventoryToolDependencies = {
 export function registerInventoryTools(
   server: McpServer,
   {
+    updateInventory,
     loadWeeklyDeals,
     equipment,
     orderHistory,
@@ -141,7 +144,7 @@ export function registerInventoryTools(
     {
       title: "Update Inventory",
       description:
-        'Updates the pantry and kitchen equipment in one call. pantry.add is for food bought; pantry.remove is for food used up, subtracting its quantity or removing the item when quantity is omitted. Example for "used 6 eggs and finished the milk": {"pantry":{"remove":[{"name":"Eggs","quantity":6},{"name":"Milk"}]}}',
+        "Update pantry and equipment together. Add food to increase stock. Remove food with a quantity to subtract that amount, or omit the quantity to remove it entirely.",
       _meta: { ui: { resourceUri: APP_VIEW_URI } },
       annotations: {
         readOnlyHint: false,
@@ -154,84 +157,45 @@ export function registerInventoryTools(
     async ({ pantry: pantryChanges, equipment: equipmentChanges }) => {
       getProps();
       const now = new Date().toISOString();
-      const summary: string[] = [];
 
-      let pantryItems: PantryItem[] | undefined;
+      const addPantry = (pantryChanges?.add ?? []).map(({ name, quantity, expiresAt }) => ({
+        productName: name,
+        quantity,
+        expiresAt,
+        addedAt: now,
+      }));
 
-      if (pantryChanges?.add) {
-        const additions = pantryChanges.add;
+      const consumePantry = pantryChanges?.remove ?? [];
 
-        const added = await safeStorage(
-          () =>
-            pantry.add(
-              additions.map((item): PantryItem => ({
-                productName: item.name,
-                quantity: item.quantity,
-                addedAt: now,
-                expiresAt: item.expiresAt,
-              })),
-            ),
-          "add pantry items",
-        );
+      const addEquipment = (equipmentChanges?.add ?? []).map(({ name, category }) => ({
+        equipmentName: name,
+        category,
+        addedAt: now,
+      }));
 
-        if (added.isErr()) {
-          return toMcpError(added.error);
-        }
+      const removeEquipment = equipmentChanges?.remove ?? [];
 
-        pantryItems = added.value;
-        summary.push(`Added ${additions.length} pantry item(s).`);
+      const updated = await safeStorage(
+        () => updateInventory({ addPantry, consumePantry, addEquipment, removeEquipment }),
+        "update inventory",
+      );
+
+      if (updated.isErr()) {
+        return toMcpError(updated.error);
       }
 
-      if (pantryChanges?.remove) {
-        const removals = pantryChanges.remove;
+      const summary = [
+        addPantry.length && `Added ${addPantry.length} pantry item(s).`,
+        consumePantry.length && `Used or removed ${consumePantry.length} pantry item(s).`,
+        addEquipment.length && `Added ${addEquipment.length} equipment item(s).`,
+        removeEquipment.length && `Removed ${removeEquipment.length} equipment item(s).`,
+      ].filter(Boolean);
 
-        const removed = await safeStorage(() => pantry.consume(removals), "remove pantry items");
+      const pantryItems =
+        addPantry.length || consumePantry.length ? updated.value.pantry : undefined;
 
-        if (removed.isErr()) {
-          return toMcpError(removed.error);
-        }
-
-        pantryItems = removed.value;
-        summary.push(`Used or removed ${removals.length} pantry item(s).`);
-      }
-
-      let equipmentItems: EquipmentItem[] | undefined;
-
-      if (equipmentChanges?.add) {
-        const additions = equipmentChanges.add;
-
-        const added = await safeStorage(
-          () =>
-            equipment.add(
-              additions.map((item): EquipmentItem => ({
-                equipmentName: item.name,
-                category: item.category,
-                addedAt: now,
-              })),
-            ),
-          "add equipment items",
-        );
-
-        if (added.isErr()) {
-          return toMcpError(added.error);
-        }
-
-        equipmentItems = added.value;
-        summary.push(`Added ${additions.length} equipment item(s).`);
-      }
-
-      if (equipmentChanges?.remove) {
-        const names = equipmentChanges.remove;
-
-        const removed = await safeStorage(() => equipment.remove(names), "remove equipment items");
-
-        if (removed.isErr()) {
-          return toMcpError(removed.error);
-        }
-
-        equipmentItems = removed.value;
-        summary.push(`Removed ${names.length} equipment item(s).`);
-      }
+      const equipmentItems =
+        addEquipment.length || removeEquipment.length ? updated.value.equipment : undefined;
 
       const sections = [summary.join(" ")];
 
@@ -257,7 +221,7 @@ export function registerInventoryTools(
     {
       title: "Get Shopping Profile",
       description:
-        "Reads everything saved about the household: preferred store, pantry (soonest-expiring first), kitchen equipment, frequently purchased items, and items due to restock. Call it before personalized suggestions, meal planning, or questions like 'what's in my pantry?'. Set includeWeeklyDeals for meal planning around sales.",
+        "Read the preferred store, pantry by expiry, equipment, frequent purchases, and restock suggestions. Use before personalized shopping or meal planning. Set includeWeeklyDeals to plan around sales.",
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

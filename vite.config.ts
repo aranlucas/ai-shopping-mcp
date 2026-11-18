@@ -5,6 +5,7 @@ const portlessUrl = process.env.PORTLESS_URL ? new URL(process.env.PORTLESS_URL)
 
 export default defineConfig({
   plugins: [cloudflare()],
+  build: { minify: true },
   publicDir: "dist/views",
   resolve: { tsconfigPaths: true },
   server: {

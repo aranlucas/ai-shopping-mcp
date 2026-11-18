@@ -26,8 +26,7 @@ export function registerResources(
     "Pantry Inventory",
     "shopping://user/pantry",
     {
-      description:
-        "Items currently in the user's pantry. Use this to avoid suggesting duplicate purchases and to help with meal planning based on available ingredients.",
+      description: "Pantry items and quantities for meal planning and shopping.",
       mimeType: "text/toon",
     },
     async () => {
@@ -53,8 +52,7 @@ export function registerResources(
     "Kitchen Equipment",
     "shopping://user/kitchen-equipment",
     {
-      description:
-        "Kitchen equipment and tools the user owns. Use this to suggest recipes that match available equipment and to help with meal planning based on what tools are available.",
+      description: "Kitchen equipment available for cooking.",
       mimeType: "text/toon",
     },
     async () => {
@@ -81,7 +79,7 @@ export function registerResources(
     "shopping://user/preferred-store",
     {
       description:
-        "The user's preferred store. Use this for product searches, weekly deals, and cart operations when no location is explicitly specified. If unset, ask for a zip code and use search_stores followed by set_preferred_store.",
+        "Default store for product searches and weekly deals. If unset, ask for a ZIP code, then use search_stores and set_preferred_store.",
       mimeType: "text/toon",
     },
     async () => {
@@ -111,8 +109,7 @@ export function registerResources(
     "Order History",
     "shopping://user/order-history",
     {
-      description:
-        "The user's past orders and purchase history. Use this to identify frequently purchased items, shopping patterns, and to make personalized recommendations.",
+      description: "Recorded purchases for finding frequent items and planning restocks.",
       mimeType: "text/toon",
     },
     async () => {

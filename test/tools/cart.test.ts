@@ -540,7 +540,7 @@ describe("add_shopping_list_to_cart tool", () => {
       const result = await handler({ listId: SHORT_LIST_ID });
 
       expect(isErrorResult(result)).toBe(false);
-      expect(textFromResult(result)).toContain("at QFC Broadway");
+      expect(textFromResult(result)).toContain("Shopping store: QFC Broadway");
     });
 
     it("forwards DELIVERY modality to the cart API body", async () => {
@@ -676,7 +676,7 @@ describe("add_shopping_list_to_cart tool", () => {
         _meta: { "dev.aranlucas/view": "add_shopping_list_to_cart" },
       });
       expect(sc["listId"]).toBeUndefined();
-      expect(textFromResult(result)).toContain("at QFC Broadway");
+      expect(textFromResult(result)).toContain("Shopping store: QFC Broadway");
     });
   });
 

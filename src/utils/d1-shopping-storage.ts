@@ -11,7 +11,7 @@ import type {
   ShoppingListItemPatch,
   StoredShoppingListItem,
 } from "../domain/shopping.js";
-import type { ShoppingStore } from "./shopping-store.js";
+import type { InventoryChanges, ShoppingStore } from "./shopping-store.js";
 
 import {
   equipmentItems,
@@ -119,6 +119,75 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
     return results.at(-1) as TRow[];
   };
 
+  const addPantry = (entries: InventoryChanges["addPantry"]) =>
+    entries.map((item) =>
+      db
+        .insert(pantryItems)
+        .values({
+          userId,
+          nameKey: nameKey(item.productName),
+          productName: item.productName,
+          quantity: item.quantity,
+          addedAt: item.addedAt,
+          expiresAt: item.expiresAt ?? null,
+        })
+        .onConflictDoUpdate({
+          target: [pantryItems.userId, pantryItems.nameKey],
+          set: {
+            quantity: sql`${pantryItems.quantity} + excluded.quantity`,
+            addedAt: item.addedAt,
+            expiresAt: sql`COALESCE(excluded.expires_at, ${pantryItems.expiresAt})`,
+          },
+        }),
+    );
+
+  const consumePantry = (items: InventoryChanges["consumePantry"]) =>
+    items.flatMap((item): BatchItem<"sqlite">[] => {
+      const owned = and(
+        eq(pantryItems.userId, userId),
+        eq(pantryItems.nameKey, nameKey(item.name)),
+      );
+
+      if (item.quantity === undefined) {
+        return [db.delete(pantryItems).where(owned)];
+      }
+
+      return [
+        db
+          .update(pantryItems)
+          .set({ quantity: sql`${pantryItems.quantity} - ${item.quantity}` })
+          .where(owned),
+        db.delete(pantryItems).where(and(owned, sql`${pantryItems.quantity} <= 0`)),
+      ];
+    });
+
+  const addEquipment = (entries: InventoryChanges["addEquipment"]) =>
+    entries.map((item) =>
+      db
+        .insert(equipmentItems)
+        .values({
+          userId,
+          nameKey: nameKey(item.equipmentName),
+          equipmentName: item.equipmentName,
+          category: item.category ?? null,
+          addedAt: item.addedAt,
+        })
+        .onConflictDoUpdate({
+          target: [equipmentItems.userId, equipmentItems.nameKey],
+          set: {
+            category: sql`COALESCE(excluded.category, ${equipmentItems.category})`,
+            addedAt: item.addedAt,
+          },
+        }),
+    );
+
+  const removeEquipment = (entries: InventoryChanges["removeEquipment"]) =>
+    entries.map((name) =>
+      db
+        .delete(equipmentItems)
+        .where(and(eq(equipmentItems.userId, userId), eq(equipmentItems.nameKey, nameKey(name)))),
+    );
+
   const getListRow = (listId: string) =>
     db
       .select()
@@ -181,6 +250,25 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
   };
 
   return {
+    updateInventory: async (changes) => {
+      const writes = [
+        ...addPantry(changes.addPantry),
+        ...consumePantry(changes.consumePantry),
+        ...addEquipment(changes.addEquipment),
+        ...removeEquipment(changes.removeEquipment),
+      ];
+
+      // D1 commits the changes and reads both snapshots in one transaction.
+      const statements = [...writes, selectPantry(), selectEquipment()];
+      // SAFETY: both snapshot queries are always present.
+      const results = await db.batch(statements as NonEmptyBatch);
+
+      // SAFETY: the last two statements select pantry and equipment rows in that order.
+      return {
+        pantry: toPantryItems(results.at(-2) as (typeof pantryItems.$inferSelect)[]),
+        equipment: toEquipmentItems(results.at(-1) as (typeof equipmentItems.$inferSelect)[]),
+      };
+    },
     preferredLocation: {
       get: async () => {
         const row = await db
@@ -231,26 +319,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
       add: async (items) => {
         const entries = Array.isArray(items) ? items : [items];
 
-        const writes = entries.map((item) =>
-          db
-            .insert(pantryItems)
-            .values({
-              userId,
-              nameKey: nameKey(item.productName),
-              productName: item.productName,
-              quantity: item.quantity,
-              addedAt: item.addedAt,
-              expiresAt: item.expiresAt ?? null,
-            })
-            .onConflictDoUpdate({
-              target: [pantryItems.userId, pantryItems.nameKey],
-              set: {
-                quantity: sql`${pantryItems.quantity} + excluded.quantity`,
-                addedAt: item.addedAt,
-                expiresAt: sql`COALESCE(excluded.expires_at, ${pantryItems.expiresAt})`,
-              },
-            }),
-        );
+        const writes = addPantry(entries);
 
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
@@ -264,24 +333,7 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
       consume: async (items) => {
-        const writes = items.flatMap((item): BatchItem<"sqlite">[] => {
-          const owned = and(
-            eq(pantryItems.userId, userId),
-            eq(pantryItems.nameKey, nameKey(item.name)),
-          );
-
-          if (item.quantity === undefined) {
-            return [db.delete(pantryItems).where(owned)];
-          }
-
-          return [
-            db
-              .update(pantryItems)
-              .set({ quantity: sql`${pantryItems.quantity} - ${item.quantity}` })
-              .where(owned),
-            db.delete(pantryItems).where(and(owned, sql`${pantryItems.quantity} <= 0`)),
-          ];
-        });
+        const writes = consumePantry(items);
 
         return toPantryItems(await writeThenRead(writes, selectPantry()));
       },
@@ -303,35 +355,12 @@ export function createD1ShoppingStore(binding: D1Database, userId: string): Shop
       add: async (items) => {
         const entries = Array.isArray(items) ? items : [items];
 
-        const writes = entries.map((item) =>
-          db
-            .insert(equipmentItems)
-            .values({
-              userId,
-              nameKey: nameKey(item.equipmentName),
-              equipmentName: item.equipmentName,
-              category: item.category ?? null,
-              addedAt: item.addedAt,
-            })
-            .onConflictDoUpdate({
-              target: [equipmentItems.userId, equipmentItems.nameKey],
-              set: {
-                category: sql`COALESCE(excluded.category, ${equipmentItems.category})`,
-                addedAt: item.addedAt,
-              },
-            }),
-        );
+        const writes = addEquipment(entries);
 
         return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
       remove: async (names) => {
-        const writes = (Array.isArray(names) ? names : [names]).map((name) =>
-          db
-            .delete(equipmentItems)
-            .where(
-              and(eq(equipmentItems.userId, userId), eq(equipmentItems.nameKey, nameKey(name))),
-            ),
-        );
+        const writes = removeEquipment(Array.isArray(names) ? names : [names]);
 
         return toEquipmentItems(await writeThenRead(writes, selectEquipment()));
       },
